@@ -41,6 +41,15 @@ func newBrowserUploadCmd(cfg *globalConfig) *cobra.Command {
 			if len(args) < 2 {
 				return errInvalidInput("usage: browser upload <selector> <file>... (or --hil <id>)")
 			}
+			scope, err := applyScope(cfg)
+			if err != nil {
+				return err
+			}
+			if scope != nil {
+				if err := scope.CheckUpload(args[1:]); err != nil {
+					return scopeError(err)
+				}
+			}
 			files, err := browserctl.ReadUploadFiles(args[1:])
 			if err != nil {
 				return errInvalidInput("%v", err)
@@ -124,6 +133,17 @@ func runApprovedUpload(cmd *cobra.Command, cfg *globalConfig, hilID string) erro
 			return giveBack(err)
 		}
 		return browserErr(cmd, cfg, err)
+	}
+	if scope, err := applyScope(cfg); err != nil {
+		return giveBack(err)
+	} else if scope != nil {
+		var paths []string
+		for _, f := range files {
+			paths = append(paths, f.Path)
+		}
+		if err := scope.CheckUpload(paths); err != nil {
+			return giveBack(scopeError(err))
+		}
 	}
 	n, err := s.Upload(sel, chooser, files)
 	_ = browserctl.FinishSubmitItem(ctx, db.DB, cfg.ProfileID, it.ID, err)

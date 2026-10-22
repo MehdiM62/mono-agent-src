@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -41,6 +42,10 @@ func newBrowserScreenshotCmd(cfg *globalConfig) *cobra.Command {
 			if err != nil {
 				return errInvalidInput("%v", err)
 			}
+			scope, err := applyScope(cfg)
+			if err != nil {
+				return err
+			}
 			r, err := openBrowser(cmd, cfg, false)
 			if err != nil {
 				return err
@@ -65,6 +70,11 @@ func newBrowserScreenshotCmd(cfg *globalConfig) *cobra.Command {
 				var err error
 				if shot, err = r.s.Screenshot(opts); err != nil {
 					return err
+				}
+				if scope != nil {
+					if err := scope.CheckWrite(screenshotTarget(out)); err != nil {
+						return scopeError(err)
+					}
 				}
 				path, err = browserctl.WriteScreenshot("", out, shot)
 				return err
@@ -281,4 +291,17 @@ func pickSelector(fp *recording.Fingerprint) string {
 		}
 	}
 	return fp.CSS
+}
+
+// screenshotTarget is where WriteScreenshot("", out, …) writes, or the folder
+// it writes into when out is empty, as a path to check.
+func screenshotTarget(out string) string {
+	wd, _ := os.Getwd()
+	switch {
+	case out == "":
+		return browserctl.ScreenshotsDir(wd)
+	case filepath.IsAbs(out):
+		return out
+	}
+	return filepath.Join(wd, out)
 }

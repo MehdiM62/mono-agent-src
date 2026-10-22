@@ -35,6 +35,7 @@ const confinedRuntime = "claude"
 
 // confinement is how an apply turn is restricted.
 type confinement struct {
+	taskID       string // the AI task: its apply token names it for the browser verbs
 	workDir      string // the agent's cwd
 	contextDir   string // the read-only snapshot of the task's context
 	bashPrefixes []string
@@ -87,7 +88,7 @@ func confineApplyTurn(cfg *Deps, taskID string) (*confinement, error) {
 		return nil, &coderError{code: "context_snapshot_failed", err: &clicore.Error{Code: 1,
 			Msg: fmt.Sprintf("task %s was not run: %v", taskID, err)}}
 	}
-	return &confinement{workDir: workDirFor(dir), contextDir: dir, bashPrefixes: applyBashPrefixes(cfg.ProfileID())}, nil
+	return &confinement{taskID: taskID, workDir: workDirFor(dir), contextDir: dir, bashPrefixes: applyBashPrefixes(cfg.ProfileID())}, nil
 }
 
 // check refuses a runtime that cannot enforce the confinement.

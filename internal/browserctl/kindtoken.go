@@ -33,6 +33,9 @@ type kindRecord struct {
 	PID     int       `json:"pid"`
 	Start   string    `json:"start"`
 	Created time.Time `json:"created"`
+	// Task is the AI task an apply-kind record belongs to (IssueApplyKind):
+	// the one thing the browser verbs derive the task's folders from.
+	Task string `json:"task,omitempty"`
 }
 
 // recordFor is the record vouching for kind while process pid runs.
@@ -62,6 +65,17 @@ func KindTokenDir() (string, error) {
 // record can't be written, env has no token (the agents run as kind other)
 // and bind does nothing; any other kind gives no env.
 func IssueAgentKind(kind string) (env []string, bind func(pid int), done func()) {
+	return issueKind(kind, "")
+}
+
+// IssueApplyKind is IssueAgentKind for the apply kind of AI task taskID: the
+// record also names the task, which ApplyTaskID reads back for the browser
+// verbs (an env var an agent could rewrite never carries it).
+func IssueApplyKind(taskID string) (env []string, bind func(pid int), done func()) {
+	return issueKind(KindApply, taskID)
+}
+
+func issueKind(kind, task string) (env []string, bind func(pid int), done func()) {
 	bind, done = func(int) {}, func() {}
 	if kind != KindCoder && kind != KindApply && kind != KindOrg {
 		return nil, bind, done
@@ -79,12 +93,17 @@ func IssueAgentKind(kind string) (env []string, bind func(pid int), done func())
 	token := hex.EncodeToString(b[:])
 	path := filepath.Join(dir, token+".json")
 	created := time.Now().UTC()
-	if writeKindRecordFile(dir, path, recordFor(kind, os.Getpid(), created)) != nil {
+	rec := func(pid int) kindRecord {
+		r := recordFor(kind, pid, created)
+		r.Task = task
+		return r
+	}
+	if writeKindRecordFile(dir, path, rec(os.Getpid())) != nil {
 		return env, bind, done
 	}
 	bind = func(pid int) {
 		if pid > 0 {
-			_ = writeKindRecordFile(dir, path, recordFor(kind, pid, created))
+			_ = writeKindRecordFile(dir, path, rec(pid))
 		}
 	}
 	return append(env, EnvAgentKindToken+"="+token), bind, func() { _ = os.Remove(path) }
@@ -117,16 +136,34 @@ func writeKindRecordFile(dir, path string, rec kindRecord) error {
 // kindVouched reports whether this process's MONOAGENT_AGENT_KIND_TOKEN
 // names a live record for kind.
 func kindVouched(kind string) bool {
+	_, ok := vouchedRecord(kind)
+	return ok
+}
+
+// ApplyTaskID is the AI task the apply-kind token of this process names: ""
+// unless the process is the apply kind (vouched) and the record names a task.
+func ApplyTaskID() string {
+	if AgentKind() != KindApply {
+		return ""
+	}
+	rec, ok := vouchedRecord(KindApply)
+	if !ok {
+		return ""
+	}
+	return rec.Task
+}
+
+func vouchedRecord(kind string) (kindRecord, bool) {
 	token := strings.TrimSpace(os.Getenv(EnvAgentKindToken))
 	if !validToken(token) {
-		return false
+		return kindRecord{}, false
 	}
 	dir, err := KindTokenDir()
 	if err != nil {
-		return false
+		return kindRecord{}, false
 	}
 	rec, ok := readKindRecord(filepath.Join(dir, token+".json"))
-	return ok && rec.Kind == kind && rec.live()
+	return rec, ok && rec.Kind == kind && rec.live()
 }
 
 // live: the record is younger than kindTokenMaxAge, and the process it
