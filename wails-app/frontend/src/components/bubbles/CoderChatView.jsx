@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useState } from 'react'
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ArrowDown, Loader } from 'lucide-react'
 import { api, notify } from '../../services/api.js'
@@ -8,10 +8,10 @@ import { ChatComposer } from '../chat/ChatComposer.jsx'
 import { MessageAttachments, WorkspaceImageContext } from '../chat/ChatAttachments.jsx'
 import { takeFiles, MAX_ATTACHMENTS } from '../chat/chatAttachments.js'
 import { useChatScroll } from '../chat/useChatScroll.js'
-import { CoderModePicker } from '../chat/CoderModePicker.jsx'
 import { CoderInitNote } from '../chat/CoderHeader.jsx'
-import { useCoderStatus, useRecentWorkspaces, useCoderRuntimeChoice, coderRuntimes, coderReady, fidelityNote, missingText } from '../chat/useCoderMode.js'
-import { runtimeLabel } from '../../lib/runtimeLabels.js'
+import { ChatSetup, BlockedReason } from './ChatSetup.jsx'
+import { useChatSetup } from './useChatSetup.js'
+import { isCoderAccess } from '../../lib/chatAccess.js'
 import { MessageBubble } from '../chat/messageBubble.jsx'
 import { AskCard } from './AskCard.jsx'
 import { useHilAsks } from './useHilAsks.js'
@@ -20,104 +20,16 @@ import AgentSetupLink from '../AgentSetupLink.jsx'
 import '../chat/chat.css'
 
 const mono = 'var(--font-mono)'
-// Box style for the loading placeholder in the selector row. The
-// <select>s themselves use the global `select` rule plus `.select-compact`
-// (index.css); inline chrome here would override it.
-const placeholderStyle = {
-  background: '#020509', border: '1px solid rgba(0,180,216,0.15)', borderRadius: 6,
-  padding: '4px 8px', color: '#e2e8f0', fontFamily: mono, fontSize: 10, minWidth: 0,
-}
-
-// CoderSetup is a new coder bubble's choices before its first message: the
-// folder (coder root, a picked folder, or a recent one), the runtime, the
-// model and the effort. The runtimes offered are the ones `coder status`
-// reports ready (useCoderRuntimeChoice); the models are the chosen
-// runtime's own.
-function CoderSetup({ status, setup, onChange, onNavigate }) {
-  const { t } = useTranslation()
-  const [models, setModels] = useState(null)
-  const recent = useRecentWorkspaces(!!status?.enabled)
-  const setRuntime = useCallback(id => onChange({ runtime: id, model: '', effort: '' }), [onChange])
-  const choice = useCoderRuntimeChoice({
-    active: !!status?.enabled, status, runtimes: coderRuntimes(status), selectedRuntime: setup.runtime, setSelectedRuntime: setRuntime,
-  })
-  const runtime = choice.readyIds.includes(setup.runtime) ? setup.runtime : ''
-  useEffect(() => {
-    if (!runtime) return
-    let current = true
-    setModels(null)
-    Promise.resolve().then(() => api.getAgentRuntimeModels(runtime, '')).then(list => {
-      if (!current) return
-      const items = Array.isArray(list) ? list : []
-      setModels(items)
-      if (!setup.model && items.length) onChange({ model: items[0].id })
-    }).catch(() => { if (current) setModels([]) })
-    return () => { current = false }
-    // Loaded once per runtime; onChange/setup.model only seed the default.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [runtime])
-
-  if (!status) {
-    return <div style={{ padding: 16, fontFamily: mono, fontSize: 10, color: 'var(--text-muted)' }}>{t('bubbles.loading')}</div>
-  }
-  if (!status.enabled) {
-    return (
-      <div data-testid="coder-disabled" style={{ padding: 16, fontFamily: mono, fontSize: 10.5, color: '#fbbf24', lineHeight: 1.6 }}>
-        {t('bubbles.coderOff')}{' '}
-        <button type="button" onClick={() => onNavigate?.('settings')} className="btn btn-ghost btn-sm" style={{ fontSize: 10 }}>
-          {t('bubbles.openSettings')}
-        </button>
-      </div>
-    )
-  }
-  if (!coderReady(status)) {
-    return <div style={{ padding: 16, fontFamily: mono, fontSize: 10.5, color: '#fbbf24' }}>{t('bubbles.coderNotReady', { why: missingText(status) })}</div>
-  }
-  const model = (models || []).find(m => m.id === setup.model)
-  const efforts = choice.info?.effort !== false && Array.isArray(model?.effort_levels) ? model.effort_levels : []
-  const note = fidelityNote(choice.info)
-  const pickFolder = async () => {
-    const dir = await Promise.resolve(api.pickCoderFolder()).catch(() => '')
-    if (dir) onChange({ workspace: { kind: 'folder', path: dir } })
-  }
-  return (
-    <div data-testid="coder-setup">
-      <CoderModePicker status={status} mode="coder" onModeChange={() => {}} workspaceOnly
-        workspace={setup.workspace} onWorkspaceChange={workspace => onChange({ workspace })}
-        recent={recent} onPickFolder={pickFolder} runtimeId={runtime} />
-      <div style={{ display: 'flex', gap: 6, padding: '8px 12px', borderBottom: '1px solid rgba(0,180,216,0.06)' }}>
-        <select aria-label={t('bubbles.runtime')} value={runtime} onChange={e => setRuntime(e.target.value)} className="select-compact" style={{ minWidth: 90 }}>
-          {choice.options.map(r => <option key={r.id} value={r.id}>{runtimeLabel(r.id)}</option>)}
-        </select>
-        {models === null ? (
-          <span style={{ ...placeholderStyle, flex: 1, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Loader size={11} className="chat-spin" /> {t('bubbles.loadingModels')}
-          </span>
-        ) : (
-          <select aria-label={t('bubbles.model')} value={setup.model} onChange={e => onChange({ model: e.target.value, effort: '' })} className="select-compact" style={{ flex: 1, minWidth: 0 }}>
-            {models.map(m => <option key={m.id} value={m.id}>{m.label || m.id}</option>)}
-          </select>
-        )}
-        {efforts.length > 0 && (
-          <select aria-label={t('bubbles.effort')} value={setup.effort} onChange={e => onChange({ effort: e.target.value })} className="select-compact" style={{ minWidth: 72 }}>
-            <option value="">{t('bubbles.effortAuto')}</option>
-            {efforts.map(eff => <option key={eff} value={eff}>{eff}</option>)}
-          </select>
-        )}
-      </div>
-      {note && (
-        <div style={{ padding: '0 12px 8px', fontFamily: mono, fontSize: 9, color: 'var(--text-muted)' }}>{note}</div>
-      )}
-    </div>
-  )
-}
+const srOnly = { position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0,0,0,0)', whiteSpace: 'nowrap', border: 0 }
 
 // CoderChatView is the chat half of an expanded coder bubble: the
 // transcript, the live turn and the composer. conv is useCoderConversation's
 // result; draft/onDraftChange keep the unsent text across collapses.
-export function CoderChatView({ conv, isDraft, setup, onSetupChange, draft, onDraftChange, initialScrollTop, onScroll, onNavigate, agentFilter = null, agentFilterTurnId = '', agentFilterName = '', onClearAgentFilter }) {
+export function CoderChatView({ conv, isDraft, access, setup, onSetupChange, draft, onDraftChange, initialScrollTop, onScroll, onNavigate, agentFilter = null, agentFilterTurnId = '', agentFilterName = '', onClearAgentFilter }) {
   const { t } = useTranslation()
-  const { status } = useCoderStatus(isDraft)
+  const setupState = useChatSetup(isDraft, setup, onSetupChange)
+  // The level this chat runs at: the draft's resolved pick, then the bubble's.
+  const level = isDraft ? setupState.access : access
   // Sends and workflow approvals this chat's agents prepared wait here, in
   // the same card the org bubble uses.
   const hil = useHilAsks({ conversationId: conv.conversationId || '' }, !!conv.conversationId)
@@ -154,7 +66,19 @@ export function CoderChatView({ conv, isDraft, setup, onSetupChange, draft, onDr
     }
   }, [draft, attachments, conv, onDraftChange])
 
-  const blocked = isDraft && (!status?.enabled || !coderReady(status) || !setup.runtime || !setup.model)
+  const blocked = isDraft && setupState.state !== 'ready'
+  const reason = blocked ? <BlockedReason setup={setupState} onNavigate={onNavigate} compact /> : ''
+
+  // What a screen reader hears: a finished turn, a notice, and the composer's
+  // reason changing (the banner changes as the runtime scan settles).
+  const [reasonSpoken, setReasonSpoken] = useState('')
+  const lastState = useRef(setupState.state)
+  useEffect(() => {
+    if (!isDraft || setupState.state === lastState.current) return
+    lastState.current = setupState.state
+    setReasonSpoken(setupState.state === 'ready' ? t('bubbles.pane.canSend') : t(`bubbles.pane.state.${setupState.state}`))
+  }, [isDraft, setupState.state, t])
+  const announcement = conv.announcement || reasonSpoken
   const empty = conv.messages.length === 0 && !conv.streaming
 
   return (
@@ -166,7 +90,8 @@ export function CoderChatView({ conv, isDraft, setup, onSetupChange, draft, onDr
           <button type="button" className="btn btn-ghost btn-sm" onClick={onClearAgentFilter} style={{ fontSize: 10 }}>{t('stage.filterClear')}</button>
         </div>
       )}
-      {isDraft && empty && <CoderSetup status={status} setup={setup} onChange={onSetupChange} onNavigate={onNavigate} />}
+      <div role="status" aria-live="polite" aria-label={t('bubbles.pane.announcements')} style={srOnly}>{announcement}</div>
+      {isDraft && empty && <ChatSetup s={setupState} setup={setup} onChange={onSetupChange} onNavigate={onNavigate} />}
       <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
         <div ref={scroll.containerRef} onScroll={e => onScroll?.(e.currentTarget.scrollTop)} data-testid="bubble-transcript"
           style={{ height: '100%', overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column' }}>
@@ -219,8 +144,8 @@ export function CoderChatView({ conv, isDraft, setup, onSetupChange, draft, onDr
       </div>
       <ChatComposer value={draft} onChange={onDraftChange} onSend={send} onStop={conv.stop}
         streaming={conv.streaming} disabled={blocked || conv.loading}
-        disabledReason={blocked ? t('bubbles.setupFirst') : ''}
-        attachments={attachments} onAttach={attach} onRemoveAttachment={removeAttachment} />
+        disabledReason={reason}
+        attachments={attachments} onAttach={isCoderAccess(level) ? attach : undefined} onRemoveAttachment={removeAttachment} />
     </div>
   )
 }

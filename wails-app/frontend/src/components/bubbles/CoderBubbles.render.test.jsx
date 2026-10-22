@@ -5,8 +5,9 @@ import '@testing-library/jest-dom/vitest'
 import { render, renderHook, screen, fireEvent, waitFor, cleanup, act, within } from '@testing-library/react'
 import '../../i18n.js'
 
-const { api, listeners, mockConfirm } = vi.hoisted(() => ({
+const { api, chatAccess, listeners, mockConfirm } = vi.hoisted(() => ({
   listeners: { chat: new Set() },
+  chatAccess: { create: vi.fn(), setAccess: vi.fn() },
   mockConfirm: vi.fn(),
   api: {
     getChatTurns: vi.fn(),
@@ -31,6 +32,7 @@ vi.mock('../../services/api.js', () => ({
   onOrgRunStatus: () => () => {},
   newOrgEventsStreamId: () => 'stream',
 }))
+vi.mock('../../lib/chatAccessApi.js', () => ({ chatAccessApi: chatAccess }))
 vi.mock('../ConfirmDialog.jsx', () => ({ confirm: (...a) => mockConfirm(...a) }))
 
 import { readFileSync } from 'node:fs'
@@ -58,7 +60,7 @@ beforeEach(() => {
   localStorage.clear()
   api.getChatTurns.mockResolvedValue({ items: [] })
   api.getChatEvents.mockResolvedValue({ items: [], hasMore: false })
-  api.coderStatus.mockResolvedValue({ enabled: true, ready: true, workspaceRoot: '/home/u/monoagent-coder' })
+  api.coderStatus.mockResolvedValue({ enabled: true, ready: true, defaultAccess: 'full', workspaceRoot: '/home/u/monoagent-coder' })
   api.coderWorkspaceList.mockResolvedValue([])
   api.getAgentRuntimeModels.mockResolvedValue([{ id: 'opus', label: 'Opus 5.5', effort_levels: ['low', 'high'] }])
   api.startChatTurn.mockResolvedValue({ ok: true })
@@ -182,16 +184,16 @@ describe('coder bubbles', () => {
 
   it('starts a new coder chat from +, creates the conversation on the first message and keeps the bubble', async () => {
     api.coderWorkspaceDefault.mockResolvedValue({ path: '/home/u/monoagent-coder', created: false })
-    api.createCoderConversation.mockResolvedValue({ id: 'c9', cwd: '/home/u/monoagent-coder', model: 'opus' })
+    chatAccess.create.mockResolvedValue({ id: 'c9', cwd: '/home/u/monoagent-coder', model: 'opus', access: 'full' })
     render(<Harness />)
     fireEvent.click(await screen.findByLabelText('New coder chat'))
-    await waitFor(() => expect(screen.getByTestId('coder-setup')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByTestId('chat-setup')).toBeInTheDocument())
     await waitFor(() => expect(screen.getByLabelText('Model')).toHaveValue('opus'))
     const box = within(overlay()).getByPlaceholderText('Type a message...')
     fireEvent.change(box, { target: { value: 'add a README' } })
     fireEvent.change(screen.getByLabelText('Effort'), { target: { value: 'high' } })
     fireEvent.keyDown(box, { key: 'Enter' })
-    await waitFor(() => expect(api.createCoderConversation).toHaveBeenCalledWith('claude', 'opus', 'high', '/home/u/monoagent-coder', false))
+    await waitFor(() => expect(chatAccess.create).toHaveBeenCalledWith('general', 'claude', 'opus', 'high', 'full', '/home/u/monoagent-coder'))
     expect(api.coderWorkspaceDefault).toHaveBeenCalledWith('claude')
     await waitFor(() => expect(api.startChatTurn).toHaveBeenCalledWith('c9', expect.any(String), 'add a README', false, false))
     await waitFor(() => expect(store.bubbles[0].conversationId).toBe('c9'))
@@ -200,7 +202,7 @@ describe('coder bubbles', () => {
 
   it('offers the ready coder runtimes and creates the chat on the one picked, with its model and effort', async () => {
     api.coderStatus.mockResolvedValue({
-      enabled: true, ready: true,
+      enabled: true, ready: true, defaultAccess: 'full',
       runtimes: [
         { id: 'claude', ready: true, effort: true, toolActivity: 'full' },
         { id: 'codex', ready: true, effort: true, toolActivity: 'commands' },
@@ -211,7 +213,7 @@ describe('coder bubbles', () => {
       ? [{ id: 'gpt-5', label: 'GPT-5', effort_levels: ['low', 'medium'] }]
       : [{ id: 'opus', label: 'Opus 5.5', effort_levels: ['low', 'high'] }]))
     api.coderWorkspaceDefault.mockResolvedValue({ path: '/home/u/monoagent-coder', created: true })
-    api.createCoderConversation.mockResolvedValue({ id: 'c9', cwd: '/home/u/monoagent-coder', model: 'gpt-5', runtimeId: 'codex' })
+    chatAccess.create.mockResolvedValue({ id: 'c9', cwd: '/home/u/monoagent-coder', model: 'gpt-5', runtimeId: 'codex', access: 'full' })
     render(<Harness />)
     fireEvent.click(await screen.findByLabelText('New coder chat'))
     const runtime = await screen.findByLabelText('Runtime')
@@ -227,7 +229,7 @@ describe('coder bubbles', () => {
     const box = within(overlay()).getByPlaceholderText('Type a message...')
     fireEvent.change(box, { target: { value: 'port it' } })
     fireEvent.keyDown(box, { key: 'Enter' })
-    await waitFor(() => expect(api.createCoderConversation).toHaveBeenCalledWith('codex', 'gpt-5', 'medium', '/home/u/monoagent-coder', false))
+    await waitFor(() => expect(chatAccess.create).toHaveBeenCalledWith('general', 'codex', 'gpt-5', 'medium', 'full', '/home/u/monoagent-coder'))
     expect(api.coderWorkspaceDefault).toHaveBeenCalledWith('codex')
     await waitFor(() => expect(store.bubbles[0].runtime).toBe('codex'))
   })
@@ -262,12 +264,10 @@ describe('coder bubbles', () => {
     await waitFor(() => expect(within(overlay()).getByPlaceholderText('Type a message...')).toHaveValue('half a thought'))
   })
 
-  it('hides + when coder mode is off and nothing is open', async () => {
+  it('still offers + when coder mode is off: a scoped chat needs no coder', async () => {
     api.coderStatus.mockResolvedValue({ enabled: false })
     render(<Harness />)
-    await waitFor(() => expect(api.coderStatus).toHaveBeenCalled())
-    expect(screen.queryByLabelText('New coder chat')).toBeNull()
-    expect(screen.queryByTestId('bubble-dock')).toBeNull()
+    expect(await screen.findByLabelText('New coder chat')).toBeInTheDocument()
   })
 
   it('restores bubbles from a previous session', async () => {
