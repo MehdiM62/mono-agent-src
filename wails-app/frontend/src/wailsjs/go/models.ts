@@ -37,6 +37,52 @@ export namespace connections {
 
 export namespace main {
 	
+	export class AITask {
+	    taskId: string;
+	    kind: string;
+	    conversationId: string;
+	    status: string;
+	    goal: string;
+	    createdAt: string;
+	    updatedAt: string;
+	    applicationId: string;
+	    error: string;
+	    fallback: string;
+	    reason: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AITask(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.taskId = source["taskId"];
+	        this.kind = source["kind"];
+	        this.conversationId = source["conversationId"];
+	        this.status = source["status"];
+	        this.goal = source["goal"];
+	        this.createdAt = source["createdAt"];
+	        this.updatedAt = source["updatedAt"];
+	        this.applicationId = source["applicationId"];
+	        this.error = source["error"];
+	        this.fallback = source["fallback"];
+	        this.reason = source["reason"];
+	    }
+	}
+	export class AITaskState {
+	    enabled: boolean;
+	    reason: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AITaskState(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.enabled = source["enabled"];
+	        this.reason = source["reason"];
+	    }
+	}
 	export class APIAuto {
 	    available: boolean;
 	    missing?: string;
