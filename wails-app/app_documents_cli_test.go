@@ -69,3 +69,40 @@ func TestGetProfileDocumentNotFound(t *testing.T) {
 		t.Fatal("GetCaptureView hid the CLI failure")
 	}
 }
+
+// Removing, listing and restoring excluded documents all go through the CLI,
+// and the file is only deleted when the caller asks for it.
+func TestRemoveAndRestoreDocumentBindingsShellOut(t *testing.T) {
+	log := filepath.Join(t.TempDir(), "args.log")
+	t.Setenv("MONOAGENTCLI_BIN", fakeCLI(t, `echo "$*" >> '`+log+`'
+case "$*" in
+  *"documents excluded"*) echo '[{"path":"/p/work/cv.md","relative_path":"cv.md","filename":"cv.md","excluded_at":"t"}]' ;;
+esac
+`))
+	a := newTestApp(t)
+	a.ctx = context.Background()
+	a.selectForTest("work")
+
+	if err := a.RemoveProfileDocument("doc-1", false); err != nil {
+		t.Fatal(err)
+	}
+	if err := a.RemoveProfileDocument("doc-2", true); err != nil {
+		t.Fatal(err)
+	}
+	ex, err := a.ListExcludedDocuments()
+	if err != nil || len(ex) != 1 || ex[0].RelativePath != "cv.md" {
+		t.Fatalf("ListExcludedDocuments = %+v, %v", ex, err)
+	}
+	if err := a.RestoreExcludedDocument("cv.md"); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		"--profile work --json profile documents remove doc-1",
+		"--profile work --json profile documents remove doc-2 --delete-file",
+		"--profile work --json profile documents excluded",
+		"--profile work --json profile documents restore cv.md",
+	}
+	if got := loggedArgs(t, log); strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("CLI calls:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+}

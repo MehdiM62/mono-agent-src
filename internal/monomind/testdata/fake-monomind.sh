@@ -171,6 +171,14 @@ if [ "$1" = "mcp" ] && [ "$2" = "exec" ]; then
       echo '{"tool":"knowledge_ingest","result":{"content":[{"type":"text","text":"{\"success\":true,\"filePath\":\"/fake/path\",\"chunksIndexed\":3}"}]},"duration":1.0}'
       exit 0
       ;;
+    knowledge_remove)
+      if [ "$REMOVE_FAIL" = "1" ]; then
+        echo '{"tool":"knowledge_remove","result":{"content":[{"type":"text","text":"{\"success\":false,\"error\":\"not indexed\"}"}],"isError":true},"duration":1.0}'
+        exit 0
+      fi
+      echo '{"tool":"knowledge_remove","result":{"content":[{"type":"text","text":"{\"success\":true}"}]},"duration":1.0}'
+      exit 0
+      ;;
     knowledge_search)
       case "$params" in
         *'"scope":"profile:'*)
