@@ -1,8 +1,12 @@
+// @vitest-environment jsdom
+import { vi } from 'vitest'
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { newTurnId } from './turnIds.js'
 import { composeLiveAnnouncement } from './liveAnnouncement.js'
 import { MessageBubble } from './messageBubble.jsx'
+
+vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: k => k }) }))
 
 // The three pieces the bubbles share, imported from chat/ (not from the
 // assistant panel they came out of).
