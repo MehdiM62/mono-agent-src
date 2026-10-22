@@ -33,12 +33,15 @@ const (
 	LinkTask     LinkKind = "task"
 	LinkDocument LinkKind = "document"
 	LinkCapture  LinkKind = "capture"
+	LinkHIL      LinkKind = "hil"
+	// LinkConversation is the application's coder task chat; at most one per application.
+	LinkConversation LinkKind = "conversation"
 )
 
-// ValidLinkKind reports whether k is one of the five link kinds.
+// ValidLinkKind reports whether k is one of the link kinds.
 func ValidLinkKind(k LinkKind) bool {
 	switch k {
-	case LinkPerson, LinkMessage, LinkTask, LinkDocument, LinkCapture:
+	case LinkPerson, LinkMessage, LinkTask, LinkDocument, LinkCapture, LinkHIL, LinkConversation:
 		return true
 	}
 	return false
@@ -121,9 +124,17 @@ func (s *Store) AddLink(ctx context.Context, profileID, id string, kind LinkKind
 	if err := s.requireApplication(ctx, profileID, id); err != nil {
 		return err
 	}
+	if kind == LinkConversation {
+		var other string
+		err := s.db.QueryRowContext(ctx,
+			`SELECT ref_id FROM application_links WHERE application_id = ? AND kind = 'conversation'`, id).Scan(&other)
+		if err == nil && other != refID {
+			return fmt.Errorf("%w: application already has a conversation link", ErrInvalidInput)
+		}
+	}
 	_, err := s.db.ExecContext(ctx,
-		`INSERT OR IGNORE INTO application_links (application_id, kind, ref_id, created_at) VALUES (?, ?, ?, ?)`,
-		id, string(kind), refID, time.Now().UTC().Format(time.RFC3339))
+		`INSERT OR IGNORE INTO application_links (application_id, kind, ref_id, profile_id, source, created_at) VALUES (?, ?, ?, ?, 'cli', ?)`,
+		id, string(kind), refID, profileID, time.Now().UTC().Format(time.RFC3339))
 	if err != nil {
 		return fmt.Errorf("applications.AddLink: %w", err)
 	}
@@ -156,8 +167,8 @@ func (s *Store) ListLinks(ctx context.Context, profileID, id string, kind LinkKi
 		return nil, err
 	}
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT kind, ref_id FROM application_links WHERE application_id = ? AND (? = '' OR kind = ?)
-		 ORDER BY created_at, rowid`, id, string(kind), string(kind))
+		`SELECT kind, ref_id FROM application_links WHERE application_id = ? AND profile_id = ? AND (? = '' OR kind = ?)
+		 ORDER BY created_at, rowid`, id, profileID, string(kind), string(kind))
 	if err != nil {
 		return nil, fmt.Errorf("applications.ListLinks: %w", err)
 	}

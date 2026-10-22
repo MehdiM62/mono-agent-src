@@ -21,7 +21,11 @@ func TestStoreAwaitingSubmitAndNeedsYouTransitions(t *testing.T) {
 		applications.StatusApplied, applications.StatusRejected,
 	}
 	for _, to := range steps {
-		if err := store.SetStatus(ctx, "default", app.ID, to, applications.ActorSystem, "step"); err != nil {
+		actor := applications.ActorSystem
+		if to == applications.StatusApplied || to == applications.StatusRejected {
+			actor = applications.ActorUser
+		}
+		if err := store.SetStatus(ctx, "default", app.ID, to, actor, "step"); err != nil {
 			t.Fatalf("-> %s: %v", to, err)
 		}
 	}
@@ -39,6 +43,38 @@ func TestStoreAwaitingSubmitAndNeedsYouTransitions(t *testing.T) {
 	}
 	if err := store.SetStatus(ctx, "default", other.ID, applications.StatusRejected, applications.ActorUser, ""); !errors.Is(err, applications.ErrInvalidTransition) {
 		t.Fatalf("awaiting_submit -> rejected = %v, want ErrInvalidTransition", err)
+	}
+	if err := store.SetStatus(ctx, "default", other.ID, applications.StatusApplied, applications.ActorSystem, ""); !errors.Is(err, applications.ErrInvalidTransition) {
+		t.Fatalf("system -> applied = %v, want ErrInvalidTransition", err)
+	}
+	third := createTestJob(t, store)
+	store.SetStatus(ctx, "default", third.ID, applications.StatusNeedsYou, applications.ActorSystem, "")
+	for _, to := range []applications.Status{applications.StatusApplied, applications.StatusPending} {
+		if err := store.SetStatus(ctx, "default", third.ID, to, applications.ActorUser, ""); !errors.Is(err, applications.ErrInvalidTransition) {
+			t.Fatalf("needs_you -> %s = %v, want ErrInvalidTransition", to, err)
+		}
+	}
+}
+
+func TestConversationLinkIsOnePerApplication(t *testing.T) {
+	db := newTestDB(t)
+	store := applications.NewStore(db.DB)
+	ctx := context.Background()
+	app := createTestJob(t, store)
+	if err := store.AddLink(ctx, "default", app.ID, applications.LinkConversation, "c1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.AddLink(ctx, "default", app.ID, applications.LinkConversation, "c1"); err != nil {
+		t.Fatalf("same conversation again: %v", err)
+	}
+	if err := store.AddLink(ctx, "default", app.ID, applications.LinkConversation, "c2"); !errors.Is(err, applications.ErrInvalidInput) {
+		t.Fatalf("second conversation = %v", err)
+	}
+	if err := store.AddLink(ctx, "default", app.ID, applications.LinkHIL, "h1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.DB.Exec(`INSERT INTO application_links (application_id, kind, ref_id, profile_id, created_at) VALUES (?, 'conversation', 'c3', 'default', 'x')`, app.ID); err == nil {
+		t.Fatal("partial unique index did not stop a second conversation row")
 	}
 }
 

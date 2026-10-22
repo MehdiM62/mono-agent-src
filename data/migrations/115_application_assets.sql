@@ -26,11 +26,21 @@ CREATE INDEX IF NOT EXISTS idx_applications_status  ON applications(status);
 
 CREATE TABLE IF NOT EXISTS application_links (
     application_id TEXT NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
-    kind           TEXT NOT NULL CHECK (kind IN ('person', 'message', 'task', 'document', 'capture')),
+    kind           TEXT NOT NULL CHECK (kind IN ('person', 'message', 'task', 'document', 'capture', 'hil', 'conversation')),
     ref_id         TEXT NOT NULL,
+    profile_id     TEXT NOT NULL,
+    source         TEXT NOT NULL DEFAULT 'cli',
     created_at     TEXT NOT NULL,
     PRIMARY KEY (application_id, kind, ref_id)
 );
+-- One open coder task per application.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_application_links_conversation
+    ON application_links(application_id, kind) WHERE kind = 'conversation';
+-- Documents already tied to an application by vault_documents.application_id
+-- (migration 035, which stays) are linked too.
+INSERT OR IGNORE INTO application_links (application_id, kind, ref_id, profile_id, source, created_at)
+    SELECT d.application_id, 'document', d.id, a.profile_id, 'backfill', COALESCE(d.created_at, datetime('now'))
+    FROM vault_documents d JOIN applications a ON a.id = d.application_id AND a.profile_id = d.profile_id;
 
 CREATE TABLE IF NOT EXISTS application_fills (
     application_id  TEXT PRIMARY KEY REFERENCES applications(id) ON DELETE CASCADE,
