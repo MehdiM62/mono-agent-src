@@ -591,7 +591,11 @@ export default function OrgsPanel({ embedded = false, isOpen = true, onClose, pa
     // A bare name (a newly created org) opens its design; the dashboard
     // passes { name, tab } to land on the tab it linked to.
     const pending = typeof pendingSelectOrgName === 'string' ? { name: pendingSelectOrgName, tab: 'design' } : pendingSelectOrgName
-    loadOrgs(true).then(() => selectOrg(pending.name, { tab: pending.tab || 'overview' }))
+    loadOrgs(true).then(() => {
+      selectOrg(pending.name, { tab: pending.tab || 'overview' })
+      // A run picked from the History drawer (selectOrg cleared the selection just above).
+      if (pending.run) setSelectedRun(pending.run)
+    })
     onConsumePendingSelect?.()
   }, [pendingSelectOrgName, loadOrgs, selectOrg, onConsumePendingSelect])
 

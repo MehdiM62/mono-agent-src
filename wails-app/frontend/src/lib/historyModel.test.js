@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { bubbleKeyOf, liveStatus, relativeTime, toFilter, applyLinked, mergePage, deleteOutcome, chatIdsOnly } from './historyModel.js'
+import { bubbleKeyOf, liveStatus, relativeTime, toFilter, orgRunTarget, orgRunLabel, mergePage, deleteOutcome, chatIdsOnly } from './historyModel.js'
 
 describe('historyModel', () => {
   it('keys chats by id and orgs by name', () => {
@@ -22,9 +22,19 @@ describe('historyModel', () => {
     expect(relativeTime('2026-09-01T12:00:00Z', now)).toBe('2026-09-01')
     expect(relativeTime('', now)).toBe('')
   })
-  it('builds the filter and filters linked rows client-side', () => {
+  it('builds the filter; linked asks the CLI for any application', () => {
     expect(toFilter({ kind: 'chat', query: '  x ' })).toEqual({ kind: 'chat', status: '', application: '', query: 'x' })
-    expect(applyLinked([{ id: 1 }, { id: 2, applicationId: 'a' }], true)).toEqual([{ id: 2, applicationId: 'a' }])
+    expect(toFilter({ linked: true }).application).toBe('any')
+  })
+  it('opens only the latest run of an org as a bubble', () => {
+    expect(orgRunTarget({ runId: 'r2', status: 'done' }, { run: 'r2' })).toBe('bubble')
+    expect(orgRunTarget({ runId: 'r1', status: 'done' }, { run: 'r2' })).toBe('orgs')
+    expect(orgRunTarget({ runId: '', status: 'running' }, null)).toBe('bubble')
+    expect(orgRunTarget({ runId: '', status: 'done' }, { run: '' })).toBe('orgs')
+  })
+  it('labels a run', () => {
+    expect(orgRunLabel({ runId: 'abcdef123456', updatedAt: '2026-10-20T10:00:00Z' })).toBe('run abcdef12 \u00b7 2026-10-20')
+    expect(orgRunLabel({ updatedAt: '2026-10-20T10:00:00Z' })).toBe('2026-10-20')
   })
   it('merges pages without duplicates', () => {
     expect(mergePage([{ id: 'a' }], [{ id: 'a' }, { id: 'b' }]).map(r => r.id)).toEqual(['a', 'b'])

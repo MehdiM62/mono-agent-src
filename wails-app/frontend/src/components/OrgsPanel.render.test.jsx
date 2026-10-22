@@ -28,6 +28,11 @@ vi.mock('../services/api.js', () => ({
     getOrgStatus: vi.fn(() => Promise.resolve({ status: 'stopped' })),
     listOrgQueuedMessages: vi.fn(() => Promise.resolve({ v: 1, org: 'test-org', count: 0, messages: [] })),
     getOrgReport: vi.fn(() => Promise.resolve({ items: [] })),
+    getOrgLogs: vi.fn(() => Promise.resolve({ items: [] })),
+    getOrgBudget: vi.fn(() => Promise.resolve(null)),
+    getOrgCosts: vi.fn(() => Promise.resolve(null)),
+    getOrgEstimate: vi.fn(() => Promise.resolve(null)),
+    getOrgFlow: vi.fn(() => Promise.resolve(null)),
     streamOrgEvents: vi.fn(() => Promise.resolve({ ok: true })),
     stopOrgEvents: vi.fn(() => Promise.resolve({ ok: true })),
     orgGroupStatus: vi.fn(() => Promise.resolve({ v: 1, holding: 'hq', children: [], rollup_usd: 0 })),
@@ -230,4 +235,23 @@ describe('org unification in OrgsPanel', () => {
     const src = readFileSync(join(process.cwd(), 'src/components/OrgsPanel.jsx'), 'utf8')
     expect(src).not.toMatch(/autoApprove|Auto-approve|resolveAllPending|proceed autonomously/)
   })
+})
+
+// The History drawer sends an old run to the Orgs tab as { name, tab, run }:
+// that run is selected, instead of the newest past run the tab defaults to.
+it('selects the run a pending navigation names on the overview tab', async () => {
+  api.getOrgReport.mockImplementation((name, all) => Promise.resolve(all
+    ? { items: [{ run: 'r-new' }, { run: 'r-old' }] }
+    : { run: 'r-x' }))
+  render(<OrgsPanel pendingSelectOrgName={{ name: 'test-org', tab: 'overview', run: 'r-old' }} onConsumePendingSelect={() => {}} />)
+  await waitFor(() => expect(api.getOrgReport).toHaveBeenCalledWith('test-org', false, 'r-old'))
+  expect(api.getOrgReport).not.toHaveBeenCalledWith('test-org', false, 'r-new')
+})
+
+it('still defaults to the newest past run when no run is named', async () => {
+  api.getOrgReport.mockImplementation((name, all) => Promise.resolve(all
+    ? { items: [{ run: 'r-new' }, { run: 'r-old' }] }
+    : { run: 'r-x' }))
+  render(<OrgsPanel pendingSelectOrgName={{ name: 'test-org', tab: 'overview' }} onConsumePendingSelect={() => {}} />)
+  await waitFor(() => expect(api.getOrgReport).toHaveBeenCalledWith('test-org', false, 'r-new'))
 })

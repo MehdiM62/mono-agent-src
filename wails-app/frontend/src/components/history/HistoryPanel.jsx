@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { X, Plus, Search, Trash2, Loader2 } from 'lucide-react'
 import { confirm } from '../ConfirmDialog.jsx'
@@ -8,7 +8,7 @@ import { useHistory } from './useHistory.js'
 import { onHistoryRequest } from './historyBus.js'
 import HistoryRow from './HistoryRow.jsx'
 import {
-  KIND_FILTERS, STATUS_FILTERS, applyLinked, bubbleKeyOf, liveStatus, deleteOutcome, chatIdsOnly, toFilter,
+  KIND_FILTERS, STATUS_FILTERS, bubbleKeyOf, liveStatus, deleteOutcome, chatIdsOnly, toFilter, orgRunTarget,
 } from '../../lib/historyModel.js'
 import './history.css'
 
@@ -34,8 +34,8 @@ export default function HistoryPanel({ store, onNavigate }) {
   const opener = useRef(null)
   const sentinel = useRef(null)
 
-  const h = useHistory({ open, kind, status, query })
-  const items = useMemo(() => applyLinked(h.items, linked), [h.items, linked])
+  const h = useHistory({ open, kind, status, query, linked })
+  const items = h.items
 
   useEffect(() => onHistoryRequest(mode => {
     setOpen(prev => {
@@ -69,8 +69,7 @@ export default function HistoryPanel({ store, onNavigate }) {
     return () => document.removeEventListener('keydown', onKey)
   }, [open, close])
 
-  // Infinite scroll: load the next page when the end of the list is near. A
-  // linked-only view keeps loading while pages still hold nothing to show.
+  // Infinite scroll: load the next page when the end of the list is near.
   useEffect(() => {
     const el = sentinel.current
     if (!open || !el || !h.cursor || typeof IntersectionObserver === 'undefined') return undefined
@@ -85,10 +84,13 @@ export default function HistoryPanel({ store, onNavigate }) {
     return next
   }), [])
 
-  const openRow = (row) => {
+  const openRow = async (row) => {
     if (row.kind === 'org') {
-      // Per-run org bubbles are wave U5: until then a run opens its org's bubble.
-      store.openOrg(row.orgName)
+      // The org bubble shows the org's latest run, so only that run opens it
+      // (per-run bubbles are wave U5); an older run opens in the Orgs tab.
+      const st = await Promise.resolve(api.getOrgStatus(row.orgName)).catch(() => null)
+      if (orgRunTarget(row, st) === 'bubble') store.openOrg(row.orgName)
+      else onNavigate?.('orgs', { org: row.orgName, run: row.runId || undefined })
     } else {
       store.openConversation({ id: row.id, cwd: row.cwd, model: row.model, runtime: row.runtime })
     }

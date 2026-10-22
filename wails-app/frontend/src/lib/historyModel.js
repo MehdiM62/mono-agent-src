@@ -37,15 +37,12 @@ export function relativeTime(iso, now = Date.now()) {
   return new Date(t).toISOString().slice(0, 10)
 }
 
-// toFilter is the binding's filter object; linked is applied client-side
-// because the backend only matches one exact application id.
-export function toFilter({ kind = '', status = '', query = '' } = {}) {
-  return { kind, status, application: '', query: query.trim() }
+// toFilter is the binding's filter object; linked asks the CLI for rows with
+// any application link (--application any).
+export function toFilter({ kind = '', status = '', query = '', linked = false } = {}) {
+  return { kind, status, application: linked ? 'any' : '', query: query.trim() }
 }
 
-export function applyLinked(items, linked) {
-  return linked ? items.filter(r => r.applicationId) : items
-}
 
 // mergePage appends a page, dropping ids already shown (a refresh can shift rows).
 export function mergePage(existing, page) {
@@ -66,4 +63,23 @@ export function deleteOutcome(res) {
 // chatIdsOnly guards every delete path: org runs are never deleted from here.
 export function chatIdsOnly(rows) {
   return rows.filter(r => r.kind === 'chat').map(r => r.id)
+}
+
+// orgRunTarget says where an org-run row opens. The org bubble always shows
+// the org's latest run, so only that run opens it; any other run opens in the
+// Orgs tab with the run selected. status is `org status` for the org (its
+// current or last run id in .run) or null when it could not be read.
+export function orgRunTarget(row, status) {
+  const current = status?.run || ''
+  if (row.runId && current) return row.runId === current ? 'bubble' : 'orgs'
+  // No run id to compare: only a run that is running now is surely the latest.
+  return row.status === 'running' ? 'bubble' : 'orgs'
+}
+
+// orgRunLabel is the row subtitle: "run <short id> · <date>".
+export function orgRunLabel(row) {
+  const id = (row.runId || '').slice(0, 8)
+  const t = Date.parse(row.updatedAt)
+  const date = Number.isNaN(t) ? '' : new Date(t).toISOString().slice(0, 10)
+  return [id && `run ${id}`, date].filter(Boolean).join(' \u00b7 ')
 }

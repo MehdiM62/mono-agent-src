@@ -109,7 +109,7 @@ export default function App({ banners = null }) {
     setNavData(data || null)
     // A link to a person (an ask's recipient) opens their profile.
     if (page === 'people' && data?.person) { setProfileId(data.person); setActivePage('profile'); return }
-    if (page === 'orgs' && data?.org) setPendingOrgSelect({ name: data.org, tab: data.tab || 'overview' })
+    if (page === 'orgs' && data?.org) setPendingOrgSelect({ name: data.org, tab: data.tab || 'overview', run: data.run })
     setActivePage(page)
   }, [])
 
