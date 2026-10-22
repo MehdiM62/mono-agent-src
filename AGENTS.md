@@ -3460,6 +3460,19 @@ monoagentcli --profile P aitask fail <id> --reason TEXT                   # the 
   status (`complete`, `failed`, `cancelled`) is final.
 - Budget: `--budget-usd` (default: the coder budget). 0 means no spend and is refused (`no_budget`), never unlimited.
   Nothing a running task does changes its cap.
+- Budgets (`internal/aitask/budget`, migration 118, Settings, AI task budgets): `aitask budget show|set|lower`. A task runs
+  under the LOWEST cap that applies (global, its kind, its conversation, its role), never above the coder budget
+  (`coder set --budget-usd`). 0 means no spend, never unlimited; with no global cap and no coder budget a task does not
+  run (`no_budget`), nor does one on a runtime that can't hold a cap (`budget_unenforceable`, kilo). `start` reserves the
+  cap in one `INSERT … SELECT` over every scope, so two tasks can't both take the last of a cap (`budget_exceeded`).
+  Spend is summed from the conversation's `usage.updated` events, lead and dynamic-org workers together, so spawning
+  workers can't dodge a cap; a task that reported no cost keeps counting for its whole cap. `set` (raise or change, `--clear`)
+  is operator-only; `lower --task ID --usd N` is the operator's or the task's own session's, lowers its conversation's cap
+  and never raises it (`cap_raise_refused`). `show --task ID` gives one task's cap and spend.
+- `ai.task` workflow node: QUEUES a task (`kind`, `goal`, `context` as `CLASS=PATH`, `application_id`, `access`, `runtime`)
+  and returns `{taskId, conversationId, status: "queued"}` at once. It never starts or waits for the task (a person
+  starts it from the bubble queue; read the result later with `aitask result`), cannot run it unattended, and refuses any run
+  that is not the operator's (`operator.AIRun`: an unapproved or AI-authored workflow, an agent's, the chat's or an org trigger's run).
 - A message the user sends in a task's conversation after `needs_user` (or while it runs) is the task's next turn: the
   operator's chat gives it a fresh token (the old one stops working) and the task goes back to `running`. An agent-run
   turn, a finished task or another profile's task gets nothing. A coder turn's `--budget-usd` can lower the coder budget,
