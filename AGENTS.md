@@ -3243,6 +3243,25 @@ fails with "workflow belongs to a different profile", check
 `monoagentcli ref connections` before writing anything that touches
 profiles or credentials.
 
+## Applications
+
+`monoagentcli --profile P application …` tracks job and tender applications. Statuses:
+`pending`, `awaiting_submit` (the form is filled, the human presses submit), `needs_you` (the
+fill stopped on something only the human can do), `applied`, `rejected`, `cancelled`; every
+change is logged in the status history. `applied` is reached only through `application send`.
+
+- `application show <id> --json --assets` (`get` is the same command) adds an `assets` object:
+  `posting` (url, capturedText, capturedAt, deadline), `documents` (the profile documents of this
+  application plus linked ones; `attached` is true for the linked ones), `fill`, `people`,
+  `messages`, `tasks`, `task` (the running aitask or `null`) and `links`.
+- `application link add|remove|list <id> --kind person|message|task|document|capture --ref ID`
+  ties things to an application; the same link twice is one link.
+- `application fill record <id> --status filling|filled|needs_you|submitted [--screenshot FILE]
+  [--note T] [--fields-json FILE]` replaces the last fill record; `application fill show <id>`
+  prints it (`status` is `none` before any). The screenshot must be a file inside the profile
+  folder; field values are capped (4000 bytes) and a value that looks like a secret is stored as
+  `[redacted]`. `--fields-json` holds `[{"label","value","source","generated"}]`.
+
 ## Exit codes
 
 | Code | Meaning |
