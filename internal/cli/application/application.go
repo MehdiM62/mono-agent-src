@@ -25,6 +25,8 @@ func NewCommand(d Deps) *cobra.Command {
 		d.newGetCmd(),
 		d.newStatusCmd(),
 		d.newTagCmd(),
+		d.newLinkCmd(),
+		d.newFillCmd(),
 		d.newDiscoverCmd(),
 		d.newEvaluateCmd(),
 		d.newEvaluatePendingCmd(),
@@ -186,11 +188,14 @@ func joinTags(tags []string) string {
 }
 
 func (d Deps) newGetCmd() *cobra.Command {
-	return &cobra.Command{
+	var assets bool
+	cmd := &cobra.Command{
 		Use:     "get <id>",
+		Aliases: []string{"show"},
 		Short:   "Show one application's full detail and status history",
 		Args:    cobra.ExactArgs(1),
-		Example: `  monoagentcli application get 1c2e...`,
+		Example: `  monoagentcli application get 1c2e...
+  monoagentcli --profile work --json application show 1c2e... --assets`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			db, err := d.OpenDB()
 			if err != nil {
@@ -211,6 +216,13 @@ func (d Deps) newGetCmd() *cobra.Command {
 				return fmt.Errorf("getting status log: %w", err)
 			}
 
+			if assets {
+				a, err := BuildAssets(cmd.Context(), db.DB, d.ProfileID(), app)
+				if err != nil {
+					return fmt.Errorf("gathering assets: %w", err)
+				}
+				return d.writeJSON(cmd, map[string]interface{}{"application": app, "status_log": log, "assets": a})
+			}
 			if d.JSONOutput() {
 				enc := json.NewEncoder(cmd.OutOrStdout())
 				enc.SetIndent("", "  ")
@@ -230,6 +242,8 @@ func (d Deps) newGetCmd() *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&assets, "assets", false, "Add the application's assets (posting, documents, fill, people, messages, tasks, links) as JSON")
+	return cmd
 }
 
 func (d Deps) newStatusCmd() *cobra.Command {
