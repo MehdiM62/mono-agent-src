@@ -147,6 +147,10 @@ func TestHistoryAllStatusAndTitle(t *testing.T) {
 	if got := listAll(t, dbPath, "--application", "app-1"); len(got.Items) != 1 || got.Items[0].ID != needs.ID {
 		t.Errorf("--application = %+v", got.Items)
 	}
+	// "any" means has an application link: only the one task-bound chat, no org rows.
+	if got := listAll(t, dbPath, "--application", "any"); len(got.Items) != 1 || got.Items[0].ID != needs.ID {
+		t.Errorf("--application any = %+v", got.Items)
+	}
 	if got := listAll(t, dbPath, "--query", "SECOND"); len(got.Items) != 1 || got.Items[0].ID != run.ID {
 		t.Errorf("--query = %+v", got.Items)
 	}
