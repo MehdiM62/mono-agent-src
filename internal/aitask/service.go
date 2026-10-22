@@ -245,7 +245,7 @@ func (s *Service) verifyAtStart(ctx context.Context, t Task) error {
 		return err
 	}
 	if t.BudgetUSD <= 0 {
-		return errf(CodeNoBudget, "task %s has no budget: 0 means no spend, so it does not run", t.ID)
+		return errf(CodeNoBudget, "task %s has no budget: 0 means no spend, so it does not run; %s", t.ID, BudgetHint)
 	}
 	policy, err := s.Launcher.Policy(ctx)
 	if err != nil {

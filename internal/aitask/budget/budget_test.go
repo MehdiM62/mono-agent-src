@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 
@@ -131,7 +132,8 @@ func TestLowerCapNeverRaises(t *testing.T) {
 func TestZeroIsNoSpendAndAMissingCapRefuses(t *testing.T) {
 	ctx := context.Background()
 	none := newRig(t, 0)
-	if _, err := none.l.Admit(ctx, none.task("c1", "generic", 1)); code(err) != aitask.CodeNoBudget {
+	_, err := none.l.Admit(ctx, none.task("c1", "generic", 1))
+	if code(err) != aitask.CodeNoBudget || !strings.Contains(err.Error(), "Settings > AI task budgets") || !strings.Contains(err.Error(), "aitask budget set") {
 		t.Fatalf("no cap anywhere: %v", err)
 	}
 	r := newRig(t, 5)
