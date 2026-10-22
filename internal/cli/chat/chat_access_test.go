@@ -438,3 +438,43 @@ func TestLoweringReportsTheProcessesItCouldNotStop(t *testing.T) {
 		t.Error("an unidentified process was killed")
 	}
 }
+
+// --expect: a conversation that no longer has the level the caller saw is
+// refused (exit 6, access_changed, the real level under current), changes
+// nothing and runs none of the lowering effects; with the right level it is
+// the ordinary change.
+func TestSetAccessExpectRefusesAChangedLevelWithNoEffects(t *testing.T) {
+	r := newAccessRig(t, true)
+	c := r.conv(t, ai.AccessCoding)
+	pid := background(t)
+	r.leaveBehind(t, c.ID, pid)
+	if err := r.store.SaveOrgWorker("default", c.ID, ai.OrgWorker{AgentID: "w1", TurnID: "left-1", Runtime: "claude", SessionID: "s"}); err != nil {
+		t.Fatal(err)
+	}
+	// The caller saw "full" (a raise to it, or a lowering from it); it is coding now.
+	for _, level := range []string{"scoped", "workspace"} {
+		out, err := r.setAccess(t, nil, c.ID, level, "--expect", "full")
+		if exitCodeFor(err) != exitAccessChanged {
+			t.Fatalf("%s: exit %d, want %d: %v\n%s", level, exitCodeFor(err), exitAccessChanged, err, out)
+		}
+		var fields interface{ JSONErrorFields() map[string]any }
+		if !errors.As(err, &fields) || fields.JSONErrorFields()["code"] != "access_changed" || fields.JSONErrorFields()["current"] != "coding" {
+			t.Errorf("%s: error fields: %v", level, err)
+		}
+	}
+	if got, _ := r.store.GetConversation(c.ID, "default"); got.Access != ai.AccessCoding {
+		t.Errorf("a refused change moved the level to %q", got.Access)
+	}
+	if !processAlive(pid) {
+		t.Error("a refused change stopped the conversation's process")
+	}
+	if ws, _ := r.store.ListOrgWorkers("default", c.ID, 0); len(ws) != 1 {
+		t.Errorf("a refused change forgot the org workers: %+v", ws)
+	}
+	if out, err := r.setAccess(t, nil, c.ID, "scoped", "--expect", "coding"); err != nil || !strings.Contains(out, `"previous_access": "coding"`) {
+		t.Errorf("the expected change: %v\n%s", err, out)
+	}
+	if _, err := r.setAccess(t, nil, c.ID, "full", "--expect", "bogus"); exitCodeFor(err) != 3 {
+		t.Errorf("an unknown --expect: %v", err)
+	}
+}

@@ -66,7 +66,7 @@ esac
 	if err != nil || !got.OK || got.Conversation.Access != "workspace" || got.PreviousAccess != "scoped" || got.Lowered != nil {
 		t.Fatalf("got %+v, %v", got, err)
 	}
-	want := "--profile work --json chat history show c1\n--profile work --json chat history set-access c1 workspace --profile-folder"
+	want := "--profile work --json chat history show c1\n--profile work --json chat history set-access c1 workspace --expect scoped --profile-folder"
 	if calls := loggedArgs(t, log); strings.Join(calls, "\n") != want {
 		t.Fatalf("calls = %v", calls)
 	}
@@ -126,6 +126,24 @@ esac
 	got, err := a.SetChatAccess("c1", "scoped", "full", false)
 	if err != nil || !got.OK || got.PreviousAccess != "coding" || got.Current != "scoped" {
 		t.Fatalf("got %+v, %v", got, err)
+	}
+}
+
+// The level changed between our read and the CLI's update: the CLI refuses
+// (exit 6, access_changed) and the binding returns the typed result, with the
+// expectation passed to the CLI.
+func TestSetChatAccessMapsTheCLIsAccessChanged(t *testing.T) {
+	a, log := aitaskApp(t, `case "$*" in
+*" show "*) echo '{"id":"c1","access":"full","cwd":"/p"}';;
+*) echo '{"error":"the conversation'"'"'s access is coding, not the expected full","code":"access_changed","current":"coding"}'; exit 6;;
+esac
+`)
+	got, err := a.SetChatAccess("c1", "scoped", "full", false)
+	if err != nil || got.OK || got.Code != "access_changed" || got.Current != "coding" || got.Lowered != nil {
+		t.Fatalf("got %+v, %v", got, err)
+	}
+	if calls := loggedArgs(t, log); !strings.HasSuffix(calls[len(calls)-1], "set-access c1 scoped --expect full") {
+		t.Fatalf("calls = %v", calls)
 	}
 }
 

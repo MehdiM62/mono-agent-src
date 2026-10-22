@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -70,6 +71,27 @@ func resolveCreateAccess(mode, access string) (string, error) {
 // running (error code survivors_remain). The level is lowered all the same, so
 // no new privileged turn can start.
 const exitSurvivors = 5
+
+// exitAccessChanged is the exit code of a set-access --expect whose
+// conversation no longer has the expected level (error code access_changed,
+// with the real level under "current"). Nothing was changed.
+const exitAccessChanged = 6
+
+type accessChangedError struct {
+	current string
+	err     *clicore.Error
+}
+
+func (e *accessChangedError) Error() string { return e.err.Error() }
+func (e *accessChangedError) Unwrap() error { return e.err }
+func (e *accessChangedError) JSONErrorFields() map[string]any {
+	return map[string]any{"code": "access_changed", "current": e.current}
+}
+
+func errAccessChanged(current, expect string) error {
+	return &accessChangedError{current: current, err: &clicore.Error{Code: exitAccessChanged,
+		Msg: fmt.Sprintf("the conversation's access is %s, not the expected %s: nothing was changed", current, expect)}}
+}
 
 // loweredEffects is what lowering a conversation's access did.
 type loweredEffects struct {
@@ -149,7 +171,7 @@ type accessChange struct {
 }
 
 func newChatHistorySetAccessCmd(cfg *Deps) *cobra.Command {
-	var cwd string
+	var cwd, expect string
 	var newWorkspace, coderRoot, profileFolder bool
 	cmd := &cobra.Command{
 		Use:   "set-access <conversation-id> scoped|coding|workspace|full",
@@ -161,7 +183,8 @@ func newChatHistorySetAccessCmd(cfg *Deps) *cobra.Command {
 			"and stops the processes its turns left running, forgets its kept org workers and revokes its open AI task's token " +
 			"before the next turn; one it cannot stop (no recorded identity, or it outlives SIGKILL) is listed under survivors and the " +
 			"command exits 5 (survivors_remain), the level lowered all the same. A scoped conversation has no folder: raising it needs --cwd, --profile-folder, --coder-root " +
-			"or --new-workspace. The conversation starts a fresh session when it leaves or enters scoped.",
+			"or --new-workspace. --expect <level> makes the change conditional on the conversation still having that level, in one update: " +
+			"if another process changed it first the command exits 6 (access_changed, current is the real level) and changes nothing. The conversation starts a fresh session when it leaves or enters scoped.",
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id, level := args[0], args[1]
@@ -178,6 +201,14 @@ func newChatHistorySetAccessCmd(cfg *Deps) *cobra.Command {
 				return chatStoreErr(err)
 			}
 			prev := conv.EffectiveAccess()
+			if expect != "" {
+				if !ai.ValidAccess(expect) {
+					return clicore.InvalidInput("unknown --expect %q (scoped, coding, workspace or full)", expect)
+				}
+				if prev != expect {
+					return errAccessChanged(prev, expect)
+				}
+			}
 			raise := ai.AccessRank(level) > ai.AccessRank(prev)
 			folder := coderFolderChoice{cwd: cwd, root: coderRoot, newWorkspace: newWorkspace, profile: profileFolder}
 			newCwd := ""
@@ -193,7 +224,17 @@ func newChatHistorySetAccessCmd(cfg *Deps) *cobra.Command {
 			}
 			out := accessChange{Previous: prev}
 			if level != prev {
-				if conv, err = store.SetConversationAccess(id, profileID, level, newCwd); err != nil {
+				if expect != "" {
+					// The level the caller saw must still be the row's at the update itself.
+					conv, err = store.SetConversationAccessIf(id, profileID, level, newCwd, expect)
+					var changed *ai.AccessChangedError
+					if errors.As(err, &changed) {
+						return errAccessChanged(changed.Current, expect)
+					}
+				} else {
+					conv, err = store.SetConversationAccess(id, profileID, level, newCwd)
+				}
+				if err != nil {
 					return chatStoreErr(err)
 				}
 				if !raise {
@@ -224,6 +265,7 @@ func newChatHistorySetAccessCmd(cfg *Deps) *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().StringVar(&expect, "expect", "", "Only change the level while the conversation still has this one (scoped, coding, workspace or full); otherwise exit 6, access_changed, with the real level under current and nothing changed")
 	cmd.Flags().StringVar(&cwd, "cwd", "", "Raising a scoped conversation: the folder the agent works in (any existing folder)")
 	cmd.Flags().BoolVar(&profileFolder, "profile-folder", false, "Raising a scoped conversation: work in the folder of the profile named by --profile")
 	cmd.Flags().BoolVar(&coderRoot, "coder-root", false, "Raising a scoped conversation: work in the coder root folder itself")

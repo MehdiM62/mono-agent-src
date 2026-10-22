@@ -1852,7 +1852,10 @@ monoagentcli --profile work chat --mode coder --cwd ~/code/app -- "…"   # one 
   - Coder mode must be enabled (`coder enable`) for every level above scoped:
     to create one, to raise a conversation to one, and on every turn. With
     it off only scoped can be chosen or created.
-  - `chat history set-access <conv> <level> [--cwd|--profile-folder|--coder-root|--new-workspace]`:
+  - `chat history set-access <conv> <level> [--expect <current>] [--cwd|--profile-folder|--coder-root|--new-workspace]`
+    (`--expect` applies the change in one conditional update only while the
+    conversation still has that level, else exit 6, `access_changed` with
+    `current`, and nothing runs; the app passes it):
     raising a level is the operator's (exit 3, `operator_only` for an agent,
     the chat or a workflow), and so is creating a conversation above scoped;
     lowering it is anyone's. A scoped conversation
@@ -3375,6 +3378,7 @@ change is logged in the status history. `applied` is reached only through `appli
 | 3 | invalid input / validation failure |
 | 4 | auth or connection failure — including `login_required`: no valid monoes.me sign-in (see [monoes.me account](#monoesme-account)) |
 | 5 | `chat history set-access` lowered the level but a process the conversation's turns started could not be stopped (`survivors_remain`; the JSON lists each under `lowered.survivors` with its pid, command and reason) |
+| 6 | `chat history set-access --expect L` found the conversation no longer at level L: `access_changed`, `current` is the real level, nothing was changed |
 
 Branch on these instead of parsing stderr.
 

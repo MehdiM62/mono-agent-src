@@ -188,8 +188,9 @@ func recordAccess(r ai.ConversationRecord) string {
 // stale cached level can't change anything), and refuses a raise unless
 // confirmedRaise. The GUI window is the operator, so the CLI would let it
 // raise; the confirm is the user's click on the raise prompt. A lowering needs
-// no confirm. A change between this read and the CLI's own is settled by the
-// CLI: its previous_access is what comes back. A scoped conversation raised
+// no confirm. The change itself goes with --expect, so a level that changes
+// between this read and the CLI's update is refused by the CLI
+// (access_changed) and nothing is done. A scoped conversation raised
 // gets the profile's folder.
 func (a *App) SetChatAccess(id, level, expectedCurrent string, confirmedRaise bool) (AccessChange, error) {
 	if err := a.signedOut(); err != nil {
@@ -212,7 +213,7 @@ func (a *App) SetChatAccess(id, level, expectedCurrent string, confirmedRaise bo
 	if ai.AccessRank(level) > ai.AccessRank(real) && !confirmedRaise {
 		return AccessChange{Code: "confirm_required", Current: real}, nil
 	}
-	args := []string{"set-access", id, level}
+	args := []string{"set-access", id, level, "--expect", expectedCurrent}
 	if cur.Cwd == "" && level != ai.AccessScoped {
 		args = append(args, "--profile-folder")
 	}
@@ -227,6 +228,12 @@ func (a *App) SetChatAccess(id, level, expectedCurrent string, confirmedRaise bo
 		} `json:"lowered"`
 	}
 	if err := a.historyCLIKeepingOutput(&raw, args...); err != nil {
+		// The CLI is the authority: it applies the change only at the level
+		// the caller expected, and says what the level is when it is not.
+		var ae *aitaskError
+		if errors.As(err, &ae) && ae.code == "access_changed" {
+			return AccessChange{Code: "access_changed", Current: ae.current}, nil
+		}
 		return AccessChange{}, err
 	}
 	out := AccessChange{OK: true, Current: recordAccess(raw.ConversationRecord), Conversation: conversationOf(raw.ConversationRecord), PreviousAccess: raw.Previous}
@@ -357,7 +364,7 @@ func (a *App) historyCLIKeepingOutput(result any, args ...string) error {
 		if msg == "" {
 			msg = err.Error()
 		}
-		return &aitaskError{msg: msg, code: ref.Code, fallback: ref.Fallback}
+		return &aitaskError{msg: msg, code: ref.Code, fallback: ref.Fallback, current: ref.Current}
 	}
 	// The first JSON document is the result; a --json error document may follow.
 	return json.NewDecoder(bytes.NewReader(out)).Decode(result)

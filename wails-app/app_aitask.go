@@ -61,6 +61,7 @@ type aitaskRefusal struct {
 	Error    string `json:"error"`
 	Code     string `json:"code"`
 	Fallback string `json:"fallback"`
+	Current  string `json:"current"`
 }
 
 // aitaskCLI runs `monoagentcli --profile P --json aitask <args>` into result.
@@ -106,7 +107,7 @@ func (a *App) jsonCLIInto(result any, full []string) error {
 	return json.Unmarshal(out, result)
 }
 
-type aitaskError struct{ msg, code, fallback string }
+type aitaskError struct{ msg, code, fallback, current string }
 
 func (e *aitaskError) Error() string { return e.msg }
 
