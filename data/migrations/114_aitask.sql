@@ -5,7 +5,8 @@
 --
 -- status is queued, running, needs_user, complete, failed or cancelled. token_hash
 -- is the hex SHA-256 of the token the task's turn runs with (only its holder may
--- complete or fail the task); the token itself is never stored. application_id is
+-- complete or fail the task, bound to its profile, id and conversation); the token itself
+-- is never stored. holder_pid is the process that runs the task's turn; 0 until it starts. application_id is
 -- empty unless the task is about an application. prompt is the first turn's prompt.
 CREATE TABLE IF NOT EXISTS ai_tasks (
     id              TEXT PRIMARY KEY,
@@ -20,6 +21,7 @@ CREATE TABLE IF NOT EXISTS ai_tasks (
     unattended      INTEGER NOT NULL DEFAULT 0,
     prompt          TEXT NOT NULL DEFAULT '',
     token_hash      TEXT NOT NULL DEFAULT '',
+    holder_pid      INTEGER NOT NULL DEFAULT 0,
     result_json     TEXT NOT NULL DEFAULT '',
     error           TEXT NOT NULL DEFAULT '',
     created_at      TEXT NOT NULL,

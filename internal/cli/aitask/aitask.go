@@ -421,6 +421,10 @@ func (c *cli) supervise() *cobra.Command {
 			if t.Status != aitask.StatusRunning {
 				return nil
 			}
+			// From here the token is held by this process and what it runs.
+			if err := svc.Store.SetHolder(t.ID, os.Getpid()); err != nil {
+				return err
+			}
 			turnErr := runTurn(cmd.Context(), c.d, svc, t)
 			text := ""
 			if turnErr != nil {

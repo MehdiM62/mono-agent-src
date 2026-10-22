@@ -179,27 +179,48 @@ func NewToken() string {
 	return hex.EncodeToString(b)
 }
 
-// HashToken is what is stored of a token.
-func HashToken(token string) string {
-	h := sha256.Sum256([]byte(token))
+// HashToken is what is stored of a token: bound to the profile, task and
+// conversation it was minted for, so a hash copied to another task, or a
+// token used on another, matches nothing.
+func HashToken(profile, taskID, conversationID, token string) string {
+	h := sha256.Sum256([]byte("aitask-token\x00" + profile + "\x00" + taskID + "\x00" + conversationID + "\x00" + token))
 	return hex.EncodeToString(h[:])
 }
 
 // SetToken stores the hash of the token the task's next turn runs with.
 func (s *Store) SetToken(id, token string) error {
-	_, err := s.DB.Exec(`UPDATE ai_tasks SET token_hash = ? WHERE id = ? AND profile_id = ?`, HashToken(token), id, s.Profile)
+	t, err := s.Get(id)
+	if err != nil {
+		return err
+	}
+	_, err = s.DB.Exec(`UPDATE ai_tasks SET token_hash = ? WHERE id = ? AND profile_id = ?`,
+		HashToken(t.Profile, t.ID, t.ConversationID, token), id, s.Profile)
 	return err
 }
 
-// CheckToken says whether token is the one stored for task id, in constant
-// time. A task with no token (never started) accepts none.
+// SetHolder records the process that runs the task's turn (the supervisor):
+// only that process and its descendants hold the token afterwards.
+func (s *Store) SetHolder(id string, pid int) error {
+	_, err := s.DB.Exec(`UPDATE ai_tasks SET holder_pid = ? WHERE id = ? AND profile_id = ?`, pid, id, s.Profile)
+	return err
+}
+
+// CheckToken says whether token is the one minted for task id (this profile,
+// this conversation), in constant time, and whether the calling process is the
+// one that runs the task's turn or inside it (ProcessWithin) once that process
+// is recorded. A task with no token (never started) accepts none.
 func (s *Store) CheckToken(id, token string) bool {
-	var stored string
-	if err := s.DB.QueryRow(`SELECT token_hash FROM ai_tasks WHERE id = ? AND profile_id = ?`, id, s.Profile).Scan(&stored); err != nil {
+	var stored, conv string
+	var pid int
+	if err := s.DB.QueryRow(`SELECT token_hash, conversation_id, holder_pid FROM ai_tasks WHERE id = ? AND profile_id = ?`,
+		id, s.Profile).Scan(&stored, &conv, &pid); err != nil {
 		return false
 	}
 	if stored == "" || token == "" {
 		return false
 	}
-	return subtle.ConstantTimeCompare([]byte(stored), []byte(HashToken(token))) == 1
+	if subtle.ConstantTimeCompare([]byte(stored), []byte(HashToken(s.Profile, id, conv, token))) != 1 {
+		return false
+	}
+	return pid == 0 || ProcessWithin(pid)
 }

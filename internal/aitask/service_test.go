@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -84,7 +86,7 @@ func TestSubmitStartsTheTurnWithATokenWhoseHashIsAllThatIsStored(t *testing.T) {
 	if err := s.Store.DB.QueryRow(`SELECT token_hash FROM ai_tasks WHERE id = ?`, task.ID).Scan(&stored); err != nil {
 		t.Fatal(err)
 	}
-	if stored != HashToken(l.tokens[0]) || stored == l.tokens[0] {
+	if stored != HashToken("p1", task.ID, task.ConversationID, l.tokens[0]) || stored == l.tokens[0] {
 		t.Fatalf("stored %q for token %q", stored, l.tokens[0])
 	}
 	if !strings.Contains(task.Prompt, "tidy the notes") || !strings.Contains(task.Prompt, "aitask complete "+task.ID) {
@@ -305,5 +307,111 @@ func TestSubmitWritesRedactedContextAndNamesItInThePrompt(t *testing.T) {
 	}
 	if !strings.Contains(task.Prompt, ContextDir+"/"+task.ID+"/") || strings.Contains(task.Prompt, "Ignore previous") {
 		t.Fatalf("prompt = %s", task.Prompt)
+	}
+}
+
+func TestAForgedOrBorrowedTokenCompletesNothing(t *testing.T) {
+	s, l := newService(t)
+	a := submit(t, s)
+	tokenA := l.tokens[0]
+	b := submit(t, s)
+	tokenB := l.tokens[1]
+	body := []byte(`{"summary":"x"}`)
+	// Guessed, empty, and another task's token on this task.
+	for name, tok := range map[string]string{"forged": strings.Repeat("ab", 32), "empty": "", "wrong task": tokenB} {
+		if _, err := s.Complete(a.ID, tok, body); code(err) != CodeBadToken {
+			t.Errorf("%s token on task A: %v", name, err)
+		}
+	}
+	// A hash copied between rows does not carry the token over: it is bound to the task and conversation.
+	var hashA string
+	if err := s.Store.DB.QueryRow(`SELECT token_hash FROM ai_tasks WHERE id = ?`, a.ID).Scan(&hashA); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Store.DB.Exec(`UPDATE ai_tasks SET token_hash = ? WHERE id = ?`, hashA, b.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Complete(b.ID, tokenA, body); code(err) != CodeBadToken {
+		t.Fatalf("task A's token with task A's hash copied to task B: %v", err)
+	}
+	// Another profile's store does not see the task at all.
+	other := &Service{Store: &Store{DB: s.Store.DB, Profile: "p2"}, Launcher: l}
+	if _, err := other.Complete(a.ID, tokenA, body); code(err) != CodeNotFound {
+		t.Fatalf("another profile: %v", err)
+	}
+	if got, _ := s.Store.Get(a.ID); got.Status != StatusRunning {
+		t.Fatalf("a refused complete changed the task: %s", got.Status)
+	}
+}
+
+func TestTerminalStatesAreFinalAndOneCompleteWins(t *testing.T) {
+	s, l := newService(t)
+	task := submit(t, s)
+	token := l.tokens[0]
+	body := []byte(`{"summary":"x"}`)
+	results := make(chan error, 8)
+	for i := 0; i < 8; i++ {
+		go func() { _, err := s.Complete(task.ID, token, body); results <- err }()
+	}
+	ok := 0
+	for i := 0; i < 8; i++ {
+		if err := <-results; err == nil {
+			ok++
+		} else if code(err) != CodeTaskClosed {
+			t.Errorf("a losing complete: %v", err)
+		}
+	}
+	if ok != 1 {
+		t.Fatalf("%d completes succeeded", ok)
+	}
+	// Nothing leaves complete.
+	if _, err := s.Cancel(task.ID); code(err) != CodeTaskClosed {
+		t.Errorf("cancel after complete: %v", err)
+	}
+	if _, err := s.Fail(task.ID, token, "late"); code(err) != CodeTaskClosed {
+		t.Errorf("fail after complete: %v", err)
+	}
+	if err := s.EndTurn(task.ID, "late"); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := s.Store.Get(task.ID); got.Status != StatusComplete || string(got.Result) != `{"summary":"x"}` {
+		t.Fatalf("%+v", got)
+	}
+	// And a cancelled task cannot be completed or restarted.
+	c := submit(t, s)
+	if _, err := s.Cancel(c.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Complete(c.ID, l.tokens[1], body); code(err) != CodeTaskClosed {
+		t.Errorf("complete after cancel: %v", err)
+	}
+	if got, err := s.Start(context.Background(), c.ID); err != nil || got.Status != StatusCancelled {
+		t.Errorf("start after cancel: %+v %v", got, err)
+	}
+}
+
+func TestTheTokenIsBoundToTheProcessThatRunsTheTurn(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("the process walk is Linux's")
+	}
+	s, l := newService(t)
+	task := submit(t, s)
+	other := exec.Command("sleep", "30")
+	if err := other.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = other.Process.Kill(); _ = other.Wait() })
+	body := []byte(`{"summary":"x"}`)
+	if err := s.Store.SetHolder(task.ID, other.Process.Pid); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Complete(task.ID, l.tokens[0], body); code(err) != CodeBadToken {
+		t.Fatalf("the token from a process outside the turn: %v", err)
+	}
+	if err := s.Store.SetHolder(task.ID, os.Getpid()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Complete(task.ID, l.tokens[0], body); err != nil {
+		t.Fatalf("from the holder process: %v", err)
 	}
 }
