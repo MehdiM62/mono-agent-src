@@ -11,7 +11,7 @@ import '../../i18n.js'
 // banner).
 const { api, chatAccess, scan, listeners } = vi.hoisted(() => ({
   listeners: { chat: new Set() },
-  chatAccess: { create: vi.fn(), setAccess: vi.fn() },
+  chatAccess: { create: vi.fn(), setAccess: vi.fn(), record: vi.fn() },
   scan: vi.fn(),
   api: {
     getChatTurns: vi.fn(), getChatEvents: vi.fn(), startChatTurn: vi.fn(), stopChatTurn: vi.fn(), coderStatus: vi.fn(),
@@ -60,6 +60,7 @@ beforeEach(() => {
   api.getActiveProfile.mockResolvedValue({ name: 'Work', root_dir: '/home/u/profile' })
   api.listChatConversations.mockResolvedValue({ items: [] })
   scan.mockResolvedValue({ agents: installed })
+  chatAccess.record.mockResolvedValue({ access: 'scoped', title: '' })
   chatAccess.create.mockImplementation(async (_w, runtimeId, model, effort, access) => ({ id: 'c9', runtimeId, model, effort, access, cwd: access === 'scoped' ? '' : '/home/u/profile' }))
 })
 afterEach(cleanup)
@@ -85,9 +86,13 @@ describe('a new chat at an access level', () => {
     await waitFor(() => expect(api.startChatTurn).toHaveBeenCalledWith('c9', expect.any(String), 'hello', true, true))
     await waitFor(() => expect(store.bubbles[0]).toMatchObject({ conversationId: 'c9', access: 'scoped' }))
     expect(JSON.parse(localStorage.getItem('monoagent:coderBubbles:v1')).bubbles[0].access).toBe('scoped')
-    // A chat with no folder is named after its first message, in the pane and on the dock.
-    await waitFor(() => expect(store.bubbles[0].title).toBe('hello'))
-    expect(document.querySelector('[data-bubble="new-draft"], [data-bubble]')).toHaveAttribute('aria-label', expect.stringContaining('hello'))
+    // The title is the backend's redacted one, read after the turn, never the raw prompt.
+    expect(store.bubbles[0].title).toBe('')
+    chatAccess.record.mockResolvedValue({ access: 'scoped', title: 'Greeting' })
+    const turnId = api.startChatTurn.mock.calls[0][1]
+    emit({ conversationId: 'c9', turnId, seq: 1, type: 'turn.started', payload: {} })
+    emit({ conversationId: 'c9', turnId, seq: 2, type: 'turn.finished', payload: { status: 'completed' } })
+    await waitFor(() => expect(store.bubbles[0].title).toBe('Greeting'))
   })
 
   it('sends a scoped turn without tools when Settings turned them off', async () => {
@@ -188,6 +193,28 @@ describe('runtime scan and setup banner', () => {
     fireEvent.click(await screen.findByLabelText('New coder chat'))
     const live = await screen.findByRole('status', { name: 'Chat turn announcements' })
     await waitFor(() => expect(live).toHaveTextContent('You can send a message now.'))
+  })
+})
+
+describe('titles', () => {
+  it('never puts a raw first prompt in the title or in storage', async () => {
+    render(<Harness seed={undefined} />)
+    fireEvent.click(await screen.findByLabelText('New coder chat'))
+    await waitFor(() => expect(screen.getByLabelText('Model')).toHaveValue('opus'))
+    fireEvent.change(box(), { target: { value: 'password: hunter2 please deploy' } })
+    fireEvent.keyDown(box(), { key: 'Enter' })
+    await waitFor(() => expect(api.startChatTurn).toHaveBeenCalled())
+    await waitFor(() => expect(store.bubbles[0].conversationId).toBe('c9'))
+    expect(store.bubbles[0].title).toBe('')
+    expect(localStorage.getItem('monoagent:coderBubbles:v1')).not.toContain('hunter2')
+    expect(document.querySelector('[data-bubble]').getAttribute('aria-label')).not.toContain('hunter2')
+    // The backend's redacted title is what shows after the turn.
+    chatAccess.record.mockResolvedValue({ access: 'scoped', title: 'Deploy request' })
+    const turnId = api.startChatTurn.mock.calls[0][1]
+    emit({ conversationId: 'c9', turnId, seq: 1, type: 'turn.started', payload: {} })
+    emit({ conversationId: 'c9', turnId, seq: 2, type: 'turn.finished', payload: { status: 'completed' } })
+    await waitFor(() => expect(store.bubbles[0].title).toBe('Deploy request'))
+    expect(localStorage.getItem('monoagent:coderBubbles:v1')).not.toContain('hunter2')
   })
 })
 

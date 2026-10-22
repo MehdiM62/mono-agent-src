@@ -3,7 +3,7 @@ import { api, onChatEvent, onOrgEvent } from '../../services/api.js'
 import {
   newDraftKey, emptySummary, applyChatEvent, summaryFromTurns, moveBubble, loadState, saveState, orgBubble, isOrgBubble,
 } from '../../lib/coderBubbles.js'
-import { accessOfConversation } from '../../lib/chatAccess.js'
+import { isAccess } from '../../lib/chatAccess.js'
 import {
   emptyOrgSummary, applyOrgSummaryEvent, orgBubbleStatus, orgNeedsCount,
 } from '../../lib/orgBubble.js'
@@ -157,8 +157,10 @@ export function useCoderBubbles() {
     setBubbles(list => [...list, {
       key, conversationId: conv.id, cwd: conv.cwd || '', model: conv.model || '', runtime: conv.runtimeId || conv.runtime || '',
       // A history row or a conversation record names its level; a bare { id } (a task's chat) is read from the row later.
-      access: accessOfConversation(conv), title: conv.title || '', effort: conv.effort || '', orgMode: conv.orgMode === 'dynamic' ? 'dynamic' : '',
+      access: isAccess(conv.access) ? conv.access : '', title: conv.title || '', effort: conv.effort || '', orgMode: conv.orgMode === 'dynamic' ? 'dynamic' : '',
       taskId: conv.taskId || '', taskKind: '',
+      // Only a record or a history row that names the level makes it known; the pane looks the rest up.
+      verified: isAccess(conv.access),
     }])
     Promise.resolve().then(() => api.getChatTurns(conv.id, '', 1))
       .then(res => setSummaries(s => ({ ...s, [key]: summaryFromTurns(Array.isArray(res?.items) ? res.items : []) })))
@@ -229,7 +231,7 @@ export function useCoderBubbles() {
     byConversation.current = { ...byConversation.current, [conv.id]: key }
     setBubbles(list => list.map(b => (b.key === key ? {
       ...b, conversationId: conv.id, cwd: conv.cwd || b.cwd, model: conv.model || b.model, runtime: conv.runtime || b.runtime,
-      access: conv.access || b.access, effort: conv.effort || b.effort, orgMode: conv.orgMode === 'dynamic' ? 'dynamic' : b.orgMode,
+      access: conv.access || b.access, verified: isAccess(conv.access) || b.verified, effort: conv.effort || b.effort, orgMode: conv.orgMode === 'dynamic' ? 'dynamic' : b.orgMode,
     } : b)))
   }, [])
 

@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { api } from '../../services/api.js'
 import { cachedAgentScan } from '../../lib/agentRuntimes.js'
 import { accessOfConversation } from '../../lib/chatAccess.js'
+import { chatAccessApi } from '../../lib/chatAccessApi.js'
 import { aitaskBudgetApi } from '../settings/aitaskBudgetApi.js'
 
 // What the pane's settings popover reads about one open conversation, loaded
@@ -48,30 +49,36 @@ export function useCostVsCap(taskId, active) {
   return cap
 }
 
-// useResolveAccess reads a restored or task-opened bubble's access level when
-// it carries none (a bare conversation id), from the conversation list, a few
-// pages deep. The level it finds is stored on the bubble.
-export function useResolveAccess(bubble, store) {
-  const { key, conversationId, access } = bubble
+// useVerifiedAccess resolves a conversation's authoritative record (access,
+// org mode, redacted title) from the backend. A cached level is never trusted:
+// until the lookup answers the pane treats the level as unknown, with its
+// controls and the composer off. Resolves state 'loading' | 'ready' | 'failed';
+// refresh() reads the record again (after a turn, for the title) and retry()
+// after a failure. A bubble whose level a history row or a create just gave
+// (verified) needs no lookup.
+export function useVerifiedAccess(bubble, store) {
+  const { key, conversationId, verified } = bubble
+  const [failed, setFailed] = useState(false)
+  const [tick, setTick] = useState(0)
+  const load = useCallback(() => Promise.resolve().then(() => chatAccessApi.record(conversationId)).then(rec => {
+    const access = accessOfConversation(rec)
+    if (!access) throw new Error('no access level in the record')
+    const patch = { access, orgMode: rec.orgMode === 'dynamic' ? 'dynamic' : '', verified: true }
+    // The title is the backend's redacted one; a chat in a folder keeps the folder's name.
+    if (!rec.cwd && typeof rec.title === 'string') patch.title = rec.title
+    store.patchBubble(key, patch)
+    setFailed(false)
+  }).catch(() => setFailed(true)), [key, conversationId, store])
   useEffect(() => {
-    if (!conversationId || access) return undefined
-    let live = true
-    ;(async () => {
-      let cursor = ''
-      for (let page = 0; page < 3 && live; page++) {
-        // eslint-disable-next-line no-await-in-loop
-        const res = await api.listChatConversations(cursor, 50)
-        const hit = (res?.items || []).find(c => c.id === conversationId)
-        if (hit) {
-          if (live) store.patchBubble(key, { access: accessOfConversation(hit), orgMode: hit.orgMode === 'dynamic' ? 'dynamic' : '' })
-          return
-        }
-        cursor = res?.nextCursor || ''
-        if (!cursor) return
-      }
-    })().catch(() => {})
-    return () => { live = false }
-  }, [key, conversationId, access, store])
+    if (!conversationId || verified) return undefined
+    load()
+    return undefined
+    // load is stable per conversation; tick re-runs it after a failure.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId, verified, tick])
+  const state = !conversationId || verified ? 'ready' : failed ? 'failed' : 'loading'
+  const retry = useCallback(() => { setFailed(false); setTick(n => n + 1) }, [])
+  return { state, retry, refresh: load }
 }
 
 // useStreamsIncrementally: whether a scoped chat's runtime streams its reply as

@@ -29,18 +29,20 @@ export const SettingsButton = ({ open, onToggle, buttonRef }) => {
 
 // AccessRow shows the level and changes it. Lowering is immediate and reports
 // what it could not stop; raising asks first, stating what the level allows.
-function AccessRow({ bubble, store, confined }) {
+function AccessRow({ bubble, access: level, store, confined }) {
   const { t } = useTranslation()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [survivors, setSurvivors] = useState([])
   const [done, setDone] = useState('')
-  const level = isAccess(bubble.access) ? bubble.access : ''
 
+  // The level compared against is the one the backend confirmed, never the
+  // cached one; the backend refuses the change if it moved meanwhile.
   const change = async (next) => {
-    if (busy || next === level) return
+    if (busy || !isAccess(level) || next === level) return
     setError(''); setSurvivors([]); setDone('')
-    if (isRaise(level, next)) {
+    const raise = isRaise(level, next)
+    if (raise) {
       const ok = await confirm(t('bubbles.pane.raiseBody', { level: t(`bubbles.pane.level.${next}`), allows: t(`bubbles.pane.allows.${next}`) }), {
         title: t('bubbles.pane.raiseTitle', { level: t(`bubbles.pane.level.${next}`) }), confirmLabel: t('bubbles.pane.raiseConfirm'), cancelLabel: t('bubbles.pane.cancel'), danger: true,
       })
@@ -48,9 +50,17 @@ function AccessRow({ bubble, store, confined }) {
     }
     setBusy(true)
     try {
-      const res = await chatAccessApi.setAccess(bubble.conversationId, next)
+      const res = await chatAccessApi.setAccess(bubble.conversationId, next, level, raise)
+      if (res?.ok === false) {
+        // Refused: the level was not what this pane thought. Show the real one; nothing changed.
+        if (isAccess(res.current)) store.patchBubble(bubble.key, { access: res.current, verified: true })
+        setError(res.code === 'access_changed'
+          ? t('bubbles.pane.accessChanged', { level: isAccess(res.current) ? t(`bubbles.pane.level.${res.current}`) : t('bubbles.pane.accessUnknown') })
+          : t('bubbles.pane.accessRefused'))
+        return
+      }
       const conv = res?.conversation || {}
-      store.patchBubble(bubble.key, { access: isAccess(conv.access) ? conv.access : next, cwd: conv.cwd || bubble.cwd })
+      store.patchBubble(bubble.key, { access: isAccess(conv.access) ? conv.access : next, verified: true, cwd: conv.cwd || bubble.cwd })
       const left = res?.lowered?.survivors || []
       setSurvivors(left)
       setDone(left.length ? '' : t('bubbles.pane.accessNow', { level: t(`bubbles.pane.level.${next}`) }))
@@ -67,12 +77,13 @@ function AccessRow({ bubble, store, confined }) {
       {confined ? (
         <span style={value} data-testid="pane-access-confined">{t('bubbles.pane.confined')}</span>
       ) : (
-        <select id="pane-access" value={level} disabled={busy} onChange={e => change(e.target.value)} className="select-compact" style={{ minWidth: 120 }}>
-          {!level && <option value="">{t('bubbles.pane.accessUnknown')}</option>}
+        <select id="pane-access" value={isAccess(level) ? level : ''} disabled={busy || !isAccess(level)} onChange={e => change(e.target.value)} className="select-compact" style={{ minWidth: 120 }}>
+          {!isAccess(level) && <option value="">{t('bubbles.pane.accessUnknown')}</option>}
           {ACCESS_LEVELS.map(l => <option key={l} value={l}>{t(`bubbles.pane.level.${l}`)}</option>)}
         </select>
       )}
-      {level && !confined && <span style={{ ...label, flexBasis: '100%', minWidth: 0 }}>{t(`bubbles.pane.allows.${level}`)}</span>}
+      {isAccess(level) && !confined && <span style={{ ...label, flexBasis: '100%', minWidth: 0 }}>{t(`bubbles.pane.allows.${level}`)}</span>}
+      {!isAccess(level) && !confined && <span style={{ ...label, flexBasis: '100%', minWidth: 0 }}>{t('bubbles.pane.accessUnknownWhy')}</span>}
       <div role="status" aria-live="polite" style={{ flexBasis: '100%', fontFamily: mono, fontSize: 10, color: 'var(--text-muted)' }}>{done}</div>
       {survivors.length > 0 && (
         <div role="alert" data-testid="pane-survivors" style={{ flexBasis: '100%', fontFamily: mono, fontSize: 10, color: '#fbbf24' }}>
@@ -120,13 +131,13 @@ const linkBtn = { fontSize: 10, padding: '1px 6px' }
 // (fixed once created), its access level, its spend against the cap, the
 // browser level for its kind, the org mode and the assistant tools. Only the
 // access level and the org mode are changed here; the rest links to Settings.
-export function PaneSettings({ bubble, store, confined, onNavigate, onClose }) {
+export function PaneSettings({ bubble, access, store, confined, onNavigate, onClose }) {
   const { t } = useTranslation()
   const ref = useRef(null)
-  const coder = isCoderAccess(bubble.access)
+  const coder = isCoderAccess(access)
   const cost = useCostVsCap(bubble.taskId || '', true)
   // A confined apply chat runs under the apply browser kind.
-  const browserKind = confined ? 'apply' : browserKindFor(bubble.access)
+  const browserKind = confined ? 'apply' : browserKindFor(access)
   const browser = useBrowserLevel(browserKind, true)
 
   // Focus lands in the popover when it opens.
@@ -143,7 +154,7 @@ export function PaneSettings({ bubble, store, confined, onNavigate, onClose }) {
         <span style={value}>{[bubble.runtime && runtimeLabel(bubble.runtime), bubble.model, bubble.effort].filter(Boolean).join(' · ') || t('bubbles.pane.none')}</span>
         <span style={{ ...label, flexBasis: '100%', minWidth: 0 }}>{t('bubbles.pane.fixed')}</span>
       </div>
-      <AccessRow bubble={bubble} store={store} confined={confined} />
+      <AccessRow bubble={bubble} access={access} store={store} confined={confined} />
       <div style={row} data-testid="pane-cost">
         <span style={label}>{t('bubbles.pane.spend')}</span>
         <span style={value}>
@@ -159,7 +170,7 @@ export function PaneSettings({ bubble, store, confined, onNavigate, onClose }) {
         <button type="button" className="btn btn-ghost btn-sm" style={linkBtn} onClick={toSettings}>{t('bubbles.pane.browserLink', { kind: browserKind })}</button>
       </div>
       {coder && !confined && <OrgRow bubble={bubble} store={store} />}
-      {!coder && (
+      {access === 'scoped' && (
         <div style={row} data-testid="pane-tools">
           <span style={label}>{t('bubbles.pane.tools')}</span>
           <span style={value}>{t('bubbles.pane.toolsState', { tools: tools ? t('bubbles.pane.on') : t('bubbles.pane.off'), runs: runs ? t('bubbles.pane.on') : t('bubbles.pane.off') })}</span>

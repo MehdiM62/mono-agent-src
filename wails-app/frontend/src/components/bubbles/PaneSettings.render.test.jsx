@@ -9,7 +9,7 @@ import '../../i18n.js'
 // that the only things it changes are the access level and the org mode.
 const { api, chatAccess, budget, mockConfirm } = vi.hoisted(() => ({
   mockConfirm: vi.fn(),
-  chatAccess: { create: vi.fn(), setAccess: vi.fn() },
+  chatAccess: { create: vi.fn(), setAccess: vi.fn(), record: vi.fn() },
   budget: { forTask: vi.fn(), list: vi.fn() },
   api: {
     getChatTurns: vi.fn(), getChatEvents: vi.fn(), startChatTurn: vi.fn(), stopChatTurn: vi.fn(), coderStatus: vi.fn(),
@@ -31,7 +31,7 @@ let store
 const navigate = vi.fn()
 function Harness({ conv, task }) {
   store = useCoderBubbles()
-  useEffect(() => { const key = store.openConversation(conv); if (task) store.openDraft({ conversationId: conv.id, task }) }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!conv) return; store.openConversation(conv); if (task) store.openDraft({ conversationId: conv.id, task }) }, []) // eslint-disable-line react-hooks/exhaustive-deps
   return <CoderBubbles store={store} onNavigate={navigate} />
 }
 const overlay = () => screen.queryByTestId('bubble-overlay')
@@ -39,6 +39,7 @@ const popover = () => screen.queryByTestId('pane-settings')
 const gear = () => screen.getByRole('button', { name: 'Chat settings' })
 const scoped = { id: 's1', access: 'scoped', runtimeId: 'claude', model: 'opus', effort: 'high', title: 'Summarise my week' }
 const coding = { id: 'k1', access: 'coding', runtimeId: 'codex', model: 'gpt-5', cwd: '/home/u/proj' }
+const records = { s1: { access: 'scoped', title: 'Summarise my week' }, k1: { access: 'coding', cwd: '/home/u/proj' }, k2: { access: 'coding', cwd: '/w' }, k7: { access: 'coding' }, 'conv-x': { access: 'coding' } }
 const open = async (conv, task) => {
   render(<Harness conv={conv} task={task} />)
   await waitFor(() => expect(overlay()).toBeInTheDocument())
@@ -62,6 +63,7 @@ beforeEach(() => {
   budget.forTask.mockResolvedValue({ taskId: 't1', capUsd: 2, spentUsd: 0.5, reported: true })
   chatAccess.setAccess.mockImplementation(async (id, level) => ({ conversation: { id, access: level, cwd: '/home/u/profile' }, previousAccess: 'coding', lowered: null }))
   mockConfirm.mockResolvedValue(true)
+  chatAccess.record.mockImplementation(async id => records[id] || { access: 'coding' })
 })
 afterEach(cleanup)
 
@@ -83,11 +85,22 @@ describe('header chips', () => {
     expect(document.querySelector('[data-testid="stage-node"]')).not.toBeNull()
   })
 
-  it('reads a bubble opened with no level from the conversation list', async () => {
-    api.listChatConversations.mockResolvedValue({ items: [{ id: 'k1', mode: 'coder', access: 'workspace', orgMode: 'dynamic' }] })
+  it('reads a bubble opened with no level from the backend record, and a history row needs no lookup', async () => {
+    chatAccess.record.mockResolvedValue({ access: 'workspace', orgMode: 'dynamic', cwd: '/w' })
     await open({ id: 'k1' })
     await waitFor(() => expect(screen.getByTestId('chip-access')).toHaveTextContent('Access: Workspace'))
     expect(store.bubbles[0].orgMode).toBe('dynamic')
+    cleanup(); chatAccess.record.mockClear()
+    await open({ id: 'k3', access: 'scoped', mode: 'assistant', title: 'From history', runtime: 'claude', model: 'm' })
+    expect(screen.getByTestId('chip-access')).toHaveTextContent('Access: Scoped')
+    expect(chatAccess.record).not.toHaveBeenCalled()
+  })
+
+  it('a history row without a level is looked up, not guessed from its mode', async () => {
+    chatAccess.record.mockResolvedValue({ access: 'coding', cwd: '/w' })
+    await open({ id: 'k4', mode: 'coder' })
+    await waitFor(() => expect(chatAccess.record).toHaveBeenCalledWith('k4'))
+    await waitFor(() => expect(screen.getByTestId('chip-access')).toHaveTextContent('Access: Coding'))
   })
 })
 
@@ -174,7 +187,7 @@ describe('access control', () => {
     await open(coding)
     fireEvent.click(gear())
     fireEvent.change(within(popover()).getByLabelText('Access'), { target: { value: 'scoped' } })
-    await waitFor(() => expect(chatAccess.setAccess).toHaveBeenCalledWith('k1', 'scoped'))
+    await waitFor(() => expect(chatAccess.setAccess).toHaveBeenCalledWith('k1', 'scoped', 'coding', false))
     expect(mockConfirm).not.toHaveBeenCalled()
     await waitFor(() => expect(store.bubbles[0].access).toBe('scoped'))
     expect(screen.getByTestId('chip-access')).toHaveTextContent('Access: Scoped')
@@ -214,7 +227,7 @@ describe('access control', () => {
     await open(scoped)
     fireEvent.click(gear())
     fireEvent.change(within(popover()).getByLabelText('Access'), { target: { value: 'coding' } })
-    await waitFor(() => expect(chatAccess.setAccess).toHaveBeenCalledWith('s1', 'coding'))
+    await waitFor(() => expect(chatAccess.setAccess).toHaveBeenCalledWith('s1', 'coding', 'scoped', true))
     await waitFor(() => expect(store.bubbles[0]).toMatchObject({ access: 'coding', cwd: '/home/u/profile' }))
   })
 
@@ -229,12 +242,68 @@ describe('access control', () => {
     expect(store.bubbles[0].access).toBe('coding')
   })
 
-  it('treats an unknown current level as a raise, so it asks', async () => {
-    api.listChatConversations.mockResolvedValue({ items: [] })
-    await open({ id: 'k2' })
+  const restoreFrom = (b) => {
+    localStorage.setItem('monoagent:coderBubbles:v1', JSON.stringify({ side: 'right', bubbles: [b] }))
+    render(<Harness />)
+  }
+  const openRestored = async (key) => {
+    await waitFor(() => expect(document.querySelector(`[data-bubble="${key}"]`)).toBeInTheDocument())
+    fireEvent.click(document.querySelector(`[data-bubble="${key}"]`))
+    await waitFor(() => expect(overlay()).toBeInTheDocument())
+  }
+
+  it('a stale cache saying full does not turn a raise into a lowering: the record says scoped, so workspace asks', async () => {
+    chatAccess.record.mockResolvedValue({ access: 'scoped', cwd: '' })
+    restoreFrom({ conversationId: 'k5', cwd: '', model: 'm', runtime: 'claude', access: 'full' })
+    await openRestored('k5')
+    await waitFor(() => expect(screen.getByTestId('chip-access')).toHaveTextContent('Access: Scoped'))
     fireEvent.click(gear())
-    fireEvent.change(within(popover()).getByLabelText('Access'), { target: { value: 'scoped' } })
+    fireEvent.change(within(popover()).getByLabelText('Access'), { target: { value: 'workspace' } })
     await waitFor(() => expect(mockConfirm).toHaveBeenCalled())
+    await waitFor(() => expect(chatAccess.setAccess).toHaveBeenCalledWith('k5', 'workspace', 'scoped', true))
+  })
+
+  it('a crafted stored level is not believed either, and an old entry with no level is looked up', async () => {
+    chatAccess.record.mockResolvedValue({ access: 'coding', cwd: '/w' })
+    restoreFrom({ conversationId: 'k6', cwd: '/w', model: 'm', runtime: 'claude' })
+    await openRestored('k6')
+    await waitFor(() => expect(chatAccess.record).toHaveBeenCalledWith('k6'))
+    await waitFor(() => expect(screen.getByTestId('chip-access')).toHaveTextContent('Access: Coding'))
+  })
+
+  it('shows access unknown and keeps the controls and the composer off until the lookup answers', async () => {
+    let answer
+    chatAccess.record.mockImplementation(() => new Promise(r => { answer = r }))
+    restoreFrom({ conversationId: 'k8', cwd: '/w', model: 'm', runtime: 'claude', access: 'full' })
+    await openRestored('k8')
+    expect(screen.getByTestId('chip-access')).toHaveTextContent('Access: Unknown')
+    expect(within(overlay()).getByPlaceholderText('Type a message...')).toBeDisabled()
+    fireEvent.click(gear())
+    expect(within(popover()).getByLabelText('Access')).toBeDisabled()
+    answer({ access: 'coding', cwd: '/w' })
+    await waitFor(() => expect(within(popover()).getByLabelText('Access')).not.toBeDisabled())
+    expect(within(overlay()).getByPlaceholderText('Type a message...')).not.toBeDisabled()
+  })
+
+  it('a failed lookup leaves the chat unusable with a retry, and sends nothing', async () => {
+    chatAccess.record.mockRejectedValueOnce(new Error('not_found'))
+    restoreFrom({ conversationId: 'k9', cwd: '/w', model: 'm', runtime: 'claude' })
+    await openRestored('k9')
+    const retry = await screen.findByRole('button', { name: 'Try again' })
+    expect(within(overlay()).getByPlaceholderText('Type a message...')).toBeDisabled()
+    chatAccess.record.mockResolvedValue({ access: 'coding', cwd: '/w' })
+    fireEvent.click(retry)
+    await waitFor(() => expect(within(overlay()).getByPlaceholderText('Type a message...')).not.toBeDisabled())
+  })
+
+  it('when the backend says the level changed, shows the real one and changes nothing', async () => {
+    chatAccess.setAccess.mockResolvedValue({ ok: false, code: 'access_changed', current: 'scoped' })
+    await open(coding)
+    fireEvent.click(gear())
+    fireEvent.change(within(popover()).getByLabelText('Access'), { target: { value: 'full' } })
+    expect(await screen.findByText('Its access had already changed to Scoped. Nothing was changed.')).toBeInTheDocument()
+    expect(store.bubbles[0].access).toBe('scoped')
+    expect(screen.getByTestId('chip-access')).toHaveTextContent('Access: Scoped')
   })
 })
 

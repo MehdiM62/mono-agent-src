@@ -1264,7 +1264,13 @@
         "scan-error": "monomind couldn't be used.",
         "no-runtime": "No AI agent is installed.",
         "no-models": "This runtime reports no models, so chatting is unavailable."
-      }
+      },
+      "accessUnknownWhy": "This chat's access level has not been confirmed yet, so it cannot be changed or sent to.",
+      "accessChecking": "Checking this chat's access level…",
+      "accessFailed": "Could not read this chat's access level, so it cannot be used yet.",
+      "retryAccess": "Try again",
+      "accessChanged": "Its access had already changed to {{level}}. Nothing was changed.",
+      "accessRefused": "The change was refused. Nothing was changed."
     }
   },
   "agentRow": {

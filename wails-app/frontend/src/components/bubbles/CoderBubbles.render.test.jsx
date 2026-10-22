@@ -7,7 +7,7 @@ import '../../i18n.js'
 
 const { api, chatAccess, listeners, mockConfirm } = vi.hoisted(() => ({
   listeners: { chat: new Set() },
-  chatAccess: { create: vi.fn(), setAccess: vi.fn() },
+  chatAccess: { create: vi.fn(), setAccess: vi.fn(), record: vi.fn() },
   mockConfirm: vi.fn(),
   api: {
     getChatTurns: vi.fn(),
@@ -66,6 +66,7 @@ beforeEach(() => {
   api.startChatTurn.mockResolvedValue({ ok: true })
   api.stopChatTurn.mockResolvedValue({ ok: true })
   api.getProfiles.mockResolvedValue([])
+  chatAccess.record.mockResolvedValue({ access: 'full', mode: 'coder' })
 })
 afterEach(cleanup)
 

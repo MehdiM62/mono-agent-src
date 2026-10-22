@@ -29,7 +29,7 @@ const srOnly = { position: 'absolute', width: 1, height: 1, padding: 0, margin: 
 // CoderChatView is the chat half of an expanded coder bubble: the
 // transcript, the live turn and the composer. conv is useCoderConversation's
 // result; draft/onDraftChange keep the unsent text across collapses.
-export function CoderChatView({ conv, isDraft, access, setup, onSetupChange, draft, onDraftChange, initialScrollTop, onScroll, onNavigate, onOpenArtifact, runtime = '', agentFilter = null, agentFilterTurnId = '', agentFilterName = '', onClearAgentFilter }) {
+export function CoderChatView({ conv, isDraft, access, accessState = 'ready', onRetryAccess, setup, onSetupChange, draft, onDraftChange, initialScrollTop, onScroll, onNavigate, onOpenArtifact, runtime = '', agentFilter = null, agentFilterTurnId = '', agentFilterName = '', onClearAgentFilter }) {
   const { t } = useTranslation()
   const setupState = useChatSetup(isDraft, setup, onSetupChange)
   // The level this chat runs at: the draft's resolved pick, then the bubble's.
@@ -87,8 +87,14 @@ export function CoderChatView({ conv, isDraft, access, setup, onSetupChange, dra
     }
   }, [draft, attachments, conv, onDraftChange])
 
-  const blocked = isDraft && setupState.state !== 'ready'
-  const reason = blocked ? <BlockedReason setup={setupState} onNavigate={onNavigate} compact /> : ''
+  // An open conversation is sent to only once the backend has said its access level.
+  const accessBlocked = !isDraft && accessState !== 'ready'
+  const blocked = (isDraft && setupState.state !== 'ready') || accessBlocked
+  const reason = accessBlocked
+    ? (accessState === 'failed'
+      ? <>{t('bubbles.pane.accessFailed')} <button type="button" className="btn btn-ghost btn-sm" style={{ fontSize: 10 }} onClick={onRetryAccess}>{t('bubbles.pane.retryAccess')}</button></>
+      : t('bubbles.pane.accessChecking'))
+    : blocked ? <BlockedReason setup={setupState} onNavigate={onNavigate} compact /> : ''
 
   // What a screen reader hears: a finished turn, a notice, and the composer's
   // reason changing (the banner changes as the runtime scan settles).

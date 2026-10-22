@@ -7,7 +7,7 @@ import { folderName } from '../chat/useCoderMode.js'
 import { runtimeLabel } from '../../lib/runtimeLabels.js'
 import { CoderChatView } from './CoderChatView.jsx'
 import { PaneSettings, SettingsButton } from './PaneSettings.jsx'
-import { useResolveAccess } from './useChatPaneData.js'
+import { useVerifiedAccess } from './useChatPaneData.js'
 import { chatAccessApi } from '../../lib/chatAccessApi.js'
 import { isAccess, isCoderAccess, isConfinedTask } from '../../lib/chatAccess.js'
 import { useCoderConversation } from './useCoderConversation.js'
@@ -46,12 +46,6 @@ function chatAgentOf(stage, id) {
   let cur = stage?.nodes?.[id]
   while (cur && cur.native && cur.parentId) cur = stage.nodes[cur.parentId]
   return cur ? cur.id : id
-}
-
-// titleFromMessage is a message as a one-line chat title.
-function titleFromMessage(text) {
-  const line = String(text).replace(/\s+/g, ' ').trim()
-  return line.length > 48 ? `${line.slice(0, 47)}…` : line
 }
 
 function prefersReducedMotion() {
@@ -96,28 +90,31 @@ export function CoderChatOverlay({ bubble, store, originRect, onCollapse, onClos
     const made = await chatAccessApi.create('general', runtime, setup.model, setup.effort || '', access, cwd)
     const bound = {
       id: made.id, cwd: made.cwd || cwd, model: made.model || setup.model, runtime: made.runtimeId || runtime,
-      access: isAccess(made.access) ? made.access : access, effort: made.effort || setup.effort || '', orgMode: made.orgMode || '',
+      access: isAccess(made.access) ? made.access : access, verified: isAccess(made.access), effort: made.effort || setup.effort || '', orgMode: made.orgMode || '',
     }
     store.bindConversation(bubble.key, bound)
     return { ...bound, workspace }
   }, [setup, store, bubble.key])
-  const access = bubble.conversationId ? bubble.access : (setup.access || '')
+  // A conversation's level counts once the backend has said it; a cached one is a hint only.
+  const verify = useVerifiedAccess(bubble, store)
+  const access = bubble.conversationId ? (bubble.verified ? bubble.access : '') : (setup.access || '')
   const confined = isConfinedTask({ kind: bubble.taskKind || view.task?.kind })
   const [settingsOpen, setSettingsOpen] = useState(false)
   const settingsBtn = useRef(null)
   const settingsOpenRef = useRef(false)
   settingsOpenRef.current = settingsOpen
   const closeSettings = useCallback(() => { setSettingsOpen(false); settingsBtn.current?.focus?.() }, [])
-  useResolveAccess(bubble, store)
-  const conv = useCoderConversation({ conversationId: bubble.conversationId, create, access: access || 'full' })
+  const conv = useCoderConversation({ conversationId: bubble.conversationId, create, access })
 
-  // A chat with no folder (scoped) is named after its first message, as the
-  // history names it; a chat in a folder keeps the folder's name.
-  const firstMessage = conv.messages.find(m => m.role === 'user')?.content
+  // The title is the backend's redacted one, read again after each turn; a raw
+  // prompt never becomes a title.
+  const wasStreaming = useRef(false)
   useEffect(() => {
-    if (bubble.title || bubble.cwd || !bubble.conversationId || !firstMessage) return
-    store.patchBubble(bubble.key, { title: titleFromMessage(firstMessage) })
-  }, [store, bubble.key, bubble.title, bubble.cwd, bubble.conversationId, firstMessage])
+    if (wasStreaming.current && !conv.streaming && bubble.conversationId) verify.refresh()
+    wasStreaming.current = conv.streaming
+    // refresh is stable per conversation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conv.streaming])
   useEffect(() => { store.setView(bubble.key, { draft }) }, [store, bubble.key, draft])
   useEffect(() => { store.setView(bubble.key, { setup }) }, [store, bubble.key, setup])
   useEffect(() => { store.setView(bubble.key, { stageRatio, stageCollapsed }) }, [store, bubble.key, stageRatio, stageCollapsed])
@@ -247,8 +244,10 @@ export function CoderChatOverlay({ bubble, store, originRect, onCollapse, onClos
             )}
             {confined ? (
               <span data-testid="chip-confined" title={t('bubbles.pane.confinedWhy')} style={chip}>{t('bubbles.pane.confinedChip')}</span>
-            ) : isAccess(access) && (
+            ) : isAccess(access) ? (
               <span data-testid="chip-access" title={t(`bubbles.pane.allows.${access}`)} style={chip}>{t('bubbles.pane.accessChip', { level: t(`bubbles.pane.level.${access}`) })}</span>
+            ) : bubble.conversationId && (
+              <span data-testid="chip-access" title={t('bubbles.pane.accessUnknownWhy')} style={chip}>{t('bubbles.pane.accessChip', { level: t('bubbles.pane.accessUnknown') })}</span>
             )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
@@ -267,7 +266,7 @@ export function CoderChatOverlay({ bubble, store, originRect, onCollapse, onClos
             </button>
           </div>
           {settingsOpen && bubble.conversationId && (
-            <PaneSettings bubble={bubble} store={store} confined={confined} onNavigate={page => { collapse(); onNavigate?.(page) }} onClose={closeSettings} />
+            <PaneSettings bubble={bubble} access={access} store={store} confined={confined} onNavigate={page => { collapse(); onNavigate?.(page) }} onClose={closeSettings} />
           )}
         </div>
         {bubble.cwd && <CoderHeader cwd={bubble.cwd} />}
@@ -290,6 +289,8 @@ export function CoderChatOverlay({ bubble, store, originRect, onCollapse, onClos
             conv={conv}
             isDraft={!bubble.conversationId}
             access={access}
+            accessState={verify.state}
+            onRetryAccess={verify.retry}
             setup={setup}
             onSetupChange={patch => setSetup(s => ({ ...s, ...patch }))}
             draft={draft}
