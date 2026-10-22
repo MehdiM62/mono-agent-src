@@ -2,7 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api, notify } from '../../services/api.js'
 import { useChatStream, loadTurnState } from '../chat/useChatStream.js'
-import { newTurnId } from '../AIChatPanel.jsx'
+import { newTurnId } from '../chat/turnIds.js'
+import { composeLiveAnnouncement } from '../chat/liveAnnouncement.js'
+import { getAssistantTools, getAssistantAllowRuns } from '../../lib/assistantTools.js'
 
 // useCoderConversation is one expanded coder bubble's conversation (#227):
 // it loads the turns from the journal (`chat history`), re-attaches to a
@@ -12,8 +14,10 @@ import { newTurnId } from '../AIChatPanel.jsx'
 // them.
 //
 // create() is called for the first message of a draft: it creates the
-// coder conversation and returns it ({ id, cwd, model }).
-export function useCoderConversation({ conversationId, create }) {
+// conversation and returns it ({ id, cwd, model, access }). access is the
+// open conversation's level: a scoped turn gets monoagent's tools as the
+// Settings choose them, a coding one never does.
+export function useCoderConversation({ conversationId, create, access = 'full' }) {
   const { t } = useTranslation()
   const [messages, setMessages] = useState([])
   const [activeTurnId, setActiveTurnId] = useState('')
@@ -27,6 +31,8 @@ export function useCoderConversation({ conversationId, create }) {
   // sending is set before send's first await, so a second Enter while the
   // conversation is being created (or the turn started) doesn't send twice.
   const sending = useRef(false)
+  const accessRef = useRef(access)
+  accessRef.current = access
 
   useEffect(() => { if (conversationId) setConvId(conversationId) }, [conversationId])
 
@@ -66,12 +72,28 @@ export function useCoderConversation({ conversationId, create }) {
     return () => { cancelled = true; loadedFor.current = '' }
   }, [conversationId])
 
-  // A finished live turn joins the transcript.
+  // A finished live turn joins the transcript, and is announced once through
+  // the view's persistent live region (the per-turn status region unmounts at
+  // that moment). A notice that lands mid-turn is announced as it arrives, and
+  // not again in the finish summary. Both live in one effect: the terminal
+  // event and a notice can land in the same render.
+  const [announcement, setAnnouncement] = useState('')
+  const announcedNotices = useRef(0)
   useEffect(() => {
-    if (!activeTurnId || !liveTurn.terminal) return
-    setMessages(msgs => [...msgs, { role: 'turn', turnId: activeTurnId, state: liveTurn }])
-    setActiveTurnId('')
-    setStopRequested(false)
+    if (!activeTurnId) return
+    if (liveTurn.terminal) {
+      setMessages(msgs => [...msgs, { role: 'turn', turnId: activeTurnId, state: liveTurn }])
+      setAnnouncement(composeLiveAnnouncement(liveTurn, announcedNotices.current))
+      announcedNotices.current = 0
+      setActiveTurnId('')
+      setStopRequested(false)
+      return
+    }
+    const notices = liveTurn.notices || []
+    if (notices.length > announcedNotices.current) {
+      setAnnouncement(notices.slice(announcedNotices.current).map(n => n.message).join(' '))
+      announcedNotices.current = notices.length
+    }
   }, [activeTurnId, liveTurn])
 
   // send resolves true once the turn started, false when it failed (the
@@ -91,6 +113,7 @@ export function useCoderConversation({ conversationId, create }) {
       if (!id) {
         const conv = await create()
         id = conv.id
+        if (conv.access) accessRef.current = conv.access
         loadedFor.current = id // nothing to load: this chat starts here
         setConvId(id)
         if (conv.workspace) setMessages(msgs => [...msgs.slice(0, -1), { role: 'coder-init', workspace: conv.workspace }, ...msgs.slice(-1)])
@@ -102,15 +125,19 @@ export function useCoderConversation({ conversationId, create }) {
         paths.push(await api.saveChatAttachment(id, a.name, a.base64))
       }
       // Coder turns never get monoagent tools: the CLI refuses --tools for
-      // a coder conversation.
+      // a coder conversation. A scoped one gets what Settings allow.
+      const scoped = accessRef.current === 'scoped'
+      const tools = scoped && getAssistantTools()
+      const allowRuns = scoped && getAssistantAllowRuns()
       const res = await (paths.length
-        ? api.startChatTurn(id, turnId, prompt, false, false, paths)
-        : api.startChatTurn(id, turnId, prompt, false, false))
+        ? api.startChatTurn(id, turnId, prompt, tools, allowRuns, paths)
+        : api.startChatTurn(id, turnId, prompt, tools, allowRuns))
       if (res?.ok === false) {
         setMessages(msgs => [...msgs, { role: 'error', content: t('bubbles.couldNotStart', { status: res.status }) }])
         return false
       }
       activeRef.current = turnId
+      announcedNotices.current = 0
       setActiveTurnId(turnId)
       return true
     } catch (err) {
@@ -132,5 +159,5 @@ export function useCoderConversation({ conversationId, create }) {
     }
   }, [convId, t])
 
-  return { messages, liveTurn, activeTurnId, streaming: !!activeTurnId, stopRequested, loading, loadError, send, stop, conversationId: convId }
+  return { messages, announcement, liveTurn, activeTurnId, streaming: !!activeTurnId, stopRequested, loading, loadError, send, stop, conversationId: convId }
 }

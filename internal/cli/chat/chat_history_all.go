@@ -19,6 +19,9 @@ import (
 // stays what it was; --all only adds the title, the status of the latest turn,
 // the bound AI task and the org runs.
 
+// histApplicationAny as --application means "has an application link".
+const histApplicationAny = "any"
+
 // Statuses of a history row.
 const (
 	histRunning = "running"
@@ -126,7 +129,7 @@ func withListAll(cfg *Deps, cmd *cobra.Command) *cobra.Command {
 	fl.BoolVar(&all, "all", false, "One row per conversation and org run, with title, status and the bound AI task")
 	fl.StringVar(&f.kind, "kind", "", "With --all: only chat or org rows")
 	fl.StringVar(&f.status, "status", "", "With --all: only rows that are running, done, error, needs or idle")
-	fl.StringVar(&f.application, "application", "", "With --all: only conversations whose AI task belongs to this application")
+	fl.StringVar(&f.application, "application", "", "With --all: only conversations whose AI task belongs to this application id, or to any application with \"any\"")
 	fl.StringVar(&f.query, "query", "", "With --all: only rows whose title, folder or model contains this text")
 	return cmd
 }
@@ -196,7 +199,9 @@ func queryHistoryRows(db historyQuerier, profileID string, f historyFilter, limi
 		inner += ` AND c.updated_at || '|' || c.id < ?`
 		args = append(args, f.cursor)
 	}
-	if f.application != "" {
+	if f.application == histApplicationAny {
+		outer += ` AND application_id <> ''`
+	} else if f.application != "" {
 		outer += ` AND application_id = ?`
 		args = append(args, f.application)
 	}

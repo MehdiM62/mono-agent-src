@@ -7,7 +7,7 @@ import { CoderChatOverlay } from './CoderChatOverlay.jsx'
 import { OrgBubbleOverlay } from './OrgBubbleOverlay.jsx'
 import { QueuedCoderStack, useQueuedCoderChats } from './QueuedCoderBubble.jsx'
 import { isOrgBubble, profileFolderName } from '../../lib/coderBubbles.js'
-import { folderName, useCoderStatus } from '../chat/useCoderMode.js'
+import { folderName } from '../chat/useCoderMode.js'
 
 // useProfiles lists the profiles, to name a chat that works in a profile's
 // own folder by the profile (#477); asked again when a chat in another
@@ -32,10 +32,8 @@ function useProfiles(bubbles) {
 // full chat; collapsed ones live as summaries in the store.
 // onCloseOrg(org, needs) hears that the person closed an org bubble while
 // needs items waited, so it isn't reopened for the same ones.
-export default function CoderBubbles({ store, onNavigate, onCloseOrg }) {
+export default function CoderBubbles({ store, onNavigate, onCloseOrg, onOpenArtifact }) {
   const { t } = useTranslation()
-  // The dock's "+" only shows while coder mode is on in Settings.
-  const { status } = useCoderStatus(true)
   const profiles = useProfiles(store.bubbles)
   const titleOf = useCallback(cwd => profileFolderName(cwd, profiles) || folderName(cwd), [profiles])
   const bubbleEls = useRef({})
@@ -137,11 +135,12 @@ export default function CoderBubbles({ store, onNavigate, onCloseOrg }) {
           onCollapse={collapse}
           onCloseChat={() => closeChat(expanded.key)}
           titleOf={titleOf}
+          onOpenArtifact={onOpenArtifact}
           onNavigate={(page) => { collapse(); onNavigate?.(page) }}
         />
       )}
       {!expanded && <QueuedCoderStack items={queue.items} side={store.side} onStart={startQueued} onDismiss={dismissQueued} />}
-      <BubbleDock store={store} onOpen={open} onClose={closeChat} registerEl={registerEl} canCreate={!!status?.enabled} titleOf={titleOf} />
+      <BubbleDock store={store} onOpen={open} onClose={closeChat} registerEl={registerEl} titleOf={titleOf} />
     </>
   )
 }

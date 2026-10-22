@@ -8,6 +8,7 @@ import { api } from '../services/api.js'
 import { confirm } from '../components/ConfirmDialog.jsx'
 import MonomindInitPrompt from '../components/MonomindInitPrompt.jsx'
 import AgentRoster from '../components/agents/AgentRoster.jsx'
+import { useSendToCoder } from '../components/bubbles/CoderBubbleContext.jsx'
 
 function statusColor(installed) {
   return installed ? 'var(--green-neon)' : 'var(--text-muted)'
@@ -138,7 +139,10 @@ function writeScanCache(res) {
   } catch { /* localStorage unavailable/full — cache is best-effort */ }
 }
 
-export default function Agents({ onOpenChat }) {
+export default function Agents() {
+  // Chat on a runtime opens a new chat bubble with that runtime picked.
+  const { openNewChat } = useSendToCoder()
+  const onOpenChat = useCallback(runtimeId => openNewChat?.({ setup: { runtime: runtimeId } }), [openNewChat])
   const { t } = useTranslation()
   const cached = readScanCache()
   const [agents, setAgents] = useState(() => (cached && !cached.res?.error) ? (cached.res.agents || []) : [])

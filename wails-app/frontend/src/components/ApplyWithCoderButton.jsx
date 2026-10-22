@@ -9,6 +9,7 @@ export default function ApplyWithCoderButton({ applicationId, ...rest }) {
   return (
     <SendToCoderButton
       label="Apply with coder"
+      kind="application-apply"
       applicationId={applicationId}
       start={() => aitaskApi.startFill(applicationId)}
       doneLabel="filled, waiting for you to submit"
