@@ -7,11 +7,12 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"unicode/utf8"
 )
 
 // Validate checks v (decoded with encoding/json) against schema, a pragmatic
 // subset of JSON Schema: type (a name or a list), required, properties,
-// additionalProperties:false, items, enum, const, minLength and minItems.
+// additionalProperties:false, items, enum, const, minLength, maxLength and minItems.
 // Other keywords are ignored. The error names the first problem by its path,
 // so the agent that wrote the result can fix it. It is the same subset
 // internal/nodes/agent checks; that one is unexported, and the task result
@@ -45,6 +46,9 @@ func validateAt(path string, schema map[string]any, v any) error {
 	case string:
 		if n, ok := schema["minLength"].(float64); ok && float64(len([]rune(t))) < n {
 			return fmt.Errorf("%s: must be at least %d characters", path, int(n))
+		}
+		if n, ok := schema["maxLength"].(float64); ok && float64(utf8.RuneCountInString(t)) > n {
+			return fmt.Errorf("%s: must be at most %d characters", path, int(n))
 		}
 	case map[string]any:
 		return validateObject(path, schema, t)
