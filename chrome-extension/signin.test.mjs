@@ -71,3 +71,18 @@ test("what is kept is named, and said not to be sent until sign-in", () => {
   assert.equal(v.queued, "Waiting in this browser: 2 saved pages, 1 task, a recording. Nothing is sent until you sign in; then it is sent as usual.");
   assert.equal(S.view({ queued: { captures: 0, tasks: 0, recording: false } }).queued, "");
 });
+
+test("a waiting request spells out the approve command with its own id and code", () => {
+  const v = S.view({ status: "unpaired", reason: "pair_waiting", code: "Q9R-KWK", claimId: "1a2b3c4d5e6f" });
+  assert.equal(v.command, "monoagentcli extension approve 1a2b3c4d --code Q9R-KWK");
+  assert.match(v.lead, /Approve it from a terminal/);
+  assert.deepEqual(v.more.map((m) => m.cmd), ["monoagentcli extension deny 1a2b3c4d"]);
+});
+
+test("each stuck state names the command to run, and the details say where it stands", () => {
+  assert.equal(S.view({ status: "unpaired", reason: "pair_denied" }).command, "monoagentcli extension pair --open");
+  assert.equal(S.view({ status: "unpaired" }).command, "monoagentcli extension pair --open");
+  assert.equal(S.view({ status: "disconnected" }).command, "monoagentcli extension serve");
+  assert.equal(S.view({ status: "unpaired", reason: "bridge_signed_out" }).command, "monoagentcli account login");
+  assert.match(S.view({ status: "unpaired", reason: "pair_waiting" }).debug, /status: unpaired \/ pair_waiting/);
+});

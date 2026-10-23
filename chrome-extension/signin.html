@@ -28,6 +28,7 @@
       <code id="signin-command">monoagentcli account login</code>
       <button type="button" id="signin-copy" class="btn-secondary btn-tiny">Copy</button>
     </div>
+    <div id="signin-more"></div>
     <p id="signin-pair" class="note-line" hidden></p>
     <div id="signin-pairing" hidden>
       <label for="signin-pair-token">Pairing token</label>
@@ -38,6 +39,10 @@
     <p id="signin-code" class="note-line mono" hidden></p>
     <p id="signin-state" class="note-line" aria-live="polite"></p>
     <button type="button" id="signin-recheck" class="btn-primary">Check again</button>
+    <details id="signin-debug-box">
+      <summary>Details</summary>
+      <pre id="signin-debug" class="mono"></pre>
+    </details>
   </main>
 
   <script src="signin.js"></script>

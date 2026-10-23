@@ -24,7 +24,7 @@
    */
   function view(status) {
     const s = status || {};
-    const out = { signedIn: s.signedIn === true, unpaired: false, pair: "", queued: "", state: "", code: "" };
+    const out = { signedIn: s.signedIn === true, unpaired: false, pair: "", queued: "", state: "", code: "", lead: "", command: LOGIN_COMMAND, more: [], debug: "" };
     const unpaired = s.status === "unpaired";
     if (unpaired && s.reason === "bridge_signed_out") {
       // The bridge is up, so signing in is all it takes: this browser pairs
@@ -34,6 +34,13 @@
       // The bridge holds this browser's request until the owner decides.
       out.state = "Waiting for approval in the MonoAgent app (or run monoagentcli extension approve <id> --code <code>). This window updates automatically.";
       // The owner types this code to approve; a request they did not start shows it to nobody they can ask.
+      if (s.code && s.claimId) {
+        // Spelled out, so there is nothing to look up: this browser's own request, with its own code.
+        const id = String(s.claimId).slice(0, 8);
+        out.lead = "This browser asked to pair. Approve it from a terminal with:";
+        out.command = `monoagentcli extension approve ${id} --code ${s.code}`;
+        out.more = [{ note: "Not you? Deny it:", cmd: `monoagentcli extension deny ${id}` }];
+      }
       if (s.code) out.code = `Code: ${s.code} \u2014 approve only the request that shows this code.`;
     } else if (unpaired && (s.reason === "pair_denied" || s.reason === "pair_expired")) {
       out.unpaired = true;
@@ -44,6 +51,28 @@
       out.unpaired = true;
       out.pair = `This browser could not connect to MonoAgent by itself. After you sign in, run ${PAIR_COMMAND}, or paste the token it prints below.`;
     }
+    if (unpaired && (s.reason === "pair_denied" || s.reason === "pair_expired")) {
+      out.lead = "Ask again with Check again, or pair this browser by hand:";
+      out.command = `${PAIR_COMMAND} --open`;
+      out.more = [{ note: "See how new browsers pair:", cmd: "monoagentcli extension autopair" }];
+    } else if (unpaired && !s.reason) {
+      out.lead = "After you sign in, pair this browser from a terminal:";
+      out.command = `${PAIR_COMMAND} --open`;
+      out.more = [{ note: "Check the bridge:", cmd: "monoagentcli extension status" }, { note: "Sign in:", cmd: LOGIN_COMMAND }];
+    } else if (s.status === "disconnected") {
+      out.lead = "MonoAgent isn\u2019t running. Start it with:";
+      out.command = "monoagentcli extension serve";
+      out.more = [{ note: "Or check what is wrong:", cmd: "monoagentcli doctor" }];
+    }
+    const a = s.account || {};
+    out.debug = [
+      `status: ${s.status || "?"}${s.reason ? " / " + s.reason : ""}`,
+      s.since ? `for: ${Math.max(0, Math.round((Date.now() - s.since) / 1000))}s` : "",
+      s.binding && (s.binding.label || s.binding.instance) ? `browser: ${s.binding.label || ""} ${s.binding.instance || ""}`.trim() : "",
+      a.state || a.reason ? `account: ${a.state || ""}${a.reason ? " / " + a.reason : ""}` : "",
+      `signed in: ${s.signedIn === true}`,
+      "On this computer: monoagentcli extension status, monoagentcli extension browsers",
+    ].filter(Boolean).join("\n");
     const q = s.queued || {};
     const parts = [];
     if (q.captures > 0) parts.push(plural(q.captures, "saved page", "saved pages"));
@@ -65,6 +94,7 @@
   if (typeof document === "undefined" || typeof chrome === "undefined" || !chrome.runtime) return;
 
   const $ = (id) => document.getElementById(id);
+  const DEFAULT_LEAD = $("signin-lead").textContent;
 
   // A status broadcast does not carry the outboxes; keep the last count.
   let queued = null;
@@ -76,10 +106,44 @@
       location.replace("sidepanel.html");
       return;
     }
+    $("signin-lead").textContent = v.lead || DEFAULT_LEAD;
+    $("signin-command").textContent = v.command;
+    $("signin-copy").textContent = "Copy";
+    renderMore(v.more);
+    $("signin-debug").textContent = v.debug;
     $("signin-pairing").hidden = !v.unpaired;
     for (const [id, text] of [["signin-pair", v.pair], ["signin-queued", v.queued], ["signin-code", v.code], ["signin-state", v.state]]) {
       $(id).textContent = text;
       $(id).hidden = !text;
+    }
+  }
+
+  // Further commands for the same situation, each with its own Copy.
+  function renderMore(items) {
+    const box = $("signin-more");
+    box.textContent = "";
+    for (const it of items) {
+      const note = document.createElement("p");
+      note.className = "note-line";
+      note.textContent = it.note;
+      const row = document.createElement("div");
+      row.className = "command";
+      const code = document.createElement("code");
+      code.textContent = it.cmd;
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn-secondary btn-tiny";
+      btn.textContent = "Copy";
+      btn.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(it.cmd);
+          btn.textContent = "Copied";
+        } catch {
+          // no clipboard: the command is on screen to select
+        }
+      });
+      row.append(code, btn);
+      box.append(note, row);
     }
   }
 
@@ -116,7 +180,7 @@
   $("signin-recheck").addEventListener("click", () => recheck(true));
   $("signin-copy").addEventListener("click", async () => {
     try {
-      await navigator.clipboard.writeText(LOGIN_COMMAND);
+      await navigator.clipboard.writeText($("signin-command").textContent);
       $("signin-copy").textContent = "Copied";
     } catch {
       // no clipboard: the command is on screen to select
