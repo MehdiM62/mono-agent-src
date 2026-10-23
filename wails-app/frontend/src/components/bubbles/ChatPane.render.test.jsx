@@ -147,7 +147,8 @@ describe('a new chat at an access level', () => {
   it('seeds the runtime from the entry point (the Agents page)', async () => {
     render(<Harness seed={{ setup: { runtime: 'gemini' } }} />)
     await waitFor(() => expect(screen.getByLabelText('Runtime')).toHaveValue('gemini'))
-    expect(api.getAgentRuntimeModels).toHaveBeenCalledWith('gemini', '/bin/gemini')
+    // The models load is deferred a microtask after the runtime shows, so wait for it.
+    await waitFor(() => expect(api.getAgentRuntimeModels).toHaveBeenCalledWith('gemini', '/bin/gemini'))
   })
 })
 
