@@ -224,8 +224,8 @@ func runCoderTurn(cmd *cobra.Command, cfg *Deps, journal *turnJournal, t coderTu
 		// ends journaled before the turn finishes.
 		closeOrg()
 	}
-	if journal != nil && err == nil {
-		compactContext(ctx, journal, opts, res)
+	if journal != nil {
+		compactContext(ctx, journal, opts, res, err)
 	}
 	if journal != nil {
 		if err != nil && res == nil {
