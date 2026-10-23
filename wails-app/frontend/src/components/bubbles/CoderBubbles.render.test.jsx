@@ -454,7 +454,10 @@ describe('verification matrix (#231)', () => {
     ].map((e, i) => ({ ...e, conversationId: 'c1', turnId, seq: i + 1, at: at(i) }))
     for (const ev of events) emit(ev)
     await waitFor(() => expect(within(overlay()).getByText('One test fails: TestX.')).toBeInTheDocument())
-    await waitFor(() => expect(document.querySelector('[data-testid="stage-node"][data-agent="lead"]')).not.toHaveAttribute('data-status', 'working'))
+    // The settled state, not "anything but working": before the stage has folded
+    // the events in, the lead is still idle, and a snapshot of that differs from
+    // the replay's done.
+    await waitFor(() => expect(document.querySelector('[data-testid="stage-node"][data-agent="lead"]')).toHaveAttribute('data-status', 'done'))
     // Stable fields only: the stage has a clock-driven ticker, so compare the
     // transcript and the lead's status, not the overlay's raw text.
     const snapshot = () => ({
