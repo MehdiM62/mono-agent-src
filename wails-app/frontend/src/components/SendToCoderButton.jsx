@@ -16,8 +16,10 @@ const noteStyle = {
 // context is the CLASS=PATH entries or selection-text=<text> (selectionText()).
 // origin = { page, label } names the tab the task came from. start, when given,
 // replaces the submit: an async () => task (e.g. the application fill), and
-// doneLabel is what the task header says once it completes.
-export default function SendToCoderButton({ kind = 'generic', goal, context = [], applicationId = '', label = 'Send to coder', origin, start, doneLabel, className = 'btn btn-secondary btn-sm', style }) {
+// doneLabel is what the task header says once it completes. oneshotNote=false
+// drops the "still runs the regular way" line where there is no other way;
+// onSent runs once the task's bubble has opened.
+export default function SendToCoderButton({ kind = 'generic', goal, context = [], applicationId = '', label = 'Send to coder', origin, start, doneLabel, oneshotNote = true, onSent, className = 'btn btn-secondary btn-sm', style }) {
   const { openDraft, navigate } = useSendToCoder()
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState(null) // { text, error?, settings? }
@@ -42,6 +44,7 @@ export default function SendToCoderButton({ kind = 'generic', goal, context = []
         // kind lets the pane know a confined application-apply chat the moment it opens.
         task: { taskId: task.taskId, kind: task.kind || kind, goal: task.goal || goal, status: task.status, origin, doneLabel },
       })
+      onSent?.(task)
     } catch (err) {
       setNote({ text: String(err?.message || err), error: true })
     } finally {
@@ -59,7 +62,7 @@ export default function SendToCoderButton({ kind = 'generic', goal, context = []
           {note.text}
           {note.settings && (
             <>
-              {' '}This action still runs the regular way.{' '}
+              {' '}{oneshotNote && 'This action still runs the regular way. '}
               {navigate && <a href="#settings" style={{ color: 'var(--cyan, #00b4d8)' }} onClick={e => { e.preventDefault(); navigate('settings') }}>Open Settings</a>}
             </>
           )}
