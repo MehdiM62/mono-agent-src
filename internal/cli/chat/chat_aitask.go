@@ -81,6 +81,12 @@ func taskTurn(cfg *Deps, conversationID string, turnCap *float64) (run taskRun) 
 			run.kind, run.err = browserctl.KindCoder, err
 			return run
 		}
+		// The task id (never the token: CheckToken still guards complete and fail)
+		// marks every confined turn, open or over, so the CLI's task-session guard
+		// (cmd/monoagentcli/task_session_guard.go) holds the agent to its profile.
+		// This env var is the guard's single signal: every path that returns a
+		// confinement carries it (TestEveryConfinedTurnCarriesTheTaskID).
+		run.env = map[string]string{aitask.EnvTaskID: t.ID}
 	}
 	open := t.Status == aitask.StatusRunning || t.Status == aitask.StatusNeedsUser
 	if !open && !confined {

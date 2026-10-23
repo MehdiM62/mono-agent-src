@@ -265,8 +265,8 @@ func TestApplyConversationStaysConfinedAfterItsTaskIsOver(t *testing.T) {
 		if !strings.Contains(string(logged), "--allow-bash-prefix") {
 			t.Errorf("%s: the follow-up ran without the confined command list", status)
 		}
-		if id, token := r.env(t); id != "" || token != "" {
-			t.Errorf("%s: a finished task handed out its env %q %q", status, id, token)
+		if id, token := r.env(t); id != task.ID || token != "" {
+			t.Errorf("%s: a finished confined task's turn carries the id %q and no token, got %q %q", status, task.ID, id, token)
 		}
 		st, done := r.store(t, "default")
 		got, _ := st.Get(task.ID)

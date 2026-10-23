@@ -43,6 +43,9 @@ func countProfileFlag(root *cobra.Command, n *int) {
 	}
 }
 
+// taskProfileLookup is taskProfile; a var so a test can see when it is called.
+var taskProfileLookup = taskProfile
+
 // taskProfile is the id and name of the profile task id belongs to.
 func taskProfile(dbPath, taskID string) (id, name, kind string, err error) {
 	path := expandPath(dbPath)
@@ -61,7 +64,9 @@ func taskProfile(dbPath, taskID string) (id, name, kind string, err error) {
 // guardTaskSession refuses, in a task session, what would leave the task's
 // profile or database. It is a no-op for the operator's own terminal and for
 // the supervisor that runs the turn (which carries the task id too but is the
-// operator). Fails closed: a task that cannot be looked up is refused.
+// operator). Fails closed: a task that cannot be looked up is refused. The
+// task id in the environment is the single signal that a session is a task's:
+// the chat sets it on every confined turn, open or over (chat_aitask.go).
 func guardTaskSession(cmd *cobra.Command, dbPath string, profileSets int) error {
 	taskID := os.Getenv(aitask.EnvTaskID)
 	if taskID == "" || notOperator() == "" {
@@ -70,16 +75,19 @@ func guardTaskSession(cmd *cobra.Command, dbPath string, profileSets int) error 
 	refuse := func(format string, a ...any) error {
 		return errInvalidInput("an AI task's session may not do this: "+format, a...)
 	}
-	// Only a confined kind's session is held to the list; a generic task is a
-	// full-access coder and can run anything anyway.
-	id, name, kind, lookupErr := taskProfile(dbPath, taskID)
-	if lookupErr == nil && !chatcli.ConfinedKind(kind) {
-		return nil
-	}
+	// The flags that move the command to another database or file come first:
+	// a refused --db-path is never used for the lookup below. They are refused in
+	// every task session, a generic one included.
 	for _, name := range taskSessionForbiddenFlags {
 		if f := cmd.Flags().Lookup(name); f != nil && f.Changed {
 			return refuse("--%s is not allowed", name)
 		}
+	}
+	// Only a confined kind's session is held to the rest; a generic task is a
+	// full-access coder and can run anything anyway.
+	id, name, kind, lookupErr := taskProfileLookup(dbPath, taskID)
+	if lookupErr == nil && !chatcli.ConfinedKind(kind) {
+		return nil
 	}
 	var bad error
 	cmd.Flags().Visit(func(f *pflag.Flag) {

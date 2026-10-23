@@ -2,6 +2,7 @@ package aitask
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -129,7 +130,7 @@ func TestRedactResultPlaceholdersMustBeWholeAndKnown(t *testing.T) {
 			t.Errorf("%s: kept %q: %s", name, tc.leaked, out)
 		}
 	}
-	for _, ok := range []string{`{{secret:k}}`, `{{ secret:my.key }}`, `{{vault:a}}`, `{{$json.x}}`, `{{ $node.Foo }}`, `REPLACE_ME`} {
+	for _, ok := range []string{`{{secret:k}}`, `{{ secret:my-key }}`, `@secret:outlook`, `{{vault:a}}`, `{{$json.x}}`, `{{ $node.Foo }}`, `REPLACE_ME`} {
 		if out := redactJSON(t, `{"api_key":"`+ok+`"}`); !strings.Contains(out, ok) {
 			t.Errorf("placeholder %q was redacted: %s", ok, out)
 		}
@@ -226,5 +227,100 @@ func TestRedactResultKeepsEveryKindsValidResultValid(t *testing.T) {
 		if strings.Contains(string(b), "abcdefghijklmnop0123") || strings.Contains(string(b), "pw12345678") {
 			t.Errorf("%s: a secret survived: %s", name, b)
 		}
+	}
+}
+
+// ---- round 3 ----
+
+// A secret placed where a placeholder's NAME goes is not a placeholder.
+func TestRedactResultPlaceholderNameMustBeAName(t *testing.T) {
+	for name, in := range map[string]string{
+		"token as name":    `{"v":"{{secret:` + fakeGH + `}}"}`,
+		"mixed alnum name": `{"password":"{{secret:Hunter2Hunter2xx}}"}`,
+		"digit run name":   `{"api_key":"{{secret:abc1234567890}}"}`,
+		"at-secret secret": `{"api_key":"@secret:` + fakeSK + `"}`,
+		"vault token name": `{"api_key":"{{vault:` + fakeGH + `}}"}`,
+	} {
+		out := redactJSON(t, in)
+		for _, leaked := range []string{"abcdefghijklmnop", "Hunter2Hunter2xx", "1234567890"} {
+			if strings.Contains(out, leaked) {
+				t.Errorf("%s: kept %q: %s", name, leaked, out)
+			}
+		}
+	}
+	for _, ok := range []string{`{{secret:openai_key}}`, `{{ vault:Gmail-app }}`, `@secret:slack-token`, `{{secret:SLACK_TOKEN_2}}`, `@secret:outlook`} {
+		if out := redactJSON(t, `{"api_key":"`+ok+`"}`); !strings.Contains(out, ok) {
+			t.Errorf("placeholder %q was redacted: %s", ok, out)
+		}
+	}
+	// a long @secret: name inside a header value stays too
+	if out := redactJSON(t, `{"h":"Bearer @secret:a-rather-long-secret-name"}`); !strings.Contains(out, "@secret:a-rather-long-secret-name") {
+		t.Errorf("header placeholder redacted: %s", out)
+	}
+}
+
+func TestRedactResultRound3Shapes(t *testing.T) {
+	zw := "​"
+	for name, tc := range map[string]struct{ in, leaked string }{
+		"zero-width in a key": {`{"t":"` + fakeSK[:6] + zw + fakeSK[6:] + `"}`, "abcdefghijklmnop0123"},
+		"zero-width in label": {`{"t":"pass` + zw + `word: Hunter2!xyz99"}`, "Hunter2!xyz99"},
+		"quoted json label":   {`{"t":"{\"password\":\"Hunter2!xyz99\"}"}`, "Hunter2!xyz99"},
+		"quoted api_key":      {`{"t":"\"api_key\": \"abcdef1234567890\""}`, "abcdef1234567890"},
+		"cookie header":       {`{"t":"Cookie: sid=abc123def456; theme=dark"}`, "abc123def456"},
+		"set-cookie header":   {`{"t":"Set-Cookie: session=abc123def456; HttpOnly"}`, "abc123def456"},
+		"x-api-key header":    {`{"t":"X-Api-Key: abcdef1234567890"}`, "abcdef1234567890"},
+		"authorization token": {`{"t":"Authorization: Token abcdef1234567890"}`, "abcdef1234567890"},
+		"gitlab":              {`{"t":"` + "g" + `lpat-abcdefghijklmnopqrstu"}`, "abcdefghijklmnopqrstu"},
+		"npm":                 {`{"t":"` + "n" + `pm_` + strings.Repeat("aB3", 12) + `"}`, "aB3aB3aB3aB3"},
+		"restricted stripe":   {`{"t":"` + "r" + `k_live_abcdefghijklmnop1234"}`, "abcdefghijklmnop1234"},
+		"pwd key":             {`{"pwd":"Zx9-realvalue"}`, "realvalue"},
+		"pw key":              {`{"pw":"Zx9-realvalue"}`, "realvalue"},
+	} {
+		if out := redactJSON(t, tc.in); strings.Contains(out, tc.leaked) {
+			t.Errorf("%s: leaked %q: %s", name, tc.leaked, out)
+		}
+	}
+	// lookalikes stay
+	in := `{"footprint":"abc12345","pwned_count":"12","note":"Cookie: chocolate chip is the flavour","pw_len":"8"}`
+	var want any
+	_ = json.Unmarshal([]byte(in), &want)
+	wantB, _ := json.Marshal(want)
+	if got := redactJSON(t, in); got != string(wantB) {
+		t.Errorf("lookalikes changed:\n got %s\nwant %s", got, wantB)
+	}
+}
+
+// Linear work: a few MiB of hostile input finishes in a moment.
+func TestRedactResultWorkIsLinear(t *testing.T) {
+	limit := 2 * time.Second
+	if raceEnabled {
+		limit = 60 * time.Second
+	}
+	cases := map[string]any{
+		"4 MiB of labels": strings.Repeat("password=Abcdefg1 ", (4<<20)/18),
+		"4 MiB of braces": strings.Repeat("{{ x }} token=Abcdefg12345 ", (4<<20)/27),
+	}
+	for name, in := range cases {
+		start := time.Now()
+		out := RedactResult(map[string]any{"a": in})
+		if d := time.Since(start); d > limit {
+			t.Errorf("%s: took %v", name, d)
+		}
+		if s, _ := out.(map[string]any)["a"].(string); strings.Contains(s, "Abcdefg1") {
+			t.Errorf("%s: a secret survived", name)
+		}
+	}
+	// Many keys that all redact to the same name.
+	keys := map[string]any{}
+	for i := 0; i < 100000; i++ {
+		keys[fmt.Sprintf("%s%07d", "s"+"k-live-abcdefghijkl", i)] = i
+	}
+	start := time.Now()
+	out := RedactResult(keys).(map[string]any)
+	if d := time.Since(start); d > limit {
+		t.Errorf("100k colliding keys took %v", d)
+	}
+	if len(out) != len(keys) {
+		t.Errorf("keys lost: %d of %d", len(out), len(keys))
 	}
 }
