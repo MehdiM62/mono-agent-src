@@ -1,6 +1,8 @@
 package aitask
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"sort"
@@ -27,6 +29,13 @@ func FullAccess(a string) bool { return a != AccessQA }
 // result it hands back.
 type Kind struct {
 	Name string
+	// Description is one line saying what the kind does, listed with the kinds.
+	Description string
+	// Check, when set, is called by Service.Complete after the schema check
+	// and before the task is closed, with the task's profile and the result.
+	// Its error refuses the result (schema_invalid) so the agent can fix it and
+	// complete again; a panic or a run past CheckTimeout refuses too.
+	Check func(ctx context.Context, profile string, raw json.RawMessage) error
 	// Schema is the JSON Schema (the subset Validate checks) the result must
 	// match; nil accepts any JSON object.
 	Schema map[string]any
@@ -74,7 +83,7 @@ func Lookup(name string) (Kind, error) {
 	}
 	return Kind{}, &Error{Code: CodeUnknownKind,
 		Message: fmt.Sprintf("unknown task kind %q (kinds: %v)", name, namesLocked()),
-		Fields:  map[string]any{"kinds": namesLocked()}}
+		Fields:  map[string]any{"kinds": namesLocked(), "descriptions": descriptionsLocked()}}
 }
 
 // Names are the registered kinds, sorted.
@@ -82,6 +91,16 @@ func Names() []string {
 	kindsMu.RLock()
 	defer kindsMu.RUnlock()
 	return namesLocked()
+}
+
+func descriptionsLocked() map[string]string {
+	out := make(map[string]string, len(kinds))
+	for n, k := range kinds {
+		if k.Description != "" {
+			out[n] = k.Description
+		}
+	}
+	return out
 }
 
 func namesLocked() []string {
