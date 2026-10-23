@@ -26,7 +26,7 @@ require (
 	github.com/mochi-mqtt/server/v2 v2.7.9
 	github.com/olekukonko/tablewriter v1.1.5
 	github.com/pkg/sftp v1.13.11
-	github.com/rabbitmq/amqp091-go v1.15.0
+	github.com/rabbitmq/amqp091-go v1.16.0
 	github.com/redis/go-redis/v9 v9.23.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/rs/zerolog v1.35.1
