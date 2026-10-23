@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Agent mode hardening.** The bwrap and seatbelt profiles make shell startup and autostart files read-only, hide ssh/cloud/git credentials, unshare pid and ipc, and clear the environment; the HTTP API answers 421 to a `Host` that is not the bound loopback address (`MONOAGENT_HTTPAPI_ALLOWED_HOSTS` lists extra names).
 - **AI tasks.** New kinds `workflow-generate`, `recording-analyze` and `failed-run-fix` (`internal/aitaskkinds`): the coder builds a workflow draft, reviews a recording's analysis, or fixes a failed run's workflow, and never runs or sends anything.
 
 ### BREAKING

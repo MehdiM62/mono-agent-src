@@ -240,7 +240,16 @@ supported way to run a coding agent that you do not fully trust:
    (`--runtime seatbelt` for macOS `sandbox-exec`, `--runtime claude-code` for
    Claude Code's own sandbox settings). The profile hides `~/.monoagent`, the
    Secret Service / KWallet / macOS keychain files and, where it can, the D-Bus
-   session bus. It leaves loopback networking open.
+   session bus. On Linux it also hides `~/.ssh`, `~/.aws`, `~/.config/gh` and git
+   credential files, makes the shell startup files, `~/.config/autostart`,
+   `~/.config/systemd/user`, `~/.local/share/applications` and `~/.config/fish`
+   read-only (so nothing placed there runs outside the sandbox later), gives the command its
+   own process and IPC namespaces and session, drops all capabilities and clears the
+   environment except an allowlist (`PATH`, `HOME`, the `MONOAGENT_API_*` variables and the
+   agent runtimes' own API-key and config-directory variables), so `SSH_AUTH_SOCK`, cloud
+   credentials and `XDG_RUNTIME_DIR` are not passed on. The macOS profile makes
+   `~/Library/LaunchAgents` and the shell startup files unwritable and hides `~/.ssh`; it has
+   not been run on a Mac by the authors. Both leave loopback networking open.
 2. The agent does not run `monoagentcli` as you. It calls the daemon's HTTP API
    (`127.0.0.1:9322`, `/profiles/{profile}/...`) with a token that opens that one
    profile only. The API is read-only unless the daemon was started with
@@ -286,7 +295,15 @@ supported way to run a coding agent that you do not fully trust:
    advisory only: a process can hide the marks, and finding none proves nothing. The sandbox is the
    boundary, never this report.
 
-Limits: the profiles are written for Linux (bwrap), macOS (seatbelt) and Claude
+The API server answers 421 to any request whose `Host` header is not a loopback spelling of
+the port it is bound to (`127.0.0.1`, `localhost`, `[::1]`), before routing and before any token
+check, so a web page cannot reach it under another name. A server bound to a non-loopback address
+serves other names only when you list them in `MONOAGENT_HTTPAPI_ALLOWED_HOSTS`.
+
+Limits: the operator check (the markers and process-ancestry test that decide whether a command
+is the user's own terminal) is a convenience guard, not a security boundary; an OS sandbox as above is
+the supported way to keep an agent apart from your keys. Windows has no OS boundary from this tool (see
+below). The profiles are written for Linux (bwrap), macOS (seatbelt) and Claude
 Code's settings; the seatbelt service names and Claude Code's setting keys were
 not checked against every release, so test that the agent cannot read
 `~/.monoagent` before you rely on one. An abstract-socket D-Bus session bus (some
