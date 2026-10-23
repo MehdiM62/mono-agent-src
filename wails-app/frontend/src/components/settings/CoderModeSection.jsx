@@ -4,6 +4,7 @@ import { api } from '../../services/api.js'
 import { confirm } from '../ConfirmDialog.jsx'
 import { missingText, coderReady, coderRuntimes, runtimeReadiness } from '../chat/useCoderMode.js'
 import { runtimeLabel } from '../../lib/runtimeLabels.js'
+import CoderDefaultAccess from './CoderDefaultAccess.jsx'
 
 // Coder mode (#203): a chat mode in which a coding agent (claude, codex,
 // opencode, …) runs with full access inside one folder. Off by default; turning it on asks for an explicit
@@ -152,6 +153,8 @@ export default function CoderModeSection() {
           Coder mode {missingText(status)}. You can turn it on now; Coder chats start once {status.missingCapabilities?.length || !perRuntime ? 'monomind is updated' : 'a runtime is ready'}.
         </div>
       )}
+
+      {status && <CoderDefaultAccess status={status} onSaved={apply} />}
 
       {status && (
         <form onSubmit={e => { e.preventDefault(); save() }} style={{ display: 'flex', flexDirection: 'column', gap: 10, opacity: enabled ? 1 : 0.6 }}>

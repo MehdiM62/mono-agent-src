@@ -134,6 +134,22 @@ describe('a new chat at an access level', () => {
     await waitFor(() => expect(api.startChatTurn).toHaveBeenCalledWith('c9', expect.any(String), 'fix it', false, false))
   })
 
+  it('a plain click on New chat opens a full-access coder chat when the effective default is full, and the user can still pick another level', async () => {
+    api.coderStatus.mockResolvedValue({ ...coderOn, defaultAccess: 'full' })
+    render(<Harness seed={undefined} />)
+    fireEvent.click(await screen.findByLabelText('New chat'))
+    await waitFor(() => expect(screen.getByLabelText('Access')).toHaveValue('full'))
+    expect(screen.getByTestId('folder-picker')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Access'), { target: { value: 'coding' } })
+    await waitFor(() => expect(screen.getByLabelText('Access')).toHaveValue('coding'))
+    fireEvent.change(screen.getByLabelText('Access'), { target: { value: 'full' } })
+    await waitFor(() => expect(screen.getByLabelText('Access')).toHaveValue('full'))
+    await waitFor(() => expect(screen.getByLabelText('Model')).toHaveValue('opus'))
+    fireEvent.change(box(), { target: { value: 'go' } })
+    fireEvent.keyDown(box(), { key: 'Enter' })
+    await waitFor(() => expect(chatAccess.create).toHaveBeenCalledWith('general', 'claude', 'opus', '', 'full', '/home/u/profile'))
+  })
+
   it('switching the level to scoped swaps the runtime list for the installed ones', async () => {
     api.coderStatus.mockResolvedValue(coderOn)
     render(<Harness seed={undefined} />)
