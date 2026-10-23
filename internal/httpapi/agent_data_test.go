@@ -881,3 +881,38 @@ func TestOpenAPIHasEveryRoute(t *testing.T) {
 		}
 	}
 }
+
+// Concurrent creates of new tags never pass the profile's cap, none fails with a database
+// lock, and the ones that lose are told 409.
+func TestConcurrentTagCreatesStayUnderTheCap(t *testing.T) {
+	f := newDataFx(t, true)
+	f.exec(t, `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i < 495)
+		INSERT INTO tags (id, name, color, profile_id) SELECT 'pre'||i, 'pre'||i, '#000', 'default' FROM n`)
+	const workers = 64
+	f.exec(t, `WITH RECURSIVE n(i) AS (SELECT 2000 UNION ALL SELECT i+1 FROM n WHERE i < 2063)
+		INSERT INTO vault_documents (id, seq, path, filename, size_bytes, source, profile_id, created_at)
+		SELECT 'doc-'||i, i, '/p', 'f', 1, 'upload', 'default', '2026-10-01T00:00:00Z' FROM n`)
+	codes := make(chan int, workers)
+	start := make(chan struct{})
+	for i := 0; i < workers; i++ {
+		go func(i int) {
+			<-start
+			rw := doReq(t, f.s, "POST", fmt.Sprintf("/profiles/default/documents/doc-%d/tags", 2000+i), f.write,
+				[]byte(fmt.Sprintf(`{"name":"new-%d"}`, i)))
+			codes <- rw.Code
+		}(i)
+	}
+	close(start)
+	got := map[int]int{}
+	for i := 0; i < workers; i++ {
+		got[<-codes]++
+	}
+	var n int
+	_ = f.s.rt.db.DB.QueryRow(`SELECT COUNT(*) FROM tags WHERE profile_id = 'default'`).Scan(&n)
+	if n != 500 {
+		t.Errorf("the profile holds %d tags, want exactly 500 (cap 500, 495 before)", n)
+	}
+	if got[200] != 5 || got[409] != workers-5 || len(got) != 2 {
+		t.Errorf("statuses = %v, want 5 x 200 and %d x 409", got, workers-5)
+	}
+}

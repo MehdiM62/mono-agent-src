@@ -381,23 +381,13 @@ func (s *Server) handleDocumentTagAdd(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx, profile, db := r.Context(), profileOf(r), s.rt.db.DB
-	// A name the profile has no tag for makes one: not past maxTagsPerProfile.
-	var have, total int
-	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM tags WHERE profile_id = ? AND LOWER(name) = LOWER(?)`, profile, body.Name).Scan(&have); err != nil {
-		dataFail(w, "tag document", err)
+	// A name the profile has no tag for makes one, not past maxTagsPerProfile (counted and
+	// inserted in one transaction).
+	t, err := doctags.AddLimited(ctx, db, profile, d.ID, body.Name, maxTagsPerProfile)
+	if errors.Is(err, doctags.ErrTooManyTags) {
+		writeError(w, http.StatusConflict, fmt.Sprintf("this profile has the most tags the API lets it make (%d): use an existing one", maxTagsPerProfile))
 		return
 	}
-	if have == 0 {
-		if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM tags WHERE profile_id = ?`, profile).Scan(&total); err != nil {
-			dataFail(w, "tag document", err)
-			return
-		}
-		if total >= maxTagsPerProfile {
-			writeError(w, http.StatusConflict, fmt.Sprintf("this profile has %d tags, the most the API lets it make: use an existing one", total))
-			return
-		}
-	}
-	t, err := doctags.Add(ctx, db, profile, d.ID, body.Name)
 	if err != nil {
 		dataFail(w, "tag document", err)
 		return
