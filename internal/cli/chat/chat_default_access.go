@@ -40,7 +40,7 @@ func withDefaultAccess(cfg *Deps, cmd *cobra.Command) *cobra.Command {
 }
 
 // defaultCreateAccess is the level a creation with no --access/--mode makes:
-// the configured default when the caller is the operator, coder mode is on and
+// the configured default (full when none is set) when the caller is the operator, coder mode is on and
 // the requested runtime is ready for it, else scoped. An agent, a workflow or
 // the chat's runs always get scoped: the default never lifts one of them
 // above what it could create by naming the level.
@@ -54,12 +54,12 @@ func defaultCreateAccess(cmd *cobra.Command, cfg *Deps) string {
 	}
 	defer db.Close()
 	s, err := loadCoderSettings(db.DB)
-	if err != nil || !s.Enabled || s.DefaultAccess == ai.AccessScoped {
+	if err != nil || !s.Enabled || s.defaultAccess() == ai.AccessScoped {
 		return ai.AccessScoped
 	}
 	runtimeID, _ := cmd.Flags().GetString("runtime")
 	if _, _, _, err := requireCoderReady(cmd, db.DB, runtimeID); err != nil {
 		return ai.AccessScoped
 	}
-	return s.DefaultAccess
+	return s.defaultAccess()
 }

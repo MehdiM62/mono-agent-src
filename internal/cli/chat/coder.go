@@ -55,9 +55,10 @@ type coderSettings struct {
 	// Jev key is set. Only the operator changes it.
 	AppAccess *bool `json:"appAccess,omitempty"`
 	// DefaultAccess is the level an operator-run `chat history create`
-	// without --access/--mode makes when coder mode is ready: scoped (the
-	// default), coding, workspace or full. Only the operator changes it, and
-	// an agent-run creation never takes it (chat_default_access.go).
+	// without --access/--mode makes when coder mode is ready: coding,
+	// workspace, full or scoped. Unset it is full (see defaultAccess), what a
+	// coder chat always was. Only the operator changes it, and an agent-run
+	// creation never takes it (chat_default_access.go).
 	DefaultAccess string `json:"defaultAccess,omitempty"`
 }
 
@@ -101,10 +102,24 @@ func (s coderSettings) withDefaults() coderSettings {
 		on := true
 		s.AppAccess = &on
 	}
-	if !ai.ValidAccess(s.DefaultAccess) {
-		s.DefaultAccess = ai.AccessScoped
-	}
 	return s
+}
+
+// Where status says the default access came from.
+const (
+	defaultAccessFromDefault = "default"
+	defaultAccessFromSet     = "set"
+)
+
+// defaultAccess is the level new operator-run chats take when coder mode is
+// ready: the stored one (`coder set --default-access`), else full. It is not
+// filled in by withDefaults, so saving the settings never stores the built-in
+// default as if the operator had chosen it.
+func (s coderSettings) defaultAccess() string {
+	if ai.ValidAccess(s.DefaultAccess) {
+		return s.DefaultAccess
+	}
+	return ai.AccessFull
 }
 
 // appAccess reports coder.appAccess; unset is on.
@@ -158,6 +173,9 @@ type coderStatus struct {
 	MonomindVersion     string                  `json:"monomindVersion"`
 	Runtime             string                  `json:"runtime"`
 	Runtimes            []monomind.CoderRuntime `json:"runtimes"`
+	// DefaultAccessSource says whether defaultAccess is the built-in default
+	// or one the operator set.
+	DefaultAccessSource string `json:"defaultAccessSource"`
 
 	caps *monomind.CapabilitySet
 	scan *monomind.ScanResult // nil when the scan failed
@@ -174,7 +192,11 @@ var capabilityProbe = func(cmd *cobra.Command) (*monomind.CapabilitySet, error) 
 var runtimeScan = monomind.Scan
 
 func currentCoderStatus(cmd *cobra.Command, s coderSettings) coderStatus {
-	st := coderStatus{coderSettings: s, Runtime: monomind.DefaultCoderRuntime}
+	st := coderStatus{coderSettings: s, Runtime: monomind.DefaultCoderRuntime, DefaultAccessSource: defaultAccessFromDefault}
+	if ai.ValidAccess(s.DefaultAccess) {
+		st.DefaultAccessSource = defaultAccessFromSet
+	}
+	st.DefaultAccess = s.defaultAccess()
 	set, err := capabilityProbe(cmd)
 	if err == nil && set != nil {
 		st.MonomindVersion = set.Version

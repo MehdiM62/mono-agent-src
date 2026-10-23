@@ -194,7 +194,7 @@ func TestCoderConversationFolders(t *testing.T) {
 		"file, not folder": {"--mode", "coder", "--cwd", file},
 		"both folders":     {"--mode", "coder", "--cwd", picked, "--new-workspace"},
 		"no folder":        {"--mode", "coder"},
-		"assistant + cwd":  {"--cwd", picked},
+		"scoped + cwd":     {"--access", "scoped", "--cwd", picked},
 		"unknown mode":     {"--mode", "wizard"},
 	} {
 		if out, code := runChatHistory(t, dbPath, "default", append([]string{"create", "--runtime", "claude"}, args...)...); code != 3 {
