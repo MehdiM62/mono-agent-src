@@ -271,9 +271,10 @@ supported way to run a coding agent that you do not fully trust:
    `agent-mode token revoke`, and only its SHA-256 is kept for checking it (compared in constant
    time); its text is kept in the profile's vault so that `env` can hand it out, and removed on
    revoke. Every request made with a token is recorded by token name, method, escaped path
-   (cut to 200 characters) and status, never the token: `agent-mode token audit <name>`. The row
+   (cut to 200 characters) and status, never the token: `agent-mode token audit <name>`. A valid token used on another profile's path is refused 401 and recorded too. The row
    is written before the request runs, and a token whose use cannot be recorded is refused with
-   503; the table keeps the last 10,000 rows. Vault entries named `agent-token-*` hold the tokens'
+   503; the table is trimmed by count, never by age or id: a token keeps its last 2,000 served rows and, in a set
+   served calls cannot push out, its last 500 refused ones (401, 403), and over 50,000 rows in all the token holding the most loses its oldest first, so one token's traffic cannot erase another's trail. Vault entries named `agent-token-*` hold the tokens'
    text: only the token commands write them, a workflow run never reads them (even with agent
    secret access on), and an expired token's entry is removed the next time the tokens are listed. A token opens the profile it was made for and
    no other. The profile's own bearer (`secret reveal httpapi-token --reveal`) keeps working as the
@@ -311,10 +312,18 @@ only; another profile's id is "not found", and a token used on another profile's
   and task texts come back in `_untrusted` fields.
 - `write`, only on a daemon started with `--allow-mutations` (otherwise 404): `POST
   documents/{id}/tags` and `DELETE documents/{id}/tags/{tag}`. A tag name is at most 64 characters, a
-  document holds 10 tags (the CLI's rule) and the route makes no new tag once a profile has 500.
+  document holds 10 tags (the CLI's rule) and the route makes no new tag once a profile has 500
+  (counted and written in one transaction). The API cannot delete a tag, only unlink it, so tags a
+  write token made stay until you delete them; and a write token can untag any tag on any document
+  of its profile (the audit keeps the path, not the body). Tag names refuse control and format
+  characters (bidi overrides, zero-width characters).
 
 A document is shown without its file path, capture directory or index error (which can quote
-a path), and a captured page's address without its query and fragment. There is no route that
+a path), and a captured page's address without its query and fragment; the path part stays, so a
+secret embedded in a path (`/reset/<token>`) of a captured URL is returned. Documents and people
+come back like tasks do: a `note` and every free-text field under a name ending in `_untrusted`.
+The Inbox is not readable by a token (`?status=inbox`, an Inbox task by number: nothing, 404)
+unless you turned on the agents' board view. There is no route that
 reads a document's content: the agent gets the metadata, not the file, and the file stays behind
 the sandbox. Every list is paged (default 50, at most 200), unknown query parameters are refused
 400, ids are checked against `[A-Za-z0-9][A-Za-z0-9._:-]*`, a tag body over 1 KiB is 413. Still out

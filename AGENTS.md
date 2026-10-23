@@ -1007,8 +1007,8 @@ Data routes for agent mode (`internal/httpapi/handlers_agent_data.go`; the profi
 |---|---|---|
 | `GET /profiles/{p}/documents`, `/documents/{id}`, `/documents/{id}/tags` | read | no file path, capture dir or index error; `?tag=` (≤5), `?limit=` ≤200, `?offset=` |
 | `GET /profiles/{p}/people`, `/people/{id}` | read | `chat.ListPeople` / `chat.GetPerson`, the code behind `person_list` / `person_get`; each text ≤4,096 characters, an answer ≤~64 K |
-| `GET /profiles/{p}/tasks`, `/tasks/{id}`, `/tasks/next` | read | `internal/tasks` read as `agent:httpapi` (Inbox hidden unless delegated); views from `internal/taskview`, shared with the MCP task tools |
-| `POST /profiles/{p}/documents/{id}/tags`, `DELETE …/tags/{tag}` | write | registered only with `--allow-mutations`; name ≤64 characters, ≤10 tags per document, no new tag past 500 per profile |
+| `GET /profiles/{p}/tasks`, `/tasks/{id}`, `/tasks/next` | read | `internal/tasks` read as `agent:httpapi` (Inbox hidden, also by `?status=inbox` or number, unless `AgentAccess.View`); views from `internal/taskview`, shared with the MCP task tools |
+| `POST /profiles/{p}/documents/{id}/tags`, `DELETE …/tags/{tag}` | write | registered only with `--allow-mutations`; name ≤64 characters, ≤10 tags per document, no new tag past 500 per profile (`doctags.AddLimited`, one `BEGIN IMMEDIATE` transaction) |
 
 Rules for a new data route: reuse the CLI/MCP read function (export it; do not copy its query);
 take the profile from `profileOf(r)` only; page it (`pageParams`) and cap the output; refuse unknown
