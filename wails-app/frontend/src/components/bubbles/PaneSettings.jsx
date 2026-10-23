@@ -165,7 +165,7 @@ export function PaneSettings({ bubble, access, store, confined, onNavigate, onCl
               : t('bubbles.pane.noCap')}
         </span>
         <button type="button" className="btn btn-ghost btn-sm" style={linkBtn} onClick={toSettings}>{t('bubbles.pane.budgetsLink')}</button>
-        <CapLower taskId={bubble.taskId || ''} cost={cost} enabled={isAccess(access)} confined={confined} onLowered={() => setCostVersion(v => v + 1)} />
+        <CapLower taskId={bubble.taskId || ''} conversationId={bubble.conversationId || ''} cost={cost} enabled={isAccess(access)} confined={confined} onLowered={() => setCostVersion(v => v + 1)} />
       </div>
       <div style={row} data-testid="pane-browser">
         <span style={label}>{t('bubbles.pane.browser')}</span>

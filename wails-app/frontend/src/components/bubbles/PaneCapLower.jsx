@@ -20,10 +20,10 @@ export function checkLower(text, cap, spent) {
   return null
 }
 
-// CapLower lowers the cap of the chat's task from the pane. It never raises:
-// the control is only offered where the chat has a cap of its own to lower,
-// and says so plainly where it does not.
-export function CapLower({ taskId, cost, enabled, confined, onLowered }) {
+// CapLower lowers the cap of the chat from the pane: the task's, or, for a
+// chat with no task, its own conversation cap under the global one. It never
+// raises, and is only offered where some cap applies.
+export function CapLower({ taskId, conversationId, cost, enabled, confined, onLowered }) {
   const { t } = useTranslation()
   const [text, setText] = useState('')
   const [error, setError] = useState('')
@@ -32,13 +32,16 @@ export function CapLower({ taskId, cost, enabled, confined, onLowered }) {
 
   if (cost === undefined) return null
   if (confined) return <span style={note} data-testid="pane-lower-note">{t('bubbles.pane.lowerConfined')}</span>
-  if (!taskId || !cost || cost.scope !== 'task') return <span style={note} data-testid="pane-lower-note">{t('bubbles.pane.lowerNoOwnCap')}</span>
+  if (!cost || !conversationId) return <span style={note} data-testid="pane-lower-note">{t('bubbles.pane.lowerNoOwnCap')}</span>
+  // The global spend is not this chat's, so it is not compared with the new cap.
+  const byTask = !!taskId && cost.scope === 'task'
+  const spent = byTask ? cost.spentUsd : null
 
   const submit = async (e) => {
     e.preventDefault()
     if (busy || !enabled) return
     setDone('')
-    const bad = checkLower(text, cost.capUsd, cost.spentUsd)
+    const bad = checkLower(text, cost.capUsd, spent)
     if (bad) { setError(t(bad.key, bad.params)); return }
     setError('')
     const usd = Number(text)
@@ -48,7 +51,7 @@ export function CapLower({ taskId, cost, enabled, confined, onLowered }) {
     if (!ok) return
     setBusy(true)
     try {
-      await aitaskBudgetApi.lower('task', taskId, usd)
+      await (byTask ? aitaskBudgetApi.lower('task', taskId, usd) : aitaskBudgetApi.lower('conversation', conversationId, usd))
       setText('')
       setDone(t('bubbles.pane.lowerDone', { usd: money(usd) }))
       onLowered()

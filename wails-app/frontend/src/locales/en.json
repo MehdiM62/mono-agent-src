@@ -1245,7 +1245,7 @@
       "lowerNotNumber": "Enter a plain number of USD, like 1.50.",
       "lowerNotBelow": "The new cap must be below the current {{cap}}.",
       "lowerBelowSpent": "The new cap must be above the {{spent}} already spent.",
-      "lowerNoOwnCap": "No cap of its own yet: the global cap applies.",
+      "lowerNoOwnCap": "No cap applies yet: set a global cap in Settings > AI task budgets.",
       "lowerNeedsAccess": "Available once the chat's access level has been confirmed.",
       "lowerConfined": "The cap of an Apply chat is shown here only; change it in Settings.",
       "lowerRefused": "Refused: {{message}}",

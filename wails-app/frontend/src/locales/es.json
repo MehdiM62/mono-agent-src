@@ -1203,7 +1203,7 @@
       "lowerNotNumber": "Escribe un número simple de USD, como 1.50.",
       "lowerNotBelow": "El nuevo límite debe estar por debajo del actual, {{cap}}.",
       "lowerBelowSpent": "El nuevo límite debe superar los {{spent}} ya gastados.",
-      "lowerNoOwnCap": "Aún sin límite propio: se aplica el límite global.",
+      "lowerNoOwnCap": "Aún no se aplica ningún límite: define uno global en Ajustes > Presupuestos de tareas de IA.",
       "lowerNeedsAccess": "Disponible cuando se confirme el nivel de acceso del chat.",
       "lowerConfined": "El límite de un chat de Apply solo se muestra aquí; cámbialo en Ajustes.",
       "lowerRefused": "Rechazado: {{message}}",

@@ -21,7 +21,7 @@ export const aitaskBudgetApi = {
   set: (scope, key, usd) => call(() => GoApp.SetAITaskBudget(scope, key, usd)),
   clear: (scope, key) => call(() => GoApp.ClearAITaskBudget(scope, key)),
   // {taskId, capUsd, spentUsd, reported}
-  // Lowers a chat's own cap, never raises it: scope 'task' (key = task id) or 'conversation'.
+  // Lowers a chat's own cap, never raises it: scope 'task' (key = task id) or 'conversation' (key = conversation id, creates the chat's own cap).
   lower: (scope, key, usd) => call(() => GoApp.LowerAITaskBudget(scope, key, usd)),
   forTask: (taskId) => call(() => GoApp.AITaskBudgetFor(taskId)),
 }

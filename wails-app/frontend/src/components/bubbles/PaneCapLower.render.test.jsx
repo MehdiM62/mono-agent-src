@@ -34,7 +34,7 @@ describe('checkLower', () => {
 
 describe('CapLower disabled states', () => {
   it('is off, with the reason, while access is unknown', () => {
-    render(<CapLower taskId="t1" cost={cost} enabled={false} confined={false} onLowered={() => {}} />)
+    render(<CapLower taskId="t1" conversationId="c1" cost={cost} enabled={false} confined={false} onLowered={() => {}} />)
     expect(screen.getByLabelText('New cap for this chat (USD)')).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Lower cap' })).toBeDisabled()
     expect(screen.getByText(/access level has been confirmed/)).toBeInTheDocument()
@@ -42,11 +42,11 @@ describe('CapLower disabled states', () => {
     expect(budget.lower).not.toHaveBeenCalled()
   })
   it('renders nothing while the cap is loading, and no control when confined or capless', () => {
-    const { container, rerender } = render(<CapLower taskId="t1" cost={undefined} enabled confined={false} onLowered={() => {}} />)
+    const { container, rerender } = render(<CapLower taskId="t1" conversationId="c1" cost={undefined} enabled confined={false} onLowered={() => {}} />)
     expect(container).toBeEmptyDOMElement()
-    rerender(<CapLower taskId="t1" cost={cost} enabled confined onLowered={() => {}} />)
+    rerender(<CapLower taskId="t1" conversationId="c1" cost={cost} enabled confined onLowered={() => {}} />)
     expect(screen.queryByTestId('pane-lower')).toBeNull()
-    rerender(<CapLower taskId="t1" cost={null} enabled confined={false} onLowered={() => {}} />)
+    rerender(<CapLower taskId="" conversationId="c1" cost={null} enabled confined={false} onLowered={() => {}} />)
     expect(screen.queryByTestId('pane-lower')).toBeNull()
   })
 })

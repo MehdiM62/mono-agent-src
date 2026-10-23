@@ -352,10 +352,30 @@ describe('lowering the cap from the pane', () => {
     expect(budget.lower).not.toHaveBeenCalled()
   })
 
-  it('says the global cap applies, with no control, for a chat with no cap of its own', async () => {
+  it('lowers a plain chat under the global cap through its conversation, never comparing the global spend', async () => {
+    budget.lower.mockResolvedValue({ conversationId: 's1', capUsd: 1.5 })
     await open(scoped)
     fireEvent.click(gear())
-    expect(await screen.findByTestId('pane-lower-note')).toHaveTextContent('No cap of its own yet: the global cap applies.')
+    await waitFor(() => expect(screen.getByTestId('pane-lower')).toBeInTheDocument())
+    fireEvent.change(lowerBox(), { target: { value: '1.4' } }) // below the global 1.5 spent: fine, it is not this chat's spend
+    fireEvent.click(lowerBtn())
+    await waitFor(() => expect(budget.lower).toHaveBeenCalledWith('conversation', 's1', 1.4))
+    cleanup()
+    budget.lower.mockClear()
+    await open(scoped)
+    fireEvent.click(gear())
+    await waitFor(() => expect(screen.getByTestId('pane-lower')).toBeInTheDocument())
+    fireEvent.change(lowerBox(), { target: { value: '5' } })
+    fireEvent.click(lowerBtn())
+    expect(await within(screen.getByTestId('pane-cost')).findByRole('alert')).toHaveTextContent('must be below')
+    expect(budget.lower).not.toHaveBeenCalled()
+  })
+
+  it('says no cap applies, with no control, when there is none at all', async () => {
+    budget.list.mockResolvedValue({ caps: [], spentUsd: 0 })
+    await open(scoped)
+    fireEvent.click(gear())
+    expect(await screen.findByTestId('pane-lower-note')).toHaveTextContent('No cap applies yet: set a global cap in Settings > AI task budgets.')
     expect(screen.queryByTestId('pane-lower')).toBeNull()
   })
 
