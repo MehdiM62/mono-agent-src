@@ -90,12 +90,17 @@ function AddTagBox({ doc, knownTags, onAdd }) {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const listId = `doc-tags-${doc.id}`
-  const submit = () => {
-    const n = name.trim()
+  // Enter, Escape and the blur they cause all end the box; only the first counts.
+  const done = useRef(false)
+  const close = (add) => {
+    if (done.current) return
+    done.current = true
+    const n = add ? name.trim() : ''
     setName('')
     setOpen(false)
     if (n) onAdd(doc.id, n)
   }
+  const submit = () => close(true)
   if (!open) {
     return (
       <button
@@ -103,7 +108,7 @@ function AddTagBox({ doc, knownTags, onAdd }) {
         aria-label={`Add tag to ${doc.filename}`}
         title="Add tag"
         style={{ ...btnStyle, padding: '1px 6px' }}
-        onClick={(e) => { e.stopPropagation(); setOpen(true) }}
+        onClick={(e) => { e.stopPropagation(); done.current = false; setOpen(true) }}
       ><Plus size={10} /></button>
     )
   }
@@ -120,7 +125,7 @@ function AddTagBox({ doc, knownTags, onAdd }) {
         onChange={e => setName(e.target.value)}
         onKeyDown={e => {
           if (e.key === 'Enter') { e.preventDefault(); submit() }
-          if (e.key === 'Escape') { setName(''); setOpen(false) }
+          if (e.key === 'Escape') close(false)
         }}
         onBlur={submit}
       />
