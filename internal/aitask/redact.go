@@ -2,6 +2,7 @@ package aitask
 
 import (
 	"fmt"
+	"github.com/monoes/mono-agent/internal/workflow"
 	"regexp"
 	"strings"
 	"unicode"
@@ -164,6 +165,10 @@ var (
 	schemeHeader = regexp.MustCompile(`(?i)\b((?:proxy-)?authorization\s*:\s*["']?\s*(?:Token|ApiKey|Digest)\s+)(\S{8,})`)
 )
 
+// RedactText is the value scanner for free text (run output, error messages):
+// the secrets inside s are replaced, the rest is kept.
+func RedactText(s string) string { return redactString(s) }
+
 // redactString removes what looks like a secret from s: every key- or
 // token-shaped word inside it, a private key block, a bearer, basic or token
 // credential, a cookie or key header, the password of a URL, the value of a
@@ -281,7 +286,7 @@ func redactLabelled(s string) string {
 		}
 		raw := s[loc[6]:loc[7]]
 		v := strings.Trim(raw, `"',;)}]`)
-		if v == "" || isPlaceholder(v) || !hasMoreThanLowercase(v) || strings.HasPrefix(v, RedactedValue) {
+		if v == "" || isPlaceholder(v) || !hasMoreThanLowercase(v) || strings.HasPrefix(raw, RedactedValue) {
 			continue
 		}
 		lead := strings.Index(raw, v)
@@ -380,4 +385,10 @@ func RedactResult(v any) any {
 		return redactString(t)
 	}
 	return v
+}
+
+func init() {
+	// Free text a marked process is shown (workflow run output and errors) goes
+	// through the same scanner as a task's result.
+	workflow.AgentTextScrubber = RedactText
 }
