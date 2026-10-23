@@ -48,7 +48,7 @@ func New(d Deps) *cobra.Command {
 			"), may only status, result, list, cancel, complete and fail that one task.",
 	}
 	c := &cli{d: &d}
-	for _, sub := range []*cobra.Command{c.submit(), c.submitPage(), c.start(), c.status(), c.result(), c.wait(), c.cancel(), c.list(),
+	for _, sub := range []*cobra.Command{c.submit(), c.start(), c.status(), c.result(), c.wait(), c.cancel(), c.list(),
 		c.complete(), c.fail(), c.supervise(), c.budgetCmd()} {
 		clicore.WithJSONErrors(d.JSONOutput, sub)
 		cmd.AddCommand(sub)

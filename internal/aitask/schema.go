@@ -12,8 +12,7 @@ import (
 
 // Validate checks v (decoded with encoding/json) against schema, a pragmatic
 // subset of JSON Schema: type (a name or a list), required, properties,
-// additionalProperties:false, items, enum, const, minLength, maxLength,
-// minItems and maxItems.
+// additionalProperties:false, items, enum, const, minLength, maxLength and minItems.
 // Other keywords are ignored. The error names the first problem by its path,
 // so the agent that wrote the result can fix it. It is the same subset
 // internal/nodes/agent checks; that one is unexported, and the task result
@@ -56,9 +55,6 @@ func validateAt(path string, schema map[string]any, v any) error {
 	case []any:
 		if n, ok := schema["minItems"].(float64); ok && float64(len(t)) < n {
 			return fmt.Errorf("%s: must have at least %d items", path, int(n))
-		}
-		if n, ok := schema["maxItems"].(float64); ok && float64(len(t)) > n {
-			return fmt.Errorf("%s: must have at most %d items", path, int(n))
 		}
 		if items, ok := schema["items"].(map[string]any); ok {
 			for i, e := range t {
