@@ -9,7 +9,6 @@ import (
 
 	"github.com/monoes/mono-agent/internal/aitask"
 	"github.com/monoes/mono-agent/internal/aitask/budget"
-	"github.com/monoes/mono-agent/internal/applyfill"
 	"github.com/monoes/mono-agent/internal/browserctl"
 	"github.com/monoes/mono-agent/internal/cli/clicore"
 )
@@ -59,7 +58,7 @@ func taskTurn(cfg *Deps, conversationID string, turnCap *float64) (run taskRun) 
 	if !ok {
 		return run
 	}
-	apply := t.Kind == applyfill.Kind
+	apply := confinedKind(t.Kind)
 	operator := clicore.RequireOperator(cfg.RequireOperator, "continue an AI task's turn") == nil
 	if !operator {
 		if apply {
@@ -69,7 +68,7 @@ func taskTurn(cfg *Deps, conversationID string, turnCap *float64) (run taskRun) 
 	}
 	if apply {
 		run.kind = browserctl.KindApply
-		if run.confine, err = confineApplyTurn(cfg, t.ID); err != nil {
+		if run.confine, err = confineApplyTurn(cfg, t.ID, t.Kind); err != nil {
 			run.kind, run.err = browserctl.KindCoder, err
 			return run
 		}

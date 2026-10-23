@@ -29,8 +29,8 @@ func applyScope(cfg *globalConfig) (*browserctl.ApplyScope, error) {
 	}
 	defer db.Close()
 	t, err := (&aitask.Store{DB: db.DB, Profile: cfg.ProfileID}).Get(id)
-	if err != nil || t.Kind != applyfill.Kind || (t.Status != aitask.StatusRunning && t.Status != aitask.StatusNeedsUser) {
-		return nil, errInvalidInput("this apply session's task %s is not an open application-apply task of this profile", id)
+	if err != nil || !(t.Kind == applyfill.Kind || t.Kind == aitask.KindExtensionFill || t.Kind == aitask.KindExtensionAsk) || (t.Status != aitask.StatusRunning && t.Status != aitask.StatusNeedsUser) {
+		return nil, errInvalidInput("this apply session's task %s is not an open application-apply or extension task of this profile", id)
 	}
 	snapshot := aitask.SnapshotDir(filepath.Dir(clicore.ExpandPath(cfg.DBPath)), id)
 	return &browserctl.ApplyScope{ContextDir: snapshot, WorkDir: filepath.Join(filepath.Dir(snapshot), "work")}, nil
