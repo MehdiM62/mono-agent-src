@@ -298,7 +298,7 @@ supported way to run a coding agent that you do not fully trust:
 The API server answers 421 to any request whose `Host` header is not a loopback spelling of
 the port it is bound to (`127.0.0.1`, `localhost`, `[::1]`), before routing and before any token
 check, so a web page cannot reach it under another name. A server bound to a non-loopback address
-serves other names only when you list them in `MONOAGENT_HTTPAPI_ALLOWED_HOSTS`.
+serves other names (a LAN IP, a hostname) only when you list them in `MONOAGENT_HTTPAPI_ALLOWED_HOSTS=host:port,...`; without it that server prints a warning at start and answers those requests with 421.
 
 Limits: the operator check (the markers and process-ancestry test that decide whether a command
 is the user's own terminal) is a convenience guard, not a security boundary; an OS sandbox as above is

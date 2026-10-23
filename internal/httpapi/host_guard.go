@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"github.com/monoes/mono-agent/internal/tlsserve"
 	"net"
 	"net/http"
 	"os"
@@ -19,7 +20,7 @@ const allowedHostsEnv = "MONOAGENT_HTTPAPI_ALLOWED_HOSTS"
 func hostGuard(allowed map[string]bool, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !allowed[strings.ToLower(r.Host)] {
-			writeError(w, http.StatusMisdirectedRequest, "unexpected Host header")
+			writeError(w, http.StatusMisdirectedRequest, "unexpected Host header: to serve this name, set "+allowedHostsEnv+"=host:port,...")
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -55,4 +56,14 @@ func configuredHosts(opts Options) []string {
 		extra = append(extra, strings.Split(v, ",")...)
 	}
 	return extra
+}
+
+// nonLoopbackWarning is the start-up line for a server bound beyond loopback with no
+// allowed hosts configured ("" otherwise).
+func nonLoopbackWarning(bound string, extra []string) string {
+	if tlsserve.IsLoopbackAddr(bound) || len(extra) > 0 {
+		return ""
+	}
+	return "warning: the HTTP API is bound to " + bound + ", not loopback: requests addressed by a LAN IP or hostname " +
+		"get 421 (unexpected Host header). Allow them with " + allowedHostsEnv + "=host:port,... (the loopback names of this port always work)"
 }

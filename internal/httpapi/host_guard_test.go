@@ -1,9 +1,12 @@
 package httpapi
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"net"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 )
@@ -90,5 +93,58 @@ func TestEnvListedHostAndWildcardBind(t *testing.T) {
 		if got[bad] {
 			t.Errorf("%q must not be allowed", bad)
 		}
+	}
+}
+
+func TestNonLoopbackWarning(t *testing.T) {
+	w := nonLoopbackWarning("0.0.0.0:9322", nil)
+	for _, want := range []string{"0.0.0.0:9322", "421", allowedHostsEnv + "=host:port"} {
+		if !strings.Contains(w, want) {
+			t.Errorf("warning %q lacks %q", w, want)
+		}
+	}
+	if nonLoopbackWarning("[::]:9322", nil) == "" {
+		t.Error("no warning for a wildcard bind")
+	}
+	if nonLoopbackWarning("127.0.0.1:9322", nil) != "" || nonLoopbackWarning("[::1]:9322", nil) != "" {
+		t.Error("warning on a loopback bind")
+	}
+	if nonLoopbackWarning("0.0.0.0:9322", []string{"nas.lan:9322"}) != "" {
+		t.Error("warning although hosts are configured")
+	}
+}
+
+func TestServeWarnsOnceOnNonLoopbackBind(t *testing.T) {
+	s := newTestServer(t, false)
+	var buf bytes.Buffer
+	s.warnOut = &buf
+	ln, err := net.Listen("tcp", "0.0.0.0:0")
+	if err != nil {
+		t.Skip("cannot bind a wildcard address")
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { _ = s.Serve(ctx, ln); close(done) }()
+	time.Sleep(200 * time.Millisecond)
+	cancel()
+	<-done
+	if n := strings.Count(buf.String(), "get 421"); n != 1 {
+		t.Errorf("want one 421 warning, got %d in %q", n, buf.String())
+	}
+}
+
+func TestRefusalBodyNamesTheSetting(t *testing.T) {
+	s := newTestServer(t, false)
+	port := serveGuarded(t, s)
+	req, _ := http.NewRequest(http.MethodGet, "http://127.0.0.1:"+port+"/health", nil)
+	req.Host = "evil.example"
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	b, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(b), allowedHostsEnv) {
+		t.Errorf("421 body does not say how to allow a host: %s", b)
 	}
 }
