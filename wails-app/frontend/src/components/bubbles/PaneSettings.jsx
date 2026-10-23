@@ -8,6 +8,7 @@ import { ACCESS_LEVELS, isAccess, isCoderAccess, isRaise, browserKindFor } from 
 import { getAssistantTools, getAssistantAllowRuns } from '../../lib/assistantTools.js'
 import { runtimeLabel } from '../../lib/runtimeLabels.js'
 import { money } from '../settings/aitaskBudgetApi.js'
+import { CapLower } from './PaneCapLower.jsx'
 import { useBrowserLevel, useCostVsCap } from './useChatPaneData.js'
 
 const mono = 'var(--font-mono)'
@@ -135,7 +136,8 @@ export function PaneSettings({ bubble, access, store, confined, onNavigate, onCl
   const { t } = useTranslation()
   const ref = useRef(null)
   const coder = isCoderAccess(access)
-  const cost = useCostVsCap(bubble.taskId || '', true)
+  const [costVersion, setCostVersion] = useState(0)
+  const cost = useCostVsCap(bubble.taskId || '', true, costVersion)
   // A confined apply chat runs under the apply browser kind.
   const browserKind = confined ? 'apply' : browserKindFor(access)
   const browser = useBrowserLevel(browserKind, true)
@@ -163,6 +165,7 @@ export function PaneSettings({ bubble, access, store, confined, onNavigate, onCl
               : t('bubbles.pane.noCap')}
         </span>
         <button type="button" className="btn btn-ghost btn-sm" style={linkBtn} onClick={toSettings}>{t('bubbles.pane.budgetsLink')}</button>
+        <CapLower taskId={bubble.taskId || ''} cost={cost} enabled={isAccess(access)} confined={confined} onLowered={() => setCostVersion(v => v + 1)} />
       </div>
       <div style={row} data-testid="pane-browser">
         <span style={label}>{t('bubbles.pane.browser')}</span>
