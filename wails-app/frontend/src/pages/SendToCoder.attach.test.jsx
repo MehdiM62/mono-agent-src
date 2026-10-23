@@ -90,11 +90,32 @@ describe('Send to coder attach points', () => {
     expect(context).toEqual([])
   })
 
-  it('RecordingReview: "Discuss with coder" names the recording, never its content', async () => {
-    api.analyzeRecording.mockResolvedValue({ draft: { actionDef: { steps: [] } }, draftDir: '/d' })
+  it('RecordingReview: "Improve with coder" sends a recording-analysis task with the recording id and the draft folder', async () => {
+    api.analyzeRecording.mockResolvedValue({ draft: { actionDef: { steps: [] } }, draftDir: '/d/rec-1' })
     render(wrap(<RecordingReview recording={{ id: 'rec-1', title: 'Login flow' }} automationId="auto-1" onBack={() => {}} />))
-    const [, , context] = await clickAndGetSubmit(/Discuss with coder/)
-    expect(context).toEqual(['selection-text=Recording rec-1: Login flow; automation auto-1'])
+    const [kind, goal, context] = await clickAndGetSubmit(/Improve with coder/)
+    expect(kind).toBe('recording-analysis')
+    expect(goal).toMatch(/recording rec-1/)
+    expect(context).toEqual(['selection-text=Recording rec-1: Login flow; automation auto-1', 'document=/d/rec-1'])
+    expect(api.analyzeRecording).toHaveBeenCalledTimes(1) // the one-shot analysis ran as before
+  })
+
+  it('RecordingReview: with coder mode off the button says so, submits nothing and the one-shot draft stays', async () => {
+    aitaskApi.status.mockResolvedValue({ enabled: false, reason: 'Coder mode is off.' })
+    api.analyzeRecording.mockResolvedValue({ draft: { actionDef: { steps: [] } }, draftDir: '/d/rec-1' })
+    render(wrap(<RecordingReview recording={{ id: 'rec-1' }} automationId="auto-1" onBack={() => {}} />))
+    fireEvent.click(await screen.findByRole('button', { name: /Improve with coder/ }))
+    expect(await screen.findByText(/Coder mode is off/)).toBeInTheDocument()
+    expect(aitaskApi.submit).not.toHaveBeenCalled()
+    expect(screen.getByText(/This action still runs the regular way/)).toBeInTheDocument()
+  })
+
+  it('RecordingReview: when the analysis failed the coder is still offered, with the recording id only', async () => {
+    api.analyzeRecording.mockResolvedValue({ error: 'the AI is unavailable' })
+    render(wrap(<RecordingReview recording={{ id: 'rec-2' }} automationId="" onBack={() => {}} />))
+    const [kind, , context] = await clickAndGetSubmit(/Improve with coder/)
+    expect(kind).toBe('recording-analysis')
+    expect(context).toEqual(['selection-text=Recording rec-2; automation (new)'])
   })
 
   it('Process pending: after the evaluation, "Discuss in coder" carries the application and the verdict', async () => {
