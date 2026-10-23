@@ -34,9 +34,6 @@ const passport = { key: 'ids.passport', value: '•••• 4567', masked: true
 
 // A save settles a few renders after the blur; the 1 s default runs out on a loaded CI runner.
 const WAIT = { timeout: 5000 }
-// Each test waits up to WAIT for the page to load and again for its own result, so
-// the default 5 s test timeout fires first on a loaded CI machine.
-vi.setConfig({ testTimeout: 30000 })
 
 let entries
 beforeEach(() => {
