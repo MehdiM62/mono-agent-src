@@ -19,6 +19,8 @@ vi.mock('../wailsjs/go/main/App', () => ({
   UploadProfileDocument: vi.fn(),
   OpenAnyFilePicker: vi.fn(),
   SearchProfileKnowledge: vi.fn(),
+  AddDocumentTag: vi.fn(),
+  RemoveDocumentTag: vi.fn(),
   IsMonomindInitialized: vi.fn(() => Promise.resolve(true)),
 }))
 
@@ -137,5 +139,40 @@ describe('Documents "Delete selected"', () => {
     expect(screen.getByText('career-profile.md')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Restore career-profile.md' }))
     await waitFor(() => expect(WailsApp.RestoreExcludedDocument).toHaveBeenCalledWith('/p/career-profile.md'))
+  })
+})
+
+describe('Documents tags', () => {
+  const tagged = { ...freshDoc, tags: [{ id: 't1', name: 'contract', color: '#ff0000' }] }
+
+  it('adds a tag to a document and shows it', async () => {
+    WailsApp.AddDocumentTag.mockResolvedValue({ id: 't2', name: 'urgent', color: '#00b4d8' })
+    await renderLoaded()
+    fireEvent.click(screen.getByRole('button', { name: 'Add tag to notes.md' }))
+    const input = screen.getByLabelText('New tag for notes.md')
+    fireEvent.change(input, { target: { value: 'urgent' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => expect(WailsApp.AddDocumentTag).toHaveBeenCalledWith('doc-2', 'urgent'))
+    await waitFor(() => expect(screen.getAllByText('urgent').length).toBeGreaterThan(0))
+  })
+
+  it('removes a tag from a document', async () => {
+    WailsApp.ListProfileDocuments.mockResolvedValue([tagged, notIndexedDoc])
+    WailsApp.RemoveDocumentTag.mockResolvedValue(undefined)
+    await renderLoaded()
+    fireEvent.click(screen.getByRole('button', { name: 'Remove tag contract' }))
+    await waitFor(() => expect(WailsApp.RemoveDocumentTag).toHaveBeenCalledWith('doc-1', 't1'))
+    await waitFor(() => expect(screen.queryByText('contract')).not.toBeInTheDocument())
+  })
+
+  it('filters the list by clicking a tag', async () => {
+    WailsApp.ListProfileDocuments.mockResolvedValue([tagged, notIndexedDoc])
+    await renderLoaded()
+    expect(screen.getByText('notes.md')).toBeInTheDocument()
+    fireEvent.click(screen.getAllByText('contract')[0])
+    expect(screen.queryByText('notes.md')).not.toBeInTheDocument()
+    expect(screen.getByText('resume.pdf')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
+    expect(screen.getByText('notes.md')).toBeInTheDocument()
   })
 })

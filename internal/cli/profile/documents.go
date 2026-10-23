@@ -7,11 +7,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/monoes/mono-agent/internal/capturedocs"
 	"github.com/monoes/mono-agent/internal/captureindex"
 	"github.com/monoes/mono-agent/internal/capturesummary"
+	"github.com/monoes/mono-agent/internal/doctags"
 	"github.com/monoes/mono-agent/internal/monomind"
 	"github.com/monoes/mono-agent/internal/profiledir"
 	"github.com/monoes/mono-agent/internal/vault"
@@ -119,14 +121,17 @@ func (d Deps) newProfileDocumentsCmd() *cobra.Command {
 	}
 	cmd.AddCommand(d.newProfileDocumentsListCmd(), d.newProfileDocumentsGetCmd(), d.newProfileDocumentsCaptureCmd(),
 		d.newProfileDocumentsRmCmd(), d.newProfileDocumentsIndexCmd(), d.newProfileDocumentsSyncCmd(),
-		d.newProfileDocumentsRemoveCmd(), d.newProfileDocumentsExcludedCmd(), d.newProfileDocumentsRestoreCmd())
+		d.newProfileDocumentsRemoveCmd(), d.newProfileDocumentsExcludedCmd(), d.newProfileDocumentsRestoreCmd(),
+		d.newProfileDocumentsTagCmd())
 	return cmd
 }
 
 func (d Deps) newProfileDocumentsListCmd() *cobra.Command {
-	return &cobra.Command{
+	var tags []string
+	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List profile documents (uploads, discovered files, browser captures)",
+		Long:  "Lists the profile's documents. --tag keeps only documents carrying every given tag.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			db, err := d.OpenDB()
 			if err != nil {
@@ -147,23 +152,50 @@ func (d Deps) newProfileDocumentsListCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("listing documents: %w", err)
 			}
+			if len(tags) > 0 {
+				ids, err := doctags.Search(cmd.Context(), db.DB, d.ProfileID(), tags)
+				if err != nil {
+					return d.docTagErr(err)
+				}
+				keep := make(map[string]bool, len(ids))
+				for _, id := range ids {
+					keep[id] = true
+				}
+				kept := docs[:0]
+				for _, doc := range docs {
+					if keep[doc.ID] {
+						kept = append(kept, doc)
+					}
+				}
+				docs = kept
+			}
+			tagsByDoc, err := doctags.ByDocument(cmd.Context(), db.DB, d.ProfileID(), nil)
+			if err != nil {
+				return fmt.Errorf("listing document tags: %w", err)
+			}
 			if d.JSONOutput() {
 				enc := json.NewEncoder(cmd.OutOrStdout())
 				enc.SetIndent("", "  ")
-				return enc.Encode(withSummaryState(docs, time.Now()))
+				return enc.Encode(withSummaryState(docs, tagsByDoc, time.Now()))
 			}
 			if len(docs) == 0 {
 				fmt.Fprintln(cmd.OutOrStdout(), "No documents uploaded.")
 				return nil
 			}
-			table := d.NewTable(cmd.OutOrStdout(), []string{"ID", "Filename", "Source", "Added"})
-			for _, d := range docs {
-				table.Append([]string{d.ID, truncateStr(d.Filename, 50), d.Source, d.CreatedAt})
+			table := d.NewTable(cmd.OutOrStdout(), []string{"ID", "Filename", "Tags", "Source", "Added"})
+			for _, doc := range docs {
+				names := make([]string, len(tagsByDoc[doc.ID]))
+				for i, t := range tagsByDoc[doc.ID] {
+					names[i] = t.Name
+				}
+				table.Append([]string{doc.ID, truncateStr(doc.Filename, 50), strings.Join(names, ", "), doc.Source, doc.CreatedAt})
 			}
 			table.Render()
 			return nil
 		},
 	}
+	cmd.Flags().StringArrayVar(&tags, "tag", nil, "Only documents with this tag (repeat for several: all must match)")
+	return cmd
 }
 
 // listedDocument is one `profile documents list --json` row: the vault
@@ -172,15 +204,16 @@ func (d Deps) newProfileDocumentsListCmd() *cobra.Command {
 // the output is unchanged for anything that is not a summarized capture.
 type listedDocument struct {
 	vault.DocumentEntry
-	SummaryStatus string `json:",omitempty"`
+	SummaryStatus string        `json:",omitempty"`
+	Tags          []doctags.Tag `json:",omitempty"`
 }
 
 // withSummaryState reads each capture row's summary.json: one small file
 // per capture, and only for capture rows.
-func withSummaryState(docs []vault.DocumentEntry, now time.Time) []listedDocument {
+func withSummaryState(docs []vault.DocumentEntry, tags map[string][]doctags.Tag, now time.Time) []listedDocument {
 	out := make([]listedDocument, 0, len(docs))
 	for _, d := range docs {
-		out = append(out, listedDocument{DocumentEntry: d, SummaryStatus: capturesummary.StateOf(d.CaptureDir, now)})
+		out = append(out, listedDocument{DocumentEntry: d, SummaryStatus: capturesummary.StateOf(d.CaptureDir, now), Tags: tags[d.ID]})
 	}
 	return out
 }
