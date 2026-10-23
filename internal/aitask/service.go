@@ -3,6 +3,7 @@ package aitask
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"math"
 	"strings"
 	"time"
@@ -291,6 +292,10 @@ func (s *Service) Complete(id, token string, result []byte) (Task, error) {
 		return Task{}, &Error{Code: CodeSchemaInvalid, Fields: map[string]any{"reason": err.Error()},
 			Message: "the result does not match the " + kind.Name + " schema: " + err.Error() + ". Fix the file and run complete again."}
 	}
+	if err := runCheck(kind, s.Store.Profile, result); err != nil {
+		return Task{}, &Error{Code: CodeSchemaInvalid, Fields: map[string]any{"reason": err.Error()},
+			Message: "the result was refused by the " + kind.Name + " check: " + err.Error() + ". Fix the file and run complete again."}
+	}
 	// Secrets leave the result before it is stored, whatever the agent wrote.
 	compact, _ := json.Marshal(RedactResult(v))
 	if s.Redact != nil {
@@ -392,4 +397,32 @@ func clip(s string) string {
 		return s
 	}
 	return strings.ToValidUTF8(s[:maxErrorBytes], "") + "…"
+}
+
+// CheckTimeout bounds a kind's Check.
+const CheckTimeout = 15 * time.Second
+
+// runCheck runs the kind's Check, if any. A panic or a timeout is a refusal,
+// never a pass.
+func runCheck(k Kind, profile string, raw []byte) (err error) {
+	if k.Check == nil {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), CheckTimeout)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				done <- fmt.Errorf("the check failed unexpectedly: %v", r)
+			}
+		}()
+		done <- k.Check(ctx, profile, raw)
+	}()
+	select {
+	case err := <-done:
+		return err
+	case <-ctx.Done():
+		return fmt.Errorf("the check timed out")
+	}
 }
