@@ -38,6 +38,12 @@ type Kind struct {
 	// UnattendedOK says the kind may run with --unattended (and then only at
 	// the qa access level).
 	UnattendedOK bool
+	// Validate, when set, checks a result that already matches Schema against
+	// rules a JSON Schema can't state (a workflow that must pass the real
+	// validator, say). v is the decoded result. The error text is shown to the
+	// agent that wrote the result, so it must say what to fix. Nil means no
+	// further check.
+	Validate func(v any) error
 }
 
 var kindName = regexp.MustCompile(`^[a-z][a-z0-9-]{0,39}$`)
