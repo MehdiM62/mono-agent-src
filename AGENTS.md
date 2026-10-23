@@ -3549,7 +3549,9 @@ monoagentcli --profile P aitask fail <id> --reason TEXT                   # the 
   Spend is summed from the conversation's `usage.updated` events, lead and dynamic-org workers together, so spawning
   workers can't dodge a cap; a task that reported no cost keeps counting for its whole cap. `set` (raise or change, `--clear`)
   is operator-only; `lower --task ID --usd N` is the operator's or the task's own session's, lowers its conversation's cap
-  and never raises it (`cap_raise_refused`). `show --task ID` gives one task's cap and spend.
+  and never raises it (`cap_raise_refused`). `lower --conversation ID --usd N` (the operator, or the session of a task in that
+  conversation) creates or lowers that conversation's cap only to a value strictly below the cap that applies to it now
+  (`cap_raise_refused` otherwise, `no_cap_to_lower` when none applies: a chat can't make spend authority). `show --task ID` gives one task's cap and spend.
 - `ai.task` workflow node: QUEUES a task (`kind`, `goal`, `context` as `CLASS=PATH`, `application_id`, `access`, `runtime`)
   and returns `{taskId, conversationId, status: "queued"}` at once. It never starts or waits for the task (a person
   starts it from the bubble queue; read the result later with `aitask result`), cannot run it unattended, and refuses any run
