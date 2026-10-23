@@ -18,8 +18,7 @@ var untrustedKinds = map[string][]string{
 	"recording-analysis": {"record show", "aitask complete", "aitask fail"},
 	"workflow-generate": {"workflow search", "workflow templates list", "workflow templates show", "workflow get",
 		"node list", "node schema", "ref", "aitask complete", "aitask fail"},
-	"failed-run-fix": {"workflow get", "workflow list", "workflow search", "workflow executions", "workflow execution",
-		"workflow inputs", "workflow node list", "workflow validate", "workflow node set", "aitask complete", "aitask fail"},
+	"failed-run-fix": {"workflow get", "workflow list", "workflow search", "workflow executions", "workflow execution", "aitask complete", "aitask fail"},
 }
 
 func prefixes(verbs []string) []string {

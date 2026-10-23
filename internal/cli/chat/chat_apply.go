@@ -92,19 +92,17 @@ func applyBashPrefixes(profile string) []string {
 //     ref). Not `workflow validate`: it takes --file PATH, which would read any
 //     file, and the agent has no file to validate anyway: `aitask complete`
 //     runs the same validator and refuses with its reasons.
-//   - failed-run-fix: read the run and the workflow, `workflow validate` (by id;
-//     its --file form could read any file, a residual that only the
-//     command's own check closes) and ONE edit verb, `workflow node set`: the
-//     kind's fix.kind workflow-edit is a change to a node's config, name or
-//     position. Not node add|remove, connect|disconnect, save, import, run,
-//     retry, activate, delete: a structural change is described to the user
-//     (fix.kind config) instead.
+//   - failed-run-fix: DIAGNOSE ONLY: read the run and the workflow
+//     (profile-scoped `workflow get|list|search|executions|execution`). No
+//     edit verb (`workflow node set` replaces a node's config wholesale on any
+//     workflow, active ones included), no `workflow validate` (its --file form
+//     reads any file) and no `workflow node list` or `workflow inputs`. The fix
+//     comes back as data in the result, for the user to apply.
 var confinedVerbs = map[string][]string{
 	aitask.KindDraftReply:        {},
 	aitask.KindRecordingAnalysis: {"record show"},
 	aitask.KindWorkflowGenerate:  {"workflow search", "workflow templates list", "workflow templates show", "workflow get", "node list", "node schema", "ref"},
-	aitask.KindFailedRunFix: {"workflow get", "workflow list", "workflow search", "workflow executions", "workflow execution",
-		"workflow inputs", "workflow node list", "workflow validate", "workflow node set"},
+	aitask.KindFailedRunFix: {"workflow get", "workflow list", "workflow search", "workflow executions", "workflow execution"},
 }
 
 // ConfinedKind reports whether tasks of this kind run as confined turns

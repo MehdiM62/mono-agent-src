@@ -52,14 +52,15 @@ func withKnownTypes(t *testing.T, known ...string) {
 	t.Cleanup(func() { WorkflowNodeTypeKnown = old })
 }
 
-func TestWorkflowKindsAreRegisteredAtWorkspaceAccess(t *testing.T) {
-	for _, name := range []string{KindWorkflowGenerate, KindFailedRunFix} {
+func TestWorkflowKindsAreRegisteredAtTheirAccess(t *testing.T) {
+	// workflow-generate reads templates and workflows (workspace); failed-run-fix
+	// only diagnoses (qa). Neither may run unattended.
+	for name, access := range map[string]string{KindWorkflowGenerate: AccessWorkspace, KindFailedRunFix: AccessQA} {
 		k, err := Lookup(name)
 		if err != nil {
 			t.Fatal(err)
 		}
-		// Neither kind needs more than workspace, and neither may run unattended.
-		if k.DefaultAccess != AccessWorkspace || k.UnattendedOK || k.Validate == nil || k.Schema == nil {
+		if k.DefaultAccess != access || k.UnattendedOK || k.Validate == nil || k.Schema == nil {
 			t.Errorf("%s: %+v", name, k)
 		}
 	}
@@ -126,21 +127,18 @@ func TestWorkflowGenerateSchemaRefusesAMalformedShape(t *testing.T) {
 
 func TestFailedRunFixResultRules(t *testing.T) {
 	k, _ := Lookup(KindFailedRunFix)
-	res := func(kind string, changed string, reran string) string {
-		return `{"summary":"s","diagnosis":"d","fix":{"kind":"` + kind + `","description":"x"},"changed":` + changed + `,"reran":` + reran + `}`
-	}
+	edit := `{"summary":"s","diagnosis":"d","fix":{"kind":"workflow-edit","description":"x","proposed":{"nodeId":"n1","config":{"url":"https://example.com"}}},`
 	cases := []struct {
 		name, body, wantErr string
 	}{
-		{"an edit that lists its workflow", res("workflow-edit", `["wf-1"]`, "false"), ""},
-		{"a config fix that changes nothing", res("config", `[]`, "false"), ""},
-		{"no fix found", res("none", `[]`, "false"), ""},
-		{"an edit that lists nothing", res("workflow-edit", `[]`, "false"), "changed is empty"},
-		{"changes claimed without an edit", res("config", `["wf-1"]`, "false"), "changed is for workflow-edit only"},
-		{"a re-run that is not declared with its id", res("none", `[]`, "true"), "rerunExecutionId"},
-		{"a re-run that is declared", `{"summary":"s","diagnosis":"d","fix":{"kind":"none","description":"x"},"changed":[],"reran":true,"rerunExecutionId":"ex-2"}`, ""},
-		{"a fix kind that does not exist", res("rewrite-everything", `[]`, "false"), "must be one of"},
-		{"reran left out", `{"summary":"s","diagnosis":"d","fix":{"kind":"none","description":"x"},"changed":[]}`, `missing required property "reran"`},
+		{"an edit that proposes its change as data", edit[:len(edit)-1] + `}`, ""},
+		{"a config fix", `{"summary":"s","diagnosis":"d","fix":{"kind":"config","description":"reconnect the account"}}`, ""},
+		{"no fix found", `{"summary":"s","diagnosis":"d","fix":{"kind":"none","description":"the site was down"}}`, ""},
+		{"an edit that proposes nothing", `{"summary":"s","diagnosis":"d","fix":{"kind":"workflow-edit","description":"x"}}`, "fix.proposed is empty"},
+		{"an edit with an empty proposal", `{"summary":"s","diagnosis":"d","fix":{"kind":"workflow-edit","description":"x","proposed":{}}}`, "fix.proposed is empty"},
+		{"a claim of changed workflows", edit + `"changed":["wf-1"]}`, "unexpected property"},
+		{"a claim of a re-run", `{"summary":"s","diagnosis":"d","fix":{"kind":"none","description":"x"},"reran":true,"rerunExecutionId":"ex-2"}`, "unexpected property"},
+		{"a fix kind that does not exist", `{"summary":"s","diagnosis":"d","fix":{"kind":"rewrite-everything","description":"x"}}`, "must be one of"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -192,5 +190,21 @@ func TestWorkflowGenerateThroughTheService(t *testing.T) {
 	done, err := s.Complete(task.ID, token, wfResult(t, goodNodes, goodConns, nil))
 	if err != nil || done.Status != StatusComplete {
 		t.Fatalf("%+v %v", done, err)
+	}
+}
+
+// failed-run-fix diagnoses only: its prompt says so, offers no edit command
+// and has no field for a change made or a run started.
+func TestFailedRunFixPromptDiagnosesOnly(t *testing.T) {
+	k, _ := Lookup(KindFailedRunFix)
+	for _, want := range []string{"DIAGNOSE only", "edit nothing", "fix.proposed"} {
+		if !strings.Contains(k.PromptTemplate, want) {
+			t.Errorf("prompt lacks %q", want)
+		}
+	}
+	for _, bad := range []string{"workflow node set", "workflow edit", "reran", "rerunExecutionId", "changed lists"} {
+		if strings.Contains(k.PromptTemplate, bad) {
+			t.Errorf("prompt still mentions %q", bad)
+		}
 	}
 }
