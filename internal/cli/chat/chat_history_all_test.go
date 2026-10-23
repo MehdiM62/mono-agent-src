@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -266,10 +267,13 @@ func TestHistoryAllIsOneQuery(t *testing.T) {
 func stubOrgs(t *testing.T, names []string, report func(name string) (json.RawMessage, error)) *int {
 	t.Helper()
 	calls := new(int)
+	var callsMu sync.Mutex
 	oN, oR, oL, oT := orgNamesFn, orgReportFn, orgLiveFn, orgNow
 	orgNamesFn = func(string) ([]string, error) { return names, nil }
 	orgReportFn = func(_ context.Context, _ string, name string, all bool, _ string) (json.RawMessage, error) {
+		callsMu.Lock()
 		*calls++
+		callsMu.Unlock()
 		if !all {
 			t.Errorf("report must ask for --all")
 		}
