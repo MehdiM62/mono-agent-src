@@ -312,16 +312,42 @@ func TestAgentDataReadsAndTagWrites(t *testing.T) {
 	}
 }
 
-// An agent reads the board as an agent: the Inbox is not in its default list.
+// An agent reads the board as an agent: the Inbox is not in its default list, nor in a list
+// that names it, nor behind a task's number, until the operator lets agents see it.
 func TestTaskListHidesTheInboxFromAnAgent(t *testing.T) {
 	f := newDataFx(t, false)
-	_, _, err := tasks.NewStore(f.s.rt.db.DB).Add(context.Background(), "default", tasks.AddInput{Title: "inbox item INBOX-CANARY"}, tasks.Actor{Kind: tasks.Human})
-	if err != nil {
+	st := tasks.NewStore(f.s.rt.db.DB)
+	in, _, err := st.Add(context.Background(), "default", tasks.AddInput{Title: "inbox item INBOX-CANARY"}, tasks.Actor{Kind: tasks.Human})
+	if err != nil || in.Status != tasks.StatusInbox {
+		t.Fatalf("inbox task: %+v %v", in, err)
+	}
+	asks := []string{
+		"/profiles/default/tasks", "/profiles/default/tasks?status=inbox", "/profiles/default/tasks?status=inbox,done,archived",
+		"/profiles/default/tasks?status=ready,INBOX", fmt.Sprintf("/profiles/default/tasks/%d", in.ID), "/profiles/default/tasks/next",
+	}
+	for _, path := range asks {
+		rw := doReq(t, f.s, "GET", path, f.read, nil)
+		if strings.Contains(rw.Body.String(), "INBOX-CANARY") {
+			t.Errorf("%s shows the Inbox to an agent: %d %s", path, rw.Code, rw.Body)
+		}
+	}
+	if rw := doReq(t, f.s, "GET", fmt.Sprintf("/profiles/default/tasks/%d", in.ID), f.read, nil); rw.Code != 404 {
+		t.Errorf("an Inbox task by number: %d, want 404", rw.Code)
+	}
+	if rw := doReq(t, f.s, "GET", "/profiles/default/tasks?status=inbox", f.read, nil); rw.Code != 200 || len(body(rw)["tasks"].([]any)) != 0 {
+		t.Errorf("?status=inbox: %d %s, want an empty list (not the default one)", rw.Code, rw.Body)
+	}
+	if rw := doReq(t, f.s, "GET", "/profiles/default/tasks?status=ready,inbox", f.read, nil); !strings.Contains(rw.Body.String(), "default task") {
+		t.Errorf("the other columns of a mixed ask are still listed: %s", rw.Body)
+	}
+	// The operator lets agents see the board: now the Inbox is theirs.
+	if err := st.SetAgentAccess(context.Background(), "default", tasks.AgentAccess{View: true}, tasks.Actor{Kind: tasks.Human}); err != nil {
 		t.Fatal(err)
 	}
-	rw := doReq(t, f.s, "GET", "/profiles/default/tasks", f.read, nil)
-	if strings.Contains(rw.Body.String(), "INBOX-CANARY") {
-		t.Errorf("the Inbox is in an agent's default list: %s", rw.Body)
+	for _, path := range []string{"/profiles/default/tasks?status=inbox", fmt.Sprintf("/profiles/default/tasks/%d", in.ID)} {
+		if rw := doReq(t, f.s, "GET", path, f.read, nil); !strings.Contains(rw.Body.String(), "INBOX-CANARY") {
+			t.Errorf("%s with View delegated: %d %s, want the Inbox task", path, rw.Code, rw.Body)
+		}
 	}
 }
 

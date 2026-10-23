@@ -572,6 +572,13 @@ func (s *Server) taskBoard(w http.ResponseWriter, r *http.Request) (*tasks.Store
 	return store, p, true
 }
 
+// agentsSeeInbox says whether the operator let agents see the Inbox on the profile. It fails
+// closed: a setting that cannot be read is "no".
+func (s *Server) agentsSeeInbox(ctx context.Context, store *tasks.Store, profile string) bool {
+	a, err := store.AgentAccess(ctx, profile)
+	return err == nil && a.View
+}
+
 // GET /profiles/{profile}/tasks?status=ready,review&limit=
 func (s *Server) handleTaskList(w http.ResponseWriter, r *http.Request) {
 	if err := paramsOnly(r, "status", "limit"); err != nil {
@@ -606,6 +613,17 @@ func (s *Server) handleTaskList(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	// The Inbox is the operator's: naming it in ?status= does not open it. Only a profile
+	// whose operator let agents see it (AgentAccess.View, the switch the board itself uses)
+	// lists it, whatever columns are named.
+	view := s.agentsSeeInbox(r.Context(), store, p.ID)
+	if len(statuses) > 0 && !view {
+		statuses = slices.DeleteFunc(statuses, func(st tasks.Status) bool { return st == tasks.StatusInbox })
+		if len(statuses) == 0 { // only the Inbox was asked for: an empty list, not the default one
+			writeJSON(w, http.StatusOK, taskview.ListResult{Profile: p, Tasks: []taskview.View{}, Note: taskview.UntrustedNote})
+			return
+		}
+	}
 	ts, err := store.List(r.Context(), p.ID, tasks.Filter{Statuses: statuses, Limit: limit + 1}, taskActor)
 	if err != nil {
 		dataFail(w, "list tasks", err)
@@ -639,6 +657,10 @@ func (s *Server) handleTaskGet(w http.ResponseWriter, r *http.Request) {
 		dataFail(w, "get task", err)
 		return
 	}
+	if t.Status == tasks.StatusInbox && !s.agentsSeeInbox(r.Context(), store, p.ID) {
+		dataFail(w, "get task", tasks.ErrNotFound) // as if there were no such task
+		return
+	}
 	recent, omitted := taskview.RecentEvents(events)
 	writeJSON(w, http.StatusOK, taskview.GetResult{Profile: p, Task: taskview.Of(t), Events: taskview.EventViews(recent),
 		EventsOmitted: omitted, Note: taskview.UntrustedNote})
@@ -658,6 +680,9 @@ func (s *Server) handleTaskNext(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		dataFail(w, "next task", err)
 		return
+	}
+	if t != nil && t.Status == tasks.StatusInbox && !s.agentsSeeInbox(r.Context(), store, p.ID) {
+		t = nil // never offered today (Next takes Ready work); kept so that a change there cannot open the Inbox
 	}
 	writeJSON(w, http.StatusOK, taskview.Result{Profile: p, Task: taskview.Ptr(t), Note: taskview.UntrustedNote})
 }
