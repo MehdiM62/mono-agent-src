@@ -80,6 +80,8 @@ type Options struct {
 	// DB, when set, lets the session raise the HIL item a site needs at
 	// level ask (AskSite); without it that is a *SiteNeedsApprovalError.
 	DB *sql.DB
+	// HoldLocalSubmits holds submits on local pages too (Policy.HoldLocalSubmits).
+	HoldLocalSubmits bool
 	// Sender overrides finding the bridge (tests).
 	Sender Sender
 }
@@ -116,6 +118,7 @@ func Open(o Options) (*Session, error) {
 	}
 	policy := perms.PolicyForCaller(AgentCaller())
 	policy.Allowlist = append(policy.Allowlist, o.Allowlist...)
+	policy.HoldLocalSubmits = o.HoldLocalSubmits
 	if policy.Agent && policy.level() == LevelOff {
 		return nil, &BrowserOffError{Kind: policy.Kind, Declared: policy.Declared} // no command at all, a listing included
 	}

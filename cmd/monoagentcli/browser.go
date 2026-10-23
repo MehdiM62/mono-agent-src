@@ -103,12 +103,34 @@ func openBrowser(cmd *cobra.Command, cfg *globalConfig, noTab bool) (*browserRun
 	}
 	b, _ := cmd.Flags().GetString("browser")
 	tab, _ := cmd.Flags().GetInt("tab")
+	// An extension task works on the tab it was queued for and no other,
+	// whatever --tab and --browser say, and submits wait for a person on
+	// local pages too.
+	tgt, err := extensionTarget(cfg, db.DB)
+	if err != nil {
+		db.Close()
+		return nil, err
+	}
+	if tgt != nil {
+		if (tab != 0 && tab != tgt.Tab) || (b != "" && b != tgt.Browser) {
+			db.Close()
+			return nil, browserCLIError{error: errInvalidInput("this session works on tab %d only: leave out --tab and --browser", tgt.Tab), code: "tab_pinned"}
+		}
+		tab, b = tgt.Tab, tgt.Browser
+	}
 	s, err := browserctl.Open(browserctl.Options{
 		Browser: b, Profile: cfg.ProfileID, Tab: tab, NoTab: noTab, Permissions: &perms, DB: db.DB, Sender: sender,
+		HoldLocalSubmits: tgt != nil,
 	})
 	if err != nil {
 		db.Close()
 		return nil, browserErr(cmd, cfg, err)
+	}
+	if tgt != nil && !noTab {
+		if now := browserctl.Origin(s.URL()); s.TabID() != tgt.Tab || now != tgt.Origin {
+			db.Close()
+			return nil, browserCLIError{error: errInvalidInput("tab %d is on %s now, not %s as when the task was queued: it stopped", tgt.Tab, now, tgt.Origin), code: "tab_moved"}
+		}
 	}
 	return &browserRun{cfg: cfg, cmd: cmd, s: s, db: db}, nil
 }

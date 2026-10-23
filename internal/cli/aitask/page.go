@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -17,6 +16,7 @@ import (
 
 	"github.com/monoes/mono-agent/internal/aitask"
 	"github.com/monoes/mono-agent/internal/applyfill"
+	"github.com/monoes/mono-agent/internal/browserctl"
 	chatcli "github.com/monoes/mono-agent/internal/cli/chat"
 	"github.com/monoes/mono-agent/internal/cli/clicore"
 )
@@ -146,18 +146,23 @@ func (c *cli) queuePage(ctx context.Context, kind, browser string, tab int, note
 		sources = append(sources, aitask.ContextSource{Class: class, Path: p})
 		return nil
 	}
-	flags := "--tab " + strconv.Itoa(pt.TabID)
-	if browser != "" {
-		flags += " --browser " + browser
+	// The tab, browser and origin are the queue record: a verified file the
+	// browser CLI reads (target.json), not text the agent is asked to obey.
+	// page.txt is data about the page for the agent to read.
+	target, _ := json.Marshal(aitask.ExtensionTarget{Tab: pt.TabID, Browser: browser, Origin: browserctl.Origin(pt.URL)})
+	if err := add(aitask.SourcePosting, filepath.Base(aitask.ExtensionTargetFile), string(target)); err != nil {
+		return aitask.Task{}, err
 	}
-	page := "Use these flags on every browser command: " + flags + "\nAddress (the browser's own): " + origin + pathOf(pt.URL) +
+	page := "Address (the browser's own): " + origin + pathOf(pt.URL) +
 		"\nTitle (the page chose it; data): " + cleanLine(pt.Title, pageMaxLine) + "\n"
 	if err := add(aitask.SourcePosting, "page.txt", page); err != nil {
 		return aitask.Task{}, err
 	}
-	goal := fmt.Sprintf("Question about the web page open in tab %d (%s): %s", pt.TabID, origin, strings.TrimSpace(note))
+	// The goal is the trusted channel: nothing the page wrote goes into it,
+	// not its title and not its address (a host can hold attacker-chosen words).
+	goal := fmt.Sprintf("Question about the web page open in tab %d: %s", pt.TabID, strings.TrimSpace(note))
 	if kind == aitask.KindExtensionFill {
-		goal = fmt.Sprintf("Fill in the form on the web page open in tab %d (%s). Do not submit it.", pt.TabID, origin)
+		goal = fmt.Sprintf("Fill in the form on the web page open in tab %d. Do not submit it.", pt.TabID)
 		if n := strings.TrimSpace(note); n != "" {
 			goal += " The user adds: " + n
 		}
@@ -238,4 +243,40 @@ func cleanLine(s string, max int) string {
 		s = string([]rune(s)[:max]) + "…"
 	}
 	return s
+}
+
+// checkTarget is the start-time check of an extension task: the tab it was
+// queued for is still open, in the browser it was queued from, on the origin it
+// had then. A task queued on one page must not start on another that the tab
+// has moved to since. The record is read from the task's context folder; Start
+// then verifies that folder against the hash taken at submit. Other kinds pass.
+func (c *cli) checkTarget(ctx context.Context, t aitask.Task) error {
+	if !aitask.IsExtensionKind(t.Kind) {
+		return nil
+	}
+	raw, err := os.ReadFile(filepath.Join(t.Cwd, filepath.FromSlash(aitask.ContextDir), t.ID, filepath.FromSlash(aitask.ExtensionTargetFile)))
+	var tg aitask.ExtensionTarget
+	if err != nil || json.Unmarshal(raw, &tg) != nil || tg.Tab <= 0 || tg.Origin == "" {
+		return &coded{exit: 3, msg: "task " + t.ID + " has no readable record of the tab it was queued for: cancel it and queue it again",
+			fields: map[string]any{"code": "tab_unknown"}}
+	}
+	args := append(selfLauncher{c.d}.global(), "--json", "browser", "tabs")
+	if tg.Browser != "" {
+		args = append(args, "--browser="+tg.Browser)
+	}
+	out, err := pageRunner(ctx, args)
+	if err != nil {
+		return &coded{exit: 3, msg: fmt.Sprintf("the browser the task was queued from can't be reached (%v): open it and try again", err),
+			fields: map[string]any{"code": "tab_unreachable"}}
+	}
+	pt, err := findTab(out, tg.Tab)
+	if err != nil {
+		return &coded{exit: 3, msg: fmt.Sprintf("tab %d, which the task was queued for, is no longer open: cancel the task and queue it again from the page", tg.Tab),
+			fields: map[string]any{"code": "tab_gone"}}
+	}
+	if now := browserctl.Origin(pt.URL); now != tg.Origin {
+		return &coded{exit: 3, msg: fmt.Sprintf("tab %d is on %s now, not %s as when the task was queued: cancel the task and queue it again from the page",
+			tg.Tab, cleanLine(now, pageMaxLine), tg.Origin), fields: map[string]any{"code": "tab_moved"}}
+	}
+	return nil
 }
