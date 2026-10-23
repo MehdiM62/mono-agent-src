@@ -944,6 +944,7 @@ picks no profile: workflows and HIL items live under `/profiles/{profile}/...`
 registered when started with `--allow-mutations` or
 `MONOAGENT_HTTPAPI_ALLOW_MUTATIONS=1` — otherwise those paths 404 rather
 than 403, so a probe can't distinguish "opted out" from "doesn't exist".
+Requests whose `Host` header is not a loopback spelling of the bound port (`127.0.0.1`, `localhost`, `[::1]`) get 421 before routing or any token check; other names are served only when listed in `MONOAGENT_HTTPAPI_ALLOWED_HOSTS` (comma-separated `host:port`).
 Every request needs `Authorization: Bearer <token>` except `GET /health`;
 each profile has its own token, created when the server starts and stored in
 that profile's secrets vault (`--profile <p> secret list`, name

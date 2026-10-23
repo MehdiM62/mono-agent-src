@@ -136,7 +136,7 @@ func (s *Server) Serve(ctx context.Context, ln net.Listener) error {
 		fmt.Fprintln(s.warnOut, standaloneWebhookWarning)
 	}
 	httpSrv := &http.Server{
-		Handler:      s.handler,
+		Handler:      hostGuard(allowedHosts(ln.Addr().String(), configuredHosts(s.opts)), s.handler),
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 5 * time.Minute, // workflow run waits can be long
 		IdleTimeout:  120 * time.Second,
