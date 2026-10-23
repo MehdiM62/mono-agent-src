@@ -114,13 +114,15 @@ func pageParams(r *http.Request) (limit, offset int, err error) {
 
 func validID(id string) bool { return idRE.MatchString(id) }
 
-// cleanText says whether s is valid UTF-8 without control characters.
+// cleanText says whether s is valid UTF-8 without control characters (category Cc) or format
+// characters (Cf: bidi overrides, zero-width characters, the byte-order mark), which let a
+// name read as something it is not.
 func cleanText(s string) bool {
 	if !utf8.ValidString(s) {
 		return false
 	}
 	for _, r := range s {
-		if unicode.IsControl(r) {
+		if unicode.IsControl(r) || unicode.Is(unicode.Cf, r) {
 			return false
 		}
 	}
@@ -137,7 +139,7 @@ func validTagName(name string) error {
 	case n > maxTagNameRunes:
 		return fmt.Errorf("a tag name is at most %d characters", maxTagNameRunes)
 	case !cleanText(name):
-		return errors.New("a tag name holds no control characters")
+		return errors.New("a tag name holds no control or format characters (such as a bidi override or a zero-width space)")
 	}
 	return nil
 }
@@ -168,7 +170,7 @@ func badRequest(w http.ResponseWriter, err error) { writeError(w, http.StatusBad
 // index error.
 type agentDocument struct {
 	ID            string        `json:"id"`
-	Filename      string        `json:"filename"`
+	Filename      string        `json:"filename_untrusted"`
 	SizeBytes     int64         `json:"size_bytes"`
 	Source        string        `json:"source"`
 	ApplicationID string        `json:"application_id"`
@@ -176,7 +178,7 @@ type agentDocument struct {
 	Indexed       bool          `json:"indexed"`
 	IndexFailed   bool          `json:"index_failed"`
 	Stale         bool          `json:"stale"`
-	URL           string        `json:"url"`
+	URL           string        `json:"url_untrusted"`
 	Tags          []doctags.Tag `json:"tags"`
 }
 
@@ -259,7 +261,7 @@ func (s *Server) handleDocumentList(w http.ResponseWriter, r *http.Request) {
 	for _, d := range docs {
 		out = append(out, asAgentDocument(d, byDoc[d.ID]))
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"documents": out, "limit": limit, "offset": offset, "truncated": truncated})
+	writeJSON(w, http.StatusOK, map[string]any{"documents": out, "limit": limit, "offset": offset, "truncated": truncated, "note": taskview.UntrustedNote})
 }
 
 // taggedDocuments are the documents that carry every tag, newest first, from offset
@@ -324,7 +326,10 @@ func (s *Server) handleDocumentGet(w http.ResponseWriter, r *http.Request) {
 		dataFail(w, "get document", err)
 		return
 	}
-	writeJSON(w, http.StatusOK, asAgentDocument(*d, tags))
+	writeJSON(w, http.StatusOK, struct {
+		agentDocument
+		Note string `json:"note"`
+	}{asAgentDocument(*d, tags), taskview.UntrustedNote})
 }
 
 // GET /profiles/{profile}/documents/{id}/tags
@@ -342,7 +347,7 @@ func (s *Server) handleDocumentTagList(w http.ResponseWriter, r *http.Request) {
 		dataFail(w, "list document tags", err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"tags": tags})
+	writeJSON(w, http.StatusOK, map[string]any{"tags": tags, "note": taskview.UntrustedNote})
 }
 
 // POST /profiles/{profile}/documents/{id}/tags   {"name": "contract"}
@@ -476,6 +481,24 @@ func (b *bounder) value(v any, depth int) any {
 }
 
 // GET /profiles/{profile}/people?platform=&search=&limit=
+// The fields of a person that someone else wrote or a platform showed: they come back under
+// names ending in _untrusted, as a task's texts do, so that a model weighs them and does not
+// follow instructions inside them. Ids, counts and the platform are plain.
+var (
+	personUntrusted = []string{"platform_username", "full_name", "image_url", "contact_details", "website", "introduction",
+		"category", "job_title", "headline", "location", "about", "experience", "education", "profile_details", "follower_count"}
+	personListUntrusted = []string{"platform_username", "full_name", "category", "job_title"}
+)
+
+func markUntrusted(m map[string]any, keys []string) {
+	for _, k := range keys {
+		if v, ok := m[k]; ok {
+			delete(m, k)
+			m[k+"_untrusted"] = v
+		}
+	}
+}
+
 func (s *Server) handlePeopleList(w http.ResponseWriter, r *http.Request) {
 	if err := paramsOnly(r, "platform", "search", "limit"); err != nil {
 		badRequest(w, err)
@@ -515,7 +538,14 @@ func (s *Server) handlePeopleList(w http.ResponseWriter, r *http.Request) {
 	_ = json.Unmarshal(raw, &rows)
 	b := &bounder{field: personListFieldRunes, left: personListBudgetRunes}
 	out := b.value(rows, 0)
-	writeJSON(w, http.StatusOK, map[string]any{"people": out, "limit": limit, "truncated": truncated || b.cut})
+	if list, ok := out.([]any); ok {
+		for _, row := range list {
+			if m, ok := row.(map[string]any); ok {
+				markUntrusted(m, personListUntrusted)
+			}
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"people": out, "limit": limit, "truncated": truncated || b.cut, "note": taskview.UntrustedNote})
 }
 
 // GET /profiles/{profile}/people/{id}
@@ -542,6 +572,8 @@ func (s *Server) handlePersonGet(w http.ResponseWriter, r *http.Request) {
 	if b.cut {
 		out["truncated"] = true
 	}
+	markUntrusted(out, personUntrusted)
+	out["note"] = taskview.UntrustedNote
 	writeJSON(w, http.StatusOK, out)
 }
 
