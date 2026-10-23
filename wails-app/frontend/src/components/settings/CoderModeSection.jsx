@@ -125,8 +125,9 @@ export default function CoderModeSection() {
             {busy === 'disable' && <span style={{ color: 'var(--text-muted)' }}>· turning off…</span>}
           </span>
           <span style={hint}>
-            Adds a Coder choice when you start a chat: a coding agent runs with full access to your computer inside
-            one folder, the coder root by default. Off unless you turn it on.
+            Lets a chat run as a coding agent with access to your computer inside one folder, the coder root by default.
+            When it is on and a runtime is ready, new chats start as coder chats (see the default access below).
+            Off unless you turn it on.
           </span>
         </span>
       </label>
