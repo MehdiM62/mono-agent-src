@@ -14,6 +14,7 @@ import (
 	"go/token"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"regexp"
 	goruntime "runtime"
 	"strings"
@@ -824,5 +825,33 @@ func TestATokenUsedOnAnotherProfileIsAuditedAndRefused(t *testing.T) {
 	}
 	if f.auditCount(t) != 4 {
 		t.Errorf("an unknown token left an audit row: %d", f.auditCount(t))
+	}
+}
+
+// Every route the router registers (but the removed ones) is in openapi.yaml with its method:
+// a route added without the spec fails here, and CI's spec lint then checks the spec's shape.
+func TestOpenAPIHasEveryRoute(t *testing.T) {
+	raw, err := os.ReadFile("openapi.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	have := map[string]bool{}
+	path := ""
+	pathRE, methodRE := regexp.MustCompile(`^  (/\S*):\s*$`), regexp.MustCompile(`^    (get|post|put|patch|delete):\s*$`)
+	for _, line := range strings.Split(string(raw), "\n") {
+		if m := pathRE.FindStringSubmatch(line); m != nil {
+			path = m[1]
+		} else if m := methodRE.FindStringSubmatch(line); m != nil && path != "" {
+			have[strings.ToUpper(m[1])+" "+path] = true
+		}
+	}
+	s := newTestServer(t, true)
+	for _, rc := range s.routeTable {
+		if rc.Open && rc.Pattern != "GET /health" {
+			continue // the removed routes
+		}
+		if !have[rc.Pattern] {
+			t.Errorf("%s is not in internal/httpapi/openapi.yaml", rc.Pattern)
+		}
 	}
 }

@@ -257,8 +257,8 @@ supported way to run a coding agent that you do not fully trust:
    ```
 
    Scopes (each includes the ones before it): `read` is GET only (list, get, status);
-   `write` also validate and other changes that start and send nothing (tasks, documents and
-   people get routes in this class when the API gains them); `run` also runs, activates and
+   `write` also validate and the changes that start and send nothing (today: tagging and
+   untagging a document); `run` also runs, activates and
    deactivates workflows. Mind what `run` means: it is the authority of every approved or active
    workflow of the profile, including ones that send mail or read the vault, so scope a token to
    what the agent should be able to start. The engine's approval gates apply whatever the caller:
@@ -298,9 +298,37 @@ extra installs, so `agent-mode sandbox --runtime windows` refuses and says what 
 WSL2 with the bwrap profile, a separate Windows user account for the agent, or Windows Sandbox / a VM,
 each reaching the API with a scoped token.
 
+What a token reaches besides workflows (all under `/profiles/{profile}/`, the token's own profile
+only; another profile's id is "not found", and a token used on another profile's path is refused
+401 and recorded in its audit):
+
+- `read`: `GET documents` (`?limit=` up to 200, `?offset=`, `?tag=` up to 5), `documents/{id}`,
+  `documents/{id}/tags`; `GET people` (`?platform=`, `?search=`, `?limit=`) and `people/{id}`, the
+  fields `person_list` and `person_get` return, so a person's contact details and notes are readable
+  (each text is cut at 4,096 characters and a person's answer at about 64 K characters); `GET tasks`
+  (`?status=`, `?limit=`), `tasks/{id}` (the latest 100 events) and `tasks/next`, which looks and
+  claims nothing. The board is read as an agent: the Inbox is hidden unless you let agents see it,
+  and task texts come back in `_untrusted` fields.
+- `write`, only on a daemon started with `--allow-mutations` (otherwise 404): `POST
+  documents/{id}/tags` and `DELETE documents/{id}/tags/{tag}`. A tag name is at most 64 characters, a
+  document holds 10 tags (the CLI's rule) and the route makes no new tag once a profile has 500.
+
+A document is shown without its file path, capture directory or index error (which can quote
+a path), and a captured page's address without its query and fragment. There is no route that
+reads a document's content: the agent gets the metadata, not the file, and the file stays behind
+the sandbox. Every list is paged (default 50, at most 200), unknown query parameters are refused
+400, ids are checked against `[A-Za-z0-9][A-Za-z0-9._:-]*`, a tag body over 1 KiB is 413. Still out
+of reach of every token, by there being no route: creating, editing, moving, claiming, finishing or
+deleting a task; adding, editing or deleting a person or a document; reading a document's content;
+anything that sends or publishes; the vault, secrets and connections; profile folders and settings;
+and token management. A person's or task's text is whatever was captured or written, so treat it as
+untrusted input to the agent (prompt injection) and as personal data you are handing to it: give a
+`read` token to an agent you would let read the profile's CRM and board.
+
 Still deferred: unlocking the vault only with the user present, the macOS keychain ACL (needs a
-signed binary), hiding an abstract-socket D-Bus session bus under `--unshare-net`, and token
-routes for tasks, documents and people (the API has none yet).
+signed binary), hiding an abstract-socket D-Bus session bus under `--unshare-net`, a token that
+reads less than `read` (a documents-only or no-people token), and write routes for tasks, people and
+document content (they need the approval cards the CLI shows).
 
 ### Where a saved connection's secret goes
 

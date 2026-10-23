@@ -41,7 +41,7 @@ type Scope string
 const (
 	// ScopeRead: GET only (list, get, status).
 	ScopeRead Scope = "read"
-	// ScopeWrite: also mutations that are not sends (validate, tasks, documents, people).
+	// ScopeWrite: also mutations that are not sends (validate, tagging a document).
 	ScopeWrite Scope = "write"
 	// ScopeRun: also running and (de)activating workflows.
 	ScopeRun Scope = "run"

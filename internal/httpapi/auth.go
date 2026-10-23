@@ -40,8 +40,7 @@ func profileOf(r *http.Request) string {
 // and anyProfileAuth take it as an argument.
 //
 //	read  GET only: list, get, status.
-//	write mutations that start nothing and send nothing (validate; tasks, documents
-//	      and people when the API gains routes for them).
+//	write mutations that start nothing and send nothing (validate; tagging a document).
 //	run   starting or (de)activating a workflow.
 //	full  approvals, and anything else that spends the profile's authority:
 //	      vault secrets, sends and the account are never reachable below it.
