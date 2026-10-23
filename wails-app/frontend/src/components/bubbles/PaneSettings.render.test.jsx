@@ -10,7 +10,7 @@ import '../../i18n.js'
 const { api, chatAccess, budget, mockConfirm } = vi.hoisted(() => ({
   mockConfirm: vi.fn(),
   chatAccess: { create: vi.fn(), setAccess: vi.fn(), record: vi.fn() },
-  budget: { forTask: vi.fn(), list: vi.fn() },
+  budget: { forTask: vi.fn(), list: vi.fn(), lower: vi.fn() },
   api: {
     getChatTurns: vi.fn(), getChatEvents: vi.fn(), startChatTurn: vi.fn(), stopChatTurn: vi.fn(), coderStatus: vi.fn(),
     coderWorkspaceList: vi.fn(), getAgentRuntimeModels: vi.fn(), getProfiles: vi.fn(), listChatConversations: vi.fn(),
@@ -304,6 +304,87 @@ describe('access control', () => {
     expect(await screen.findByText('Its access had already changed to Scoped. Nothing was changed.')).toBeInTheDocument()
     expect(store.bubbles[0].access).toBe('scoped')
     expect(screen.getByTestId('chip-access')).toHaveTextContent('Access: Scoped')
+  })
+})
+
+describe('lowering the cap from the pane', () => {
+  const task = { taskId: 't1', goal: 'do it', status: 'running', kind: 'generic' }
+  const lowerBox = () => within(screen.getByTestId('pane-cost')).getByLabelText('New cap for this chat (USD)')
+  const lowerBtn = () => within(screen.getByTestId('pane-cost')).getByRole('button', { name: 'Lower cap' })
+  const openPane = async (t = task) => { await open(coding, t); fireEvent.click(gear()); await waitFor(() => expect(screen.getByTestId('pane-lower')).toBeInTheDocument()) }
+
+  it('lowers after a confirm that says it only lowers, then re-reads the spend and cap', async () => {
+    budget.lower.mockResolvedValue({ taskId: 't1', capUsd: 1 })
+    await openPane()
+    budget.forTask.mockResolvedValue({ taskId: 't1', capUsd: 1, spentUsd: 0.5, reported: true })
+    fireEvent.change(lowerBox(), { target: { value: '1' } })
+    fireEvent.click(lowerBtn())
+    await waitFor(() => expect(budget.lower).toHaveBeenCalledWith('task', 't1', 1))
+    expect(mockConfirm.mock.calls[0][0]).toBe('This only lowers the cap for this chat. Raising it is done in Settings > AI task budgets.')
+    await waitFor(() => expect(within(screen.getByTestId('pane-cost')).getByText('$0.50 of $1.00 (this task\'s cap)')).toBeInTheDocument())
+    expect(within(screen.getByTestId('pane-cost')).getByText('Cap lowered to $1.00.')).toBeInTheDocument()
+  })
+
+  it.each([['2'], ['3'], ['-1'], ['NaN'], ['1e2'], [' 1'], ['0.5'], ['0.4']])('refuses %j in the pane without calling anything', async (v) => {
+    await openPane()
+    fireEvent.change(lowerBox(), { target: { value: v } })
+    fireEvent.click(lowerBtn())
+    await waitFor(() => expect(within(screen.getByTestId('pane-cost')).getByRole('alert')).toBeInTheDocument())
+    expect(budget.lower).not.toHaveBeenCalled()
+    expect(mockConfirm).not.toHaveBeenCalled()
+  })
+
+  it('shows the typed refusal plainly and keeps the old cap', async () => {
+    budget.lower.mockRejectedValue(Object.assign(new Error('a cap can only be lowered here'), { code: 'cap_raise_refused' }))
+    await openPane()
+    fireEvent.change(lowerBox(), { target: { value: '1' } })
+    fireEvent.click(lowerBtn())
+    expect(await within(screen.getByTestId('pane-cost')).findByRole('alert')).toHaveTextContent('Refused: a cap can only be lowered here')
+    expect(within(screen.getByTestId('pane-cost')).getByText('$0.50 of $2.00 (this task\'s cap)')).toBeInTheDocument()
+  })
+
+  it('does nothing when the confirm is declined', async () => {
+    mockConfirm.mockResolvedValue(false)
+    await openPane()
+    fireEvent.change(lowerBox(), { target: { value: '1' } })
+    fireEvent.click(lowerBtn())
+    await waitFor(() => expect(mockConfirm).toHaveBeenCalled())
+    expect(budget.lower).not.toHaveBeenCalled()
+  })
+
+  it('lowers a plain chat under the global cap through its conversation, never comparing the global spend', async () => {
+    budget.lower.mockResolvedValue({ conversationId: 's1', capUsd: 1.5 })
+    await open(scoped)
+    fireEvent.click(gear())
+    await waitFor(() => expect(screen.getByTestId('pane-lower')).toBeInTheDocument())
+    fireEvent.change(lowerBox(), { target: { value: '1.4' } }) // below the global 1.5 spent: fine, it is not this chat's spend
+    fireEvent.click(lowerBtn())
+    await waitFor(() => expect(budget.lower).toHaveBeenCalledWith('conversation', 's1', 1.4))
+    cleanup()
+    budget.lower.mockClear()
+    await open(scoped)
+    fireEvent.click(gear())
+    await waitFor(() => expect(screen.getByTestId('pane-lower')).toBeInTheDocument())
+    fireEvent.change(lowerBox(), { target: { value: '5' } })
+    fireEvent.click(lowerBtn())
+    expect(await within(screen.getByTestId('pane-cost')).findByRole('alert')).toHaveTextContent('must be below')
+    expect(budget.lower).not.toHaveBeenCalled()
+  })
+
+  it('says no cap applies, with no control, when there is none at all', async () => {
+    budget.list.mockResolvedValue({ caps: [], spentUsd: 0 })
+    await open(scoped)
+    fireEvent.click(gear())
+    expect(await screen.findByTestId('pane-lower-note')).toHaveTextContent('No cap applies yet: set a global cap in Settings > AI task budgets.')
+    expect(screen.queryByTestId('pane-lower')).toBeNull()
+  })
+
+  it('shows a confined Apply chat\'s task cap read-only', async () => {
+    await open(coding, { taskId: 't9', goal: 'Apply', status: 'running', kind: 'application-apply' })
+    fireEvent.click(gear())
+    await waitFor(() => expect(within(screen.getByTestId('pane-cost')).getByText(/this task's cap/)).toBeInTheDocument())
+    expect(screen.getByTestId('pane-lower-note')).toHaveTextContent('shown here only')
+    expect(screen.queryByTestId('pane-lower')).toBeNull()
   })
 })
 

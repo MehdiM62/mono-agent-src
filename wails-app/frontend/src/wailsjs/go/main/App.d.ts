@@ -540,6 +540,8 @@ export function ListWorkflowTemplates():Promise<Array<workflow.Template>>;
 
 export function ListWorkflows():Promise<Array<main.WorkflowSummary>>;
 
+export function LowerAITaskBudget(arg1:string,arg2:string,arg3:number):Promise<string>;
+
 export function LoginSocial(arg1:string):Promise<string>;
 
 export function MarkPersonMessageUnread(arg1:string):Promise<void>;

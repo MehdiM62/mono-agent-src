@@ -1074,6 +1074,10 @@ export function ListWorkflows() {
   return window['go']['main']['App']['ListWorkflows']();
 }
 
+export function LowerAITaskBudget(arg1, arg2, arg3) {
+  return window['go']['main']['App']['LowerAITaskBudget'](arg1, arg2, arg3);
+}
+
 export function LoginSocial(arg1) {
   return window['go']['main']['App']['LoginSocial'](arg1);
 }
