@@ -11,16 +11,19 @@ import (
 const RedactedValue = "[redacted]"
 
 var (
-	// placeholderValue is a value that names a secret instead of holding one: a
-	// double-brace secret, vault or expression reference, or the REPLACE_ME a
-	// draft leaves. The WHOLE value must match: text around a placeholder, or a
-	// brace pair holding anything else, is not one. Never redacted: it is what a
-	// valid workflow holds in its credential fields.
-	placeholderValue = regexp.MustCompile(`^(?:\{\{\s*(?:secret|vault|\$)[A-Za-z0-9_.: -]{0,100}\}\}|REPLACE_ME)$`)
+	// placeholderShape is a value that names a secret instead of holding one: a
+	// double-brace secret or vault reference ({{secret:NAME}}), an @secret:NAME
+	// reference (the node-config form), a double-brace expression ({{ $json.x }})
+	// or the REPLACE_ME a draft leaves. The WHOLE value must match, and a NAME
+	// must be a plain identifier that does not itself look like a secret
+	// (isPlaceholder): a real secret placed where the name goes is not a
+	// placeholder.
+	placeholderShape = regexp.MustCompile(`^(?:\{\{\s*(?:secret|vault)\s*[:.]\s*([A-Za-z][A-Za-z0-9_-]{0,63})\s*\}\}|@secret:([A-Za-z][A-Za-z0-9_-]{0,63})|\{\{\s*\$[A-Za-z0-9_.: -]{0,100}\}\}|(REPLACE_ME))$`)
+	digitRun         = regexp.MustCompile(`[0-9]{6,}`)
 
 	// The shapes of a secret anywhere inside a string. RE2: linear in the
 	// text, no backtracking, so a hostile result cannot make this slow.
-	embeddedToken = regexp.MustCompile(`\b(?:sk[-_](?:live|test)[-_][A-Za-z0-9_-]{8,}|sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{16,}|xox[a-z]-[A-Za-z0-9-]{8,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{30,}|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}(?:\.[A-Za-z0-9_-]*)?)`)
+	embeddedToken = regexp.MustCompile(`\b(?:(?:sk|rk|pk)[-_](?:live|test)[-_][A-Za-z0-9_-]{8,}|glpat-[A-Za-z0-9_-]{16,}|npm_[A-Za-z0-9]{30,}|sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{16,}|xox[a-z]-[A-Za-z0-9-]{8,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{30,}|eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}(?:\.[A-Za-z0-9_-]*)?)`)
 	privateKey    = regexp.MustCompile(`-----BEGIN [A-Z ]*PRIVATE KEY`)
 	bearerToken   = regexp.MustCompile(`(?i)\bBearer\s+(\S{16,})`)
 	basicAuth     = regexp.MustCompile(`(?i)(\bAuthorization\s*[:=]\s*["']?\s*)Basic\s+(\S{8,})`)
@@ -30,7 +33,7 @@ var (
 	// A secret-named label with its value in prose ("password: Hunter2!"). The
 	// value must hold something other than lowercase letters, so a sentence
 	// such as "password: required" stays.
-	labelledValue = regexp.MustCompile(`(?i)\b(pass(?:word|wd|code|phrase)|secret|api[ _-]?key|` + `tok` + `en)(\s*[:=]\s*)(\S{8,})`)
+	labelledValue = regexp.MustCompile(`(?i)\b(pass(?:word|wd|code|phrase)|pwd|secret|api[ _-]?key|` + `tok` + `en)(["']?\s*[:=]\s*["']?)(\S{8,})`)
 )
 
 // secretWords and secretPairs name a secret when they are WORDS of a label or
@@ -38,13 +41,13 @@ var (
 // "tokenizer" is not a token.
 var (
 	secretWords = map[string]bool{"password": true, "passwd": true, "pass": true, "passcode": true, "passphrase": true, "passport": true,
-		"secret": true, "tok" + "en": true, "apikey": true, "otp": true, "2fa": true, "cvv": true, "cvc": true, "ssn": true, "iban": true, "privatekey": true}
+		"pwd": true, "pw": true, "secret": true, "tok" + "en": true, "apikey": true, "otp": true, "2fa": true, "cvv": true, "cvc": true, "ssn": true, "iban": true, "privatekey": true}
 	secretPairs = map[string]bool{"api key": true, "private key": true, "card number": true, "card no": true, "social security": true,
 		"access key": true, "secret key": true}
 	// A key that also holds one of these words describes a secret (its name, its
 	// limit, its type) and is not one.
 	metadataWords = map[string]bool{"name": true, "id": true, "ref": true, "enabled": true, "type": true, "limit": true, "count": true, "max": true,
-		"min": true, "usage": true, "ttl": true, "expires": true, "expiry": true, "length": true, "size": true, "budget": true, "label": true,
+		"min": true, "usage": true, "ttl": true, "expires": true, "expiry": true, "length": true, "len": true, "size": true, "budget": true, "label": true,
 		"status": true, "field": true, "hint": true, "used": true, "total": true}
 )
 
@@ -95,8 +98,32 @@ func isSecretLabel(s string) bool {
 	return true
 }
 
+// isPlaceholder says whether s is a whole placeholder whose name is only a name.
+func isPlaceholder(s string) bool {
+	m := placeholderShape.FindStringSubmatch(s)
+	if m == nil {
+		return false
+	}
+	name := m[1] + m[2]
+	if name == "" {
+		return true // an expression or REPLACE_ME
+	}
+	if embeddedToken.MatchString(name) || digitRun.MatchString(name) {
+		return false
+	}
+	// A random mixed-case alphanumeric name ("Hunter2Hunter2xx") is a secret in
+	// disguise; a name is lower case, or SHOUTING, or has no digits.
+	hasUpper, hasLower, hasDigit := false, false, false
+	for _, r := range name {
+		hasUpper = hasUpper || (r >= 'A' && r <= 'Z')
+		hasLower = hasLower || (r >= 'a' && r <= 'z')
+		hasDigit = hasDigit || (r >= '0' && r <= '9')
+	}
+	return !(hasUpper && hasLower && hasDigit)
+}
+
 func looksSecret(label, value string) bool {
-	if placeholderValue.MatchString(value) {
+	if isPlaceholder(value) {
 		return false
 	}
 	return isSecretLabel(label) || redactString(strings.TrimSpace(value)) != strings.TrimSpace(value)
@@ -112,59 +139,168 @@ func hasMoreThanLowercase(s string) bool {
 	return false
 }
 
+// zeroWidth are the characters that split a token without showing: zero-width
+// spaces and joiners, direction marks, the word joiner and the byte-order mark.
+func isZeroWidth(r rune) bool {
+	return (r >= 0x200B && r <= 0x200F) || (r >= 0x202A && r <= 0x202E) || (r >= 0x2060 && r <= 0x2064) || (r >= 0x2066 && r <= 0x2069) || r == 0xFEFF
+}
+
+func stripZeroWidth(s string) string {
+	if !strings.ContainsFunc(s, isZeroWidth) {
+		return s
+	}
+	return strings.Map(func(r rune) rune {
+		if isZeroWidth(r) {
+			return -1
+		}
+		return r
+	}, s)
+}
+
+// headerValue* find a credential header and its value on the same line.
+var (
+	cookieHeader = regexp.MustCompile(`(?i)\b((?:set-)?cookie\s*:\s*)([^\r\n]*=[^\r\n]{3,})`)
+	keyHeader    = regexp.MustCompile(`(?i)\b((?:x-api-key|x-auth-` + `tok` + `en)\s*:\s*)(\S{8,})`)
+	schemeHeader = regexp.MustCompile(`(?i)\b((?:proxy-)?authorization\s*:\s*["']?\s*(?:Token|ApiKey|Digest)\s+)(\S{8,})`)
+)
+
 // redactString removes what looks like a secret from s: every key- or
-// token-shaped word inside it, a private key block, a bearer or basic
-// credential, the password of a URL, the value of a credential query
-// parameter and the value of a secret-named label in prose. A placeholder
-// stays; it is accepted only as the whole string (or the whole value).
+// token-shaped word inside it, a private key block, a bearer, basic or token
+// credential, a cookie or key header, the password of a URL, the value of a
+// credential query parameter and the value of a secret-named label in prose.
+// A placeholder stays; it is accepted only as the whole string (or the whole
+// value). Zero-width characters are removed first so they cannot split a
+// token. Every step is one linear pass.
 func redactString(s string) string {
-	if placeholderValue.MatchString(s) {
+	s = stripZeroWidth(s)
+	if isPlaceholder(s) {
 		return s
 	}
 	if privateKey.MatchString(s) {
 		return RedactedValue
 	}
-	s = embeddedToken.ReplaceAllString(s, RedactedValue)
-	s = bearerToken.ReplaceAllStringFunc(s, func(m string) string {
-		f := strings.Fields(m)
-		if placeholderValue.MatchString(f[len(f)-1]) {
-			return m
+	// Each pattern runs only when its trigger text is there at all: ordinary
+	// text pays for a few substring scans, not for a dozen regex passes.
+	low := strings.ToLower(s)
+	has := func(subs ...string) bool {
+		for _, sub := range subs {
+			if strings.Contains(low, sub) {
+				return true
+			}
 		}
-		return f[0] + " " + RedactedValue
-	})
-	s = basicAuth.ReplaceAllString(s, "${1}Basic "+RedactedValue)
-	s = urlUserinfo.ReplaceAllStringFunc(s, func(m string) string {
-		g := urlUserinfo.FindStringSubmatch(m)
-		if placeholderValue.MatchString(g[2]) {
-			return m
-		}
-		return g[1] + RedactedValue + g[3]
-	})
-	s = queryParam.ReplaceAllStringFunc(s, func(m string) string {
-		g := queryParam.FindStringSubmatch(m)
-		if placeholderValue.MatchString(g[2]) {
-			return m
-		}
-		return g[1] + RedactedValue
-	})
+		return false
+	}
+	if has("sk", "rk", "pk", "gh", "xox", "akia", "aiza", "eyj", "glpat", "npm_") {
+		s = embeddedToken.ReplaceAllString(s, RedactedValue)
+	}
+	keepIfPlaceholder := func(re *regexp.Regexp, valueGroup int) {
+		s = replaceGroup(s, re, valueGroup, func(v string) bool { return isPlaceholder(strings.Trim(v, `"',;`)) })
+	}
+	if has("bearer") {
+		s = bearerToken.ReplaceAllStringFunc(s, func(m string) string {
+			f := strings.Fields(m)
+			if isPlaceholder(f[len(f)-1]) {
+				return m
+			}
+			return f[0] + " " + RedactedValue
+		})
+	}
+	if has("authorization") {
+		s = basicAuth.ReplaceAllString(s, "${1}Basic "+RedactedValue)
+		keepIfPlaceholder(schemeHeader, 2)
+	}
+	if has("://") {
+		s = urlUserinfo.ReplaceAllStringFunc(s, func(m string) string {
+			g := urlUserinfo.FindStringSubmatch(m)
+			if isPlaceholder(g[2]) {
+				return m
+			}
+			return g[1] + RedactedValue + g[3]
+		})
+	}
+	if has("?", "&") {
+		keepIfPlaceholder(queryParam, 2)
+	}
+	if has("x-api-key", "x-auth-") {
+		keepIfPlaceholder(keyHeader, 2)
+	}
+	if has("cookie") {
+		s = cookieHeader.ReplaceAllString(s, "${1}"+RedactedValue)
+	}
+	return redactLabelled(s)
+}
+
+// replaceGroup replaces group g of every match of re with the redaction marker,
+// except where keep says the value is to stay. One pass.
+func replaceGroup(s string, re *regexp.Regexp, g int, keep func(string) bool) string {
 	var out strings.Builder
 	last := 0
-	for _, loc := range labelledValue.FindAllStringSubmatchIndex(s, -1) {
-		// "secret:" inside an open double-brace reference is its prefix, not a label.
-		if before := s[:loc[0]]; strings.LastIndex(before, "{{") > strings.LastIndex(before, "}}") {
+	for _, loc := range re.FindAllStringSubmatchIndex(s, -1) {
+		if loc[2*g] < 0 || keep(s[loc[2*g]:loc[2*g+1]]) {
 			continue
 		}
-		v := strings.Trim(s[loc[6]:loc[7]], `"',;`)
-		if placeholderValue.MatchString(v) || !hasMoreThanLowercase(v) || strings.HasPrefix(v, RedactedValue) {
-			continue
-		}
-		out.WriteString(s[last:loc[6]])
+		out.WriteString(s[last:loc[2*g]])
 		out.WriteString(RedactedValue)
-		last = loc[7]
+		last = loc[2*g+1]
+	}
+	if last == 0 {
+		return s
 	}
 	out.WriteString(s[last:])
 	return out.String()
 }
+
+// redactLabelled redacts the value of a secret-named label in prose
+// ("password: Hunter2!", "\"api_key\": \"abc12345\""). Whether a label sits
+// inside an open double-brace reference is tracked as the text is scanned once,
+// so the work is linear in the text however many labels it holds.
+func redactLabelled(s string) string {
+	matches := labelledValue.FindAllStringSubmatchIndex(s, -1)
+	if len(matches) == 0 {
+		return s
+	}
+	var out strings.Builder
+	last, scanned, open := 0, 0, false
+	for _, loc := range matches {
+		// Advance the brace state over s[scanned:loc[0]]; a pair cut by loc[0] is looked at next time.
+		for scanned+1 < loc[0] {
+			switch {
+			case s[scanned] == '{' && s[scanned+1] == '{':
+				open, scanned = true, scanned+2
+			case s[scanned] == '}' && s[scanned+1] == '}':
+				open, scanned = false, scanned+2
+			default:
+				scanned++
+			}
+		}
+		if loc[0] > 0 && s[loc[0]-1] == '@' { // @secret:NAME is a reference
+			continue
+		}
+		if open { // "secret:" inside an open reference is its prefix, not a label
+			continue
+		}
+		raw := s[loc[6]:loc[7]]
+		v := strings.Trim(raw, `"',;)}]`)
+		if v == "" || isPlaceholder(v) || !hasMoreThanLowercase(v) || strings.HasPrefix(v, RedactedValue) {
+			continue
+		}
+		lead := strings.Index(raw, v)
+		start, end := loc[6]+lead, loc[6]+lead+len(v)
+		if start < last {
+			continue
+		}
+		out.WriteString(s[last:start])
+		out.WriteString(RedactedValue)
+		last = end
+	}
+	if last == 0 {
+		return s
+	}
+	out.WriteString(s[last:])
+	return out.String()
+}
+
+func has(m map[string]any, k string) bool { _, ok := m[k]; return ok }
 
 // labelKeys name the key of a {label, value} pair in a field report.
 var labelKeys = []string{"label", "name", "field"}
@@ -191,23 +327,28 @@ func RedactResult(v any) any {
 			}
 		}
 		out := make(map[string]any, len(t))
+		renamed := map[string]int{} // per redacted key name: the last suffix handed out
 		for k, e := range t {
 			name := k
 			if r := redactString(k); r != k {
 				name = r
-				for i := 2; ; i++ {
-					_, inInput := t[name]
-					_, inOutput := out[name]
-					if !inInput && !inOutput {
-						break
+				if _, inInput := t[name]; inInput || has(out, name) {
+					n := renamed[r]
+					for {
+						n++
+						cand := fmt.Sprintf("%s %d", r, n)
+						if _, inInput := t[cand]; !inInput && !has(out, cand) {
+							name = cand
+							break
+						}
 					}
-					name = fmt.Sprintf("%s %d", r, i)
+					renamed[r] = n
 				}
 			}
 			switch s := e.(type) {
 			case string:
 				switch {
-				case isSecretLabel(k) && s != "" && !placeholderValue.MatchString(s):
+				case isSecretLabel(k) && s != "" && !isPlaceholder(s):
 					out[name] = RedactedValue
 				case k == "value" && label != "" && looksSecret(label, s):
 					out[name] = RedactedValue
