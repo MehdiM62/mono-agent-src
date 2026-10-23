@@ -27,7 +27,8 @@ import { CollectionField, AnyPlatformConnections, CurlImport, FormFieldsEditor }
 import { onAutomationsChanged } from '../lib/appEvents.js'
 import { arrangePaletteCategories, DEPRECATED, paletteCategoryLabel, paletteSectionOf, splitPaletteSections } from './paletteSections.js'
 import { runProblem } from '../lib/runFailure.js'
-import RunProblemPanel from '../components/RunProblemPanel.jsx'
+import WorkflowCoderBrief from '../components/WorkflowCoderBrief.jsx'
+import RunProblemPanel, { failedRunGoal } from '../components/RunProblemPanel.jsx'
 import { rememberTriggerInput, rememberedTriggerInput } from './triggerInput.js'
 import { usePageVisibleRef } from '../lib/usePageVisible.js'
 import { fitCamera, placeAfter, autoConnect, panToShow, placeBelow, autoConnectSub } from './canvasPlacement.js'
@@ -2321,7 +2322,7 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
           problem={execOverlay.problem}
           onSelectNode={(id) => { setSelectedId(id); setInspectorOpen(true) }}
           onClose={() => setProblemHidden(true)}
-          onSendToCoder={() => ({ goal: 'Work out why this workflow run failed and fix the workflow.', origin: { page: 'noderunner', label: 'Workflows' } })}
+          onSendToCoder={() => ({ goal: failedRunGoal({ workflowId: wfId, workflowName: wfName, executionId: execOverlay.id }), origin: { page: 'noderunner', label: 'Workflows' } })}
         />
       )}
 
@@ -2410,6 +2411,9 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
                 <button className="btn btn-secondary btn-sm" style={{ pointerEvents: 'auto', gap: 6 }} onClick={() => setShowWfModal('templates')}>
                   <LayoutTemplate size={13} /> Start from a template
                 </button>
+                <div style={{ pointerEvents: 'auto' }}>
+                  <WorkflowCoderBrief origin={{ page: 'noderunner', label: 'Workflows' }} />
+                </div>
                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.8 }}>
                   or click or drag nodes from the left panel<br />
                   Connect output → input ports to chain them<br />

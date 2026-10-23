@@ -12,6 +12,14 @@ export function problemText(problem) {
   return lines.join('\n')
 }
 
+// failedRunGoal is the task goal for a failed run: which workflow and run, and
+// that the coder may fix the workflow but must not run it again on its own.
+export function failedRunGoal({ workflowId, workflowName, executionId }) {
+  const wf = workflowName ? `workflow "${workflowName}"${workflowId ? ` (${workflowId})` : ''}` : (workflowId ? `workflow ${workflowId}` : 'a workflow')
+  const run = executionId ? `run ${executionId}` : 'the last run'
+  return `Work out why ${run} of ${wf} failed and fix the workflow. Read the run with the workflow execution commands. Do not run or activate the workflow again unless I ask; if you do, say so.`
+}
+
 // The "why did it fail" panel under the editor toolbar: the execution's own
 // error and each failed node's. problem is runProblem() from
 // lib/runFailure.js; clicking a node row selects that node on the canvas.
@@ -53,7 +61,7 @@ export default function RunProblemPanel({ problem, onSelectNode, onClose, onSend
         ))}
       </div>
       {coder && (
-        <SendToCoderButton label="Fix with coder" goal={coder.goal} origin={coder.origin}
+        <SendToCoderButton kind="failed-run-fix" label="Fix with coder" goal={coder.goal} origin={coder.origin}
           context={() => [selectionText(problemText(problem))]} />
       )}
       <button onClick={onClose} aria-label="Hide error" title="Hide error" style={{
