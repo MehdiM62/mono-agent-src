@@ -227,3 +227,34 @@ func TestInlinedContextBudgetCutsUntrustedTextFirst(t *testing.T) {
 		t.Error("untrusted text came before the trusted facts")
 	}
 }
+
+// The task id in the environment is the CLI guard's only signal that a session
+// is a confined task's. Every path that hands out a confinement carries it: the
+// first turn (the holder's own env), a follow-up on an open task (id and a
+// fresh token), and a follow-up on a closed or queued one (the id alone).
+func TestEveryConfinedTurnCarriesTheTaskID(t *testing.T) {
+	kinds := []string{"application-apply", "draft-reply", "recording-analysis", "workflow-generate", "failed-run-fix"}
+	for _, kind := range kinds {
+		for _, status := range []string{aitask.StatusNeedsUser, aitask.StatusRunning, aitask.StatusComplete, aitask.StatusFailed, aitask.StatusCancelled, aitask.StatusQueued} {
+			r := newTaskRig(t)
+			task, _ := r.taskOfKind(t, "default", status, kind)
+			r.turn(t, "t1", nil)
+			id, token := r.env(t)
+			open := status == aitask.StatusNeedsUser || status == aitask.StatusRunning
+			if id != task.ID || (open && token == "") || (!open && token != "") {
+				t.Errorf("%s/%s: env id %q token set %v, want %q and a token only when open", kind, status, id, token != "", task.ID)
+			}
+		}
+		// The holder's own first turn: the id comes from the inherited env.
+		r := newTaskRig(t)
+		task, token := r.taskOfKind(t, "default", aitask.StatusRunning, kind)
+		t.Setenv(aitask.EnvTaskID, task.ID)
+		t.Setenv(aitask.EnvToken, token)
+		r.turn(t, "t1", nil)
+		if id, _ := r.env(t); id != task.ID {
+			t.Errorf("%s: the holder's first turn has env id %q", kind, id)
+		}
+		t.Setenv(aitask.EnvTaskID, "")
+		t.Setenv(aitask.EnvToken, "")
+	}
+}

@@ -102,3 +102,46 @@ func TestTaskSessionGuardLeavesOperatorsAndGenericTasksAlone(t *testing.T) {
 		t.Errorf("an unknown task id was let through: %v", err)
 	}
 }
+
+// A follow-up on a FINISHED confined task carries the task id (no token), so
+// the guard holds that agent to its profile too.
+func TestTaskSessionGuardHoldsAFinishedTasksFollowUp(t *testing.T) {
+	id := guardRig(t, "draft-reply")
+	db, err := storage.NewDatabase(expandPath("~/.monoagent/monoagent.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.DB.Exec(`UPDATE ai_tasks SET status = 'complete' WHERE id = ?`, id); err != nil {
+		t.Fatal(err)
+	}
+	db.Close()
+	asTaskSession(t, id, "") // the id only, as chat hands a closed task's follow-up
+	for _, args := range [][]string{
+		{"--profile", "p2", "workflow", "list"},
+		{"--profile", "p1", "--profile", "p2", "workflow", "get", "x"},
+		{"--profile", "p1", "workflow", "list", "--all-profiles"},
+		{"--profile", "p1", "--db-path", "/tmp/x.db", "workflow", "list"},
+	} {
+		if err := runGuardRoot(t, args...); err == nil || !strings.Contains(err.Error(), guardMsg) {
+			t.Errorf("%v: not refused: %v", args, err)
+		}
+	}
+}
+
+// A refused --db-path is never used for the lookup: the lookup is not even made.
+func TestTaskSessionGuardRefusesForbiddenFlagsBeforeTheLookup(t *testing.T) {
+	id := guardRig(t, "draft-reply")
+	asTaskSession(t, id, "")
+	old := taskProfileLookup
+	taskProfileLookup = func(dbPath, taskID string) (string, string, string, error) {
+		t.Errorf("the task was looked up in %q before the forbidden flag was refused", dbPath)
+		return old(dbPath, taskID)
+	}
+	t.Cleanup(func() { taskProfileLookup = old })
+	for _, flag := range []string{"--db-path", "--config-dir", "--output-dir", "--log-file"} {
+		err := runGuardRoot(t, "--profile", "p1", flag, "/nonexistent/x", "workflow", "list")
+		if err == nil || !strings.Contains(err.Error(), flag+" is not allowed") {
+			t.Errorf("%s: %v", flag, err)
+		}
+	}
+}
