@@ -112,3 +112,119 @@ func TestRedactResultWorkIsBounded(t *testing.T) {
 		t.Error("the secret at the end survived")
 	}
 }
+
+// ---- round 2: whole-value placeholders, more shapes, no changed types ----
+
+func TestRedactResultPlaceholdersMustBeWholeAndKnown(t *testing.T) {
+	for name, tc := range map[string]struct{ in, leaked string }{
+		"braces around a key":   {`{"v":"{{` + "g" + `hp_REALREALREALREAL0123456789}}"}`, "REALREAL"},
+		"secret-named key":      {`{"password":"{{Hunter2RealPass!}}"}`, "Hunter2RealPass"},
+		"prose label":           {`{"v":"password: {{Hunter2RealPass!}}"}`, "Hunter2RealPass"},
+		"query after braces":    {`{"u":"https://x.test/?api_key={{a}}RealSecretValue12345"}`, "RealSecretValue12345"},
+		"bearer after braces":   {`{"h":"Bearer {{a}}RealSecretToken1234567890"}`, "RealSecretToken1234567890"},
+		"placeholder + suffix":  {`{"v":"x","api_key":"{{secret:k}}RealTrailingSecret99"}`, "RealTrailingSecret99"},
+		"unknown brace content": {`{"api_key":"{{whatever}}"}`, "whatever"},
+	} {
+		if out := redactJSON(t, tc.in); strings.Contains(out, tc.leaked) {
+			t.Errorf("%s: kept %q: %s", name, tc.leaked, out)
+		}
+	}
+	for _, ok := range []string{`{{secret:k}}`, `{{ secret:my.key }}`, `{{vault:a}}`, `{{$json.x}}`, `{{ $node.Foo }}`, `REPLACE_ME`} {
+		if out := redactJSON(t, `{"api_key":"`+ok+`"}`); !strings.Contains(out, ok) {
+			t.Errorf("placeholder %q was redacted: %s", ok, out)
+		}
+	}
+}
+
+func TestRedactResultMoreShapes(t *testing.T) {
+	for name, tc := range map[string]struct{ in, leaked string }{
+		"stripe live":    {`{"t":"key ` + "s" + `k_live_abcdefghijklmnop1234 ok"}`, "abcdefghijklmnop1234"},
+		"stripe test":    {`{"t":"` + "s" + `k_test_abcdefghijklmnop1234"}`, "abcdefghijklmnop1234"},
+		"google key":     {`{"t":"` + "A" + `Iza` + strings.Repeat("a1B2", 9) + `"}`, "a1B2a1B2a1B2"},
+		"url password":   {`{"u":"postgres://admin:Sup3rS3cret@db.example.com:5432/x"}`, "Sup3rS3cret"},
+		"basic header":   {`{"h":"Authorization: Basic dXNlcjpwYXNzd29yZA=="}`, "dXNlcjpwYXNzd29yZA"},
+		"basic as value": {`{"Authorization":"Basic dXNlcjpwYXNzd29yZA=="}`, "dXNlcjpwYXNzd29yZA"},
+		"secret as key":  {`{"` + "s" + `k-live-abcdefghijklmnop0123":"x"}`, "abcdefghijklmnop0123"},
+		"private key":    {`{"k":"-----BEGIN RSA PRIVATE KEY-----\nMIIE"}`, "MIIE"},
+	} {
+		out := redactJSON(t, tc.in)
+		if strings.Contains(out, tc.leaked) {
+			t.Errorf("%s: leaked %q: %s", name, tc.leaked, out)
+		}
+	}
+	// The user and host of a URL stay.
+	if out := redactJSON(t, `{"u":"postgres://admin:Sup3rS3cret@db.example.com/x"}`); !strings.Contains(out, "postgres://admin:[redacted]@db.example.com/x") {
+		t.Errorf("url = %s", out)
+	}
+}
+
+// What is not a secret keeps its value and its type.
+func TestRedactResultKeepsNumbersBooleansHashesAndLookalikes(t *testing.T) {
+	in := `{"token_limit":100,"max_tokens":512,"token_count":"42","tokens_used":7,"secret_name":"db","token_type":"bearer","password_required":true,` +
+		`"footprint":"abc12345","otp_enabled":false,"cvv":null,"tokenizer":"gpt","passport_count":3,` +
+		`"commit":"9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08","id":"0123456789abcdef0123456789abcdef0123456789abcdef",` +
+		`"note":"password: required, and the token bucket is full"}`
+	var want any
+	_ = json.Unmarshal([]byte(in), &want)
+	wantB, _ := json.Marshal(want)
+	if got := redactJSON(t, in); got != string(wantB) {
+		t.Errorf("valid content changed:\n got %s\nwant %s", got, wantB)
+	}
+	// ...but a word-boundary secret key with a string value still goes.
+	for _, k := range []string{"password", "apiKey", "api_key", "access-key", "otp", "privateKey", "passportNumber", "social_security_number", "card_no", "IBAN"} {
+		if out := redactJSON(t, `{"`+k+`":"Zx9-realvalue"}`); strings.Contains(out, "realvalue") {
+			t.Errorf("key %q kept its value: %s", k, out)
+		}
+	}
+}
+
+// Redaction runs after the schema check: it must never make a valid result of
+// any registered kind invalid.
+func TestRedactResultKeepsEveryKindsValidResultValid(t *testing.T) {
+	withKnownTypes(t, "trigger.manual", "http.request")
+	secretish := "key " + fakeSK + " and Bearer " + fakeBearer + " at https://u:pw12345678@h.test/?token=abcdefghijkl"
+	samples := map[string]string{
+		"generic":            `{"summary":"` + secretish + `","output":{"api_key":"{{secret:k}}","token_limit":5,"password":"Zx9-realvalue"}}`,
+		"draft-reply":        `{"summary":"s","draft":{"to":"sam","subject":"Re","body":"` + secretish + `"},"assumptions":["` + secretish + `"]}`,
+		"recording-analysis": validRecordingResult,
+		"workflow-generate":  string(wfResult(t, goodNodes, goodConns, nil)),
+		"failed-run-fix":     `{"summary":"` + secretish + `","diagnosis":"d","fix":{"kind":"workflow-edit","description":"x","proposed":{"nodeId":"n1","config":{"headers":{"Authorization":"Bearer {{secret:api}}","x-api-key":"Zx9-realvalue"},"max_tokens":5}}}}`,
+	}
+	for _, name := range Names() {
+		raw, ok := samples[name]
+		if !ok {
+			if name == "application-apply" {
+				continue // registered by internal/applyfill, which imports this package
+			}
+			t.Errorf("kind %s has no sample result here: add one", name)
+			continue
+		}
+		k, _ := Lookup(name)
+		var v any
+		if err := json.Unmarshal([]byte(raw), &v); err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		schema := k.Schema
+		if schema == nil {
+			schema = map[string]any{"type": "object"}
+		}
+		if err := Validate(schema, v); err != nil {
+			t.Fatalf("%s: the sample is not valid: %v", name, err)
+		}
+		red := RedactResult(v)
+		b, _ := json.Marshal(red)
+		var back any
+		_ = json.Unmarshal(b, &back)
+		if err := Validate(schema, back); err != nil {
+			t.Errorf("%s: redaction made a valid result invalid: %v\n%s", name, err, b)
+		}
+		if k.Validate != nil {
+			if err := k.Validate(back); err != nil {
+				t.Errorf("%s: redaction broke the kind's own check: %v", name, err)
+			}
+		}
+		if strings.Contains(string(b), "abcdefghijklmnop0123") || strings.Contains(string(b), "pw12345678") {
+			t.Errorf("%s: a secret survived: %s", name, b)
+		}
+	}
+}

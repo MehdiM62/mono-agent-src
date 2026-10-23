@@ -21,23 +21,23 @@ beforeEach(() => { vi.clearAllMocks() })
 afterEach(cleanup)
 
 describe('failedRunGoal', () => {
-  it('names the workflow and the run, and says not to run it again unasked', () => {
+  it('names the workflow and the run, and says it only diagnoses', () => {
     const g = failedRunGoal(goalInfo)
     expect(g).toContain('run ex-9')
     expect(g).toContain('"Daily fetch" (wf-1)')
-    expect(g).toMatch(/Do not run or activate the workflow again unless I ask/)
+    expect(g).toMatch(/You only diagnose: change nothing/)
   })
   it('copes with ids that are not known yet', () => {
     expect(failedRunGoal({})).toContain('the last run of a workflow')
   })
 })
 
-describe('RunProblemPanel Fix with coder', () => {
+describe('RunProblemPanel Diagnose with coder', () => {
   it('submits a failed-run-fix task with the failure as selection text', async () => {
     aitaskApi.status.mockResolvedValue({ enabled: true })
     aitaskApi.submit.mockResolvedValue({ taskId: 't1', conversationId: 'c1', status: 'queued', kind: 'failed-run-fix' })
     render(wrap(<RunProblemPanel problem={problem} onClose={() => {}} onSendToCoder={() => ({ goal: failedRunGoal(goalInfo), origin: { page: 'noderunner', label: 'Workflows' } })} />))
-    fireEvent.click(screen.getByRole('button', { name: /Fix with coder/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Diagnose with coder/ }))
     await waitFor(() => expect(aitaskApi.submit).toHaveBeenCalledTimes(1))
     const [kind, goal, context] = aitaskApi.submit.mock.calls[0]
     expect(kind).toBe('failed-run-fix')
@@ -49,7 +49,7 @@ describe('RunProblemPanel Fix with coder', () => {
   it('coder off: says why, submits nothing, and the failure stays on screen', async () => {
     aitaskApi.status.mockResolvedValue({ enabled: false, reason: 'Coder mode is off.' })
     render(wrap(<RunProblemPanel problem={problem} onClose={() => {}} onSendToCoder={() => ({ goal: 'g', origin: {} })} />))
-    fireEvent.click(screen.getByRole('button', { name: /Fix with coder/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Diagnose with coder/ }))
     expect(await screen.findByText(/Coder mode is off\./)).toBeInTheDocument()
     expect(aitaskApi.submit).not.toHaveBeenCalled()
     expect(screen.getByText('run died')).toBeInTheDocument()
@@ -57,6 +57,6 @@ describe('RunProblemPanel Fix with coder', () => {
 
   it('without onSendToCoder there is no coder button', () => {
     render(wrap(<RunProblemPanel problem={problem} onClose={() => {}} />))
-    expect(screen.queryByRole('button', { name: /Fix with coder/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Diagnose with coder/ })).toBeNull()
   })
 })

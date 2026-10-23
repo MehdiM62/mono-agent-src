@@ -67,14 +67,14 @@ describe('Send to coder attach points', () => {
     expect(context).toEqual(['selection-text=[sync] token expired'])
   })
 
-  it('RunProblemPanel: "Fix with coder" appears only with onSendToCoder and sends the failed nodes and errors', async () => {
+  it('RunProblemPanel: "Diagnose with coder" appears only with onSendToCoder and sends the failed nodes and errors', async () => {
     const problem = { status: 'FAILED', error: 'run died', failed: [{ id: 'n1', name: 'HTTP', error: 'boom 500' }] }
     const { unmount } = render(wrap(<RunProblemPanel problem={problem} onClose={() => {}} />))
-    expect(screen.queryByRole('button', { name: /Fix with coder/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Diagnose with coder/ })).toBeNull()
     unmount()
     const onSendToCoder = vi.fn(() => ({ goal: 'fix the run', origin: { page: 'noderunner', label: 'Workflows' } }))
     render(wrap(<RunProblemPanel problem={problem} onClose={() => {}} onSendToCoder={onSendToCoder} />))
-    const [kind, goal, context] = await clickAndGetSubmit(/Fix with coder/)
+    const [kind, goal, context] = await clickAndGetSubmit(/Diagnose with coder/)
     expect(kind).toBe('failed-run-fix')
     expect(goal).toBe('fix the run')
     expect(context).toEqual(['selection-text=run died\nHTTP: boom 500'])

@@ -93,7 +93,7 @@ func TestSubmitWorkflowGenerateThenCompleteIsCheckedByTheValidator(t *testing.T)
 	}
 }
 
-func TestSubmitFailedRunFixThenCompleteRefusesAnEditThatNamesNoWorkflow(t *testing.T) {
+func TestSubmitFailedRunFixThenCompleteRefusesAnEditThatProposesNothing(t *testing.T) {
 	f := &tokenFake{fake: fake{cwd: t.TempDir()}}
 	d := deps(t, func() aitask.Launcher { return f })
 	out, err := run(t, d, "submit", "--kind", "failed-run-fix", "--goal", "Workflow wf-1 run ex-9 failed.")
@@ -105,12 +105,12 @@ func TestSubmitFailedRunFixThenCompleteRefusesAnEditThatNamesNoWorkflow(t *testi
 	}
 	_ = json.Unmarshal([]byte(out), &task)
 	t.Setenv(aitask.EnvToken, f.token)
-	bad := `{"summary":"s","diagnosis":"d","fix":{"kind":"workflow-edit","description":"x"},"changed":[],"reran":false}`
+	bad := `{"summary":"s","diagnosis":"d","fix":{"kind":"workflow-edit","description":"x"}}`
 	refused, err := run(t, d, "complete", task.TaskID, "--result", writeResult(t, d, task.TaskID, bad))
-	if clicore.ExitCodeFor(err) != 3 || !strings.Contains(refused, "changed is empty") {
+	if clicore.ExitCodeFor(err) != 3 || !strings.Contains(refused, "fix.proposed is empty") {
 		t.Fatalf("%v %s", err, refused)
 	}
-	good := `{"summary":"s","diagnosis":"d","fix":{"kind":"workflow-edit","description":"x"},"changed":["wf-1"],"reran":false}`
+	good := `{"summary":"s","diagnosis":"d","fix":{"kind":"workflow-edit","description":"x","proposed":{"nodeId":"n1","config":{}}}}`
 	if accepted, err := run(t, d, "complete", task.TaskID, "--result", writeResult(t, d, task.TaskID, good)); err != nil || !strings.Contains(accepted, `"status":"complete"`) {
 		t.Fatalf("%v %s", err, accepted)
 	}

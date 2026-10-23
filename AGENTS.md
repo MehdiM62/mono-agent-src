@@ -3569,8 +3569,9 @@ monoagentcli --profile P aitask fail <id> --reason TEXT                   # the 
   pasted, never a thread; it cannot send). `application-apply`, `draft-reply`, `recording-analysis`, `workflow-generate` and `failed-run-fix` (the kinds that read
   text a stranger wrote) run as confined, claude-only turns with no file tools and a fixed command allow-list (`draft-reply`:
   only `aitask complete|fail`; `recording-analysis` adds `record show`; `workflow-generate` adds `workflow search|get`,
-  `workflow templates list|show`, `node list|schema`, `ref`; `failed-run-fix` adds read-only `workflow get|list|search|executions|execution|inputs|validate`,
-  `workflow node list` and the one edit verb `workflow node set`); they hand the result back with `aitask complete --result-json JSON`
+  `workflow templates list|show`, `node list|schema`, `ref`; `failed-run-fix` is diagnose-only: read-only `workflow get|list|search|executions|execution`, and it hands back
+  the proposed change as data in `fix.proposed` for the user to apply, editing and running nothing); in a confined task's session the root refuses
+  a `--profile` other than the task's or given twice, `--db-path`, `--config-dir`, `--output-dir`, `--log-file`, `--all-profiles` and `workflow validate --file`; they hand the result back with `aitask complete --result-json JSON`
   or `--result FILE` from the task's own work folder (any other path is refused); on every other kind the access level is
   recorded and hashed but `qa` is not enforced on the turn.
 - Context goes to `<conversation folder>/.monoagent/context/<task>/<class>/` with a README that says it is data, never
