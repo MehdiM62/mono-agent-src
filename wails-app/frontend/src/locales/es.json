@@ -1843,6 +1843,15 @@
     "cardNote": "Se guarda cifrada en este equipo. Nunca se envía a una IA. Solo se rellena en un sitio web cuando pulsas Rellenar tarjeta en la extensión del navegador.",
     "filePicker": "Elegir un archivo"
   },
+  "coderDefault": {
+    "label": "Acceso predeterminado de los chats nuevos",
+    "hint": "El nivel con el que empieza un chat nuevo cuando el modo Coder está activado y hay un entorno listo. Puedes elegir otro nivel en cada chat.",
+    "off": "El modo Coder está desactivado, así que los chats nuevos empiezan en Aislado.",
+    "effective": "Ahora: {{level}}",
+    "saved": "Guardado.",
+    "allowsFull": "Ejecuta comandos y cambia archivos en la carpeta que elijas, sin preguntar.",
+    "allowsWorkspace": "Ejecuta comandos y cambia archivos en la carpeta que elijas, sin preguntar, y conoce tu perfil."
+  },
   "coderOrg": {
     "title": "Equipo del chat de código y envíos",
     "machineHint": "Cómo el agente principal de un chat de código asigna a sus trabajadores y si lo que envían los agentes espera tu aprobación. Para todo este equipo.",

@@ -1885,6 +1885,15 @@
     "cardNote": "Stored encrypted on this computer. Never sent to an AI. It is filled into a website only when you press Fill card in the browser extension.",
     "filePicker": "Choose a file"
   },
+  "coderDefault": {
+    "label": "Default access for new chats",
+    "hint": "What a new chat starts at when Coder mode is on and a runtime is ready. You can still pick another level in each chat.",
+    "off": "Coder mode is off, so new chats start Scoped.",
+    "effective": "Now: {{level}}",
+    "saved": "Saved.",
+    "allowsFull": "Runs commands and changes files in the folder you pick, without asking.",
+    "allowsWorkspace": "Runs commands and changes files in the folder you pick, without asking, and knows about your profile."
+  },
   "coderOrg": {
     "title": "Coder chat team and sends",
     "machineHint": "How a coder chat's lead staffs its workers, and whether what agents send waits for you. For this whole computer.",
