@@ -2,12 +2,14 @@ package aitask
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/monoes/mono-agent/internal/aitask"
+	"github.com/monoes/mono-agent/internal/storage"
 )
 
 const goodDraft = `{"summary":"s","draft":{"body":"Friday works."},"assumptions":[]}`
@@ -111,5 +113,39 @@ func TestGenericTaskResultFileIsNotRestricted(t *testing.T) {
 	}
 	if out, err := run(t, d, "complete", id, "--result", p); err != nil || !strings.Contains(out, `"status":"complete"`) {
 		t.Fatalf("%v %s", err, out)
+	}
+}
+
+// A link under the work folder whose target does not exist is not inside it.
+func TestResultPathRefusesADanglingLinkInTheWorkFolder(t *testing.T) {
+	d, id, _ := submitKind(t, "draft-reply")
+	work := filepath.Join(filepath.Dir(d.DBPath()), "aitask", id, "work")
+	if err := os.MkdirAll(work, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(work, "r.json")
+	if err := os.Symlink(filepath.Join(t.TempDir(), "not-yet"), link); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := run(t, d, "complete", id, "--result", link); err == nil || !strings.Contains(err.Error(), "not under this task's work folder") {
+		t.Fatalf("a dangling link was treated as inside: %v", err)
+	}
+}
+
+// When the task cannot be looked up the path is refused, never read.
+func TestResultPathFailsClosedWhenTheTaskCannotBeLooked(t *testing.T) {
+	d, id, _ := submitKind(t, "draft-reply")
+	p := filepath.Join(t.TempDir(), "r.json")
+	if err := os.WriteFile(p, []byte(goodDraft), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	broken := *d
+	broken.OpenDB = func() (*storage.Database, error) { return nil, errors.New("no database") }
+	c := &cli{d: &broken}
+	if _, err := c.resultPathAllowed(id, p); err == nil {
+		t.Fatal("a result path was allowed with the task unreadable")
+	}
+	if _, err := (&cli{d: d}).resultPathAllowed("at-0000000000000000", p); err == nil {
+		t.Fatal("a result path was allowed for an unknown task")
 	}
 }

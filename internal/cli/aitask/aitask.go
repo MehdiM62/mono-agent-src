@@ -372,52 +372,67 @@ func readResultFile(cmd *cobra.Command, path string) ([]byte, error) {
 	return b, nil
 }
 
-// resultPathAllowed says whether a confined task may hand back the file at
-// path: only one under its own work or context folder. A confined agent is
-// fed text written by strangers, so a --result of any file would let it probe
-// the user's files (the schema errors name keys and syntax). "-" (stdin) and a
-// task of another kind are not restricted.
-func (c *cli) resultPathAllowed(id, path string) error {
+// resultPathAllowed returns the file --result may read for task id, resolved:
+// "-" (stdin) is not a file; for a confined task the path must lie under the
+// task's own work or context folder. A confined agent is fed text written by
+// strangers, so a --result of any file would let it probe the user's files (the
+// schema errors name keys and syntax). It FAILS CLOSED: when the task cannot
+// be looked up the path is refused, and so is a symlink that does not resolve.
+// A task of another kind reads any path, as before. The caller reads the
+// returned path, not the one it was given, so a link swapped in afterwards
+// leads nowhere.
+func (c *cli) resultPathAllowed(id, path string) (string, error) {
 	if path == "-" {
-		return nil
+		return path, nil
+	}
+	refuse := func(kind string) (string, error) {
+		return "", clicore.InvalidInput("--result %s is not under this task's work folder: a %s task may hand back a file from there, "+
+			"or its result with --result-json, or - for stdin", filepath.Base(path), kind)
 	}
 	db, err := c.d.OpenDB()
 	if err != nil {
-		return nil // Complete reports the same failure
+		return refuse("confined")
 	}
 	t, err := (&aitask.Store{DB: db.DB, Profile: c.d.ProfileID()}).Get(id)
 	db.Close()
-	if err != nil || !chatcli.ConfinedKind(t.Kind) {
-		return nil
+	if err != nil {
+		return refuse("confined")
+	}
+	if !chatcli.ConfinedKind(t.Kind) {
+		return path, nil
 	}
 	stateDir := filepath.Dir(clicore.ExpandPath(c.d.DBPath()))
 	snapshot := aitask.SnapshotDir(stateDir, id)
 	work := filepath.Join(filepath.Dir(snapshot), "work")
-	if err := resolveBelow(path, work, snapshot); err == nil {
-		return nil
+	resolved, err := resolveBelow(path, work, snapshot)
+	if err != nil {
+		return refuse(t.Kind)
 	}
-	return clicore.InvalidInput("--result %s is not under this task's work folder (%s): a %s task may hand back a file from there, "+
-		"or its result with --result-json, or - for stdin", filepath.Base(path), work, t.Kind)
+	return resolved, nil
 }
 
-// resolveBelow resolves path (symlinks too) and returns nil when it lies under
-// one of dirs, themselves resolved. A path that does not exist yet is judged
-// by its parent folder.
-func resolveBelow(path string, dirs ...string) error {
+// resolveBelow resolves path (symlinks too) and returns it when it lies under
+// one of dirs, themselves resolved. A path that is a link must resolve (a
+// dangling one is outside); a path that does not exist yet is judged by its
+// parent folder.
+func resolveBelow(path string, dirs ...string) (string, error) {
 	abs, err := filepath.Abs(path)
 	if err != nil {
-		return err
+		return "", err
 	}
 	target, err := filepath.EvalSymlinks(abs)
 	if errors.Is(err, os.ErrNotExist) {
+		if _, lerr := os.Lstat(abs); lerr == nil {
+			return "", errors.New("dangling link") // the link exists, its target does not
+		}
 		parent, perr := filepath.EvalSymlinks(filepath.Dir(abs))
 		if perr != nil {
-			return perr
+			return "", perr
 		}
 		target, err = filepath.Join(parent, filepath.Base(abs)), nil
 	}
 	if err != nil {
-		return err
+		return "", err
 	}
 	for _, d := range dirs {
 		rd, err := filepath.EvalSymlinks(d)
@@ -425,10 +440,10 @@ func resolveBelow(path string, dirs ...string) error {
 			continue
 		}
 		if rel, err := filepath.Rel(rd, target); err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && !filepath.IsAbs(rel) {
-			return nil
+			return target, nil
 		}
 	}
-	return errors.New("outside")
+	return "", errors.New("outside")
 }
 
 func (c *cli) complete() *cobra.Command {
@@ -452,11 +467,11 @@ func (c *cli) complete() *cobra.Command {
 				}
 				b = []byte(resultJSON)
 			} else {
-				if err := c.resultPathAllowed(args[0], resultFile); err != nil {
+				path, err := c.resultPathAllowed(args[0], resultFile)
+				if err != nil {
 					return err
 				}
-				var err error
-				if b, err = readResultFile(cmd, resultFile); err != nil {
+				if b, err = readResultFile(cmd, path); err != nil {
 					return err
 				}
 			}
