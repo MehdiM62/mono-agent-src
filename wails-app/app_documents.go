@@ -37,6 +37,8 @@ type ProfileDocument struct {
 	// SummaryStatus is a capture's AI summary state (pending, running,
 	// done, error, stalled), "" when none was asked for.
 	SummaryStatus string `json:"summary_status"`
+	// Tags are the document's tags, the same profile tags people carry.
+	Tags []TagInfo `json:"tags"`
 }
 
 // KnowledgeSearchResult mirrors internal/monomind.KnowledgeResult (also
@@ -59,6 +61,7 @@ func (a *App) ListProfileDocuments() ([]ProfileDocument, error) {
 		SizeBytes                                                                                        int64
 		Indexed                                                                                          bool
 		Stale                                                                                            bool
+		Tags                                                                                             []TagInfo
 	}
 	if err := a.runMonoCLI("", &raw, "profile", "documents", "list"); err != nil {
 		return nil, err
@@ -70,6 +73,7 @@ func (a *App) ListProfileDocuments() ([]ProfileDocument, error) {
 			Source: d.Source, ApplicationID: d.ApplicationID, CreatedAt: d.CreatedAt,
 			Indexed: d.Indexed, IndexError: d.IndexError, Stale: d.Stale,
 			URL: d.URL, CaptureDir: d.CaptureDir, SummaryStatus: d.SummaryStatus,
+			Tags: d.Tags,
 		})
 	}
 	return out, nil
@@ -205,6 +209,30 @@ func (a *App) SearchProfileKnowledge(query string) ([]KnowledgeSearchResult, err
 		out = append(out, KnowledgeSearchResult{Path: r.Path, Excerpt: r.Excerpt, Score: r.Score})
 	}
 	return out, nil
+}
+
+// AddDocumentTag tags a document, creating the tag when new —
+// `profile documents tag add`. Returns the tag, or nil when it could not be
+// added (unknown document, 10 tags already).
+func (a *App) AddDocumentTag(docId, tagName string) *TagInfo {
+	if a.signedOut() != nil {
+		return nil
+	}
+	var t TagInfo
+	if err := a.runMonoCLI("", &t, "profile", "documents", "tag", "add", "--", docId, tagName); err != nil {
+		a.emitLog("SYSTEM", "WARN", fmt.Sprintf("tagging %s with %q: %v", docId, tagName, err))
+		return nil
+	}
+	return &t
+}
+
+// RemoveDocumentTag unlinks a tag from a document (the tag itself stays) —
+// `profile documents tag remove`.
+func (a *App) RemoveDocumentTag(docId, tagId string) error {
+	if err := a.signedOut(); err != nil {
+		return err
+	}
+	return a.runMonoCLI("", nil, "profile", "documents", "tag", "remove", "--", docId, tagId)
 }
 
 // OpenAnyFilePicker opens a native file picker with no extension filter

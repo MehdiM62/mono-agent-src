@@ -4,7 +4,9 @@ package applications_test
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/monoes/mono-agent/internal/applications"
 )
@@ -443,5 +445,61 @@ func TestStoreCreateRefusesAMissingProfile(t *testing.T) {
 	}
 	if err := store.Create(context.Background(), app); !errors.Is(err, applications.ErrInvalidInput) {
 		t.Fatalf("err = %v, want ErrInvalidInput", err)
+	}
+}
+
+// SetStatus must not fail with SQLITE_BUSY when another writer commits while it
+// runs: a person's `application send` races the fill queue's writes, and a
+// deferred transaction that reads and then writes is refused at once (the busy
+// timeout does not apply) when a commit lands between its read and its write.
+func TestSetStatusSurvivesConcurrentWriters(t *testing.T) {
+	db := newTestDB(t)
+	store := applications.NewStore(db.DB)
+	ctx := context.Background()
+	mk := func(title string) string {
+		a := &applications.Application{ProfileID: "default", Kind: applications.KindJob,
+			Job: &applications.JobDetails{Title: title, Company: "Acme", URL: "https://acme.example/" + title}}
+		if err := store.Create(ctx, a); err != nil {
+			t.Fatal(err)
+		}
+		return a.ID
+	}
+	target, other := mk("target"), mk("other")
+	if err := store.SetStatus(ctx, "default", target, applications.StatusNeedsYou, applications.ActorSystem, "start"); err != nil {
+		t.Fatal(err)
+	}
+
+	stop := make(chan struct{})
+	var wg sync.WaitGroup
+	for w := 0; w < 4; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+				}
+				_, _ = db.DB.ExecContext(ctx, `UPDATE applications SET updated_at = ? WHERE id = ?`, time.Now().Format(time.RFC3339Nano), other)
+			}
+		}()
+	}
+	defer func() { close(stop); wg.Wait() }()
+
+	deadline := time.Now().Add(20 * time.Second)
+	to := applications.StatusAwaitingSubmit
+	for i := 0; i < 300; i++ {
+		if time.Now().After(deadline) {
+			t.Fatalf("only %d transitions in 20s", i)
+		}
+		if err := store.SetStatus(ctx, "default", target, to, applications.ActorSystem, "flip"); err != nil {
+			t.Fatalf("transition %d to %s: %v", i, to, err)
+		}
+		if to == applications.StatusAwaitingSubmit {
+			to = applications.StatusNeedsYou
+		} else {
+			to = applications.StatusAwaitingSubmit
+		}
 	}
 }
