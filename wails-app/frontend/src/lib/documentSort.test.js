@@ -115,3 +115,21 @@ describe('source filter', () => {
     expect(filterBySource([upload, capture], '')).toEqual([upload, capture])
   })
 })
+
+describe('document tags', () => {
+  const a = { id: 'a', tags: [{ id: '1', name: 'Contract', color: '#f00' }, { id: '2', name: '2026', color: '#0f0' }] }
+  const b = { id: 'b', tags: [{ id: '1', name: 'contract', color: '#f00' }] }
+  const c = { id: 'c' }
+
+  it('tagOptions lists each tag once, ordered by name', async () => {
+    const { tagOptions } = await import('./documentSort.js')
+    expect(tagOptions([a, b, c]).map(t => t.name)).toEqual(['2026', 'Contract'])
+  })
+
+  it('filterByTags keeps documents with every tag, ignoring case', async () => {
+    const { filterByTags } = await import('./documentSort.js')
+    expect(filterByTags([a, b, c], ['CONTRACT']).map(d => d.id)).toEqual(['a', 'b'])
+    expect(filterByTags([a, b, c], ['contract', '2026']).map(d => d.id)).toEqual(['a'])
+    expect(filterByTags([a, b, c], []).map(d => d.id)).toEqual(['a', 'b', 'c'])
+  })
+})
