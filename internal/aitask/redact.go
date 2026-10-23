@@ -216,6 +216,14 @@ func RedactResult(v any) any {
 				default:
 					out[name] = redactString(s)
 				}
+			case float64:
+				// A number typed as a number under a secret LABEL ({"label":"Card number",
+				// "value":4111...}) is still the secret; a count under a key stays a number.
+				if k == "value" && label != "" && isSecretLabel(label) {
+					out[name] = RedactedValue
+				} else {
+					out[name] = e
+				}
 			default:
 				out[name] = RedactResult(e)
 			}
