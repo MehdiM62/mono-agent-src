@@ -28,10 +28,10 @@ func workflowGenerateKind() aitask.Kind {
 		},
 		PromptTemplate: `Build the workflow the brief (the goal and the selection* files) describes, and hand it back as a draft. ` + dataRule + `
 
-1. Learn the nodes before using them: ` + "`monoagentcli node list`, `monoagentcli node schema <type>`, `monoagentcli docs <topic>`" + ` and the existing
-   workflows and templates (` + "`workflow list`, `workflow template list`" + `). Use the same --profile as the complete command below.
+1. Learn the nodes before using them: ` + "`monoagentcli node list`, `monoagentcli node schema <type>`, `monoagentcli ref [topic]`" + ` and the existing
+   workflows and templates (` + "`workflow list`, `workflow search <words>`, `workflow templates`" + `). Use the same --profile as the complete command below.
 2. Write the workflow JSON in your working folder, check it with ` + "`monoagentcli --profile P workflow validate --file <file>`" + ` until it is valid, and
-   save it with ` + "`workflow import --file <file>`" + ` (or ` + "`workflow create` and `workflow node add|connect`" + `). It is saved inactive, and it
+   save it with ` + "`workflow import --file <file>`" + ` (or ` + "`workflow create`, `workflow node add` and `workflow connect`" + `). It is saved inactive, and it
    counts as AI-authored until the user approves it in the app. Validate the saved workflow by id once more.
 3. NEVER run, activate or schedule it. If the brief asks for a step that sends, posts, publishes or deletes (an email, a message, a post, a
    write to an outside service), say so in the summary: name the node and what it sends, so the user sees it before approving.
