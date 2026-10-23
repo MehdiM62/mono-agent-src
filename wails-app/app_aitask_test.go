@@ -149,3 +149,15 @@ func TestAITaskStatusReadsCoderStatus(t *testing.T) {
 		}
 	}
 }
+
+func TestGetAITaskCarriesTheResult(t *testing.T) {
+	a, _ := aitaskApp(t, `echo '{"taskId":"t1","kind":"workflow-generate","status":"complete","result":{"workflowId":"w1","name":"Daily","nodeCount":3}}'`+"\n")
+	got, err := a.GetAITask("t1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, ok := got.Result.(map[string]any)
+	if !ok || res["workflowId"] != "w1" {
+		t.Fatalf("result = %#v", got.Result)
+	}
+}
