@@ -125,6 +125,10 @@ var failedRunFixSchema = map[string]any{
 	},
 }
 
+// fix.proposed is UNTRUSTED DATA written by an agent that read hostile run
+// output: any future renderer or applier must treat it as such (show it for a
+// person to review, never apply it automatically).
+//
 // validateFailedRunFix: a proposed workflow edit carries its change as data,
 // for the user to apply (the task edits nothing).
 func validateFailedRunFix(v any) error {

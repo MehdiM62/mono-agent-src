@@ -3570,7 +3570,7 @@ monoagentcli --profile P aitask fail <id> --reason TEXT                   # the 
   text a stranger wrote) run as confined, claude-only turns with no file tools and a fixed command allow-list (`draft-reply`:
   only `aitask complete|fail`; `recording-analysis` adds `record show`; `workflow-generate` adds `workflow search|get`,
   `workflow templates list|show`, `node list|schema`, `ref`; `failed-run-fix` is diagnose-only: read-only `workflow get|list|search|executions|execution`, and it hands back
-  the proposed change as data in `fix.proposed` for the user to apply, editing and running nothing); in a confined task's session the root refuses
+  the proposed change as data in `fix.proposed` for the user to apply, editing and running nothing; `fix.proposed` is untrusted data, so any future renderer or applier must show it for review and never apply it automatically); in a confined task's session the root refuses
   a `--profile` other than the task's or given twice, `--db-path`, `--config-dir`, `--output-dir`, `--log-file`, `--all-profiles` and `workflow validate --file`; they hand the result back with `aitask complete --result-json JSON`
   or `--result FILE` from the task's own work folder (any other path is refused); on every other kind the access level is
   recorded and hashed but `qa` is not enforced on the turn.
