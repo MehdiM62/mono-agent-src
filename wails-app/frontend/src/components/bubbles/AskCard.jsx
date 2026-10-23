@@ -66,7 +66,7 @@ function QuestionBody({ ask, nameOf, canAct, busy, outcome, onAnswer, onDismiss 
             {busy ? <Loader size={11} className="spin" /> : t('orgBubble.answer')}
           </button>
           {ask.blocking && (
-            <button type="button" className="btn btn-ghost btn-sm" data-testid="org-chat-dismiss" disabled={busy}
+            <button type="button" className="btn btn-ghost btn-sm" data-testid="org-chat-dismiss" disabled={!canAct || busy}
               title={t('orgBubble.dismissHint')} onClick={() => onDismiss?.(ask)}>
               {t('orgBubble.dismiss')}
             </button>
@@ -308,7 +308,7 @@ function SendBody({ ask, nameOf, canAct, busy, outcome, onDecide, onNavigate }) 
       </dl>
       {editing && pending && !ask.textReadOnly ? (
         <textarea className="ask-text-edit" data-testid="ask-text-edit" rows={Math.min(12, Math.max(4, text.split('\n').length + 1))}
-          value={text} onChange={e => setText(e.target.value)} disabled={busy}
+          value={text} onChange={e => setText(e.target.value)} disabled={!canAct || busy}
           aria-label={t('ask.textLabel')} />
       ) : (
         <pre className="ask-text" data-testid="ask-text" aria-label={t('ask.textLabel')} tabIndex={0}>{text}</pre>
@@ -340,7 +340,7 @@ function SendBody({ ask, nameOf, canAct, busy, outcome, onDecide, onNavigate }) 
             </button>
           )}
           {!ask.textReadOnly && (
-            <button type="button" className="btn btn-ghost btn-sm" data-testid="ask-edit" aria-pressed={editing} disabled={busy}
+            <button type="button" className="btn btn-ghost btn-sm" data-testid="ask-edit" aria-pressed={editing} disabled={!canAct || busy}
               onClick={() => setEditing(e => !e)} style={{ gap: 4 }}>
               <Pencil size={11} /> {editing ? t('ask.doneEditing') : t('ask.edit')}
             </button>

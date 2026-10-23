@@ -10,6 +10,7 @@ import { renderHook, render, screen, fireEvent, waitFor, act, cleanup } from '@t
 import '../../i18n.js'
 import history from './__fixtures__/acme-history.json'
 import BUS from './__fixtures__/acme-bus.json'
+import sendEmail from './__fixtures__/hil-send-email.json'
 
 const { api, listeners } = vi.hoisted(() => ({
   listeners: { org: new Set(), run: new Set() },
@@ -176,6 +177,38 @@ describe('a finished run bubble', () => {
     expect(screen.getAllByRole('button').filter(b => /^(Approve|Deny|Send|Answer)$/i.test(b.textContent.trim())).every(b => b.disabled)).toBe(true)
     expect(api.sendOrgChat).not.toHaveBeenCalled()
     expect(api.answerOrgChat).not.toHaveBeenCalled()
+    expect(api.controlOrg).not.toHaveBeenCalled()
+  })
+
+  it('every mutating control in it is disabled or absent', async () => {
+    const items = [
+      ...history.items,
+      { kind: 'question', id: 'q-block', ref: 'q-block', role: 'dev', text: 'May I drop the table?', pending: true, blocking: true },
+      { ...sendEmail, state: 'pending', pending: true },
+    ]
+    api.getOrgChatHistory.mockResolvedValue({ ...history, status: 'running', items })
+    render(<Harness />)
+    await screen.findByTestId('org-bubble-overlay')
+    await waitFor(() => expect(screen.getByTestId('org-chat-thread')).not.toHaveAttribute('aria-busy', 'true'))
+    const overlay = screen.getByTestId('org-bubble-overlay')
+    // These exist (so the check cannot pass by absence of the cards)...
+    for (const id of ['org-chat-dismiss', 'ask-always-allow', 'ask-approve', 'ask-edit', 'org-chat-answer', 'org-chat-approve', 'org-chat-deny', 'ask-reject']) {
+      expect(overlay.querySelectorAll(`[data-testid="${id}"]`).length, id).toBeGreaterThan(0)
+      // ...and every one of them is disabled.
+      for (const el of overlay.querySelectorAll(`[data-testid="${id}"]`)) expect(el, id).toBeDisabled()
+    }
+    for (const el of overlay.querySelectorAll('.ask-card input, .ask-card textarea')) expect(el).toBeDisabled()
+    expect(overlay.querySelector('.ask-card [data-testid="ask-text-edit"]')).toBeNull()
+    // The composer and its send button.
+    expect(overlay.querySelector('textarea:not(.ask-card textarea)')).toBeDisabled()
+    // (a disabled composer titles its send button "No backend selected…"; an enabled one "Send message")
+    expect(overlay.querySelector('button[title="Send message"]')).toBeNull()
+    expect(overlay.querySelector('button[title^="No backend"]')).toBeDisabled()
+    // Nothing reached the CLI, not even by a click on a disabled control.
+    for (const el of overlay.querySelectorAll('[data-testid="org-chat-dismiss"], [data-testid="ask-edit"], [data-testid="ask-approve"]')) fireEvent.click(el)
+    expect(api.sendOrgChat).not.toHaveBeenCalled()
+    expect(api.answerOrgChat).not.toHaveBeenCalled()
+    expect(api.resolveOrgChat).not.toHaveBeenCalled()
     expect(api.controlOrg).not.toHaveBeenCalled()
   })
 
