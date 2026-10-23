@@ -3569,6 +3569,18 @@ monoagentcli --profile P aitask fail <id> --reason TEXT                   # the 
 - Exit codes: 2 unknown task, 3 refusals (`unknown_kind`, `schema_invalid`, `bad_token`, `task_closed`, …), 1
   `wait_timeout`.
 
+Kinds (`aitask.Register`; the profile-facing ones live in `internal/aitaskkinds`). All three below ask for `workspace`
+access (they drive `monoagentcli --profile P …`, which `coding` is not told about), are never unattended, treat context and
+run output as data, and never run a workflow or send anything:
+
+| Kind | Input (`selection`) | Result | What the agent may do |
+| --- | --- | --- | --- |
+| `generic` | the goal | `{summary}` | whatever the goal asks (`coding`) |
+| `application-apply` | posting, facts, documents | fill record | fill the form in the browser, never submit (confined) |
+| `workflow-generate` | the brief | `{workflowId, name, summary, nodeCount, validation:{ok, errors}}` | `node list/schema`, `docs`, `workflow validate/import`; saved inactive and AI-authored until the user approves; `aitaskkinds.CheckResult` refuses a `workflowId` the profile does not have |
+| `recording-analyze` | recording id + title | `{recordingId, automationName?, summary, saved:false, verified:false}` | `record analyze <id> --json` only; never reads the recording; `record save`/`verify` stay the user's |
+| `failed-run-fix` | workflow id, execution id, failing node ids, redacted error | `{workflowId, executionId, diagnosis, changed, changes, needsApproval}` | `workflow execution/get`, `workflow node …`, `workflow validate`; the edit unapproves the workflow; never reruns |
+
 # monomind:start instructions:opencode
 # Monomind
 

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **AI tasks.** New kinds `workflow-generate`, `recording-analyze` and `failed-run-fix` (`internal/aitaskkinds`): the coder builds a workflow draft, reviews a recording's analysis, or fixes a failed run's workflow, and never runs or sends anything.
+
 ### BREAKING
 
 Every command, tool and request that acts on a profile now names that profile. There is no active profile, no `default` fallback and no environment variable that picks one, so an agent can no longer write to the wrong profile by accident. Run `monoagentcli profile list` to find the ids and names.
