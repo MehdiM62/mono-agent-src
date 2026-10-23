@@ -67,25 +67,34 @@ describe('HistoryPanel', () => {
     expect(s.openConversation).toHaveBeenCalledWith(expect.objectContaining({ id: 'c1', kind: 'chat', title: 'Chat c1', access: 'coding', runtime: 'claude', model: 'opus', status: 'done' }))
     await open()
     fireEvent.click(await screen.findByText('Run r1'))
-    await waitFor(() => expect(s.openOrg).toHaveBeenCalledWith('acme'))
+    await waitFor(() => expect(s.openOrg).toHaveBeenCalledWith('acme', { runId: 'r-live', finished: false }))
   })
 
-  it('opens the latest run of an org as its bubble', async () => {
-    listHistory.mockResolvedValue(page([org('r9', { runId: 'r-live', status: 'done' })]))
+  it('opens the running run of an org as its live bubble', async () => {
+    listHistory.mockResolvedValue(page([org('r9', { runId: 'r-live', status: 'running' })]))
     const { s, onNavigate } = mount()
     await open()
     fireEvent.click(await screen.findByText('Run r9'))
-    await waitFor(() => expect(s.openOrg).toHaveBeenCalledWith('acme'))
+    await waitFor(() => expect(s.openOrg).toHaveBeenCalledWith('acme', { runId: 'r-live', finished: false }))
     expect(onNavigate).not.toHaveBeenCalled()
   })
 
-  it('sends an older run of an org to the Orgs tab with that run selected', async () => {
+  it('opens an older run of an org as a read-only bubble for that run', async () => {
     listHistory.mockResolvedValue(page([org('r8', { runId: 'r-old-12345', status: 'done', updatedAt: '2026-10-20T10:00:00Z' })]))
     const { s, onNavigate } = mount()
     await open()
     expect(await screen.findByText('run r-old-12 \u00b7 2026-10-20')).toBeInTheDocument()
     fireEvent.click(screen.getByText('Run r8'))
-    await waitFor(() => expect(onNavigate).toHaveBeenCalledWith('orgs', { org: 'acme', run: 'r-old-12345' }))
+    await waitFor(() => expect(s.openOrg).toHaveBeenCalledWith('acme', { runId: 'r-old-12345', finished: true }))
+    expect(onNavigate).not.toHaveBeenCalled()
+  })
+
+  it('keeps Open in Orgs as a secondary action on an org-run row', async () => {
+    listHistory.mockResolvedValue(page([org('r8', { runId: 'r-old-12345', status: 'done' })]))
+    const { s, onNavigate } = mount()
+    await open()
+    fireEvent.click(await screen.findByRole('button', { name: 'history.openInOrgs' }))
+    expect(onNavigate).toHaveBeenCalledWith('orgs', { org: 'acme', run: 'r-old-12345' })
     expect(s.openOrg).not.toHaveBeenCalled()
   })
 
