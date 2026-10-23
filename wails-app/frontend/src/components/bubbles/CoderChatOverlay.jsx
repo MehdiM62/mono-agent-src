@@ -141,6 +141,9 @@ export function CoderChatOverlay({ bubble, store, originRect, onCollapse, onClos
   useEffect(() => {
     const onKey = (e) => {
       if (e.key !== 'Escape' || isModalOpen()) return
+      // The History drawer handles its own Escape when focus is inside it, so
+      // this overlay stays open (and the key keeps travelling to the drawer).
+      if (e.target?.closest?.('[data-testid="history-panel"]')) return
       e.stopImmediatePropagation()
       if (settingsOpenRef.current) { closeSettings(); return }
       if (selectedRef.current) { setSelectedAgent(null); return }

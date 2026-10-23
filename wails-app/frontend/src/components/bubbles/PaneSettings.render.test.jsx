@@ -118,6 +118,22 @@ describe('settings popover', () => {
     expect(document.activeElement).toBe(gear())
   })
 
+  it('leaves an Escape from inside the History drawer to the drawer: the bubble stays expanded and the key still travels on', async () => {
+    await open(coding)
+    const drawer = document.createElement('aside'); drawer.setAttribute('data-testid', 'history-panel')
+    const input = document.createElement('input'); drawer.appendChild(input); document.body.appendChild(drawer)
+    const reached = vi.fn(); document.addEventListener('keydown', reached)
+    input.focus()
+    fireEvent.keyDown(input, { key: 'Escape' })
+    expect(reached).toHaveBeenCalled()
+    expect(overlay()).toBeInTheDocument()
+    document.removeEventListener('keydown', reached)
+    drawer.remove()
+    // Focus in the bubble still collapses it.
+    fireEvent.keyDown(within(overlay()).getByPlaceholderText('Type a message...'), { key: 'Escape' })
+    await waitFor(() => expect(overlay()).toBeNull())
+  })
+
   it('Esc layers: popover first, then collapse, and never stops a running turn', async () => {
     api.getChatTurns.mockResolvedValue({ items: [{ id: 't1', prompt: 'work', status: 'active', ownedByThisInstance: true }] })
     await open(coding)
