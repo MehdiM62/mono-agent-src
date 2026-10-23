@@ -22,7 +22,8 @@ function orgRows(res) {
 //     tail sees `org started`, and within a poll for runs it can't see (a
 //     schedule or daemon). A bubble the person closed stays closed for that
 //     run unless more items wait than when it was closed; the next run docks
-//     it again. One bubble per org, never two;
+//     it again. One LIVE bubble per org, never two, keyed by the run once
+//     its id is known (the bubble is re-keyed in place when it arrives);
 //   - an open org bubble's event tail is restarted when its org starts a
 //     new run (or starts at all), since a tail follows the run it found;
 //   - workflow-HIL and send-approval asks waiting for the person are counted
@@ -50,7 +51,7 @@ export function useOrgBubbleWatch(store) {
     if (!org) return
     if (payload.status === 'running') {
       delete dismissed.current[org]
-      storeRef.current.openOrg(org, { expand: false })
+      storeRef.current.openOrg(org, { expand: false, runId: payload.runId || '' })
     } else if (payload.status === 'stopped' || payload.status === 'error') {
       delete dismissed.current[org]
     }
@@ -74,7 +75,8 @@ export function useOrgBubbleWatch(store) {
         if (cancelled) return
         const rows = orgRows(summary)
         const bubbles = storeRef.current.bubbles
-        const open = new Set(bubbles.filter(isOrgBubble).map(b => b.orgName))
+        const live = bubbles.filter(b => isOrgBubble(b) && !b.finished)
+        const open = new Set(live.map(b => b.orgName))
 
         // Open bubbles: restart a tail whose org started a new run.
         for (const name of open) {
@@ -88,6 +90,9 @@ export function useOrgBubbleWatch(store) {
             restartOrgEvents(name)
           }
           runs.current[name] = run
+          // The run id reaches the bubble: a missed event, or a new run.
+          const bubble = live.find(b => b.orgName === name)
+          if (run && bubble && bubble.runId !== run) storeRef.current.openOrg(name, { expand: false, runId: run })
         }
 
         // Running orgs without a bubble get one; does anything wait on the
@@ -114,6 +119,7 @@ export function useOrgBubbleWatch(store) {
           if (cancelled) return
           const needs = {}
           for (const b of storeRef.current.bubbles) {
+            if (b.finished) continue
             const n = pendingCount(asksFor(asks, isOrgBubble(b) ? { org: b.orgName } : { conversationId: b.conversationId }))
             if (n > 0) needs[b.key] = n
           }

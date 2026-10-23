@@ -73,7 +73,8 @@ describe('auto-dock', () => {
     runStatus('acme', 'running')
     busEvent('acme', { id: 'e1', ts: 1, org: 'acme', run: 'r1', type: 'status', msg: 'org started (goal: x)' })
     await poll()
-    expect(orgKeys(result)).toEqual(['org:acme'])
+    // One bubble, now keyed by the run `org status` names.
+    expect(orgKeys(result)).toEqual(['org:acme#r1'])
   })
 
   it('docks a run a bus tail sees begin', () => {

@@ -22,7 +22,11 @@ function logItems(res) {
 //             disabled, so nothing is sent twice), and how it ended.
 // Every action goes through a CLI-backed binding and resolves to its JSON
 // or {error}; nothing here decides whether an org may be answered.
-export function useOrgBubble(orgName) {
+//
+// A finished run (readOnly, with its runId) reads that run's thread and log,
+// ignores the bus, and refuses every write: it is a record, not a session.
+export function useOrgBubble(orgName, { runId = '', readOnly = false } = {}) {
+  const histRun = readOnly ? runId : ''
   const [history, setHistory] = useState(null)
   const [historyError, setHistoryError] = useState('')
   const [bubble, setBubble] = useState(null)
@@ -44,7 +48,7 @@ export function useOrgBubble(orgName) {
     try {
       do {
         dirty.current = false
-        const res = await api.getOrgChatHistory(orgName)
+        const res = await api.getOrgChatHistory(orgName, histRun)
         if (!live.current) return
         if (res?.error) setHistoryError(res.error)
         else { setHistoryError(''); setHistory(res) }
@@ -52,7 +56,7 @@ export function useOrgBubble(orgName) {
     } finally {
       fetching.current = false
     }
-  }, [orgName])
+  }, [orgName, histRun])
 
   const scheduleRefresh = useCallback(() => {
     clearTimeout(timer.current)
@@ -75,19 +79,19 @@ export function useOrgBubble(orgName) {
   const seeded = useRef(false)
   useEffect(() => {
     const off = onOrgEvent(payload => {
-      if (payload?.orgName !== orgName || !payload.event) return
+      if (readOnly || payload?.orgName !== orgName || !payload.event) return
       if (touchesThread(payload.event, boss)) scheduleRefresh()
       if (!seeded.current) { buffered.current.push(payload.event); return }
       setBubble(prev => (prev ? applyOrgBusEvent(prev, payload.event) : prev))
     })
     return off
-  }, [orgName, boss, scheduleRefresh])
+  }, [orgName, boss, scheduleRefresh, readOnly])
 
   useEffect(() => {
     if (!ready) return undefined
     let cancelled = false
     seeded.current = false
-    Promise.resolve().then(() => api.getOrgLogs(orgName, '')).catch(() => null).then(res => {
+    Promise.resolve().then(() => api.getOrgLogs(orgName, histRun)).catch(() => null).then(res => {
       if (cancelled) return
       let s = initialOrgBubble({ org: orgName, boss, roles: JSON.parse(rolesKey), prejoin: true })
       for (const ev of logItems(res)) s = applyOrgBusEvent(s, ev)
@@ -97,7 +101,7 @@ export function useOrgBubble(orgName) {
       setBubble(s)
     })
     return () => { cancelled = true }
-  }, [ready, orgName, boss, rolesKey])
+  }, [ready, orgName, boss, rolesKey, histRun])
 
   // An echo stays until the thread shows the person's message.
   const items = useMemo(() => history?.items || [], [history])
@@ -110,7 +114,7 @@ export function useOrgBubble(orgName) {
 
   const send = useCallback(async (text) => {
     const body = String(text || '').trim()
-    if (!body || sending) return false
+    if (!body || sending || readOnly) return false
     setSending(true)
     setSendError('')
     try {
@@ -122,12 +126,12 @@ export function useOrgBubble(orgName) {
     } finally {
       setSending(false)
     }
-  }, [orgName, sending, scheduleRefresh])
+  }, [orgName, sending, scheduleRefresh, readOnly])
 
   // resolveItem answers a question (answer given), dismisses one (dismiss,
   // note is the reason) or approves/denies an approval or gate. A ref already in flight is ignored.
   const resolveItem = useCallback(async (ref, { answer, dismiss = false, approve = false, note = '' } = {}) => {
-    if (!ref || busyRef.current[ref]) return null
+    if (!ref || readOnly || busyRef.current[ref]) return null
     busyRef.current = { ...busyRef.current, [ref]: true }
     setBusy(busyRef.current)
     try {
@@ -144,10 +148,10 @@ export function useOrgBubble(orgName) {
       busyRef.current = next
       setBusy(next)
     }
-  }, [orgName, scheduleRefresh])
+  }, [orgName, scheduleRefresh, readOnly])
 
   const control = useCallback(async (verb) => {
-    if (controlling) return null
+    if (controlling || readOnly) return null
     setControlling(verb)
     try {
       const res = await api.controlOrg(orgName, verb)
@@ -156,11 +160,11 @@ export function useOrgBubble(orgName) {
     } finally {
       setControlling('')
     }
-  }, [orgName, controlling, scheduleRefresh])
+  }, [orgName, controlling, scheduleRefresh, readOnly])
 
   return {
     history, historyError, items, bubble, echoes, sending, sendError, busy, outcome, controlling,
-    running: history?.status === 'running', paused: !!history?.paused,
+    running: !readOnly && history?.status === 'running', paused: !readOnly && !!history?.paused, readOnly,
     send, resolveItem, control, refresh,
   }
 }

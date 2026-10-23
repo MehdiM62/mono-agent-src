@@ -86,10 +86,10 @@ function Speech({ who, mine, children, note }) {
 export function OrgChatView({ conv, nameOf, draft, onDraftChange, orgName = '', view = { mode: 'boss' }, onView, onNavigate }) {
   const { t } = useTranslation()
   const scrollRef = useRef(null)
-  const { history, historyError, items, echoes, running, sending, sendError, busy, outcome } = conv
+  const { history, historyError, items, echoes, running, sending, sendError, busy, outcome, readOnly } = conv
   const canAct = running
   const roleIds = useMemo(() => (history?.roles || []).map(r => r.id), [history])
-  const hil = useHilAsks({ org: orgName, roleIds }, !!history)
+  const hil = useHilAsks({ org: orgName, roleIds }, !!history && !readOnly)
 
   const calls = conv.bubble?.calls
   const callIds = conv.bubble?.callIds
@@ -124,7 +124,8 @@ export function OrgChatView({ conv, nameOf, draft, onDraftChange, orgName = '', 
 
   const bossName = history?.boss_title || history?.boss || t('orgBubble.boss')
   let composerNote = ''
-  if (history && !running) composerNote = t('orgBubble.queuedNote')
+  if (history && readOnly) composerNote = t('orgBubble.finishedNote')
+  else if (history && !running) composerNote = t('orgBubble.queuedNote')
   const threadLabel = view.mode === 'team' ? t('orgBubble.threadTeam') : view.mode === 'role' ? t('orgBubble.threadRoleLabel', { name: nameOf(view.role) }) : t('orgBubble.threadBoss')
   const nothing = history && shown.length === 0 && shownAsks.length === 0 && historySends.length === 0 && (view.mode !== 'boss' || echoes.length === 0)
 
@@ -132,7 +133,7 @@ export function OrgChatView({ conv, nameOf, draft, onDraftChange, orgName = '', 
     const isHil = ask.kind === 'hil' || ask.kind === 'send'
     return (
       <AskCard key={key} ask={ask} nameOf={nameOf}
-        canAct={isHil ? true : canAct}
+        canAct={readOnly ? false : isHil ? true : canAct}
         busy={isHil ? !!hil.busy[ask.id] : !!busy[ask.ref]}
         outcome={isHil ? hil.outcome[ask.id] : outcome[ask.ref]}
         onAnswer={answer} onDismiss={dismiss} onDecide={decide} onNavigate={onNavigate} />
@@ -151,7 +152,7 @@ export function OrgChatView({ conv, nameOf, draft, onDraftChange, orgName = '', 
         {history && view.mode === 'boss' && items.length === 0 && echoes.length === 0 && shownAsks.length === 0 && <Muted style={{ padding: 8 }}>{t('orgBubble.empty', { boss: bossName })}</Muted>}
         {nothing && view.mode === 'team' && <Muted style={{ padding: 8 }} >{t('orgBubble.teamEmpty')}</Muted>}
         {nothing && view.mode === 'role' && <Muted style={{ padding: 8 }}>{t('orgBubble.roleEmpty', { name: nameOf(view.role) })}</Muted>}
-        {history && !running && items.some(it => it.pending) && (
+        {history && !running && !readOnly && items.some(it => it.pending) && (
           <div data-testid="org-chat-stopped" style={{ margin: '4px 0 8px', padding: '6px 10px', borderRadius: 'var(--radius)', border: '1px solid rgba(251,191,36,0.3)', fontFamily: mono, fontSize: 10, color: AMBER }}>
             {t('orgBubble.notRunning')}
           </div>
@@ -196,7 +197,7 @@ export function OrgChatView({ conv, nameOf, draft, onDraftChange, orgName = '', 
       {sendError && <div role="alert" style={{ padding: '0 14px 4px', fontFamily: mono, fontSize: 10, color: 'var(--red, #ef4444)' }}>{t('orgBubble.couldNotSend', { error: sendError })}</div>}
       {composerNote && <Muted style={{ padding: '0 14px 2px' }}>{composerNote}</Muted>}
       <ChatComposer value={draft} onChange={onDraftChange} onSend={onSend} streaming={false}
-        disabled={sending || !history} disabledReason="" />
+        disabled={sending || !history || readOnly} disabledReason="" />
     </div>
   )
 }
