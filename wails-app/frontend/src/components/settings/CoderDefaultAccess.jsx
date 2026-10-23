@@ -28,7 +28,7 @@ export default function CoderDefaultAccess({ status, onSaved }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }} data-testid="coder-default-access">
       <label htmlFor="coder-default-access" style={label}>{t('coderDefault.label')}</label>
       <select id="coder-default-access" value={current} onChange={change} disabled={!enabled || busy}
-        style={{ background: 'var(--elevated)', border: '1px solid var(--border)', color: 'var(--text)', borderRadius: 'var(--radius)', fontFamily: mono, fontSize: 12, padding: '6px 10px', alignSelf: 'flex-start' }}>
+        style={{ alignSelf: 'flex-start' }}>
         {ACCESS_LEVELS.map(l => <option key={l} value={l}>{levelName(l)}</option>)}
       </select>
       <span style={hint}>{t('coderDefault.hint')}</span>
