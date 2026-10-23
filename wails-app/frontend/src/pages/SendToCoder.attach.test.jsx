@@ -74,9 +74,10 @@ describe('Send to coder attach points', () => {
     unmount()
     const onSendToCoder = vi.fn(() => ({ goal: 'fix the run', origin: { page: 'noderunner', label: 'Workflows' } }))
     render(wrap(<RunProblemPanel problem={problem} onClose={() => {}} onSendToCoder={onSendToCoder} />))
-    const [, goal, context] = await clickAndGetSubmit(/Fix with coder/)
+    const [kind, goal, context] = await clickAndGetSubmit(/Fix with coder/)
+    expect(kind).toBe('failed-run-fix')
     expect(goal).toBe('fix the run')
-    expect(context).toEqual(['selection-text=run died\nHTTP: boom 500'])
+    expect(context).toEqual(['selection-text=workflow: \nexecution: \nrun error: run died\nnode n1 (HTTP): boom 500'])
     expect(openDraft.mock.calls[0][0].task.origin).toEqual({ page: 'noderunner', label: 'Workflows' })
   })
 
@@ -93,8 +94,9 @@ describe('Send to coder attach points', () => {
   it('RecordingReview: "Discuss with coder" names the recording, never its content', async () => {
     api.analyzeRecording.mockResolvedValue({ draft: { actionDef: { steps: [] } }, draftDir: '/d' })
     render(wrap(<RecordingReview recording={{ id: 'rec-1', title: 'Login flow' }} automationId="auto-1" onBack={() => {}} />))
-    const [, , context] = await clickAndGetSubmit(/Discuss with coder/)
-    expect(context).toEqual(['selection-text=Recording rec-1: Login flow; automation auto-1'])
+    const [kind, , context] = await clickAndGetSubmit(/Discuss with coder/)
+    expect(kind).toBe('recording-analyze')
+    expect(context).toEqual(['selection-text=recording: rec-1\ntitle: Login flow'])
   })
 
   it('Process pending: after the evaluation, "Discuss in coder" carries the application and the verdict', async () => {
