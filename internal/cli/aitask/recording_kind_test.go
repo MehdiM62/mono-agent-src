@@ -1,7 +1,6 @@
 package aitask
 
 import (
-	ctx "context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -11,18 +10,6 @@ import (
 	"github.com/monoes/mono-agent/internal/aitask"
 	"github.com/monoes/mono-agent/internal/cli/clicore"
 )
-
-// tokenFake is the fake coder launcher that keeps the token it was given, as
-// the agent's environment would.
-type tokenFake struct {
-	fake
-	token string
-}
-
-func (f *tokenFake) Detach(c ctx.Context, id, token string) error {
-	f.token = token
-	return f.fake.Detach(c, id, token)
-}
 
 const goodRecordingResult = `{"summary":"ok","automation":{"id":"acme-crm","name":"Acme"},
  "action":{"actionType":"create_contact","description":"d","sideEffects":"read","steps":[

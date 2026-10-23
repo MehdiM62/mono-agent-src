@@ -1,7 +1,6 @@
 package aitask
 
 import (
-	"context"
 	"database/sql"
 	"encoding/json"
 	"os"
@@ -11,17 +10,6 @@ import (
 
 	"github.com/monoes/mono-agent/internal/aitask"
 )
-
-// tokenFake is the fake launcher that keeps the token the turn would get.
-type tokenFake struct {
-	fake
-	token string
-}
-
-func (f *tokenFake) Detach(ctx context.Context, id, token string) error {
-	f.token = token
-	return f.fake.Detach(ctx, id, token)
-}
 
 // unlockOnCleanup makes the read-only context snapshots a started task leaves
 // beside the database writable again, so the temp dir can be removed.
