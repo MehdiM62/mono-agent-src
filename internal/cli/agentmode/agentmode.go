@@ -44,54 +44,10 @@ var ErrWindows = errors.New("agent-mode has no Windows profile: Windows has no s
 	"(2) a separate Windows user account for the agent (it cannot read your profile folder) that reaches the API on 127.0.0.1 with an `agent-mode token`; " +
 	"(3) Windows Sandbox or a VM, with the API forwarded in. See \"Agent mode\" in SECURITY.md")
 
-// The profiles are fixed text: no path or value of the caller is put into them, so
-// nothing can be injected. Paths come from $HOME (bwrap), a -D parameter (seatbelt)
-// or ~ (Claude Code) at the time the sandbox starts.
-
-const bwrapProfile = `#!/bin/sh
-# monoagentcli agent-mode sandbox --runtime bwrap
-# Usage: sh this-script COMMAND [ARGS...]   e.g.  sh this-script claude
-# Environment variables of the caller (MONOAGENT_API_URL, MONOAGENT_API_TOKEN, see
-# "monoagentcli agent-mode env") pass through to COMMAND.
-# Runs COMMAND with the filesystem writable as usual but with mono-agent's state, the
-# Secret Service keyrings and the D-Bus session bus hidden. Network is NOT unshared:
-# the agent reaches the daemon's API on loopback (see "agent mode" in SECURITY.md).
-# If your session bus is an abstract socket (unix:abstract=...), file masking cannot
-# hide it: add --unshare-net and reach the API through a socket you forward in.
-set -eu
-run="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
-exec bwrap \
-  --bind / / \
-  --dev-bind /dev /dev \
-  --tmpfs "$HOME/.monoagent" \
-  --tmpfs "$HOME/.local/share/keyrings" \
-  --tmpfs "$HOME/.local/share/kwalletd" \
-  --tmpfs "$HOME/.gnupg" \
-  --ro-bind /dev/null "$run/bus" \
-  --tmpfs "$run/keyring" \
-  --unsetenv DBUS_SESSION_BUS_ADDRESS \
-  --unsetenv GNOME_KEYRING_CONTROL \
-  --setenv MONOAGENT_SANDBOX bwrap \
-  --die-with-parent \
-  "$@"
-`
-
-const seatbeltProfile = `;; monoagentcli agent-mode sandbox --runtime seatbelt
-;; Usage: sandbox-exec -D HOME="$HOME" -f this-file COMMAND [ARGS...]
-;; Denies mono-agent's state and the keychain files, and the Mach services that hand out
-;; keychain items (which is what /usr/bin/security talks to). Everything else, loopback
-;; networking included, stays as it is. Check the service names on your macOS version
-;; with: log stream --predicate 'sender == "Sandbox"' while the agent runs.
-(version 1)
-(allow default)
-(deny file-read* file-write*
-  (subpath (string-append (param "HOME") "/.monoagent"))
-  (subpath (string-append (param "HOME") "/Library/Keychains")))
-(deny mach-lookup
-  (global-name "com.apple.SecurityServer")
-  (global-name "com.apple.securityd")
-  (global-name "com.apple.secd"))
-`
+// The profiles contain no path or value of the caller, so nothing can be injected.
+// Paths come from $HOME (bwrap), a -D parameter (seatbelt) or ~ (Claude Code) at the
+// time the sandbox starts. The bwrap and seatbelt text is generated from the lists in
+// profiles.go, so the printed profile has one source.
 
 const claudeCodeProfile = `{
   "_comment": "monoagentcli agent-mode sandbox --runtime claude-code. Merge into .claude/settings.json (or settings.local.json). Check the keys against your Claude Code version.",
@@ -120,9 +76,9 @@ const claudeCodeProfile = `{
 func Profile(rt Runtime) (string, error) {
 	switch rt {
 	case Bwrap:
-		return bwrapProfile, nil
+		return bwrapProfile(), nil
 	case Seatbelt:
-		return seatbeltProfile, nil
+		return seatbeltProfile(), nil
 	case ClaudeCode:
 		return claudeCodeProfile, nil
 	}
