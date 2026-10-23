@@ -90,6 +90,9 @@ type turnJournal struct {
 	cwd          string
 	coderRuntime monomind.CoderRuntime
 	nativeRun    map[string]nativeCall
+	// contextPeak is the context size of a claude turn the runner warned
+	// about; runCoderTurn compacts the session instead of showing the warning.
+	contextPeak int64
 	// subagents journals the agent's native subagents (monomind#387).
 	subagents dynorg.Subagents
 	// backgroundPids are what the done event said the turn left running;
