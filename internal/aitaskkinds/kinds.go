@@ -8,7 +8,12 @@
 // told about, and they edit nothing outside it. None is unattended.
 package aitaskkinds
 
-import "github.com/monoes/mono-agent/internal/aitask"
+import (
+	"context"
+	"encoding/json"
+
+	"github.com/monoes/mono-agent/internal/aitask"
+)
 
 // Kind names.
 const (
@@ -47,6 +52,11 @@ func strList(items, each int) map[string]any {
 
 func init() {
 	for _, k := range []aitask.Kind{workflowGenerateKind(), recordingAnalyzeKind(), failedRunFixKind()} {
+		name := k.Name
+		k.Description = Descriptions[name]
+		k.Check = func(ctx context.Context, profile string, raw json.RawMessage) error {
+			return CheckResult(ctx, profile, name, raw)
+		}
 		aitask.Register(k)
 	}
 }

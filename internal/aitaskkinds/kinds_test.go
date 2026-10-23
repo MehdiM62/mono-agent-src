@@ -130,3 +130,18 @@ func TestPromptsStateTheDataRuleAndHoldNoContext(t *testing.T) {
 		t.Error("a kind may run the workflow")
 	}
 }
+
+// The kinds carry the check and the description, so Service.Complete runs it.
+func TestKindsCarryCheckAndDescription(t *testing.T) {
+	for name := range good {
+		k, _ := aitask.Lookup(name)
+		if k.Check == nil || k.Description != Descriptions[name] {
+			t.Errorf("%s: check %v description %q", name, k.Check != nil, k.Description)
+		}
+	}
+	withExists(t, func(context.Context, string, string) (bool, error) { return false, nil })
+	k, _ := aitask.Lookup(WorkflowGenerate)
+	if k.Check(context.Background(), "p", []byte(good[WorkflowGenerate])) == nil {
+		t.Error("the kind's check accepted an unknown workflow")
+	}
+}
