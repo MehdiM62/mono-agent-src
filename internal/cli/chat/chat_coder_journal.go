@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/monoes/mono-agent/internal/ai/chatevents"
 	"github.com/monoes/mono-agent/internal/monomind"
@@ -283,26 +284,76 @@ func contextWarningText(peak int64) string {
 	return fmt.Sprintf("The conversation context reached %d tokens: every further call re-reads it. Consider a new conversation.", peak)
 }
 
+// compactTimeout bounds the /compact call: the turn is still open in the UI
+// while it runs.
+const compactTimeout = 3 * time.Minute
+
 // compactContext compacts the claude session of a turn the runner warned
 // about (`/compact` on the resumed session keeps its id), so the next turns
 // do not re-read the whole history. It journals what happened; a session it
-// could not compact keeps the plain warning.
-func compactContext(ctx context.Context, journal *turnJournal, opts monomind.ExecOptions, res *monomind.TurnResult) {
+// could not compact keeps the plain warning, also when the turn itself
+// failed after the warning. A Stop (ctx cancelled) ends it silently. The
+// call's cost joins the turn's usage, and its spend cap is what the turn
+// left of opts.BudgetUSD.
+func compactContext(ctx context.Context, journal *turnJournal, opts monomind.ExecOptions, res *monomind.TurnResult, turnErr error) {
 	journal.mu.Lock()
 	peak := journal.contextPeak
+	spent, hasSpent := journal.usage.CostUSD, journal.usage.HasCostUSD
 	journal.mu.Unlock()
-	if peak == 0 {
+	if peak == 0 || ctx.Err() != nil {
 		return
 	}
-	fail := func() { journal.notice(noticeCoderResult, contextWarningText(peak), chatevents.SeverityWarning) }
-	if res == nil || res.SessionID == "" || res.Err != nil {
+	fail := func() {
+		if ctx.Err() == nil {
+			journal.notice(noticeCoderResult, contextWarningText(peak), chatevents.SeverityWarning)
+		}
+	}
+	if turnErr != nil || res == nil || res.SessionID == "" || res.Err != nil {
 		fail()
 		return
 	}
+	if opts.BudgetUSD > 0 && hasSpent {
+		if opts.BudgetUSD-spent <= 0 {
+			fail()
+			return
+		}
+		opts.BudgetUSD -= spent
+	}
 	opts.Prompt, opts.Resume, opts.Attach = "/compact", res.SessionID, nil
-	if r, err := monomind.Exec(ctx, opts, func(monomind.Event) {}); err != nil || r == nil || r.Err != nil {
+	if opts.Timeout <= 0 || opts.Timeout > compactTimeout {
+		opts.Timeout = compactTimeout
+	}
+	cctx, cancel := context.WithTimeout(ctx, compactTimeout+10*time.Second)
+	defer cancel()
+	journal.notice(noticeCoderStatus, "Compacting the conversation…", chatevents.SeverityInfo)
+	r, err := monomind.Exec(cctx, opts, func(monomind.Event) {})
+	if r != nil {
+		journal.addUsage(r)
+	}
+	if err != nil || r == nil || r.Err != nil || r.SessionID != res.SessionID {
 		fail()
 		return
 	}
 	journal.notice(noticeCoderResult, fmt.Sprintf("The conversation context reached %d tokens, so it was compacted to keep further calls cheap.", peak), chatevents.SeverityInfo)
+}
+
+// addUsage folds a follow-up call's (the compaction's) usage into the turn's
+// total and journals the new total as the turn's result snapshot.
+func (j *turnJournal) addUsage(r *monomind.TurnResult) {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	if j.finished {
+		return
+	}
+	u := &j.usage
+	if r.HasInputTokens {
+		u.InputTokens, u.HasInputTokens = u.InputTokens+r.InputTokens, true
+	}
+	if r.HasOutputTokens {
+		u.OutputTokens, u.HasOutputTokens = u.OutputTokens+r.OutputTokens, true
+	}
+	if r.HasCostUSD {
+		u.CostUSD, u.HasCostUSD = u.CostUSD+r.CostUSD, true
+		j.usageLocked("result")
+	}
 }
