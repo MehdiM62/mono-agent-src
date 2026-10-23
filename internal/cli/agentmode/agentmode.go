@@ -44,54 +44,10 @@ var ErrWindows = errors.New("agent-mode has no Windows profile: Windows has no s
 	"(2) a separate Windows user account for the agent (it cannot read your profile folder) that reaches the API on 127.0.0.1 with an `agent-mode token`; " +
 	"(3) Windows Sandbox or a VM, with the API forwarded in. See \"Agent mode\" in SECURITY.md")
 
-// The profiles are fixed text: no path or value of the caller is put into them, so
-// nothing can be injected. Paths come from $HOME (bwrap), a -D parameter (seatbelt)
-// or ~ (Claude Code) at the time the sandbox starts.
-
-const bwrapProfile = `#!/bin/sh
-# monoagentcli agent-mode sandbox --runtime bwrap
-# Usage: sh this-script COMMAND [ARGS...]   e.g.  sh this-script claude
-# Environment variables of the caller (MONOAGENT_API_URL, MONOAGENT_API_TOKEN, see
-# "monoagentcli agent-mode env") pass through to COMMAND.
-# Runs COMMAND with the filesystem writable as usual but with mono-agent's state, the
-# Secret Service keyrings and the D-Bus session bus hidden. Network is NOT unshared:
-# the agent reaches the daemon's API on loopback (see "agent mode" in SECURITY.md).
-# If your session bus is an abstract socket (unix:abstract=...), file masking cannot
-# hide it: add --unshare-net and reach the API through a socket you forward in.
-set -eu
-run="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
-exec bwrap \
-  --bind / / \
-  --dev-bind /dev /dev \
-  --tmpfs "$HOME/.monoagent" \
-  --tmpfs "$HOME/.local/share/keyrings" \
-  --tmpfs "$HOME/.local/share/kwalletd" \
-  --tmpfs "$HOME/.gnupg" \
-  --ro-bind /dev/null "$run/bus" \
-  --tmpfs "$run/keyring" \
-  --unsetenv DBUS_SESSION_BUS_ADDRESS \
-  --unsetenv GNOME_KEYRING_CONTROL \
-  --setenv MONOAGENT_SANDBOX bwrap \
-  --die-with-parent \
-  "$@"
-`
-
-const seatbeltProfile = `;; monoagentcli agent-mode sandbox --runtime seatbelt
-;; Usage: sandbox-exec -D HOME="$HOME" -f this-file COMMAND [ARGS...]
-;; Denies mono-agent's state and the keychain files, and the Mach services that hand out
-;; keychain items (which is what /usr/bin/security talks to). Everything else, loopback
-;; networking included, stays as it is. Check the service names on your macOS version
-;; with: log stream --predicate 'sender == "Sandbox"' while the agent runs.
-(version 1)
-(allow default)
-(deny file-read* file-write*
-  (subpath (string-append (param "HOME") "/.monoagent"))
-  (subpath (string-append (param "HOME") "/Library/Keychains")))
-(deny mach-lookup
-  (global-name "com.apple.SecurityServer")
-  (global-name "com.apple.securityd")
-  (global-name "com.apple.secd"))
-`
+// The profiles contain no path or value of the caller, so nothing can be injected.
+// Paths come from $HOME (bwrap), a -D parameter (seatbelt) or ~ (Claude Code) at the
+// time the sandbox starts. The bwrap and seatbelt text is generated from the lists in
+// profiles.go, so the printed profile has one source.
 
 const claudeCodeProfile = `{
   "_comment": "monoagentcli agent-mode sandbox --runtime claude-code. Merge into .claude/settings.json (or settings.local.json). Check the keys against your Claude Code version.",
@@ -120,9 +76,9 @@ const claudeCodeProfile = `{
 func Profile(rt Runtime) (string, error) {
 	switch rt {
 	case Bwrap:
-		return bwrapProfile, nil
+		return bwrapProfile(), nil
 	case Seatbelt:
-		return seatbeltProfile, nil
+		return seatbeltProfile(), nil
 	case ClaudeCode:
 		return claudeCodeProfile, nil
 	}
@@ -165,6 +121,10 @@ OUTSIDE the sandbox; the eval hands the token to the agent through its environme
   monoagentcli agent-mode sandbox --runtime bwrap > agent-sandbox.sh
   sh agent-sandbox.sh claude
 
+That is the --compat profile (the default for now): best effort that reduces what a cooperative agent does by
+accident, not a boundary. For a real separation use "agent-mode sandbox --runtime bwrap --strict" and run the
+script from the project directory (see "monoagentcli agent-mode sandbox --help").
+
 The agent then calls $MONOAGENT_API_URL/workflows with "Authorization: Bearer $MONOAGENT_API_TOKEN".
 Scopes: read = GET only; write = also validate and other non-send changes; run = also run and
 (de)activate workflows. Vault secrets, sends, approvals and the account are never reachable by a token.
@@ -186,17 +146,40 @@ func NewCommand(d Deps) *cobra.Command {
 
 func newSandboxCmd() *cobra.Command {
 	var runtime string
+	var strict, compat bool
+	var allowRW, allowRO []string
 	c := &cobra.Command{
 		Use:   "sandbox",
 		Short: "Print a sandbox profile that hides mono-agent's state and the key store from an agent",
 		Long: "Prints, to stdout, a profile for bwrap (Linux), seatbelt (macOS sandbox-exec) or Claude Code's " +
 			"sandbox settings. Nothing is read from or written to your mono-agent data. --runtime windows " +
-			"prints no profile: it fails with the reason and what to use instead.",
-		Example: "  monoagentcli agent-mode sandbox --runtime bwrap > agent-sandbox.sh\n" +
-			"  sh agent-sandbox.sh claude",
+			"prints no profile: it fails with the reason and what to use instead.\n\n" +
+			"bwrap has two profiles. --strict is the supported separation: the home directory, /tmp and /run are empty " +
+			"and only the current directory, the agent runtimes' own config and the paths named with --allow-rw/--allow-ro " +
+			"are bound back, so nothing the agent writes elsewhere outlives it and no agent socket is reachable. " +
+			"--compat (the default for now) keeps the whole filesystem writable and hides a list of paths: best effort that " +
+			"reduces what a cooperative agent does by accident, not a boundary, because places that start code later " +
+			"(startup files, autostart, ~/.local/bin, git hooks) cannot all be listed.",
+		Example: "  monoagentcli agent-mode sandbox --runtime bwrap --strict > agent-sandbox.sh\n" +
+			"  cd ~/projects/x && sh ~/agent-sandbox.sh claude",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			out, err := Profile(Runtime(runtime))
+			if strict && compat {
+				return errors.New("--strict and --compat exclude each other")
+			}
+			if !strict && (len(allowRW) > 0 || len(allowRO) > 0) {
+				return errors.New("--allow-rw and --allow-ro need --strict")
+			}
+			var out string
+			var err error
+			if strict {
+				if Runtime(runtime) != Bwrap {
+					return errors.New("--strict is for --runtime bwrap")
+				}
+				out, err = StrictBwrapProfile(StrictOptions{AllowRW: allowRW, AllowRO: allowRO})
+			} else {
+				out, err = Profile(Runtime(runtime))
+			}
 			if err != nil {
 				return err
 			}
@@ -205,5 +188,9 @@ func newSandboxCmd() *cobra.Command {
 		},
 	}
 	c.Flags().StringVar(&runtime, "runtime", string(Bwrap), "sandbox to write the profile for: bwrap, seatbelt, claude-code (windows is refused with guidance)")
+	c.Flags().BoolVar(&strict, "strict", false, "bwrap: deny-by-default home, /tmp and /run; only the current directory, runtime config and --allow-* paths are bound back")
+	c.Flags().BoolVar(&compat, "compat", false, "bwrap: the best-effort profile that hides a list of paths (the default for now)")
+	c.Flags().StringArrayVar(&allowRW, "allow-rw", nil, "with --strict: bind this path read-write (~/x or absolute; repeatable; ~/.ssh, ~/.monoagent, startup files and similar are refused)")
+	c.Flags().StringArrayVar(&allowRO, "allow-ro", nil, "with --strict: bind this path read-only (same rules as --allow-rw; repeatable)")
 	return c
 }
