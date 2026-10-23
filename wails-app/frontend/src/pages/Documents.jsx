@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { Upload, Search, Trash2, Sparkles, CheckCircle2, AlertTriangle, XCircle, Eye, PlayCircle, ExternalLink } from 'lucide-react'
+import { Upload, Search, Trash2, Plus, X, Sparkles, CheckCircle2, AlertTriangle, XCircle, Eye, PlayCircle, ExternalLink } from 'lucide-react'
 import * as WailsApp from '../wailsjs/go/main/App'
 import { confirm } from '../components/ConfirmDialog.jsx'
 import { api, notify, onMonomindInitEvent, onDocumentsChanged } from '../services/api.js'
@@ -9,7 +9,7 @@ import { isMonomindNotFound } from '../lib/agentRuntimes.js'
 import SortableTh from '../components/SortableTh.jsx'
 import {
   sourceLabel, documentType, viewerFilename, isCapture, sortDocuments, nextSort,
-  loadSort, saveSort, sourceOptions, filterBySource,
+  loadSort, saveSort, sourceOptions, filterBySource, tagOptions, filterByTags,
 } from '../lib/documentSort.js'
 import { useReloadOnActivate } from '../lib/useReloadOnActivate'
 
@@ -56,6 +56,86 @@ export function isMonomindMissing(indexError) {
   return isMonomindNotFound(indexError)
 }
 
+function TagChip({ tag, onClick, onRemove, active }) {
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 3,
+      padding: '2px 6px', borderRadius: 4,
+      background: `${tag.color}${active ? '40' : '1a'}`,
+      border: `1px solid ${tag.color}${active ? 'aa' : '55'}`,
+      color: tag.color, fontSize: 10, fontFamily: 'var(--font-mono)',
+      whiteSpace: 'nowrap', lineHeight: 1.6,
+    }}>
+      <span
+        role={onClick ? 'button' : undefined}
+        title={onClick ? `Filter by ${tag.name}` : undefined}
+        style={{ cursor: onClick ? 'pointer' : 'default', maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis' }}
+        onClick={onClick && ((e) => { e.stopPropagation(); onClick() })}
+      >{tag.name}</span>
+      {onRemove && (
+        <button
+          type="button"
+          aria-label={`Remove tag ${tag.name}`}
+          title="Remove tag"
+          style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, display: 'flex' }}
+          onClick={(e) => { e.stopPropagation(); onRemove() }}
+        ><X size={10} /></button>
+      )}
+    </span>
+  )
+}
+
+// Inline "+ tag" box: type a name (existing tags are suggested), Enter adds.
+function AddTagBox({ doc, knownTags, onAdd }) {
+  const [open, setOpen] = useState(false)
+  const [name, setName] = useState('')
+  const listId = `doc-tags-${doc.id}`
+  // Enter, Escape and the blur they cause all end the box; only the first counts.
+  const done = useRef(false)
+  const close = (add) => {
+    if (done.current) return
+    done.current = true
+    const n = add ? name.trim() : ''
+    setName('')
+    setOpen(false)
+    if (n) onAdd(doc.id, n)
+  }
+  const submit = () => close(true)
+  if (!open) {
+    return (
+      <button
+        type="button"
+        aria-label={`Add tag to ${doc.filename}`}
+        title="Add tag"
+        style={{ ...btnStyle, padding: '1px 6px' }}
+        onClick={(e) => { e.stopPropagation(); done.current = false; setOpen(true) }}
+      ><Plus size={10} /></button>
+    )
+  }
+  return (
+    <>
+      <input
+        autoFocus
+        aria-label={`New tag for ${doc.filename}`}
+        list={listId}
+        style={{ ...inputStyle, width: 110, padding: '2px 6px', fontSize: 10 }}
+        placeholder="tag name"
+        value={name}
+        onClick={(e) => e.stopPropagation()}
+        onChange={e => setName(e.target.value)}
+        onKeyDown={e => {
+          if (e.key === 'Enter') { e.preventDefault(); submit() }
+          if (e.key === 'Escape') close(false)
+        }}
+        onBlur={submit}
+      />
+      <datalist id={listId}>
+        {knownTags.filter(t => !(doc.tags || []).some(x => x.id === t.id)).map(t => <option key={t.id} value={t.name} />)}
+      </datalist>
+    </>
+  )
+}
+
 export default function Documents({ isActive = true }) {
   const [docs, setDocs] = useState([])
   const [error, setError] = useState(null)
@@ -79,6 +159,7 @@ export default function Documents({ isActive = true }) {
   const [bulkProgress, setBulkProgress] = useState({ done: 0, total: 0 })
   const [sort, setSort] = useState(() => loadSort())
   const [sourceFilter, setSourceFilter] = useState('')
+  const [tagFilter, setTagFilter] = useState([]) // tag names; a document must carry all
 
   const onSort = (key) => setSort(cur => {
     const next = nextSort(cur, key)
@@ -88,10 +169,43 @@ export default function Documents({ isActive = true }) {
   // What the table shows: filtered by source, then sorted. Selection and
   // select-all work on this list; "Index all" still covers every document.
   const visibleDocs = useMemo(
-    () => sortDocuments(filterBySource(docs, sourceFilter), sort),
-    [docs, sourceFilter, sort],
+    () => sortDocuments(filterByTags(filterBySource(docs, sourceFilter), tagFilter), sort),
+    [docs, sourceFilter, tagFilter, sort],
   )
   const sources = useMemo(() => sourceOptions(docs), [docs])
+  const knownTags = useMemo(() => tagOptions(docs), [docs])
+  const toggleTagFilter = (name) => setTagFilter(cur => {
+    const has = cur.some(n => n.toLowerCase() === name.toLowerCase())
+    return has ? cur.filter(n => n.toLowerCase() !== name.toLowerCase()) : [...cur, name]
+  })
+  // A filter on a tag no document carries any more would hide everything
+  // with no way to see why; drop it.
+  useEffect(() => {
+    setTagFilter(cur => {
+      const live = cur.filter(n => knownTags.some(t => t.name.toLowerCase() === n.toLowerCase()))
+      return live.length === cur.length ? cur : live
+    })
+  }, [knownTags])
+
+  const handleAddTag = async (docId, name) => {
+    try {
+      const tag = await WailsApp.AddDocumentTag(docId, name)
+      if (!tag) { notify('tag', `Could not tag with "${name}" (a document can have at most 10 tags).`); return }
+      setDocs(cur => cur.map(d => d.id !== docId || (d.tags || []).some(t => t.id === tag.id)
+        ? d
+        : { ...d, tags: [...(d.tags || []), tag].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })) }))
+    } catch (e) {
+      notify('tag', 'Tagging failed: ' + e)
+    }
+  }
+  const handleRemoveTag = async (docId, tagId) => {
+    try {
+      await WailsApp.RemoveDocumentTag(docId, tagId)
+      setDocs(cur => cur.map(d => d.id !== docId ? d : { ...d, tags: (d.tags || []).filter(t => t.id !== tagId) }))
+    } catch (e) {
+      notify('tag', 'Removing the tag failed: ' + e)
+    }
+  }
 
   const load = useCallback(async () => {
     try {
@@ -370,6 +484,23 @@ export default function Documents({ isActive = true }) {
         </select>
       </form>
 
+      {knownTags.length > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }} aria-label="Filter by tag">
+          <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Tags</span>
+          {knownTags.map(t => (
+            <TagChip
+              key={t.id}
+              tag={t}
+              active={tagFilter.some(n => n.toLowerCase() === t.name.toLowerCase())}
+              onClick={() => toggleTagFilter(t.name)}
+            />
+          ))}
+          {tagFilter.length > 0 && (
+            <button type="button" style={{ ...btnStyle, padding: '1px 8px' }} onClick={() => setTagFilter([])}>Clear</button>
+          )}
+        </div>
+      )}
+
       {error && <div style={{ color: '#ff6b6b', fontSize: 12 }}>{error}</div>}
 
       {notInitialized && (
@@ -418,6 +549,7 @@ export default function Documents({ isActive = true }) {
               </th>
               <SortableTh label="Name" sortKey="name" sort={sort} onSort={onSort} />
               <SortableTh label="Type" sortKey="type" sort={sort} onSort={onSort} />
+              <th style={{ padding: '6px 8px' }}>Tags</th>
               <SortableTh label="Source" sortKey="source" sort={sort} onSort={onSort} />
               <th style={{ padding: '6px 8px' }}>Size</th>
               <SortableTh label="Date" sortKey="date" sort={sort} onSort={onSort} />
@@ -460,6 +592,14 @@ export default function Documents({ isActive = true }) {
                   )}
                 </td>
                 <td style={{ padding: '8px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: 10 }}>{documentType(d).toUpperCase() || '—'}</td>
+                <td style={{ padding: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                    {(d.tags || []).map(t => (
+                      <TagChip key={t.id} tag={t} onClick={() => toggleTagFilter(t.name)} onRemove={() => handleRemoveTag(d.id, t.id)} />
+                    ))}
+                    {(d.tags || []).length < 10 && <AddTagBox doc={d} knownTags={knownTags} onAdd={handleAddTag} />}
+                  </div>
+                </td>
                 <td style={{ padding: '8px', color: 'var(--text-muted)' }} title={d.source}>{sourceLabel(d.source)}</td>
                 <td style={{ padding: '8px', color: 'var(--text-muted)' }}>{formatBytes(d.size_bytes)}</td>
                 <td style={{ padding: '8px', color: 'var(--text-muted)' }}>{d.created_at}</td>
@@ -526,8 +666,8 @@ export default function Documents({ isActive = true }) {
               </tr>
             ))}
             {visibleDocs.length === 0 && (
-              <tr><td colSpan={8} style={{ padding: 16, textAlign: 'center', color: 'var(--text-muted)' }}>
-                {docs.length === 0 ? 'No documents yet.' : 'No documents from this source.'}
+              <tr><td colSpan={9} style={{ padding: 16, textAlign: 'center', color: 'var(--text-muted)' }}>
+                {docs.length === 0 ? 'No documents yet.' : 'No documents match the current filters.'}
               </td></tr>
             )}
           </tbody>

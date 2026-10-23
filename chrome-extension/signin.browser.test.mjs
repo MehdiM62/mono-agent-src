@@ -78,9 +78,9 @@ describe("signed out, the extension is a sign-in screen", { skip: browser ? fals
       tokenFieldHidden: document.getElementById("signin-pairing").hidden,
     })`));
     assert.equal(screen.title, "Sign in to MonoAgent");
-    assert.equal(screen.command, "monoagentcli account login");
-    assert.deepEqual(screen.buttons, ["signin-copy", "signin-pair-save", "signin-recheck"]);
-    assert.equal(screen.fields, 1, "the pairing token field exists but stays hidden: this browser pairs itself once a bridge runs");
+    assert.equal(screen.command, "monoagentcli extension serve", "no bridge: the command to start one");
+    assert.deepEqual(screen.buttons, ["signin-copy", "", "signin-pair-save", "signin-recheck"], "the unnamed one is the Copy of the second command (doctor)");
+    assert.equal(screen.fields, 2, "the pairing token field exists but stays hidden (this browser pairs itself once a bridge runs); the other is the Details box");
     assert.equal(screen.tokenFieldHidden, true);
     assert.match(screen.state, /isn\u2019t running.*monoagentcli extension serve/, "no bridge: told to start it");
     await shot("signin-unpaired.png");

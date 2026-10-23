@@ -4,6 +4,7 @@ package applications
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"fmt"
 	"time"
 
@@ -177,11 +178,28 @@ func isAllowedTransition(from, to Status) bool {
 // in a single transaction. Returns ErrNotFound if id/profileID doesn't
 // match a row, ErrInvalidTransition if the edge isn't allowed.
 func (s *Store) SetStatus(ctx context.Context, profileID, id string, to Status, actor Actor, note string) error {
-	tx, err := s.db.BeginTx(ctx, nil)
+	// BEGIN IMMEDIATE takes the write lock before the read: a deferred
+	// transaction that reads and then writes is refused at once with
+	// SQLITE_BUSY (the busy timeout does not apply) when another writer
+	// commits in between, e.g. the fill queue while the person submits.
+	tx, err := s.db.Conn(ctx)
 	if err != nil {
 		return fmt.Errorf("applications.SetStatus: begin tx: %w", err)
 	}
-	defer tx.Rollback() //nolint:errcheck
+	defer tx.Close()
+	if _, err := tx.ExecContext(ctx, `BEGIN IMMEDIATE`); err != nil {
+		return fmt.Errorf("applications.SetStatus: begin tx: %w", err)
+	}
+	committed := false
+	defer func() {
+		if committed {
+			return
+		}
+		if _, err := tx.ExecContext(context.Background(), `ROLLBACK`); err != nil {
+			// The connection may still be inside the transaction: it must not go back to the pool.
+			_ = tx.Raw(func(any) error { return driver.ErrBadConn })
+		}
+	}()
 
 	var current string
 	err = tx.QueryRowContext(ctx,
@@ -216,7 +234,11 @@ func (s *Store) SetStatus(ctx context.Context, profileID, id string, to Status, 
 	); err != nil {
 		return fmt.Errorf("applications.SetStatus: insert status log: %w", err)
 	}
-	return tx.Commit()
+	if _, err := tx.ExecContext(ctx, `COMMIT`); err != nil {
+		return fmt.Errorf("applications.SetStatus: commit: %w", err)
+	}
+	committed = true
+	return nil
 }
 
 // StatusLog returns id's full transition history, oldest first. Returns

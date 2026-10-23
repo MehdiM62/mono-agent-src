@@ -378,6 +378,7 @@ const AUTOPAIR_EXPIRED = "pair_expired";
 let staleSecret = null; // a token the bridge refused; replaced by a claim, never retried as it is
 let autoPairBackoffUntil = 0;
 let autoPairDeclined = ""; // pair_denied / pair_expired while the backoff after one runs
+let pairClaimId = ""; // the id of that request, for the approve command the sign-in screen prints
 let pairCode = ""; // the confirmation code of the request waiting for the owner, shown on the sign-in screen
 
 async function loadPairClaim() {
@@ -441,6 +442,7 @@ async function tryAutoPair(manual = false) {
     case "pending":
       await savePairClaim({ claimId: r.claimId, pollSecret: r.pollSecret, code: r.code || "", expiresAt: r.expiresAt });
       pairCode = r.code || "";
+      pairClaimId = r.claimId || "";
       setStatus("unpaired", AUTOPAIR_WAITING);
       return null;
     case "denied":
@@ -782,6 +784,7 @@ function statusPayload() {
     reason: connectionReason,
     // Only while a request waits: what the owner compares before approving.
     code: connectionReason === AUTOPAIR_WAITING ? pairCode : "",
+    claimId: connectionReason === AUTOPAIR_WAITING ? pairClaimId : "",
     since: connectionSince,
     binding: { instance: binding.instance, profile: binding.profile, label: binding.label },
     // The gate (account_state.js): false shows the sign-in screen and nothing else.

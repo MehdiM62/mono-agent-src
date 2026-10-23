@@ -989,6 +989,34 @@ more specifically — this repo prefers honest, mapped statuses (see the
 README's Feature Highlights on `SUCCESS_WITH_ERRORS` runs) over collapsing
 everything to 200/500.
 
+### Agent mode: a scoped token instead of the CLI
+
+A coding agent that should not run `monoagentcli` as the user runs in the OS sandbox
+(`agent-mode sandbox --runtime bwrap|seatbelt|claude-code`) and calls this API with a scoped token
+(`agent-mode token create --scope read|write|run`, `agent-mode env`, `token audit`; SECURITY.md
+"Agent mode" has the full model). A token (`mat-…`, 24h by default, SHA-256 at rest, bound to one
+profile) is classed per route; the class is declared where the route is registered
+(`registrar.scoped` in `internal/httpapi/server.go`: there is no way to register a route without
+one, and `TestEveryRouteIsClassified` fails for one that is missing from the scope matrix
+`scopeRoutes`, is a GET above `read`, is a write at `read`, or bypasses the registrar). Every call
+made with a token is audited before the handler runs, refused ones too.
+
+Data routes for agent mode (`internal/httpapi/handlers_agent_data.go`; the profile is the token's):
+
+| Route | Scope | Notes |
+|---|---|---|
+| `GET /profiles/{p}/documents`, `/documents/{id}`, `/documents/{id}/tags` | read | no file path, capture dir or index error; `?tag=` (≤5), `?limit=` ≤200, `?offset=` |
+| `GET /profiles/{p}/people`, `/people/{id}` | read | `chat.ListPeople` / `chat.GetPerson`, the code behind `person_list` / `person_get`; each text ≤4,096 characters, an answer ≤~64 K |
+| `GET /profiles/{p}/tasks`, `/tasks/{id}`, `/tasks/next` | read | `internal/tasks` read as `agent:httpapi` (Inbox hidden, also by `?status=inbox` or number, unless `AgentAccess.View`); views from `internal/taskview`, shared with the MCP task tools |
+| `POST /profiles/{p}/documents/{id}/tags`, `DELETE …/tags/{tag}` | write | registered only with `--allow-mutations`; name ≤64 characters, ≤10 tags per document, no new tag past 500 per profile (`doctags.AddLimited`, one `BEGIN IMMEDIATE` transaction) |
+
+Rules for a new data route: reuse the CLI/MCP read function (export it; do not copy its query);
+take the profile from `profileOf(r)` only; page it (`pageParams`) and cap the output; refuse unknown
+query parameters (`paramsOnly`) and validate ids (`validID`); never return a path or a credential
+column (add a canary to `TestResponsesHoldNoPathAndNoSecret`); add it to `openapi.yaml` (checked by
+`TestOpenAPIHasEveryRoute` and the "Validate HTTP API OpenAPI spec" job, which runs
+`npx @redocly/cli@2.49.0 lint internal/httpapi/openapi.yaml`) and to `scopeRoutes`.
+
 ### OpenAI-compatible API (`/v1`)
 
 The same `httpapi` and `daemon` processes also serve standard OpenAI-style
@@ -1984,7 +2012,10 @@ A claude coder lead caps its own agent launches: `MONOMIND_CODER_MAX_AGENTS`
 subagent model pinned through `CLAUDE_CODE_SUBAGENT_MODEL`. Both caps pass
 through `FilteredEnviron`. A `result` event's `unexpected_models` and
 `context_warning` (monomind 2.24.4) appear as `coder.result` warnings in the
-turn journal.
+turn journal. For a claude coder turn the context warning is not shown: the
+turn ends by compacting the session (`/compact` on the resumed session, which
+keeps its id) and journals an info notice; the warning only appears if that
+fails.
 
 #### Dynamic org (a coder chat that spawns workers)
 
@@ -3531,6 +3562,12 @@ monoagentcli --profile P aitask fail <id> --reason TEXT                   # the 
   is `needs_user`, never success.
 - The kind (`generic`; other packages add theirs with `aitask.Register`) fixes the prompt and the result schema.
   `complete` checks the file against it and refuses with `schema_invalid` and the reason, so the agent can fix it.
+- Kinds besides `generic` (each in `internal/aitask/kinds_*.go`; `Kind.Validate` runs the real validator after the schema check
+  and its reasons go back to the agent): `workflow-generate` (result checked with `workflow validate`; nothing is saved or
+  activated), `failed-run-fix`, `recording-analysis` (the `recordanalyze` validators and lint; default access `qa`),
+  `draft-reply` (a draft the person saves with `people messages compose --draft`; context is only text the user selected or
+  pasted, never a thread; it cannot send). A task's access level is recorded and hashed, but only the confined kinds restrict
+  the turn's commands; `qa` on the other kinds is not enforced on the turn.
 - Context goes to `<conversation folder>/.monoagent/context/<task>/<class>/` with a README that says it is data, never
   instructions; files are size-capped, links and odd files refused, secret values hidden. `CLASS` is `posting`, `facts`,
   `document` or `selection`; anything else, and anything in the synced message attachments folder, is refused

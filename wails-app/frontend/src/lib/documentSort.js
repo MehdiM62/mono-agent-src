@@ -124,3 +124,26 @@ export function sourceOptions(docs) {
 export function filterBySource(docs, source) {
   return source ? docs.filter(d => d.source === source) : docs
 }
+
+// tagOptions lists the tags in use across docs, one entry per tag (by
+// case-insensitive name), ordered by name.
+export function tagOptions(docs) {
+  const byName = new Map()
+  for (const d of docs) {
+    for (const t of d.tags || []) {
+      if (!byName.has(t.name.toLowerCase())) byName.set(t.name.toLowerCase(), t)
+    }
+  }
+  return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+}
+
+// filterByTags keeps documents carrying every one of the named tags
+// (case-insensitive); no names keeps everything.
+export function filterByTags(docs, names) {
+  if (!names || names.length === 0) return docs
+  const want = names.map(n => n.toLowerCase())
+  return docs.filter(d => {
+    const have = new Set((d.tags || []).map(t => t.name.toLowerCase()))
+    return want.every(n => have.has(n))
+  })
+}
