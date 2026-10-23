@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { readFileSync } from 'node:fs'
 import React from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import '@testing-library/jest-dom/vitest'
@@ -218,6 +219,27 @@ describe('HistoryPanel', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
     await act(async () => { vi.advanceTimersByTime(20) })
     expect(opener).toHaveFocus()
+  })
+
+  it('returns focus to the status-bar toggle when the opener was <body> (WebKit does not focus a clicked button)', async () => {
+    mount()
+    const toggle = document.createElement('button'); toggle.setAttribute('data-testid', 'history-status-toggle'); document.body.appendChild(toggle)
+    document.activeElement.blur()
+    expect(document.activeElement).toBe(document.body)
+    await open()
+    await screen.findByText('Chat c1')
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
+    await act(async () => { vi.advanceTimersByTime(20) })
+    expect(toggle).toHaveFocus()
+    toggle.remove()
+  })
+
+  it('draws above the bubble dock and overlay (9600-9602) and below confirm dialogs (10001)', () => {
+    const css = readFileSync('src/components/history/history.css', 'utf8')
+    const z = Number(/\.hist-drawer \{[^}]*z-index:\s*(\d+)/.exec(css)[1])
+    expect(z).toBeGreaterThan(9602)
+    expect(z).toBeLessThan(10001)
   })
 
   it('Escape closes the drawer when focus fell to the body, but not under a modal', async () => {
