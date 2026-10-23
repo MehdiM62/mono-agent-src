@@ -42,11 +42,12 @@ func TestApp_LowerAITaskBudget_ArgvExact(t *testing.T) {
 	}
 }
 
-// Refused before any CLI call: other scopes, non-finite, negative, not below the cap, conversation without a task.
+// Refused before any lowering call: other scopes, non-finite, negative, not below the cap.
 func TestApp_LowerAITaskBudget_RefusedWithoutCLI(t *testing.T) {
 	bin, log := chatFakeCLI(t,
 		fakeChatReply{match: "aitask budget show --task", stdout: `{"taskId":"x","capUsd":5,"spentUsd":1,"reported":true}` + "\n"},
 		fakeChatReply{match: "aitask budget lower", stdout: `{}` + "\n"},
+		fakeChatReply{match: "aitask budget show", stdout: `{"operatorUsd":0,"caps":[{"scope":"global","key":"","capUsd":5},{"scope":"conversation","key":"c1","capUsd":3},{"scope":"conversation","key":"c2","capUsd":1}]}` + "\n"},
 	)
 	a, _ := newCLIChatApp(t, bin)
 	for _, c := range []struct {
@@ -61,7 +62,6 @@ func TestApp_LowerAITaskBudget_RefusedWithoutCLI(t *testing.T) {
 		{"NaN", "task", "x", math.NaN(), "invalid_input"},
 		{"+Inf", "task", "x", math.Inf(1), "invalid_input"},
 		{"negative", "task", "x", -1, "invalid_input"},
-		{"conversation", "conversation", "c1", 1, "conversation_needs_task"},
 	} {
 		if got := lowerCode(t, a.LowerAITaskBudget(c.scope, c.key, c.usd)); got != c.code {
 			t.Errorf("%s: code = %q, want %q", c.name, got, c.code)
@@ -69,6 +69,12 @@ func TestApp_LowerAITaskBudget_RefusedWithoutCLI(t *testing.T) {
 	}
 	if calls := lowerCalls(t, log); len(calls) != 0 {
 		t.Errorf("CLI called for refused input: %q", calls)
+	}
+	// A conversation: the lowest of the global and its own cap applies (3 here).
+	for _, usd := range []float64{3, 4} {
+		if got := lowerCode(t, a.LowerAITaskBudget("conversation", "c1", usd)); got != "cap_raise_refused" {
+			t.Errorf("conversation %v: code = %q", usd, got)
+		}
 	}
 	// Equal and higher than the shown cap: one show, no lower.
 	for _, usd := range []float64{5, 7} {
@@ -92,5 +98,25 @@ func TestApp_LowerAITaskBudget_CLIRefusalMapped(t *testing.T) {
 	a, _ := newCLIChatApp(t, bin)
 	if got := lowerCode(t, a.LowerAITaskBudget("task", "x", 1)); got != "cap_raise_refused" {
 		t.Errorf("code = %q", got)
+	}
+}
+
+// A conversation lowers through --conversation=, one value even when it looks like a flag.
+func TestApp_LowerAITaskBudget_ConversationArgv(t *testing.T) {
+	bin, log := chatFakeCLI(t,
+		fakeChatReply{match: "aitask budget lower", stdout: `{"conversationId":"c","capUsd":1}` + "\n"},
+		fakeChatReply{match: "aitask budget show", stdout: `{"operatorUsd":4,"caps":[{"scope":"global","key":"","capUsd":5}]}` + "\n"},
+	)
+	a, _ := newCLIChatApp(t, bin)
+	if got := a.LowerAITaskBudget("conversation", "--task=x", 1); !strings.Contains(got, `"capUsd":1`) {
+		t.Fatalf("result = %s", got)
+	}
+	// The coder budget (4) counts as the cap that applies.
+	if got := lowerCode(t, a.LowerAITaskBudget("conversation", "c", 4)); got != "cap_raise_refused" {
+		t.Errorf("at the coder budget: code = %q", got)
+	}
+	want := "aitask budget show|aitask budget lower --conversation=--task=x --usd=1|aitask budget show"
+	if got := strings.Join(lowerCalls(t, log), "|"); got != want {
+		t.Errorf("calls = %q, want %q", got, want)
 	}
 }
