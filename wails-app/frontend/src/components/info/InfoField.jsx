@@ -29,7 +29,15 @@ function InfoValueField({ field, entry, onSave }) {
   const timers = useRef({})
   const textarea = field.kind === 'textarea'
 
-  useEffect(() => { setDraft(stored) }, [stored])
+  // Follows a stored value that changes after mount. The first run is skipped:
+  // the draft already starts from it, and a late first run would overwrite an
+  // edit (Change) begun before it flushed.
+  const syncedStored = useRef(stored)
+  useEffect(() => {
+    if (syncedStored.current === stored) return
+    syncedStored.current = stored
+    setDraft(stored)
+  }, [stored])
   useEffect(() => () => { Object.values(timers.current).forEach(clearTimeout) }, [])
   // Leaving the masked state (a new value was saved) drops any revealed copy.
   useEffect(() => { if (!masked) { setRevealed(null); setChanging(false) } }, [masked])
