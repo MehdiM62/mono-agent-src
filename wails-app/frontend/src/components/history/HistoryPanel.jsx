@@ -49,7 +49,11 @@ export default function HistoryPanel({ store, onNavigate }) {
     setOpen(false)
     const el = opener.current
     opener.current = null
-    if (el && typeof el.focus === 'function') setTimeout(() => el.focus(), 0)
+    // WebKit doesn't focus a button on click, so the opener can be <body>:
+    // fall back to the status-bar toggle.
+    const usable = el && el !== document.body && el !== document.documentElement && document.contains(el)
+    const target = usable ? el : document.querySelector('[data-testid="history-status-toggle"]')
+    if (target && typeof target.focus === 'function') setTimeout(() => target.focus(), 0)
   }, [])
 
   useEffect(() => { if (open) drawer.current?.querySelector('input[type="search"]')?.focus() }, [open])
