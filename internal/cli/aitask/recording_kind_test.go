@@ -66,18 +66,12 @@ func TestRecordingAnalysisSubmitThenCompleteThroughTheCLI(t *testing.T) {
 	}
 
 	t.Setenv(aitask.EnvToken, f.token)
-	bad := filepath.Join(t.TempDir(), "bad.json")
-	if err := os.WriteFile(bad, []byte(strings.Replace(goodRecordingResult, `"configKey":"c.email"`, `"configKey":"c.missing"`, 1)), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	bad := writeResult(t, d, task.TaskID, strings.Replace(goodRecordingResult, `"configKey":"c.email"`, `"configKey":"c.missing"`, 1))
 	out, err = run(t, d, "complete", task.TaskID, "--result", bad)
 	if clicore.ExitCodeFor(err) != 3 || !strings.Contains(out, `"code":"schema_invalid"`) || !strings.Contains(out, `c.missing`) {
 		t.Fatalf("a result whose selector is undefined must be refused with the reason: %v %s", err, out)
 	}
-	good := filepath.Join(t.TempDir(), "good.json")
-	if err := os.WriteFile(good, []byte(goodRecordingResult), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	good := writeResult(t, d, task.TaskID, goodRecordingResult)
 	out, err = run(t, d, "complete", task.TaskID, "--result", good)
 	if err != nil || !strings.Contains(out, `"status":"complete"`) {
 		t.Fatalf("%v %s", err, out)

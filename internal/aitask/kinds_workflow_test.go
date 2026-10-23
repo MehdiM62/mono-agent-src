@@ -175,7 +175,7 @@ func TestWorkflowGenerateThroughTheService(t *testing.T) {
 	if task.Access != AccessWorkspace {
 		t.Fatalf("access = %q", task.Access)
 	}
-	for _, want := range []string{"fetch a url and tag it", "monoagentcli node schema", "workflow validate --file", "REPLACE_ME", `"required"`, "Do not save, import, run or activate"} {
+	for _, want := range []string{"fetch a url and tag it", "monoagentcli node schema", "the same validator", "REPLACE_ME", `"required"`, "Do not save, import, run or activate"} {
 		if !strings.Contains(task.Prompt, want) {
 			t.Errorf("prompt lacks %q", want)
 		}

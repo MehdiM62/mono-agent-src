@@ -64,7 +64,7 @@ func (r *taskRig) task(t *testing.T, profile, status string) (aitask.Task, strin
 
 func (r *taskRig) taskOfKind(t *testing.T, profile, status, kind string) (aitask.Task, string) {
 	t.Helper()
-	if kind == "application-apply" {
+	if confinedKind(kind) {
 		stubSnapshot(t)
 	}
 	st, done := r.store(t, profile)

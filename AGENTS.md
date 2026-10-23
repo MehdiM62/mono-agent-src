@@ -3566,8 +3566,13 @@ monoagentcli --profile P aitask fail <id> --reason TEXT                   # the 
   and its reasons go back to the agent): `workflow-generate` (result checked with `workflow validate`; nothing is saved or
   activated), `failed-run-fix`, `recording-analysis` (the `recordanalyze` validators and lint; default access `qa`),
   `draft-reply` (a draft the person saves with `people messages compose --draft`; context is only text the user selected or
-  pasted, never a thread; it cannot send). A task's access level is recorded and hashed, but only the confined kinds restrict
-  the turn's commands; `qa` on the other kinds is not enforced on the turn.
+  pasted, never a thread; it cannot send). `application-apply`, `draft-reply`, `recording-analysis`, `workflow-generate` and `failed-run-fix` (the kinds that read
+  text a stranger wrote) run as confined, claude-only turns with no file tools and a fixed command allow-list (`draft-reply`:
+  only `aitask complete|fail`; `recording-analysis` adds `record show`; `workflow-generate` adds `workflow search|get`,
+  `workflow templates list|show`, `node list|schema`, `ref`; `failed-run-fix` adds read-only `workflow get|list|search|executions|execution|inputs|validate`,
+  `workflow node list` and the one edit verb `workflow node set`); they hand the result back with `aitask complete --result-json JSON`
+  or `--result FILE` from the task's own work folder (any other path is refused); on every other kind the access level is
+  recorded and hashed but `qa` is not enforced on the turn.
 - Context goes to `<conversation folder>/.monoagent/context/<task>/<class>/` with a README that says it is data, never
   instructions; files are size-capped, links and odd files refused, secret values hidden. `CLASS` is `posting`, `facts`,
   `document` or `selection`; anything else, and anything in the synced message attachments folder, is refused

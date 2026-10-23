@@ -117,7 +117,9 @@ func init() {
 		PromptTemplate: recordingTemplate(),
 		// The input is page content captured from sites the user visited
 		// (selectors, DOM-derived intents, URLs): hostile text. The agent
-		// reads files and hands a JSON file back; it changes nothing.
+		// reads the context and hands a JSON result back; it changes nothing.
+		// Its turns are CONFINED (internal/cli/chat confinedVerbs): `record show`
+		// and `aitask complete|fail` are all it can run.
 		DefaultAccess: AccessQA,
 		Validate:      checkRecordingResult,
 	})

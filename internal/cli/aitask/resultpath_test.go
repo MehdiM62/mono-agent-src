@@ -1,0 +1,115 @@
+package aitask
+
+import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/monoes/mono-agent/internal/aitask"
+)
+
+const goodDraft = `{"summary":"s","draft":{"body":"Friday works."},"assumptions":[]}`
+
+func submitKind(t *testing.T, kind string) (*Deps, string, *tokenFake) {
+	t.Helper()
+	f := &tokenFake{fake: fake{cwd: t.TempDir()}}
+	d := deps(t, func() aitask.Launcher { return f })
+	unlockOnCleanup(t, d)
+	out, err := run(t, d, "submit", "--kind", kind, "--goal", "g")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var task struct {
+		TaskID string `json:"taskId"`
+	}
+	if err := json.Unmarshal([]byte(out), &task); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(aitask.EnvTaskID, task.TaskID)
+	t.Setenv(aitask.EnvToken, f.token)
+	return d, task.TaskID, f
+}
+
+// A confined task cannot use --result to probe the user's files: a path outside
+// its work folder is refused before anything is read, and nothing of the file
+// reaches the error.
+func TestConfinedTaskResultMustLiveInItsWorkFolder(t *testing.T) {
+	for _, kind := range []string{"draft-reply", "recording-analysis", "workflow-generate", "failed-run-fix"} {
+		d, id, _ := submitKind(t, kind)
+		secrets := filepath.Join(t.TempDir(), "credentials.json")
+		if err := os.WriteFile(secrets, []byte(`{"private_key_id":"TOPSECRETKEYID","client_email":"x@y"}`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		_, err := run(t, d, "complete", id, "--result", secrets)
+		if err == nil || !strings.Contains(err.Error(), "not under this task's work folder") {
+			t.Fatalf("%s: a result outside the work folder was read: %v", kind, err)
+		}
+		if strings.Contains(err.Error(), "TOPSECRET") || strings.Contains(err.Error(), "private_key_id") {
+			t.Errorf("%s: the error echoes the file: %v", kind, err)
+		}
+		// A link inside the work folder to a file outside is outside too.
+		work := filepath.Join(filepath.Dir(d.DBPath()), "aitask", id, "work")
+		if err := os.MkdirAll(work, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		link := filepath.Join(work, "r.json")
+		if err := os.Symlink(secrets, link); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := run(t, d, "complete", id, "--result", link); err == nil || !strings.Contains(err.Error(), "not under this task's work folder") {
+			t.Errorf("%s: a link out of the work folder was followed: %v", kind, err)
+		}
+		// ".." out of it too.
+		if _, err := run(t, d, "complete", id, "--result", filepath.Join(work, "..", "..", "..", filepath.Base(filepath.Dir(secrets)), "credentials.json")); err == nil {
+			t.Errorf("%s: a .. path left the work folder", kind)
+		}
+	}
+}
+
+func TestConfinedTaskMayHandBackFromItsWorkFolderOrInline(t *testing.T) {
+	d, id, _ := submitKind(t, "draft-reply")
+	if out, err := run(t, d, "complete", id, "--result", writeResult(t, d, id, goodDraft)); err != nil || !strings.Contains(out, `"status":"complete"`) {
+		t.Fatalf("a result from the work folder: %v %s", err, out)
+	}
+	d, id, _ = submitKind(t, "draft-reply")
+	if out, err := run(t, d, "complete", id, "--result-json", goodDraft); err != nil || !strings.Contains(out, `"status":"complete"`) {
+		t.Fatalf("an inline result: %v %s", err, out)
+	}
+	d, id, _ = submitKind(t, "draft-reply")
+	cmd := New(*d)
+	cmd.SetIn(strings.NewReader(goodDraft))
+	var buf strings.Builder
+	cmd.SetOut(&buf)
+	cmd.SetArgs([]string{"complete", id, "--result", "-"})
+	cmd.SilenceErrors, cmd.SilenceUsage = true, true
+	if err := cmd.Execute(); err != nil || !strings.Contains(buf.String(), `"status":"complete"`) {
+		t.Fatalf("a result on stdin: %v %s", err, buf.String())
+	}
+}
+
+func TestCompleteTakesExactlyOneResultSource(t *testing.T) {
+	d, id, _ := submitKind(t, "draft-reply")
+	if _, err := run(t, d, "complete", id); err == nil {
+		t.Error("no result source accepted")
+	}
+	if _, err := run(t, d, "complete", id, "--result", "x.json", "--result-json", goodDraft); err == nil {
+		t.Error("two result sources accepted")
+	}
+	if _, err := run(t, d, "complete", id, "--result-json", `{"summary":`); err == nil || !strings.Contains(err.Error(), "not valid JSON") {
+		t.Errorf("broken inline JSON: %v", err)
+	}
+}
+
+// Other kinds keep reading a result from anywhere.
+func TestGenericTaskResultFileIsNotRestricted(t *testing.T) {
+	d, id, _ := submitKind(t, "generic")
+	p := filepath.Join(t.TempDir(), "r.json")
+	if err := os.WriteFile(p, []byte(`{"summary":"done"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := run(t, d, "complete", id, "--result", p); err != nil || !strings.Contains(out, `"status":"complete"`) {
+		t.Fatalf("%v %s", err, out)
+	}
+}
