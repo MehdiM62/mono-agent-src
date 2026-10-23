@@ -121,6 +121,10 @@ OUTSIDE the sandbox; the eval hands the token to the agent through its environme
   monoagentcli agent-mode sandbox --runtime bwrap > agent-sandbox.sh
   sh agent-sandbox.sh claude
 
+That is the --compat profile (the default for now): best effort that reduces what a cooperative agent does by
+accident, not a boundary. For a real separation use "agent-mode sandbox --runtime bwrap --strict" and run the
+script from the project directory (see "monoagentcli agent-mode sandbox --help").
+
 The agent then calls $MONOAGENT_API_URL/workflows with "Authorization: Bearer $MONOAGENT_API_TOKEN".
 Scopes: read = GET only; write = also validate and other non-send changes; run = also run and
 (de)activate workflows. Vault secrets, sends, approvals and the account are never reachable by a token.
@@ -142,17 +146,40 @@ func NewCommand(d Deps) *cobra.Command {
 
 func newSandboxCmd() *cobra.Command {
 	var runtime string
+	var strict, compat bool
+	var allowRW, allowRO []string
 	c := &cobra.Command{
 		Use:   "sandbox",
 		Short: "Print a sandbox profile that hides mono-agent's state and the key store from an agent",
 		Long: "Prints, to stdout, a profile for bwrap (Linux), seatbelt (macOS sandbox-exec) or Claude Code's " +
 			"sandbox settings. Nothing is read from or written to your mono-agent data. --runtime windows " +
-			"prints no profile: it fails with the reason and what to use instead.",
-		Example: "  monoagentcli agent-mode sandbox --runtime bwrap > agent-sandbox.sh\n" +
-			"  sh agent-sandbox.sh claude",
+			"prints no profile: it fails with the reason and what to use instead.\n\n" +
+			"bwrap has two profiles. --strict is the supported separation: the home directory, /tmp and /run are empty " +
+			"and only the current directory, the agent runtimes' own config and the paths named with --allow-rw/--allow-ro " +
+			"are bound back, so nothing the agent writes elsewhere outlives it and no agent socket is reachable. " +
+			"--compat (the default for now) keeps the whole filesystem writable and hides a list of paths: best effort that " +
+			"reduces what a cooperative agent does by accident, not a boundary, because places that start code later " +
+			"(startup files, autostart, ~/.local/bin, git hooks) cannot all be listed.",
+		Example: "  monoagentcli agent-mode sandbox --runtime bwrap --strict > agent-sandbox.sh\n" +
+			"  cd ~/projects/x && sh ~/agent-sandbox.sh claude",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			out, err := Profile(Runtime(runtime))
+			if strict && compat {
+				return errors.New("--strict and --compat exclude each other")
+			}
+			if !strict && (len(allowRW) > 0 || len(allowRO) > 0) {
+				return errors.New("--allow-rw and --allow-ro need --strict")
+			}
+			var out string
+			var err error
+			if strict {
+				if Runtime(runtime) != Bwrap {
+					return errors.New("--strict is for --runtime bwrap")
+				}
+				out, err = StrictBwrapProfile(StrictOptions{AllowRW: allowRW, AllowRO: allowRO})
+			} else {
+				out, err = Profile(Runtime(runtime))
+			}
 			if err != nil {
 				return err
 			}
@@ -161,5 +188,9 @@ func newSandboxCmd() *cobra.Command {
 		},
 	}
 	c.Flags().StringVar(&runtime, "runtime", string(Bwrap), "sandbox to write the profile for: bwrap, seatbelt, claude-code (windows is refused with guidance)")
+	c.Flags().BoolVar(&strict, "strict", false, "bwrap: deny-by-default home, /tmp and /run; only the current directory, runtime config and --allow-* paths are bound back")
+	c.Flags().BoolVar(&compat, "compat", false, "bwrap: the best-effort profile that hides a list of paths (the default for now)")
+	c.Flags().StringArrayVar(&allowRW, "allow-rw", nil, "with --strict: bind this path read-write (~/x or absolute; repeatable; ~/.ssh, ~/.monoagent, startup files and similar are refused)")
+	c.Flags().StringArrayVar(&allowRO, "allow-ro", nil, "with --strict: bind this path read-only (same rules as --allow-rw; repeatable)")
 	return c
 }
