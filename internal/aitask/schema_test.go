@@ -36,3 +36,28 @@ func TestValidateReportsThePathOfTheFirstProblem(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateHonoursUpperBounds(t *testing.T) {
+	schema := map[string]any{
+		"type": "object", "maxProperties": 2.0,
+		"properties": map[string]any{
+			"s": map[string]any{"type": "string", "maxLength": 3.0},
+			"a": map[string]any{"type": "array", "maxItems": 2.0},
+		},
+	}
+	cases := map[string]string{
+		`{"s":"abc","a":[1,2]}`:  "",
+		`{"s":"héé"}`:            "", // runes, not bytes
+		`{"s":"abcd"}`:           "$.s: must be at most 3 characters",
+		`{"a":[1,2,3]}`:          "$.a: must have at most 2 items",
+		`{"s":"a","a":[],"z":1}`: "must have at most 2 properties",
+	}
+	for doc, want := range cases {
+		var v any
+		_ = json.Unmarshal([]byte(doc), &v)
+		err := Validate(schema, v)
+		if (want == "") != (err == nil) || (err != nil && !strings.Contains(err.Error(), want)) {
+			t.Errorf("%s: err=%v, want %q", doc, err, want)
+		}
+	}
+}
