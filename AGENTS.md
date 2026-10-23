@@ -3565,10 +3565,8 @@ monoagentcli --profile P aitask fail <id> --reason TEXT                   # the 
   and its reasons go back to the agent): `workflow-generate` (result checked with `workflow validate`; nothing is saved or
   activated), `failed-run-fix`, `recording-analysis` (the `recordanalyze` validators and lint; default access `qa`),
   `draft-reply` (a draft the person saves with `people messages compose --draft`; context is only text the user selected or
-  pasted, never a thread; it cannot send), `extension-fill` and `extension-ask` (queued from the side panel through
-  `aitask submit-page --kind … --tab N`, operator-only, never started by the page; run confined, with no `browser submit`;
-  a fill result must say `stopped_before_submit: true`). A task's access level is recorded and hashed, but only the confined
-  kinds (the application and extension ones) restrict the turn's commands; `qa` on the other kinds is not enforced on the turn.
+  pasted, never a thread; it cannot send). A task's access level is recorded and hashed, but only the confined kinds restrict
+  the turn's commands; `qa` on the other kinds is not enforced on the turn.
   `complete` checks the file against it and refuses with `schema_invalid` and the reason, so the agent can fix it.
 - Context goes to `<conversation folder>/.monoagent/context/<task>/<class>/` with a README that says it is data, never
   instructions; files are size-capped, links and odd files refused, secret values hidden. `CLASS` is `posting`, `facts`,
