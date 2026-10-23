@@ -1,11 +1,11 @@
 import { useTranslation } from 'react-i18next'
-import { MessageSquare, Building2, Link2 } from 'lucide-react'
+import { MessageSquare, Building2, Link2, ExternalLink } from 'lucide-react'
 import { relativeTime, orgRunLabel } from '../../lib/historyModel.js'
 
 // One session in the history list: a chat or an org run. The row's main
 // button opens it; the checkbox (chats only) selects it for deletion; the
 // application link goes to that application.
-export default function HistoryRow({ row, live, selected, onToggle, onOpen, onOpenApplication }) {
+export default function HistoryRow({ row, live, selected, onToggle, onOpen, onOpenOrgs, onOpenApplication }) {
   const { t } = useTranslation()
   const isOrg = row.kind === 'org'
   const title = row.title || (isOrg ? row.orgName : t('history.kindChatIcon'))
@@ -45,6 +45,12 @@ export default function HistoryRow({ row, live, selected, onToggle, onOpen, onOp
           <time className="hist-time" dateTime={row.updatedAt}>{relativeTime(row.updatedAt)}</time>
         </span>
       </button>
+      {isOrg && onOpenOrgs && (
+        <button type="button" className="hist-app" onClick={() => onOpenOrgs(row)} aria-label={t('history.openInOrgs', { name: row.orgName })} title={t('history.openInOrgs', { name: row.orgName })}>
+          <ExternalLink size={11} aria-hidden="true" />
+          <span>{t('history.openInOrgsShort')}</span>
+        </button>
+      )}
       {row.applicationId && (
         <button type="button" className="hist-app" onClick={() => onOpenApplication(row.applicationId)} aria-label={t('history.openApplication')} title={t('history.openApplication')}>
           <Link2 size={11} aria-hidden="true" />

@@ -8,7 +8,7 @@ import { useHistory } from './useHistory.js'
 import { onHistoryRequest } from './historyBus.js'
 import HistoryRow from './HistoryRow.jsx'
 import {
-  KIND_FILTERS, STATUS_FILTERS, bubbleKeyOf, liveStatus, deleteOutcome, chatIdsOnly, toFilter, orgRunTarget,
+  KIND_FILTERS, STATUS_FILTERS, bubbleKeyOf, liveStatus, deleteOutcome, chatIdsOnly, toFilter, orgRunOpening,
 } from '../../lib/historyModel.js'
 import './history.css'
 
@@ -86,10 +86,11 @@ export default function HistoryPanel({ store, onNavigate }) {
 
   const openRow = async (row) => {
     if (row.kind === 'org') {
-      // The org bubble shows the org's latest run, so only that run opens it
-      // (per-run bubbles are wave U5); an older run opens in the Orgs tab.
+      // A circle is one run: the live one opens the org's live bubble, an
+      // older one a read-only bubble for that run.
       const st = await Promise.resolve(api.getOrgStatus(row.orgName)).catch(() => null)
-      if (orgRunTarget(row, st) === 'bubble') store.openOrg(row.orgName)
+      const opening = orgRunOpening(row, st)
+      if (opening) store.openOrg(row.orgName, opening)
       else onNavigate?.('orgs', { org: row.orgName, run: row.runId || undefined })
     } else {
       // The whole row: the pane takes access, mode and the rest from it.
@@ -97,6 +98,8 @@ export default function HistoryPanel({ store, onNavigate }) {
     }
     close()
   }
+
+  const openInOrgs = (row) => { onNavigate?.('orgs', { org: row.orgName, run: row.runId || undefined }); close() }
 
   const openApplication = (id) => { onNavigate?.('applications', { application: id }); close() }
 
@@ -241,15 +244,18 @@ export default function HistoryPanel({ store, onNavigate }) {
           <ul className="hist-list" aria-label={t('history.list')}>
             {items.map(row => {
               const key = bubbleKeyOf(row)
-              const isOpen = (store?.bubbles || []).some(b => b.key === key)
+              // A live bubble whose run id has not arrived is still org:<name>.
+              const isOpen = (store?.bubbles || []).some(b => b.key === key ||
+                (row.kind === 'org' && row.status === 'running' && b.key === `org:${row.orgName}`))
               return (
                 <HistoryRow
                   key={`${row.kind}:${row.id}`}
                   row={row}
-                  live={liveStatus(row, isOpen ? store.summaryOf(key) : null)}
+                  live={liveStatus(row, isOpen ? store.summaryOf(store.bubbles.some(b => b.key === key) ? key : `org:${row.orgName}`) : null)}
                   selected={selected.has(row.id)}
                   onToggle={toggle}
                   onOpen={openRow}
+                  onOpenOrgs={openInOrgs}
                   onOpenApplication={openApplication}
                 />
               )
