@@ -464,7 +464,7 @@ func TestListsAreCutAtTheirCap(t *testing.T) {
 	f.exec(t, `WITH RECURSIVE n(i) AS (SELECT 1000 UNION ALL SELECT i+1 FROM n WHERE i < 1599)
 		INSERT INTO people (id, platform_username, platform, profile_id) SELECT 'pp-'||i, 'user'||i, 'linkedin', 'default' FROM n`)
 	st := tasks.NewStore(f.s.rt.db.DB)
-	for i := 0; i < dataListMax+5; i++ {
+	for i := 0; i < 205; i++ { // the cap is 200: written out here, so that a change to it is seen
 		if _, _, err := st.Add(context.Background(), "default", tasks.AddInput{Title: fmt.Sprintf("t%d", i), Ready: true}, tasks.Actor{Kind: tasks.Human}); err != nil {
 			t.Fatal(err)
 		}
@@ -479,9 +479,9 @@ func TestListsAreCutAtTheirCap(t *testing.T) {
 		rw := doReq(t, f.s, "GET", c.path, f.read, nil)
 		got := body(rw)
 		n := len(got[c.key].([]any))
-		wantMax := dataListMax
+		wantMax := 200
 		if !strings.Contains(c.path, "limit=") {
-			wantMax = dataListDefault
+			wantMax = 50
 		}
 		if rw.Code != 200 || n != wantMax || got["truncated"] != true {
 			t.Errorf("%s: %d rows, truncated=%v, want %d and true", c.path, n, got["truncated"], wantMax)
@@ -489,8 +489,8 @@ func TestListsAreCutAtTheirCap(t *testing.T) {
 	}
 	// paging reaches the rest, with no row twice
 	seen := map[string]bool{}
-	for off := 0; off < 700; off += dataListMax {
-		rw := doReq(t, f.s, "GET", fmt.Sprintf("/profiles/default/documents?limit=%d&offset=%d", dataListMax, off), f.read, nil)
+	for off := 0; off < 700; off += 200 {
+		rw := doReq(t, f.s, "GET", fmt.Sprintf("/profiles/default/documents?limit=200&offset=%d", off), f.read, nil)
 		for _, d := range body(rw)["documents"].([]any) {
 			id := d.(map[string]any)["id"].(string)
 			if seen[id] {
@@ -549,8 +549,8 @@ func TestAPersonIsAnsweredWithinABudget(t *testing.T) {
 		if rw.Code != 200 {
 			t.Fatalf("%s: %d", path, rw.Code)
 		}
-		if rw.Body.Len() > 4*personBudgetRunes {
-			t.Errorf("%s: %d bytes for one person, want at most %d", path, rw.Body.Len(), 4*personBudgetRunes)
+		if rw.Body.Len() > 256<<10 {
+			t.Errorf("%s: %d bytes for one person whose rows hold 20 MB, want at most 256 KiB", path, rw.Body.Len())
 		}
 	}
 	rw := doReq(t, f.s, "GET", "/profiles/default/people/p-1", f.read, nil)
@@ -794,5 +794,35 @@ func TestDataRoutesValidateTheirInput(t *testing.T) {
 		if rw := doReq(t, f.s, "GET", p, f.read, nil); rw.Code != 404 {
 			t.Errorf("%s: %d, want 404", p, rw.Code)
 		}
+	}
+}
+
+// A valid token used on another profile's path, or on one that does not exist, gets the one
+// 401 and leaves its row in the owner's audit: the attempt is the thing to see.
+func TestATokenUsedOnAnotherProfileIsAuditedAndRefused(t *testing.T) {
+	f := newDataFx(t, true)
+	meta, err := f.s.agentTokens().Get(context.Background(), "default", "r")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{"/profiles/other/documents", "/profiles/ghost/documents", "/profiles/other/tasks/next"} {
+		before := f.auditCount(t)
+		wantUnauthorized(t, p, doReq(t, f.s, "GET", p, f.read, nil))
+		if got := f.auditCount(t); got != before+1 {
+			t.Errorf("%s: %d audit rows, want 1", p, got-before)
+		}
+	}
+	uses, _ := f.s.agentTokens().Audit(context.Background(), meta, 10)
+	if len(uses) != 3 || uses[0].Status != 401 || uses[0].ProfileID != "default" {
+		t.Errorf("audit = %+v", uses)
+	}
+	// the answers are the same as for a token nobody issued
+	a := doReq(t, f.s, "GET", "/profiles/other/documents", f.read, nil)
+	b := doReq(t, f.s, "GET", "/profiles/other/documents", "mat-nobody-issued-this", nil)
+	if a.Body.String() != b.Body.String() || a.Code != b.Code {
+		t.Errorf("a foreign token is told apart from an unknown one:\n%s\n%s", a.Body, b.Body)
+	}
+	if f.auditCount(t) != 4 {
+		t.Errorf("an unknown token left an audit row: %d", f.auditCount(t))
 	}
 }
