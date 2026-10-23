@@ -60,6 +60,8 @@ export function AddOrgRoleToSection(arg1:string,arg2:string,arg3:string):Promise
 
 export function AddOrgSection(arg1:string,arg2:string,arg3:string):Promise<string>;
 
+export function AddDocumentTag(arg1:string,arg2:string):Promise<main.TagInfo>;
+
 export function AddPersonMessage(arg1:string,arg2:string,arg3:string,arg4:string,arg5:string,arg6:string,arg7:string):Promise<void>;
 
 export function AddPersonStatus(arg1:string,arg2:string):Promise<main.PersonStatusUpdate>;
@@ -625,6 +627,8 @@ export function RemoveOrgDocumentEdge(arg1:string,arg2:string,arg3:string,arg4:s
 export function RemoveOrgGrant(arg1:string,arg2:string,arg3:string):Promise<string>;
 
 export function RemoveOrgRole(arg1:string,arg2:string,arg3:string):Promise<string>;
+
+export function RemoveDocumentTag(arg1:string,arg2:string):Promise<void>;
 
 export function RemovePersonTag(arg1:string,arg2:string):Promise<void>;
 

@@ -60,7 +60,7 @@ async function extensionCopy(dir, ports) {
   return to;
 }
 
-async function launchOnce(binary, { bridgePort = 0, extraArgs = [] } = {}) {
+async function launchAttempt(binary, { bridgePort = 0, extraArgs = [] } = {}) {
   const dir = await mkdtemp(join(tmpdir(), "mono-rec-ext-"));
   const extDir = await extensionCopy(dir, bridgePort ? [bridgePort] : []);
   const child = spawn(
@@ -75,6 +75,9 @@ async function launchOnce(binary, { bridgePort = 0, extraArgs = [] } = {}) {
       "--no-first-run",
       "--no-default-browser-check",
       "--disable-gpu",
+      // The runner's /dev/shm is small; Chrome otherwise crashes or hangs
+      // on it while starting.
+      "--disable-dev-shm-usage",
       "--window-size=1200,900",
       ...extraArgs,
       "about:blank",
@@ -83,33 +86,66 @@ async function launchOnce(binary, { bridgePort = 0, extraArgs = [] } = {}) {
   );
   let stderr = "";
   child.stderr.on("data", (c) => (stderr += String(c)));
-  let port = 0;
-  let path = "";
-  for (let i = 0; i < 400 && !port; i++) {
-    try {
-      [port, path] = (await readFile(join(dir, "DevToolsActivePort"), "utf8")).split("\n");
-      port = Number(port);
-    } catch {
-      await sleep(50);
-    }
-  }
-  if (!port) throw new Error(`no DevTools port\n${stderr.slice(-1000)}`);
-  const ws = new WebSocket(`ws://127.0.0.1:${port}${path.trim()}`);
-  await new Promise((res, rej) => {
-    ws.addEventListener("open", res, { once: true });
-    ws.addEventListener("error", () => rej(new Error("devtools socket failed")), { once: true });
-  });
-  const close = async () => {
-    try {
-      ws.close();
-    } catch {}
+  let exited = null;
+  child.once("exit", (code, signal) => (exited = `exit code ${code} signal ${signal}`));
+  const kill = async () => {
     try {
       process.kill(-child.pid, "SIGKILL");
     } catch {}
     await sleep(300);
     await rm(dir, { recursive: true, force: true }).catch(() => {});
   };
-  return { cdp: new Cdp(ws), close };
+  try {
+    let port = 0;
+    let path = "";
+    // A loaded runner can take well over 20s to print its port; a browser
+    // that already exited will never print it, so stop waiting for that.
+    for (let i = 0; i < PORT_WAIT_MS / 50 && !port && !exited; i++) {
+      try {
+        [port, path] = (await readFile(join(dir, "DevToolsActivePort"), "utf8")).split("\n");
+        port = Number(port);
+      } catch {
+        await sleep(50);
+      }
+    }
+    if (!port) throw new Error(`no DevTools port (${exited || `none after ${PORT_WAIT_MS}ms`})\n${stderr.slice(-1000)}`);
+    const ws = new WebSocket(`ws://127.0.0.1:${port}${path.trim()}`);
+    await new Promise((res, rej) => {
+      ws.addEventListener("open", res, { once: true });
+      ws.addEventListener("error", () => rej(new Error("devtools socket failed")), { once: true });
+    });
+    const close = async () => {
+      try {
+        ws.close();
+      } catch {}
+      await kill();
+    };
+    return { cdp: new Cdp(ws), close };
+  } catch (err) {
+    await kill();
+    throw err;
+  }
+}
+
+const PORT_WAIT_MS = 30000;
+const LAUNCH_ATTEMPTS = 3;
+
+/**
+ * launchOnce starts the browser, retrying a launch that never opens its
+ * DevTools port (Chrome on a CI runner sometimes exits early or stalls).
+ * Each attempt has a fresh profile directory; the final error carries every
+ * attempt's message and stderr tail.
+ */
+async function launchOnce(binary, opts) {
+  const failures = [];
+  for (let attempt = 1; attempt <= LAUNCH_ATTEMPTS; attempt++) {
+    try {
+      return await launchAttempt(binary, opts);
+    } catch (err) {
+      failures.push(`attempt ${attempt}: ${err.message}`);
+    }
+  }
+  throw new Error(`browser failed to start after ${LAUNCH_ATTEMPTS} attempts\n${failures.join("\n")}`);
 }
 
 // A loaded machine (several browsers starting at once under node --test)

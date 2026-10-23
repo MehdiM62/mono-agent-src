@@ -114,6 +114,10 @@ export function AddOrgSection(arg1, arg2, arg3) {
   return window['go']['main']['App']['AddOrgSection'](arg1, arg2, arg3);
 }
 
+export function AddDocumentTag(arg1, arg2) {
+  return window['go']['main']['App']['AddDocumentTag'](arg1, arg2);
+}
+
 export function AddPersonMessage(arg1, arg2, arg3, arg4, arg5, arg6, arg7) {
   return window['go']['main']['App']['AddPersonMessage'](arg1, arg2, arg3, arg4, arg5, arg6, arg7);
 }
@@ -1244,6 +1248,10 @@ export function RemoveOrgGrant(arg1, arg2, arg3) {
 
 export function RemoveOrgRole(arg1, arg2, arg3) {
   return window['go']['main']['App']['RemoveOrgRole'](arg1, arg2, arg3);
+}
+
+export function RemoveDocumentTag(arg1, arg2) {
+  return window['go']['main']['App']['RemoveDocumentTag'](arg1, arg2);
 }
 
 export function RemovePersonTag(arg1, arg2) {

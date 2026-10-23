@@ -1,6 +1,7 @@
 package application
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -144,12 +145,23 @@ func TestFillQueueParksEachAndHoldsTheCap(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		for i := 0; i < 2000; i++ {
-			time.Sleep(5 * time.Millisecond)
-			b.mu.Lock()
-			n := len(b.started)
-			b.mu.Unlock()
-			if n >= 2 {
+		// The person submits only what is parked: wait until both fills are
+		// parked (awaiting_submit), not just started, or the submit lands while
+		// the queue is still recording the first fill and the queue parks nothing.
+		parkedBoth := func() bool {
+			ok := true
+			withDB(t, dbPath, func(db *sql.DB) {
+				for _, id := range ids[:2] {
+					if a, err := applications.NewStore(db).Get(context.Background(), "default", id); err != nil || a.Status != applications.StatusAwaitingSubmit {
+						ok = false
+					}
+				}
+			})
+			return ok
+		}
+		for deadline := time.Now().Add(20 * time.Second); !parkedBoth(); time.Sleep(5 * time.Millisecond) {
+			if time.Now().After(deadline) {
+				t.Error("two fills were not parked within 20s")
 				break
 			}
 		}
@@ -165,8 +177,22 @@ func TestFillQueueParksEachAndHoldsTheCap(t *testing.T) {
 			}
 		})
 	}()
-	out, err := run(t, dbPath, true, append([]string{"fill", "queue", "--max-parked", "2"}, ids...)...)
+	// The queue is a foreground loop that waits for the person for as long as
+	// the cap is full, so a slot that is never freed would hang it. The wait
+	// is bounded: a stuck queue fails here in seconds, not at the package timeout.
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	cmd := NewCommand(testDeps(dbPath, true))
+	cmd.SetArgs(append([]string{"fill", "queue", "--max-parked", "2"}, ids...))
+	var stdout bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&bytes.Buffer{})
+	err := cmd.ExecuteContext(ctx)
+	out := stdout.String()
 	<-done
+	if ctx.Err() != nil {
+		t.Fatalf("the queue was still waiting for a slot after 30s (the first application was never submitted, or its slot was never freed): %v\n%s", err, out)
+	}
 	if err != nil {
 		t.Fatalf("queue: %v (%s)", err, out)
 	}
