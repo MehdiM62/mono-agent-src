@@ -46,7 +46,10 @@ func bwrapProfile() string {
 	return `#!/bin/sh
 # monoagentcli agent-mode sandbox --runtime bwrap
 # Usage: sh this-script COMMAND [ARGS...]   e.g.  sh this-script claude
-# Runs COMMAND with the filesystem writable as usual except:
+# COMPAT profile: best effort, not a boundary. It keeps the whole filesystem writable and
+# hides or protects the paths listed below; places that start code at a later login cannot
+# all be listed, so use --strict for a real separation. Runs COMMAND with the filesystem
+# writable as usual except:
 #   - mono-agent's state, the Secret Service keyrings, kwalletd, gnupg and the D-Bus
 #     session bus are hidden;
 #   - ssh keys, gh, aws and git credentials are hidden;
@@ -103,9 +106,10 @@ func seatbeltProfile() string {
 	var b strings.Builder
 	b.WriteString(`;; monoagentcli agent-mode sandbox --runtime seatbelt
 ;; Usage: sandbox-exec -D HOME="$HOME" -f this-file COMMAND [ARGS...]
-;; Denies mono-agent's state, the keychain files, ssh keys and the Mach services that
-;; hand out keychain items (which is what /usr/bin/security talks to), and makes the
-;; login-persistence locations (LaunchAgents, shell startup files) unwritable.
+;; Best effort, not a boundary. Denies read and write of mono-agent's state, the keychain
+;; files, ~/.ssh, ~/.aws, ~/.config/gh, ~/.git-credentials and ~/.netrc, the Mach services
+;; that hand out keychain items (which is what /usr/bin/security talks to), and write of
+;; ~/Library/LaunchAgents and the shell startup files.
 ;; Everything else, loopback networking included, stays as it is. Not run on macOS by
 ;; the authors: check the rules and the service names on your macOS version with:
 ;; log stream --predicate 'sender == "Sandbox"' while the agent runs.
@@ -114,7 +118,11 @@ func seatbeltProfile() string {
 (deny file-read* file-write*
   (subpath (string-append (param "HOME") "/.monoagent"))
   (subpath (string-append (param "HOME") "/Library/Keychains"))
-  (subpath (string-append (param "HOME") "/.ssh")))
+  (subpath (string-append (param "HOME") "/.ssh"))
+  (subpath (string-append (param "HOME") "/.aws"))
+  (subpath (string-append (param "HOME") "/.config/gh"))
+  (literal (string-append (param "HOME") "/.git-credentials"))
+  (literal (string-append (param "HOME") "/.netrc")))
 (deny file-write*
 `)
 	for i, w := range seatbeltWriteDeny {

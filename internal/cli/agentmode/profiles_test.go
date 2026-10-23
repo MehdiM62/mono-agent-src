@@ -55,7 +55,7 @@ func TestBwrapEnvAllowlist(t *testing.T) {
 
 func TestSeatbeltProfileDeniesPersistence(t *testing.T) {
 	out, _ := Profile(Seatbelt)
-	for _, w := range []string{"Library/LaunchAgents", "/.bashrc", "/.zshrc", "/.profile", "/.ssh", "(deny file-write*"} {
+	for _, w := range []string{"Library/LaunchAgents", "/.bashrc", "/.zshrc", "/.profile", "/.ssh", "/.aws", "/.config/gh", "/.git-credentials", "/.netrc", "(deny file-write*"} {
 		if !strings.Contains(out, w) {
 			t.Errorf("seatbelt profile lacks %q:\n%s", w, out)
 		}

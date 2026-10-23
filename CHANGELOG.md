@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- **Agent mode hardening.** The bwrap and seatbelt profiles make shell startup and autostart files read-only, hide ssh/cloud/git credentials, unshare pid and ipc, and clear the environment; the HTTP API answers 421 to a `Host` that is not the bound loopback address (`MONOAGENT_HTTPAPI_ALLOWED_HOSTS` lists extra names).
+- **Agent mode hardening.** `agent-mode sandbox --runtime bwrap --strict` is a deny-by-default Linux profile (empty home, /tmp and /run; only the working directory, the runtimes' config and `--allow-rw`/`--allow-ro` paths bound back) and the supported separation; the existing profile is `--compat`, best effort and not a boundary, now with read-only startup files, hidden ssh/aws/gh/git credentials, own pid/ipc namespaces and a cleared environment; the macOS profile denies more credential and startup paths (not run on a Mac). The HTTP API answers 421 to a `Host` that is not the bound loopback address (`MONOAGENT_HTTPAPI_ALLOWED_HOSTS` lists extra names).
 - **Chats.** New chats the user starts default to a full-access coder chat when coder mode is on and the runtime is ready (`coder set --default-access` still wins; an agent's creation, the extension's chats and a fresh install stay scoped). `coder status --json` adds `defaultAccessSource`.
 
 - **AI tasks.** New kinds `workflow-generate`, `recording-analyze` and `failed-run-fix` (`internal/aitaskkinds`): the coder builds a workflow draft, reviews a recording's analysis, or fixes a failed run's workflow, and never runs or sends anything.
