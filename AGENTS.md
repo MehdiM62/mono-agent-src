@@ -1847,7 +1847,7 @@ monoagentcli --profile work chat --mode coder --cwd ~/code/app -- "…"   # one 
   nothing about the profile (no summary in prompts, no MonoAgent surfaces
   for a dynamic org's workers); `workspace` and `full` follow
   `coder set --app-access`. `chat history create --access L` picks the
-  level (default scoped); `--mode assistant|coder` stays as an alias (scoped,
+  level (default: the coder default below when the operator creates it with coder mode ready, else scoped); `--mode assistant|coder` stays as an alias (scoped,
   full) and the JSON carries both `access` and `mode`. Migration 119 makes
   existing coder conversations `full`, the rest `scoped`.
   - Coder mode must be enabled (`coder enable`) for every level above scoped:
@@ -1890,7 +1890,8 @@ monoagentcli --profile work chat --mode coder --cwd ~/code/app -- "…"   # one 
     fails to report is a `warnings` entry, not an error. Extension chats
     (`general`, scoped) are plain rows: nothing marks them as the extension's.
   - `coder set --default-access scoped|coding|workspace|full` (operator only,
-    default scoped) is the level an operator-run `chat history create` with
+    default `full` when nothing is stored, what a coder chat always was; `coder status --json` reports it as
+    `defaultAccess` with `defaultAccessSource` `default|set`) is the level an operator-run `chat history create` with
     no `--access`/`--mode` makes, when coder mode is enabled and the runtime is
     ready (with `--profile-folder` unless a folder flag is given); otherwise
     scoped. It never applies to an agent, the chat or a workflow: their
