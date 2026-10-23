@@ -24,9 +24,15 @@ func (f *tokenFake) Detach(_ context.Context, id, token string) error {
 	return f.fake.Detach(context.Background(), id, token)
 }
 
-func writeResult(t *testing.T, body string) string {
+// writeResult puts body in task id's own work folder, the one place a
+// confined task may hand a result file back from.
+func writeResult(t *testing.T, d *Deps, id, body string) string {
 	t.Helper()
-	p := filepath.Join(t.TempDir(), "result.json")
+	work := filepath.Join(filepath.Dir(d.DBPath()), "aitask", id, "work")
+	if err := os.MkdirAll(work, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	p := filepath.Join(work, "result.json")
 	if err := os.WriteFile(p, []byte(body), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +72,7 @@ func TestSubmitWorkflowGenerateThenCompleteIsCheckedByTheValidator(t *testing.T)
 	if stored.Access != aitask.AccessWorkspace {
 		t.Errorf("access = %q", stored.Access)
 	}
-	for _, want := range []string{"fetch a url every morning", "workflow validate --file", "node schema", "aitask complete " + task.TaskID, `"workflow"`} {
+	for _, want := range []string{"fetch a url every morning", "the same validator", "node schema", "aitask complete " + task.TaskID, `"workflow"`} {
 		if !strings.Contains(stored.Prompt, want) {
 			t.Errorf("the first turn lacks %q:\n%s", want, stored.Prompt)
 		}
@@ -74,14 +80,14 @@ func TestSubmitWorkflowGenerateThenCompleteIsCheckedByTheValidator(t *testing.T)
 
 	t.Setenv(aitask.EnvToken, f.token)
 	// http.request without its url: the shape fits, the validator says no.
-	refused, err := run(t, d, "complete", task.TaskID, "--result", writeResult(t, workflowResultJSON("", `{"method":"GET"}`)))
+	refused, err := run(t, d, "complete", task.TaskID, "--result", writeResult(t, d, task.TaskID, workflowResultJSON("", `{"method":"GET"}`)))
 	if clicore.ExitCodeFor(err) != 3 || !strings.Contains(refused, `"code":"schema_invalid"`) || !strings.Contains(refused, "workflow validate") {
 		t.Fatalf("an invalid workflow must be refused (exit 3): %v %s", err, refused)
 	}
 	if got, _ := (&aitask.Store{DB: db.DB, Profile: "p1"}).Get(task.TaskID); got.Status != aitask.StatusRunning {
 		t.Fatalf("a refused result changed the task: %s", got.Status)
 	}
-	accepted, err := run(t, d, "complete", task.TaskID, "--result", writeResult(t, workflowResultJSON("", `{"method":"GET","url":"https://example.com/api"}`)))
+	accepted, err := run(t, d, "complete", task.TaskID, "--result", writeResult(t, d, task.TaskID, workflowResultJSON("", `{"method":"GET","url":"https://example.com/api"}`)))
 	if err != nil || !strings.Contains(accepted, `"status":"complete"`) {
 		t.Fatalf("a valid workflow is accepted: %v %s", err, accepted)
 	}
@@ -100,12 +106,12 @@ func TestSubmitFailedRunFixThenCompleteRefusesAnEditThatNamesNoWorkflow(t *testi
 	_ = json.Unmarshal([]byte(out), &task)
 	t.Setenv(aitask.EnvToken, f.token)
 	bad := `{"summary":"s","diagnosis":"d","fix":{"kind":"workflow-edit","description":"x"},"changed":[],"reran":false}`
-	refused, err := run(t, d, "complete", task.TaskID, "--result", writeResult(t, bad))
+	refused, err := run(t, d, "complete", task.TaskID, "--result", writeResult(t, d, task.TaskID, bad))
 	if clicore.ExitCodeFor(err) != 3 || !strings.Contains(refused, "changed is empty") {
 		t.Fatalf("%v %s", err, refused)
 	}
 	good := `{"summary":"s","diagnosis":"d","fix":{"kind":"workflow-edit","description":"x"},"changed":["wf-1"],"reran":false}`
-	if accepted, err := run(t, d, "complete", task.TaskID, "--result", writeResult(t, good)); err != nil || !strings.Contains(accepted, `"status":"complete"`) {
+	if accepted, err := run(t, d, "complete", task.TaskID, "--result", writeResult(t, d, task.TaskID, good)); err != nil || !strings.Contains(accepted, `"status":"complete"`) {
 		t.Fatalf("%v %s", err, accepted)
 	}
 }

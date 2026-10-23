@@ -36,7 +36,7 @@ var aitaskPolicy = map[string]struct {
 	"result":    {"either", map[string]string{}, []string{"{id}"}},
 	"cancel":    {"either", map[string]string{}, []string{"{id}"}},
 	"list":      {"either", map[string]string{"kind": "filter", "application": "filter"}, nil},
-	"complete":  {"holder", map[string]string{"result": "input"}, []string{"{id}", "--result", "{file}"}},
+	"complete":  {"holder", map[string]string{"result": "input", "result-json": "input"}, []string{"{id}", "--result", "{file}"}},
 	// "nested": has subcommands of its own, classified in aitask_budget_flags_test.go.
 	"budget": {"nested", map[string]string{}, nil},
 	"fail":   {"holder", map[string]string{"reason": "input"}, []string{"{id}", "--reason", "cannot"}},

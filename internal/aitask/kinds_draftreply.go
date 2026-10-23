@@ -23,9 +23,9 @@ const MaxDraftBodyChars = 20000
 //
 // DefaultAccess is qa, the least that works: the draft comes back as the
 // result and the person saves it, so the task needs to change nothing on the
-// computer. Note that qa is recorded and hashed with the task and gates
-// --unattended, but the turn itself is a coder conversation: the access level
-// is not what stops a send, the three rules above and the approval card are.
+// computer. The stranger's message is hostile text, so the turn is also
+// CONFINED (internal/cli/chat confinedKind): not a full-access coder turn, and
+// its only commands are `aitask complete|fail`.
 func init() {
 	Register(Kind{
 		Name:          KindDraftReply,

@@ -89,10 +89,7 @@ func TestDraftReplyFlowStoresADraftAndSendsNothing(t *testing.T) {
 	// The agent's own session hands the draft back.
 	t.Setenv(aitask.EnvTaskID, task.TaskID)
 	t.Setenv(aitask.EnvToken, f.token)
-	result := filepath.Join(t.TempDir(), "result.json")
-	if err := os.WriteFile(result, []byte(`{"summary":"Agrees to Friday","draft":{"to":"sam","subject":"Re: call","body":"Friday works for me."},"assumptions":["You are free on Friday"]}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	result := writeResult(t, d, task.TaskID, `{"summary":"Agrees to Friday","draft":{"to":"sam","subject":"Re: call","body":"Friday works for me."},"assumptions":["You are free on Friday"]}`)
 	if _, err := run(t, d, "complete", task.TaskID, "--result", result); err != nil {
 		t.Fatal(err)
 	}
@@ -121,8 +118,7 @@ func TestDraftReplyFlowStoresADraftAndSendsNothing(t *testing.T) {
 	_ = json.Unmarshal([]byte(out2), &t2)
 	t.Setenv(aitask.EnvTaskID, t2.TaskID)
 	t.Setenv(aitask.EnvToken, f2.token)
-	bad := filepath.Join(t.TempDir(), "bad.json")
-	_ = os.WriteFile(bad, []byte(`{"summary":"s","draft":{"body":"hi"},"assumptions":[],"send":true}`), 0o644)
+	bad := writeResult(t, d2, t2.TaskID, `{"summary":"s","draft":{"body":"hi"},"assumptions":[],"send":true}`)
 	if _, err := run(t, d2, "complete", t2.TaskID, "--result", bad); err == nil || !strings.Contains(err.Error(), "unexpected property") {
 		t.Fatalf("a result with a send flag must be refused: %v", err)
 	}

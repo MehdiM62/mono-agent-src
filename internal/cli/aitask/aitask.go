@@ -17,6 +17,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/monoes/mono-agent/internal/aitask"
+	chatcli "github.com/monoes/mono-agent/internal/cli/chat"
 	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/storage"
 )
@@ -371,22 +372,93 @@ func readResultFile(cmd *cobra.Command, path string) ([]byte, error) {
 	return b, nil
 }
 
+// resultPathAllowed says whether a confined task may hand back the file at
+// path: only one under its own work or context folder. A confined agent is
+// fed text written by strangers, so a --result of any file would let it probe
+// the user's files (the schema errors name keys and syntax). "-" (stdin) and a
+// task of another kind are not restricted.
+func (c *cli) resultPathAllowed(id, path string) error {
+	if path == "-" {
+		return nil
+	}
+	db, err := c.d.OpenDB()
+	if err != nil {
+		return nil // Complete reports the same failure
+	}
+	t, err := (&aitask.Store{DB: db.DB, Profile: c.d.ProfileID()}).Get(id)
+	db.Close()
+	if err != nil || !chatcli.ConfinedKind(t.Kind) {
+		return nil
+	}
+	stateDir := filepath.Dir(clicore.ExpandPath(c.d.DBPath()))
+	snapshot := aitask.SnapshotDir(stateDir, id)
+	work := filepath.Join(filepath.Dir(snapshot), "work")
+	if err := resolveBelow(path, work, snapshot); err == nil {
+		return nil
+	}
+	return clicore.InvalidInput("--result %s is not under this task's work folder (%s): a %s task may hand back a file from there, "+
+		"or its result with --result-json, or - for stdin", filepath.Base(path), work, t.Kind)
+}
+
+// resolveBelow resolves path (symlinks too) and returns nil when it lies under
+// one of dirs, themselves resolved. A path that does not exist yet is judged
+// by its parent folder.
+func resolveBelow(path string, dirs ...string) error {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return err
+	}
+	target, err := filepath.EvalSymlinks(abs)
+	if errors.Is(err, os.ErrNotExist) {
+		parent, perr := filepath.EvalSymlinks(filepath.Dir(abs))
+		if perr != nil {
+			return perr
+		}
+		target, err = filepath.Join(parent, filepath.Base(abs)), nil
+	}
+	if err != nil {
+		return err
+	}
+	for _, d := range dirs {
+		rd, err := filepath.EvalSymlinks(d)
+		if err != nil {
+			continue
+		}
+		if rel, err := filepath.Rel(rd, target); err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && !filepath.IsAbs(rel) {
+			return nil
+		}
+	}
+	return errors.New("outside")
+}
+
 func (c *cli) complete() *cobra.Command {
-	var resultFile string
+	var resultFile, resultJSON string
 	cmd := &cobra.Command{
-		Use:   "complete <id> --result FILE",
+		Use:   "complete <id> (--result FILE | --result-json JSON)",
 		Short: "Hand a task's result back (only the task's own session)",
-		Long: "Checks FILE (a JSON value; - reads stdin) against the task kind's schema and records it as the result. " +
-			"A result that doesn't match is refused (exit 3, schema_invalid) with the reason; fix the file and run it " +
-			"again. Needs the task's token, " + aitask.EnvToken + " in this session's environment.",
+		Long: "Checks FILE (a JSON value; - reads stdin) or the --result-json text against the task kind's schema and records it as the result. " +
+			"A result that doesn't match is refused (exit 3, schema_invalid) with the reason; fix it and run it " +
+			"again. A confined task (one whose agent has no file tools) hands its result back with --result-json, or from a " +
+			"file in its own work folder. Needs the task's token, " + aitask.EnvToken + " in this session's environment.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if resultFile == "" {
-				return clicore.InvalidInput("--result FILE is required")
+			if (resultFile == "") == (resultJSON == "") {
+				return clicore.InvalidInput("give exactly one of --result FILE and --result-json JSON")
 			}
-			b, err := readResultFile(cmd, resultFile)
-			if err != nil {
-				return err
+			var b []byte
+			if resultJSON != "" {
+				if len(resultJSON) > aitask.MaxResultBytes {
+					return clicore.InvalidInput("--result-json is larger than %d MB", aitask.MaxResultBytes>>20)
+				}
+				b = []byte(resultJSON)
+			} else {
+				if err := c.resultPathAllowed(args[0], resultFile); err != nil {
+					return err
+				}
+				var err error
+				if b, err = readResultFile(cmd, resultFile); err != nil {
+					return err
+				}
 			}
 			return c.withTask(cmd, args[0], func(svc *aitask.Service) (aitask.Task, error) {
 				return svc.Complete(args[0], os.Getenv(aitask.EnvToken), b)
@@ -394,6 +466,7 @@ func (c *cli) complete() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&resultFile, "result", "", "File holding the result JSON (- for stdin)")
+	cmd.Flags().StringVar(&resultJSON, "result-json", "", "The result JSON itself, for an agent that cannot write a file")
 	return cmd
 }
 

@@ -32,11 +32,11 @@ const workflowGeneratePrompt = `You are building ONE workflow for the user from 
 
 1. Find before you build. Run ` + "`monoagentcli --profile <profile> workflow search <words>`" + ` and ` + "`monoagentcli workflow templates list`" + `; a template or an existing workflow that does most of it is a better start than a blank page (read it with ` + "`workflow templates show <id>`" + ` or ` + "`workflow get <id>`" + `, never ` + "`templates use`" + `, which saves a copy).
 2. Look up the node types: ` + "`monoagentcli node list [--filter x]`" + ` and ` + "`monoagentcli node schema <type>`" + ` for each one you use, and ` + "`monoagentcli ref workflow`" + `, ` + "`ref expressions`" + ` and ` + "`ref examples`" + ` for the format. Use only node types that exist, with exactly the config keys the schema names, and fill every required field.
-3. Write the workflow JSON to a file in your working folder: name, description, nodes (id, type, name, position, config) and connections (source, source_handle, target, target_handle; "main" unless the node has named outputs). Exactly one trigger node; trigger.manual unless the goal asks for a schedule or a webhook. "is_active" stays false.
-4. Check it: ` + "`monoagentcli workflow validate --file <that file> --json`" + ` and fix every error until it reports valid. Warnings such as needs_setup (an account the user still has to connect) are fine; list them in the summary.
+3. Write the workflow as JSON: name, description, nodes (id, type, name, position, config) and connections (source, source_handle, target, target_handle; "main" unless the node has named outputs). Exactly one trigger node; trigger.manual unless the goal asks for a schedule or a webhook. "is_active" stays false. You run in a confined session with no file to write: the document goes straight into the result.
+4. Check it by handing it back: ` + "`aitask complete`" + ` runs the same validator as ` + "`workflow validate`" + ` and refuses the result with the validator's reasons; fix every error and run it again until it is accepted. Warnings such as needs_setup (an account the user still has to connect) are fine; list them in the summary. Put {"valid": true} (and the warnings you know of) in validation.
 5. Never put a real password, token or API key in the workflow: use the placeholder REPLACE_ME or a saved connection (credential_id). Do not read the vault or the user's other data to fill values in. Do not save, import, run or activate anything.
 
-The result is {summary, workflow, validation}: summary says in a few sentences what the workflow does and what the user still has to supply; workflow is the JSON document from step 3; validation is the report that step 4 printed. The result is checked again with the same validator when you hand it back, and refused with the validator's reasons if the workflow does not pass.`
+The result is {summary, workflow, validation}: summary says in a few sentences what the workflow does and what the user still has to supply; workflow is the JSON document from step 3; validation says it is valid. The verdict is recomputed with the validator when you hand it back, and the result is refused with the validator's reasons if the workflow does not pass.`
 
 // workflowGenerateSchema: the document is checked by Validate with the real
 // validator; the schema fixes the shape around it.
@@ -101,7 +101,7 @@ const failedRunFixPrompt = `A workflow run failed and you are to find out why an
 
 1. Read the run: ` + "`monoagentcli --profile <profile> workflow executions <workflow id>`" + ` and ` + "`monoagentcli --profile <profile> workflow execution <execution id> --json`" + ` give the status, the error and every node's input and output. Read the workflow with ` + "`workflow get <id>`" + `. Do not read other people's data or the vault to chase the cause.
 2. Say what went wrong in plain words (diagnosis), pointing at the node and the field.
-3. Decide the fix. A change to the workflow itself (a wrong field, a bad expression, a missing node) is a workflow-edit: make it with the workflow edit commands (` + "`monoagentcli workflow edit --help`" + ` lists them), then run ` + "`workflow validate <id>`" + ` and fix what it reports. A cause outside the workflow (an account that needs reconnecting, a setting, an input the user must supply) is config: describe exactly what the user must do, and change nothing. When the cause is not clear, or the run failed for a reason that is not the workflow's (the site was down), the fix is none: say so.
+3. Decide the fix. A change to a node of the workflow itself (a wrong field, a bad expression) is a workflow-edit: make it with ` + "`monoagentcli --profile <profile> workflow node set <workflow id> <node id> …`" + ` (` + "`workflow node set --help`" + ` shows the flags; it is the only edit command you have), then run ` + "`workflow validate <id>`" + ` and fix what it reports. A change that adds or removes a node or a connection is out of reach: describe it exactly, as config. A cause outside the workflow (an account that needs reconnecting, a setting, an input the user must supply) is config: describe exactly what the user must do, and change nothing. When the cause is not clear, or the run failed for a reason that is not the workflow's (the site was down), the fix is none: say so.
 4. Never re-run the workflow, and never activate it, unless the user asked in this chat. If you do run it, say so: set reran to true and give the new execution id in rerunExecutionId. Do not change any workflow other than the one named in the goal unless the cause is in a sub-workflow it calls, and then list every workflow you changed.
 
 The result is {summary, diagnosis, fix: {kind, description}, changed, reran}: changed lists the ids of the workflows you edited (empty unless fix.kind is workflow-edit, and not empty then).`
@@ -148,11 +148,11 @@ func validateFailedRunFix(v any) error {
 }
 
 func init() {
-	// workflow-generate runs at workspace, not qa: it must write its draft to a
-	// file to check it with `workflow validate --file`, and read the profile's
-	// templates and workflows to start from. It saves, imports and runs nothing
-	// (the prompt says so, and the result is a document the user saves), and
-	// the validator re-checks that document here.
+	// workflow-generate reads the profile's templates and workflows to start
+	// from. It saves, imports and runs nothing (the prompt says so, and the
+	// result is a document the user saves), and the validator re-checks that
+	// document here. Its turns are CONFINED to look-up commands (internal/cli/chat
+	// confinedVerbs): it reads node output and names written by others.
 	Register(Kind{
 		Name:           KindWorkflowGenerate,
 		Schema:         workflowGenerateSchema,
@@ -160,8 +160,9 @@ func init() {
 		DefaultAccess:  AccessWorkspace,
 		Validate:       validateGeneratedWorkflow,
 	})
-	// failed-run-fix edits the workflow it names through the CLI, so it needs
-	// the workspace level; it is never unattended and never re-runs on its own.
+	// failed-run-fix edits the workflow it names through the CLI (confined to
+	// `workflow node set` as the one edit verb), so it needs the workspace
+	// level; it is never unattended and never re-runs on its own.
 	Register(Kind{
 		Name:           KindFailedRunFix,
 		Schema:         failedRunFixSchema,
