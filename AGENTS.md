@@ -944,6 +944,7 @@ picks no profile: workflows and HIL items live under `/profiles/{profile}/...`
 registered when started with `--allow-mutations` or
 `MONOAGENT_HTTPAPI_ALLOW_MUTATIONS=1` — otherwise those paths 404 rather
 than 403, so a probe can't distinguish "opted out" from "doesn't exist".
+Requests whose `Host` header is not a loopback spelling of the bound port (`127.0.0.1`, `localhost`, `[::1]`) get 421 before routing or any token check; other names are served only when listed in `MONOAGENT_HTTPAPI_ALLOWED_HOSTS` (comma-separated `host:port`).
 Every request needs `Authorization: Bearer <token>` except `GET /health`;
 each profile has its own token, created when the server starts and stored in
 that profile's secrets vault (`--profile <p> secret list`, name
@@ -1846,7 +1847,7 @@ monoagentcli --profile work chat --mode coder --cwd ~/code/app -- "…"   # one 
   nothing about the profile (no summary in prompts, no MonoAgent surfaces
   for a dynamic org's workers); `workspace` and `full` follow
   `coder set --app-access`. `chat history create --access L` picks the
-  level (default scoped); `--mode assistant|coder` stays as an alias (scoped,
+  level (default: the coder default below when the operator creates it with coder mode ready, else scoped); `--mode assistant|coder` stays as an alias (scoped,
   full) and the JSON carries both `access` and `mode`. Migration 119 makes
   existing coder conversations `full`, the rest `scoped`.
   - Coder mode must be enabled (`coder enable`) for every level above scoped:
@@ -1889,7 +1890,8 @@ monoagentcli --profile work chat --mode coder --cwd ~/code/app -- "…"   # one 
     fails to report is a `warnings` entry, not an error. Extension chats
     (`general`, scoped) are plain rows: nothing marks them as the extension's.
   - `coder set --default-access scoped|coding|workspace|full` (operator only,
-    default scoped) is the level an operator-run `chat history create` with
+    default `full` when nothing is stored, what a coder chat always was; `coder status --json` reports it as
+    `defaultAccess` with `defaultAccessSource` `default|set`) is the level an operator-run `chat history create` with
     no `--access`/`--mode` makes, when coder mode is enabled and the runtime is
     ready (with `--profile-folder` unless a folder flag is given); otherwise
     scoped. It never applies to an agent, the chat or a workflow: their
@@ -3549,7 +3551,9 @@ monoagentcli --profile P aitask fail <id> --reason TEXT                   # the 
   Spend is summed from the conversation's `usage.updated` events, lead and dynamic-org workers together, so spawning
   workers can't dodge a cap; a task that reported no cost keeps counting for its whole cap. `set` (raise or change, `--clear`)
   is operator-only; `lower --task ID --usd N` is the operator's or the task's own session's, lowers its conversation's cap
-  and never raises it (`cap_raise_refused`). `show --task ID` gives one task's cap and spend.
+  and never raises it (`cap_raise_refused`). `lower --conversation ID --usd N` (the operator, or the session of a task in that
+  conversation) creates or lowers that conversation's cap only to a value strictly below the cap that applies to it now
+  (`cap_raise_refused` otherwise, `no_cap_to_lower` when none applies: a chat can't make spend authority). `show --task ID` gives one task's cap and spend.
 - `ai.task` workflow node: QUEUES a task (`kind`, `goal`, `context` as `CLASS=PATH`, `application_id`, `access`, `runtime`)
   and returns `{taskId, conversationId, status: "queued"}` at once. It never starts or waits for the task (a person
   starts it from the bubble queue; read the result later with `aitask result`), cannot run it unattended, and refuses any run
@@ -3568,6 +3572,18 @@ monoagentcli --profile P aitask fail <id> --reason TEXT                   # the 
   access or changes routing stays operator-only (`TestEveryAitaskFlagIsClassified`).
 - Exit codes: 2 unknown task, 3 refusals (`unknown_kind`, `schema_invalid`, `bad_token`, `task_closed`, …), 1
   `wait_timeout`.
+
+Kinds (`aitask.Register`; the profile-facing ones live in `internal/aitaskkinds`). All three below ask for `workspace`
+access (they drive `monoagentcli --profile P …`, which `coding` is not told about), are never unattended, treat context and
+run output as data, and never run a workflow or send anything:
+
+| Kind | Input (`selection`) | Result | What the agent may do |
+| --- | --- | --- | --- |
+| `generic` | the goal | `{summary}` | whatever the goal asks (`coding`) |
+| `application-apply` | posting, facts, documents | fill record | fill the form in the browser, never submit (confined) |
+| `workflow-generate` | the brief | `{workflowId, name, summary, nodeCount, validation:{ok, errors}}` | `node list/schema`, `ref`, `workflow validate/import`; saved inactive and AI-authored until the user approves; `aitaskkinds.CheckResult` refuses a `workflowId` the profile does not have |
+| `recording-analyze` | recording id + title | `{recordingId, automationName?, summary, saved:false, verified:false}` | `record analyze <id> --json` only; never reads the recording; `record save`/`verify` stay the user's |
+| `failed-run-fix` | workflow id, execution id, failing node ids, redacted error | `{workflowId, executionId, diagnosis, changed, changes, needsApproval}` | `workflow execution/get`, `workflow node …`, `workflow connect`, `workflow validate`; the edit unapproves the workflow; never reruns |
 
 # monomind:start instructions:opencode
 # Monomind

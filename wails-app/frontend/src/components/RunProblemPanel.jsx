@@ -12,13 +12,33 @@ export function problemText(problem) {
   return lines.join('\n')
 }
 
+const ERROR_CAP = 500
+const CONTEXT_CAP = 4096
+const clip = (text, n) => (text.length > n ? `${text.slice(0, n - 1)}…` : text)
+
+// failedRunContext is what a failed-run-fix task is given: the workflow and
+// execution ids, the failing node ids and each error text (500 chars each,
+// 4 KB in all). Never a node's output payload.
+export function failedRunContext(problem, workflowId, executionId) {
+  const lines = [`workflow: ${workflowId || ''}`, `execution: ${executionId || ''}`]
+  if (problem.error) lines.push(`run error: ${clip(withoutAgentSetupMarker(problem.error), ERROR_CAP)}`)
+  for (const f of problem.failed) lines.push(`node ${f.id || ''} (${f.name}): ${clip(withoutAgentSetupMarker(f.error || 'failed'), ERROR_CAP)}`)
+  let out = ''
+  for (const line of lines) {
+    const next = out ? `${out}\n${line}` : line
+    if (new TextEncoder().encode(next).length > CONTEXT_CAP) break
+    out = next
+  }
+  return out
+}
+
 // The "why did it fail" panel under the editor toolbar: the execution's own
 // error and each failed node's. problem is runProblem() from
 // lib/runFailure.js; clicking a node row selects that node on the canvas.
 // onSendToCoder, when given, adds "Fix with coder": it is called with the
 // failure text and returns { goal, origin } (how to frame the task and which
 // tab it came from); the failure itself goes to the coder as selection text.
-export default function RunProblemPanel({ problem, onSelectNode, onClose, onSendToCoder }) {
+export default function RunProblemPanel({ problem, onSelectNode, onClose, onSendToCoder, workflowId, executionId }) {
   if (!problem) return null
   const failed = problem.status === 'FAILED'
   const tone = failed ? '#ef4444' : '#fbbf24'
@@ -53,8 +73,8 @@ export default function RunProblemPanel({ problem, onSelectNode, onClose, onSend
         ))}
       </div>
       {coder && (
-        <SendToCoderButton label="Fix with coder" goal={coder.goal} origin={coder.origin}
-          context={() => [selectionText(problemText(problem))]} />
+        <SendToCoderButton kind="failed-run-fix" label="Fix with coder" goal={coder.goal} origin={coder.origin}
+          context={() => [selectionText(failedRunContext(problem, workflowId, executionId))]} />
       )}
       <button onClick={onClose} aria-label="Hide error" title="Hide error" style={{
         background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 2, display: 'flex',

@@ -51,6 +51,11 @@ type Options struct {
 	// so only scoped agent tokens open the API. Empty consults
 	// MONOAGENT_HTTPAPI_DISABLE_PROFILE_BEARER=="1".
 	DisableProfileBearer bool
+	// AllowedHosts are extra Host header values (host:port) the server answers to.
+	// The loopback spellings of the bound port are always allowed; a server bound to
+	// a non-loopback address serves other names only when they are listed here or in
+	// MONOAGENT_HTTPAPI_ALLOWED_HOSTS (comma separated).
+	AllowedHosts []string
 	// Version is reported by /health.
 	Version string
 

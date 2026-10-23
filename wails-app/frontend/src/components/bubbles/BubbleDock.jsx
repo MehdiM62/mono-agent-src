@@ -40,7 +40,7 @@ function ChatBubble({ bubble, summary, expanded, onOpen, onClose, onDragStart, o
       {hover && !expanded && (
         <div className="bubble-card" role="tooltip">
           <div className="bubble-card-title">{name}</div>
-          {isOrg && <div>{t('orgBubble.cardKind')}</div>}
+          {isOrg && <div>{bubble.finished ? t('orgBubble.status.finished') : t('orgBubble.cardKind')}{bubble.runId ? ` · ${t('orgBubble.runLabel', { id: bubble.runId.slice(0, 8) })}` : ''}</div>}
           {bubble.cwd && <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', direction: 'rtl', textAlign: 'left' }}><bdi>{bubble.cwd}</bdi></div>}
           <div style={{ marginTop: 4, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <span>{t(`bubbles.${statusKey[summary.status] || 'statusIdle'}`)}</span>
@@ -80,7 +80,7 @@ export function BubbleDock({ store, onOpen, onClose, registerEl, canCreate = tru
 
   return (
     <div className={`bubble-dock ${side}`} data-testid="bubble-dock" role="toolbar" aria-label={t('bubbles.dockLabel')}>
-      {visible.map(b => <ChatBubble key={b.key} {...bubbleProps(b)} />)}
+      {visible.map(b => <ChatBubble key={b.slot || b.key} {...bubbleProps(b)} />)}
       {overflow.length > 0 && (
         <div className="bubble-wrap">
           <button type="button" className="bubble" data-status="idle" onClick={() => setFanOpen(o => !o)}
@@ -90,7 +90,7 @@ export function BubbleDock({ store, onOpen, onClose, registerEl, canCreate = tru
           </button>
           {fanOpen && (
             <div className="bubble-overflow" data-testid="bubble-overflow">
-              {overflow.map(b => <ChatBubble key={b.key} {...bubbleProps(b)} />)}
+              {overflow.map(b => <ChatBubble key={b.slot || b.key} {...bubbleProps(b)} />)}
             </div>
           )}
         </div>

@@ -34,21 +34,20 @@ describe('StatusBar HIL toggle', () => {
     cleanup()
   })
 
-  it('renders HIL toggle next to the new-chat icon and handles click', async () => {
-    const { CoderBubbleContext } = await import('./bubbles/CoderBubbleContext.jsx')
+  it('renders HIL toggle next to the history icon and handles click', async () => {
+    const { onHistoryRequest } = await import('./history/historyBus.js')
+    const seen = vi.fn()
+    const off = onHistoryRequest(seen)
     const onToggleHil = vi.fn()
-    const openNewChat = vi.fn()
 
     render(
-      <CoderBubbleContext.Provider value={{ openDraft: null, openNewChat, navigate: null }}>
-        <StatusBar
-          stats={{ total_workflows: 5, total_people: 10, active_sessions: 1 }}
-          dbConnected={true}
-          hilOpen={false}
-          hilCount={3}
-          onToggleHil={onToggleHil}
-        />
-      </CoderBubbleContext.Provider>
+      <StatusBar
+        stats={{ total_workflows: 5, total_people: 10, active_sessions: 1 }}
+        dbConnected={true}
+        hilOpen={false}
+        hilCount={3}
+        onToggleHil={onToggleHil}
+      />
     )
 
     const hilBtn = screen.getByTestId('hil-status-toggle')
@@ -58,25 +57,21 @@ describe('StatusBar HIL toggle', () => {
     fireEvent.click(hilBtn)
     expect(onToggleHil).toHaveBeenCalledTimes(1)
 
-    fireEvent.click(screen.getByTitle('New chat'))
-    expect(openNewChat).toHaveBeenCalledTimes(1)
-    expect(openNewChat).toHaveBeenCalledWith()
+    fireEvent.click(screen.getByTestId('history-status-toggle'))
+    expect(seen).toHaveBeenCalledWith('toggle')
+    off()
   })
 })
 
-describe('StatusBar new-chat button', () => {
+describe('StatusBar history button', () => {
   afterEach(() => cleanup())
 
-  it('has an accessible name and shows no dead button without the bubble store', async () => {
+  it('is always there, has an accessible name, and replaces the old chat icon', () => {
     render(<StatusBar stats={{}} dbConnected={true} />)
+    const btn = screen.getByLabelText('history.title')
+    expect(btn).toBeInTheDocument()
+    expect(btn).toHaveAttribute('aria-haspopup', 'dialog')
     expect(screen.queryByLabelText('New chat')).toBeNull()
-    cleanup()
-    const { CoderBubbleContext } = await import('./bubbles/CoderBubbleContext.jsx')
-    render(
-      <CoderBubbleContext.Provider value={{ openDraft: null, openNewChat: vi.fn(), navigate: null }}>
-        <StatusBar stats={{}} dbConnected={true} />
-      </CoderBubbleContext.Provider>,
-    )
-    expect(screen.getByLabelText('New chat')).toBeInTheDocument()
+    expect(screen.queryByTitle('New chat')).toBeNull()
   })
 })

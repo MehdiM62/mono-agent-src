@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/monoes/mono-agent/internal/tlsserve"
 )
 
 // DefaultAPIAddr is where `monoagentcli daemon` serves the HTTP API and
@@ -36,7 +38,7 @@ func EndpointURL(apiAddr, id string) string {
 	if apiAddr == "" {
 		apiAddr = DefaultAPIAddr
 	}
-	return "http://" + apiAddr + "/org-endpoint/" + id
+	return "http://" + tlsserve.ClientAddr(apiAddr) + "/org-endpoint/" + id
 }
 
 // EndpointIDFromURL extracts the ep_ id from an endpoint URL, or "".

@@ -28,6 +28,8 @@ func NewCommand(d Deps) *cobra.Command {
 		Long: "Starts a REST/JSON HTTP server exposing workflows, node types, and the HIL queue " +
 			"for external agents that cannot speak the stdio MCP protocol (see `monoagentcli mcp`).\n\n" +
 			"Loopback-only by default (127.0.0.1:9322) — override with --addr or MONOAGENT_HTTPAPI_ADDR. " +
+			"A request whose Host header is not a loopback name of the bound port gets 421; on a non-loopback bind, " +
+			"allow other names with MONOAGENT_HTTPAPI_ALLOWED_HOSTS=host:port,... " +
 			"Every request requires `Authorization: Bearer <token>` except GET /health; the token is " +
 			"generated for each profile when the server starts and stored in that profile's secrets vault " +
 			"(`monoagentcli --profile <p> secret list`, name \"httpapi-token\", field token; only the user " +
@@ -122,7 +124,7 @@ func NewCommand(d Deps) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&addr, "addr", "", "Listen address (default 127.0.0.1:9322, or MONOAGENT_HTTPAPI_ADDR)")
+	cmd.Flags().StringVar(&addr, "addr", "", "Listen address (default 127.0.0.1:9322, or MONOAGENT_HTTPAPI_ADDR); on a non-loopback address, requests by LAN IP or hostname get 421 unless listed in MONOAGENT_HTTPAPI_ALLOWED_HOSTS=host:port,...")
 	api.Bind(cmd)
 	cmd.Flags().BoolVar(&allowMutations, "allow-mutations", false,
 		"Serve mutating endpoints (workflow run/activate/deactivate, hil approve/reject); also settable via MONOAGENT_HTTPAPI_ALLOW_MUTATIONS=1")

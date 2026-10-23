@@ -295,7 +295,7 @@ describe('an org bubble', () => {
     await waitFor(() => expect(document.querySelector('[data-bubble="org:acme"]')).toBeTruthy())
     expect(screen.queryByTestId('org-bubble-overlay')).toBeNull()
     const saved = JSON.parse(localStorage.getItem('monoagent:coderBubbles:v1'))
-    expect(saved.bubbles).toEqual([{ kind: 'org', orgName: 'acme' }])
+    expect(saved.bubbles).toEqual([{ kind: 'org', orgName: 'acme', runId: '', finished: false }])
     expect(storeRef.bubbles[0]).toMatchObject({ key: 'org:acme', kind: 'org', orgName: 'acme' })
   })
 })

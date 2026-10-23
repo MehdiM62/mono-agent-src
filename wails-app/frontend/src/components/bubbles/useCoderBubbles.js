@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api, onChatEvent, onOrgEvent } from '../../services/api.js'
 import {
-  newDraftKey, emptySummary, applyChatEvent, summaryFromTurns, moveBubble, loadState, saveState, orgBubble, isOrgBubble,
+  newDraftKey, emptySummary, applyChatEvent, summaryFromTurns, moveBubble, loadState, saveState, orgBubble, orgBubbleKey, isOrgBubble,
 } from '../../lib/coderBubbles.js'
 import { isAccess } from '../../lib/chatAccess.js'
 import {
@@ -37,6 +37,10 @@ function rootRoleOf(design) {
 // a bubble (#229) is { key: 'org:<name>', kind: 'org', orgName }: its
 // collapsed summary is folded from `org:event` (the orgActivity reducer),
 // and the store holds the org's event tail while the bubble is open.
+// A circle is one org RUN: { key: 'org:<name>#<runId>', runId } once the run
+// is known (the first running event has no id: that bubble is re-keyed in
+// place), and a run that is over opens as a read-only { finished: true }
+// bubble. An org has at most one live bubble.
 export function useCoderBubbles() {
   const initial = useMemo(() => loadState(), [])
   const [bubbles, setBubbles] = useState(initial.bubbles)
@@ -59,8 +63,11 @@ export function useCoderBubbles() {
   const byConversation = useRef({})
   byConversation.current = Object.fromEntries(bubbles.filter(b => b.conversationId).map(b => [b.conversationId, b.key]))
   const byOrg = useRef({})
-  byOrg.current = Object.fromEntries(bubbles.filter(isOrgBubble).map(b => [b.orgName, b.key]))
-  const orgKey = bubbles.filter(isOrgBubble).map(b => b.orgName).join('\u0000')
+  const bubblesRef = useRef(bubbles)
+  bubblesRef.current = bubbles
+  const isLiveOrg = b => isOrgBubble(b) && !b.finished
+  byOrg.current = Object.fromEntries(bubbles.filter(isLiveOrg).map(b => [b.orgName, b.key]))
+  const orgKey = bubbles.filter(isLiveOrg).map(b => b.orgName).join('\u0000')
 
   useEffect(() => { saveState({ bubbles, side }) }, [bubbles, side])
 
@@ -96,11 +103,12 @@ export function useCoderBubbles() {
     return () => releases.forEach(release => release())
   }, [orgKey])
 
-  const seedOrg = useCallback((name, key) => {
+  // runId is the run a finished bubble reads; a live bubble reads the current one.
+  const seedOrg = useCallback((name, key, runId = '') => {
     Promise.resolve().then(() => api.getOrgDesign(name))
       .then(design => { const boss = rootRoleOf(design); if (boss) bosses.current[name] = boss })
       .catch(() => {})
-    Promise.resolve().then(() => api.getOrgLogs(name, ''))
+    Promise.resolve().then(() => api.getOrgLogs(name, runId))
       .then(res => {
         setOrgSummaries(s => {
           let sum = s[key] || emptyOrgSummary(name)
@@ -112,7 +120,7 @@ export function useCoderBubbles() {
   }, [])
 
   useEffect(() => {
-    for (const b of initial.bubbles) if (isOrgBubble(b)) seedOrg(b.orgName, b.key)
+    for (const b of initial.bubbles) if (isOrgBubble(b)) seedOrg(b.orgName, b.key, b.finished ? b.runId : '')
   }, [initial, seedOrg])
 
   useEffect(() => onOrgEvent(payload => {
@@ -210,20 +218,63 @@ export function useCoderBubbles() {
     setBubbles(list => list.map(b => (b.key === key ? { ...b, ...patch } : b)))
   }, [])
 
-  // openOrg shows a running org as a bubble, reusing its bubble when it has
-  // one. expand: false adds it collapsed (an org that asks the person
-  // something gets a bubble without taking over the screen).
-  const openOrg = useCallback((name, { expand: open = true } = {}) => {
+  // rekeyBubble gives a bubble a new key without remounting it (its slot
+  // stays) and moves everything held under the old key.
+  const rekeyBubble = useCallback((from, to, patch) => {
+    setBubbles(list => list.map(b => (b.key === from ? { ...b, ...patch, key: to } : b)))
+    const move = s => { if (!(from in s)) return s; const { [from]: v, ...rest } = s; return { ...rest, [to]: v } }
+    setOrgSummaries(move)
+    setHilNeedsState(move)
+    if (viewState.current[from]) { viewState.current[to] = viewState.current[from]; delete viewState.current[from] }
+    setExpandedKey(k => (k === from ? to : k))
+    if (expandedRef.current === from) expandedRef.current = to
+  }, [])
+
+  // openOrg shows an org run as a bubble. A finished run (finished: true,
+  // with its runId) opens read-only under its own key. Otherwise it is the
+  // org's one live bubble: reused when it has one, re-keyed to the run when
+  // the id arrives, and a bubble of an earlier run becomes a finished one
+  // when a new run starts. expand: false adds it collapsed (an org that asks
+  // the person something gets a bubble without taking over the screen).
+  const openOrg = useCallback((name, { expand: open = true, runId = '', finished = false } = {}) => {
     if (!name) return ''
+    if (finished && runId) {
+      const key = orgBubbleKey(name, runId)
+      const have = bubblesRef.current.some(x => x.key === key)
+      if (!have) {
+        const b = orgBubble(name, runId, true)
+        bubblesRef.current = [...bubblesRef.current, b]
+        setBubbles(list => (list.some(x => x.key === key) ? list : [...list, b]))
+        seedOrg(name, key, runId)
+      }
+      if (open) expand(key)
+      return key
+    }
     const existing = byOrg.current[name]
-    if (existing) { if (open) expand(existing); return existing }
-    const b = orgBubble(name)
+    const cur = existing && bubblesRef.current.find(x => x.key === existing)
+    if (cur && (!runId || cur.runId === runId)) { if (open) expand(existing); return existing }
+    if (cur && !cur.runId) {
+      const to = orgBubbleKey(name, runId)
+      byOrg.current = { ...byOrg.current, [name]: to }
+      bubblesRef.current = bubblesRef.current.map(x => (x.key === existing ? { ...x, key: to, runId } : x))
+      rekeyBubble(existing, to, { runId })
+      if (open) expand(to)
+      return to
+    }
+    if (cur) {
+      // A new run: the earlier one stays, read-only.
+      bubblesRef.current = bubblesRef.current.map(x => (x.key === existing ? { ...x, finished: true } : x))
+      setBubbles(list => list.map(x => (x.key === existing ? { ...x, finished: true } : x)))
+      setHilNeedsState(h => { if (!h[existing]) return h; const next = { ...h }; delete next[existing]; return next })
+    }
+    const b = orgBubble(name, runId)
     byOrg.current = { ...byOrg.current, [name]: b.key }
+    bubblesRef.current = [...bubblesRef.current, b]
     setBubbles(list => (list.some(x => x.key === b.key) ? list : [...list, b]))
     seedOrg(name, b.key)
     if (open) expand(b.key)
     return b.key
-  }, [expand, seedOrg])
+  }, [expand, seedOrg, rekeyBubble])
 
   // bindConversation turns a draft into a real conversation once its first
   // message created one.
@@ -246,7 +297,16 @@ export function useCoderBubbles() {
   // status, unread and cost), plus how many items wait for the person.
   const orgSummaryOf = (key) => {
     const sum = orgSummaries[key]
-    const extra = hilNeeds[key] || 0
+    const finished = bubbles.find(b => b.key === key)?.finished
+    const extra = finished ? 0 : hilNeeds[key] || 0
+    if (finished) {
+      // A run that is over waits on nobody and works on nothing.
+      const cost = sum?.activity.usage.costUsd
+      return {
+        ...emptySummary(), status: sum && orgBubbleStatus(sum, 0) === 'error' ? 'error' : 'done', unread: sum?.unread || 0,
+        costByTurn: cost ? { [sum.activity.run || 'run']: cost } : {}, needs: 0,
+      }
+    }
     if (!sum) return { ...emptySummary(), status: extra > 0 ? 'needs' : 'idle', needs: extra }
     const cost = sum.activity.usage.costUsd
     return {

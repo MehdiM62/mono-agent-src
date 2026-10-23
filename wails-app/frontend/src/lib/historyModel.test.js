@@ -1,10 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { bubbleKeyOf, liveStatus, relativeTime, toFilter, reconcileRefresh, orgRunTarget, orgRunLabel, mergePage, deleteOutcome, chatIdsOnly } from './historyModel.js'
+import { bubbleKeyOf, liveStatus, relativeTime, toFilter, reconcileRefresh, orgRunOpening, orgRunLabel, mergePage, deleteOutcome, chatIdsOnly } from './historyModel.js'
 
 describe('historyModel', () => {
   it('keys chats by id and orgs by name', () => {
     expect(bubbleKeyOf({ kind: 'chat', id: 'c1' })).toBe('c1')
     expect(bubbleKeyOf({ kind: 'org', id: 'r1', orgName: 'acme' })).toBe('org:acme')
+    expect(bubbleKeyOf({ kind: 'org', id: 'r1', orgName: 'acme', runId: 'r-1' })).toBe('org:acme#r-1')
   })
   it('lets a live running/needs summary override the stored status only', () => {
     const row = { status: 'done' }
@@ -26,11 +27,12 @@ describe('historyModel', () => {
     expect(toFilter({ kind: 'chat', query: '  x ' })).toEqual({ kind: 'chat', status: '', application: '', query: 'x' })
     expect(toFilter({ linked: true }).application).toBe('any')
   })
-  it('opens only the latest run of an org as a bubble', () => {
-    expect(orgRunTarget({ runId: 'r2', status: 'done' }, { run: 'r2' })).toBe('bubble')
-    expect(orgRunTarget({ runId: 'r1', status: 'done' }, { run: 'r2' })).toBe('orgs')
-    expect(orgRunTarget({ runId: '', status: 'running' }, null)).toBe('bubble')
-    expect(orgRunTarget({ runId: '', status: 'done' }, { run: '' })).toBe('orgs')
+  it('opens the running run live and any other run read-only', () => {
+    expect(orgRunOpening({ runId: 'r2', status: 'running' }, { run: 'r2', status: 'running' })).toEqual({ runId: 'r2', finished: false })
+    expect(orgRunOpening({ runId: 'r2', status: 'done' }, { run: 'r2', status: 'stopped' })).toEqual({ runId: 'r2', finished: true })
+    expect(orgRunOpening({ runId: 'r1', status: 'running' }, { run: 'r2', status: 'running' })).toEqual({ runId: 'r1', finished: true })
+    expect(orgRunOpening({ runId: '', status: 'running' }, null)).toEqual({ runId: '', finished: false })
+    expect(orgRunOpening({ runId: '', status: 'done' }, { run: '' })).toBeNull()
   })
   it('labels a run', () => {
     expect(orgRunLabel({ runId: 'abcdef123456', updatedAt: '2026-10-20T10:00:00Z' })).toBe('run abcdef12 \u00b7 2026-10-20')

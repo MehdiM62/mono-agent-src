@@ -280,7 +280,7 @@ Waves (each merges to `integration/aitask` before the next; file ownership per w
 - **U1 Go: unified history and bindings.** `chat history list --all` (new file; task join, latest turn status, derived title
   from the task goal or first user turn, application link) plus org run summaries (one row per org run, from the monomind
   report; cached); `ListHistory` binding; `CreateChatConversation` with an access argument; `SetChatAccess` (lower is anyone's,
-  raise runs as the GUI operator with a confirm); a `coder set --default-access` (operator-only, default `scoped`) so new chats
+  raise runs as the GUI operator with a confirm); a `coder set --default-access` (operator-only, default `full` since 2026-10-23) so new chats
   start at the level the operator chose. Check whether org events carry a run id.
 - **U2 Frontend core: the pane.** Bubble kinds chat|org with access, title and (if available) run id; v2 persistence key with a
   tolerant loader; scoped chats in a bubble (no folder, tools toggles, any installed runtime as in the panel); header chips and
@@ -296,7 +296,7 @@ Waves (each merges to `integration/aitask` before the next; file ownership per w
   U1-U5, full Go + wails-app + frontend + extension suites.
 Risks: assistant vs coder semantics in one bubble (scoped has tools and no folder; coder-ready runtimes vs any installed runtime);
 org run identity; N+1 queries for history status; losing panel a11y behaviours; localStorage key migration.
-Not yet decided and defaulted: titles are derived (no rename) until the user asks; new chats default to scoped.
+Not yet decided and defaulted: titles are derived (no rename) until the user asks; new chats default to the coder level (`full`) when coder mode is on and ready, else scoped.
 
 ## 6. Verification
 
