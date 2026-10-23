@@ -67,6 +67,9 @@ func (s Scope) rank() int {
 	return 0
 }
 
+// Valid reports whether s is one of the four scopes.
+func (s Scope) Valid() bool { return s.rank() > 0 }
+
 // Allows reports whether a holder of scope s may call something that needs `need`.
 // An unknown scope allows nothing.
 func (s Scope) Allows(need Scope) bool {
