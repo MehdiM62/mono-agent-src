@@ -29,6 +29,16 @@ const MAX_VALUE = 2000
 const MAX_PATH = 512
 const NOT_CALLED = Symbol('not called')
 
+// looksLikeCredential: a path with a word that names a secret. Words are
+// split on case changes and punctuation, so apiKey, api-key and API_KEY all
+// read "api key"; credential_id and similar do not match.
+const SECRET_WORD = /^(password|passwd|token|secret|authorization|cookie|otp|cvv|apikey|privatekey|accesskey)s?$/
+const SECRET_PAIR = new Set(['api', 'private', 'access'])
+export function looksLikeCredential(path) {
+  const words = String(path ?? '').replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean)
+  return words.some((w, i) => SECRET_WORD.test(w) || (SECRET_PAIR.has(w) && /^keys?$/.test(words[i + 1] || '')))
+}
+
 const show = (v) => { try { return typeof v === 'string' ? v : JSON.stringify(v) ?? '' } catch { return '' } }
 
 function Value({ v }) {
@@ -46,14 +56,19 @@ function Value({ v }) {
 
 function Edits({ edits }) {
   const { t } = useTranslation()
+  const hidden = (
+    <span title={t('taskResult.maskedLabel')}>
+      <code>••••••</code> <span style={{ color: 'var(--text-muted)' }}>({t('taskResult.maskedLabel')})</span>
+    </span>
+  )
   if (edits.length === 0) return <span style={mutedText}>{t('taskResult.noEdits')}</span>
   return (
     <ul data-testid="fix-diff" style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 4, width: '100%' }}>
       {edits.map((e, i) => (
         <li key={i} style={{ overflowWrap: 'anywhere' }}>
           <strong>{text(e.nodeName || e.node, 80)}</strong> · <code style={{ overflowWrap: 'anywhere', wordBreak: 'break-all' }}>{typeof e.path === 'string' ? e.path : show(e.path)}</code>
-          <div><span style={{ color: 'var(--red)' }}>- <Value v={e.before} /></span></div>
-          <div><span style={{ color: 'var(--green-neon, #10b981)' }}>+ <Value v={e.after} /></span></div>
+          <div><span style={{ color: 'var(--red)' }}>- {looksLikeCredential(e.path) ? hidden : <Value v={e.before} />}</span></div>
+          <div><span style={{ color: 'var(--green-neon, #10b981)' }}>+ {looksLikeCredential(e.path) ? hidden : <Value v={e.after} />}</span></div>
         </li>
       ))}
     </ul>
@@ -104,7 +119,8 @@ export default function FailedRunFixResult({ taskId, result, onNavigate }) {
   const tooBig = edits.length > MAX_LEAVES || edits.some(e => show(e.path).length > MAX_PATH || show(e.before).length > MAX_VALUE || show(e.after).length > MAX_VALUE)
   const hash = typeof preview?.definitionHash === 'string' ? preview.definitionHash : ''
   const previewOk = !!preview && preview.ok !== false && !preview.error && edits.length > 0 && !tooBig && hash !== ''
-  const canApply = previewOk && !applied && !done && !busy
+  const stalePreview = applyErr?.code === 'changed_since_preview' // the workflow moved on: only a fresh review can be applied
+  const canApply = previewOk && !applied && !done && !busy && !stalePreview
   const workflowIsActive = warnings.some(w => w.code === ACTIVE_WARNING)
 
   // What is on screen right now, read by callApply at the moment of the call.
@@ -136,7 +152,7 @@ export default function FailedRunFixResult({ taskId, result, onNavigate }) {
     setBusy(true); setApplyErr(null)
     try {
       const nodes = new Set(edits.map(e => e.node)).size
-      if (!(await confirm(t('taskResult.applyBody', { fields: edits.length, nodes, name: text(preview.workflowName || workflowId, 80) }), { title: t('taskResult.applyTitle'), confirmLabel: t('taskResult.applyConfirm') }))) return
+      if (!(await confirm(t('taskResult.applyBody', { fields: t('taskResult.fieldCount', { count: edits.length }), nodes: t('taskResult.nodeCount', { count: nodes }), name: text(preview.workflowName || workflowId, 80) }), { title: t('taskResult.applyTitle'), confirmLabel: t('taskResult.applyConfirm'), danger: false }))) return
       let allow = false
       if (workflowIsActive) {
         if (!(await confirmActive())) return
@@ -183,10 +199,13 @@ export default function FailedRunFixResult({ taskId, result, onNavigate }) {
       {preview && tooBig && <span role="alert" style={{ color: 'var(--red)', width: '100%' }}>{t('taskResult.tooBigToReview')}</span>}
       {preview && preview.ok === false && <span role="alert" style={{ color: 'var(--red)', width: '100%' }}>{text(preview.error, 300) || t('taskResult.previewInvalid')}</span>}
       {warnings.map((w, i) => <Chip key={i} tone={YELLOW} title={text(w.text, 200)}>{WARN_KEYS[w.code] ? t(`taskResult.warn.${WARN_KEYS[w.code]}`) : text(w.text || w.code, 120)}</Chip>)}
-      {editable && !applied && !done && (
-        <button type="button" className="btn btn-primary btn-sm" onClick={apply} disabled={!canApply}>{busy ? t('taskResult.applying') : t('taskResult.apply')}</button>
+      {((editable && !applied && !done) || done) && (
+        <div data-testid="apply-row" style={{ width: '100%', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {done
+            ? <button type="button" className="btn btn-primary btn-sm" disabled>{t('taskResult.alreadyApplied')}</button>
+            : <button type="button" className="btn btn-primary btn-sm" onClick={apply} disabled={!canApply}>{busy ? t('taskResult.applying') : t('taskResult.apply')}</button>}
+        </div>
       )}
-      {done && <button type="button" className="btn btn-primary btn-sm" disabled>{t('taskResult.alreadyApplied')}</button>}
       {applied && (
         <span role="status" style={{ ...wrapText, width: '100%' }}>
           {t('taskResult.applied', { count: applied.count })}

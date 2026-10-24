@@ -14,6 +14,13 @@ export function TaskHeaderCard({ task, onNavigate }) {
   const [error, setError] = useState('')
   const [result, setResult] = useState(null) // { kind, data } once the task completed
   const [cancelling, setCancelling] = useState(false)
+  const [budget, setBudget] = useState(null) // what the task has spent against its cap; absent when the CLI can't say
+  // A different task on the same instance starts from nothing: none of the
+  // previous task's status, result or error is shown for it.
+  const [shownTask, setShownTask] = useState(task.taskId)
+  if (shownTask !== task.taskId) {
+    setShownTask(task.taskId); setStatus(task.status || ''); setResult(null); setError(''); setCancelling(false); setBudget(null)
+  }
 
   useEffect(() => {
     if (!task.taskId || taskIsDone(status)) return undefined
@@ -33,8 +40,6 @@ export function TaskHeaderCard({ task, onNavigate }) {
     return () => { live = false }
   }, [task.taskId, task.kind, status])
 
-  // What the task has spent against its cap; absent when the CLI can't say.
-  const [budget, setBudget] = useState(null)
   useEffect(() => {
     if (!task.taskId) return undefined
     let live = true

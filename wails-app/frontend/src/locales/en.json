@@ -1908,7 +1908,6 @@
     "apply": "Apply fix",
     "applying": "Applying…",
     "applyTitle": "Apply this fix?",
-    "applyBody": "This changes {{fields}} field(s) in {{nodes}} node(s) of the workflow \"{{name}}\". The workflow will need your approval again before it runs.",
     "applyConfirm": "Apply",
     "applied": "Applied {{count}} edits. Review and approve the workflow before it runs.",
     "applyError": "Could not apply the fix: {{error}}",
@@ -1941,7 +1940,13 @@
     "changedSincePreview": "The workflow changed after you reviewed this: nothing was applied. Review it again.",
     "reviewAgain": "Review again",
     "tooLarge": "This proposal is bigger than the review can show: ask again for a smaller change.",
-    "tooBigToReview": "This change is bigger than the review can show, so it cannot be applied from here. Ask again for a smaller change."
+    "tooBigToReview": "This change is bigger than the review can show, so it cannot be applied from here. Ask again for a smaller change.",
+    "applyBody": "This changes {{fields}} in {{nodes}} of the workflow \"{{name}}\". The workflow will need your approval again before it runs.",
+    "fieldCount_one": "{{count}} field",
+    "fieldCount_other": "{{count}} fields",
+    "nodeCount_one": "{{count}} node",
+    "nodeCount_other": "{{count}} nodes",
+    "maskedLabel": "hidden: looks like a credential"
   },
   "coderOrg": {
     "title": "Coder chat team and sends",

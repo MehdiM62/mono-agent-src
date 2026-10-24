@@ -1866,7 +1866,6 @@
     "apply": "Aplicar arreglo",
     "applying": "Aplicando…",
     "applyTitle": "¿Aplicar este arreglo?",
-    "applyBody": "Esto cambia {{fields}} campo(s) en {{nodes}} nodo(s) del flujo \"{{name}}\". El flujo necesitará tu aprobación de nuevo antes de ejecutarse.",
     "applyConfirm": "Aplicar",
     "applied": "Se aplicaron {{count}} cambios. Revisa y aprueba el flujo antes de que se ejecute.",
     "applyError": "No se pudo aplicar el arreglo: {{error}}",
@@ -1899,7 +1898,13 @@
     "changedSincePreview": "El flujo cambió después de que lo revisaras: no se aplicó nada. Revísalo de nuevo.",
     "reviewAgain": "Revisar de nuevo",
     "tooLarge": "Esta propuesta es más grande de lo que la revisión puede mostrar: pide de nuevo un cambio más pequeño.",
-    "tooBigToReview": "Este cambio es más grande de lo que la revisión puede mostrar, así que no se puede aplicar desde aquí. Pide de nuevo un cambio más pequeño."
+    "tooBigToReview": "Este cambio es más grande de lo que la revisión puede mostrar, así que no se puede aplicar desde aquí. Pide de nuevo un cambio más pequeño.",
+    "applyBody": "Esto cambia {{fields}} en {{nodes}} del flujo \"{{name}}\". El flujo necesitará tu aprobación de nuevo antes de ejecutarse.",
+    "fieldCount_one": "{{count}} campo",
+    "fieldCount_other": "{{count}} campos",
+    "nodeCount_one": "{{count}} nodo",
+    "nodeCount_other": "{{count}} nodos",
+    "maskedLabel": "oculto: parece una credencial"
   },
   "coderOrg": {
     "title": "Equipo del chat de código y envíos",
