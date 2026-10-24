@@ -325,7 +325,7 @@ Windows has no profile: it has no sandbox that a command can start a process in 
 extra installs, so `agent-mode sandbox --runtime windows` refuses and says what to use instead:
 WSL2 with the bwrap profile, a separate Windows user account for the agent, or Windows Sandbox / a VM,
 each reaching the API with a scoped token. The steps, and what they do not protect against, are in
-[docs/agent-mode-windows.md](docs/agent-mode-windows.md); `monoagentcli doctor --agent-account NAME` checks that the
+`monoagentcli agent-mode windows` (the file `docs/agent-mode-windows.md`, embedded in the binary); `monoagentcli doctor --agent-account NAME` checks that the
 account has no access to the state folder.
 
 Still deferred: unlocking the vault only with the user present, the macOS keychain ACL (needs a

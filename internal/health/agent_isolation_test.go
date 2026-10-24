@@ -153,6 +153,9 @@ func TestAgentIsolationDarwinAndWindowsWithoutAccount(t *testing.T) {
 	if res.Status != StatusInfo || !strings.Contains(res.Summary, "not configured") || !strings.Contains(res.Summary, AgentIsolationDoc) {
 		t.Errorf("windows without an account: %+v", res)
 	}
+	if strings.Contains(strings.ToLower(res.Summary+res.Detail), "http") {
+		t.Errorf("the hint must name a command, not a URL: %+v", res)
+	}
 }
 
 func TestAgentIsolationWindowsRunsIcaclsOnTheStateDir(t *testing.T) {

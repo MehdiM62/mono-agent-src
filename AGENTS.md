@@ -119,7 +119,7 @@ Run `doctor` first when something environment-related fails.
 
 `core.agent_isolation` (internal/health/agent_isolation.go) is read-only and offline and never fails by default: it reports
 whether bwrap (Linux, and whether unprivileged user namespaces work) or sandbox-exec (macOS) is present. On Windows there is no
-sandbox; the agent runs as a separate low-privilege account (docs/agent-mode-windows.md). `doctor --agent-account NAME`
+sandbox; the agent runs as a separate low-privilege account (docs/agent-mode-windows.md, embedded via docs/embed.go and printed by `monoagentcli agent-mode windows`). `doctor --agent-account NAME`
 (or `MONOAGENT_AGENT_ACCOUNT`) lists the state folder with `icacls` and reports ok (no entry for the account), warn
 (read, or unreadable list) or fail (write/full). The command runner is injectable (`agentIsolationProbe`); group
 membership beyond Everyone/Users/Authenticated Users and localized group names are not visible and the detail says so.

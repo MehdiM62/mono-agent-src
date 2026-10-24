@@ -17,8 +17,8 @@ import (
 // the state folder for the agent's account. Without an account to look at it never warns or fails.
 const CheckAgentIsolation = "core.agent_isolation"
 
-// AgentIsolationDoc is where the Windows recipe is written down.
-const AgentIsolationDoc = "https://github.com/monoes/mono-agent/blob/HEAD/docs/agent-mode-windows.md"
+// AgentIsolationDoc is the command that prints the Windows recipe.
+const AgentIsolationDoc = "monoagentcli agent-mode windows"
 
 // AgentAccountEnv names the agent's Windows account when --agent-account is not given.
 const AgentAccountEnv = "MONOAGENT_AGENT_ACCOUNT"
@@ -116,7 +116,7 @@ func windowsIsolation(ctx context.Context, p isolationProbe, env *Env) Result {
 	account := strings.TrimSpace(env.AgentAccount)
 	if account == "" {
 		return Result{Status: StatusInfo,
-			Summary: "not configured: Windows has no agent sandbox; the agent runs as a separate low-privilege account (--agent-account NAME checks its access to " + env.DataDir + "). See " + AgentIsolationDoc}
+			Summary: "not configured: Windows has no agent sandbox; the agent runs as a separate low-privilege account (--agent-account NAME checks its access to " + env.DataDir + "). Run `" + AgentIsolationDoc + "` for the steps"}
 	}
 	out, err := p.run(ctx, "icacls", env.DataDir)
 	return judgeACL(account, env.DataDir, string(out), err)
