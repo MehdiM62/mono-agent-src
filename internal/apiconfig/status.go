@@ -151,7 +151,7 @@ func BuildStatus(ctx context.Context, db *sql.DB, env Env, profileID string) (St
 		main.ContextConfinement = contextConfinementFor(main.Confinement, contextMax)
 		main.AutoConfinement = autoConfinementFor(main.Confinement, autoMax)
 		// The main listener is always plain HTTP: only the dedicated one has TLS.
-		main.Reachable, main.V1Answers = probe("http://"+mainAddr, main.V1)
+		main.Reachable, main.V1Answers = probe("http://"+tlsserve.ClientAddr(mainAddr), main.V1)
 		if main.Reachable {
 			main.Scheme = "http"
 		}

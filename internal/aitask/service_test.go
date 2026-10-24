@@ -2,6 +2,7 @@ package aitask
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"os/exec"
@@ -620,5 +621,59 @@ func TestCompleteStoresNoSecrets(t *testing.T) {
 		if !strings.Contains(stored, kept) {
 			t.Errorf("%q was lost from the result: %s", kept, stored)
 		}
+	}
+}
+
+// A kind's Check runs after the schema and before the task closes: a refusal,
+// a panic and a timeout leave the task open (schema_invalid); a pass completes.
+func TestCompleteRunsTheKindCheck(t *testing.T) {
+	mode := "refuse"
+	var gotProfile string
+	Register(Kind{Name: "test-check", DefaultAccess: AccessCoding, Description: "a checked kind",
+		Check: func(_ context.Context, profile string, raw json.RawMessage) error {
+			gotProfile = profile
+			switch mode {
+			case "panic":
+				panic("boom")
+			case "refuse":
+				return errors.New("no such thing")
+			}
+			return nil
+		}})
+	s, l := newService(t)
+	task, err := s.Submit(context.Background(), SubmitInput{Kind: "test-check", Goal: "g"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	token := l.tokens[0]
+	for _, m := range []string{"refuse", "panic"} {
+		mode = m
+		_, err := s.Complete(task.ID, token, []byte(`{"a":1}`))
+		if code(err) != CodeSchemaInvalid {
+			t.Fatalf("%s: %v", m, err)
+		}
+		if got, _ := s.Store.Get(task.ID); got.Status != StatusRunning {
+			t.Fatalf("%s closed the task: %s", m, got.Status)
+		}
+	}
+	mode = "pass"
+	if done, err := s.Complete(task.ID, token, []byte(`{"a":1}`)); err != nil || done.Status != StatusComplete {
+		t.Fatalf("%+v %v", done, err)
+	}
+	if gotProfile != s.Store.Profile || gotProfile == "" {
+		t.Errorf("check got profile %q, want %q", gotProfile, s.Store.Profile)
+	}
+}
+
+func TestUnknownKindListsDescriptions(t *testing.T) {
+	Register(Kind{Name: "test-desc", Description: "says what it does"})
+	_, err := Lookup("nope")
+	var e *Error
+	if !errors.As(err, &e) {
+		t.Fatal(err)
+	}
+	d, _ := e.Fields["descriptions"].(map[string]string)
+	if d["test-desc"] != "says what it does" {
+		t.Fatalf("%v", d)
 	}
 }

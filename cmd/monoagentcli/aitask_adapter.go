@@ -10,6 +10,7 @@ import (
 // `aitask` lives in internal/cli/aitask; this is its adapter: the CLI's globals and helpers
 // handed over as aitaskcli.Deps.
 func newAitaskCmd(cfg *globalConfig) *cobra.Command {
+	wireAitaskKinds(cfg)
 	return aitaskcli.New(aitaskcli.Deps{
 		JSONOutput:      func() bool { return cfg.JSONOutput },
 		ProfileID:       func() string { return cfg.ProfileID },

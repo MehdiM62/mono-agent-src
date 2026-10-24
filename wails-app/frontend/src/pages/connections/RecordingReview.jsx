@@ -10,6 +10,7 @@ import { Chip, EffectChip, ErrorBox, OkBox, Busy, isRisky, body, label, mono, mu
 import { ScriptSources } from './ImportReview.jsx'
 import { IssueList } from './OverviewTab.jsx'
 import SendToCoderButton from '../../components/SendToCoderButton.jsx'
+import { UNCONFINED_KIND_BUTTONS } from '../../lib/confinedKinds.js'
 import { selectionText } from '../../components/SendToCoderApi.js'
 
 const VERIFY_COLORS = { pass: 'var(--green-neon)', healed: 'var(--cyan)', fail: 'var(--red)', stopped_before_side_effect: 'var(--yellow)', skipped: 'var(--text-muted)' }
@@ -153,14 +154,11 @@ export default function RecordingReview({ recording, automationId, onBack, onSav
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <button className="btn btn-ghost btn-sm" onClick={onBack} style={{ gap: 5 }}><ArrowLeft size={11} /> Recordings</button>
         <span title={recording.title || recording.id} style={{ ...mono, fontSize: 11.5, color: 'var(--text)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{recording.title || recording.id}</span>
-        {phase !== 'analyzing' && <SendToCoderButton kind="recording-analysis" label="Improve with coder"
-          goal={`Build or improve the automation for recording ${recording.id}: check its steps and inputs, make the selectors robust, and hand back the finished automation (the one-shot draft, when there is one, is in the context folder).`}
-          context={() => [
-            selectionText(`Recording ${recording.id}${recording.title ? `: ${recording.title}` : ''}; automation ${automationId || '(new)'}`),
-            // The draft folder holds the sanitized analysis (never the raw recording).
-            ...(draftDir ? [`document=${draftDir}`] : []),
-          ]}
-          origin={{ page: 'connections', label: 'Connections' }} />}
+        {UNCONFINED_KIND_BUTTONS && (
+          <SendToCoderButton kind="recording-analyze" label="Discuss with coder" goal="Review this recording and the action drafted from it: check the steps and inputs, and suggest improvements."
+            context={[selectionText(`recording: ${recording.id}${recording.title ? `\ntitle: ${String(recording.title).replace(/\s+/g, ' ').slice(0, 200)}` : ''}`)]}
+            origin={{ page: 'connections', label: 'Connections' }} />
+        )}
       </div>
       {phase === 'analyzing' && <Busy text="Analyzing the recording with AI — this can take a minute…" />}
       <ErrorBox>{error}</ErrorBox>

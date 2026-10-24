@@ -17,11 +17,7 @@ import (
 // untrustedKinds read text a stranger wrote. Each is confined to exactly the
 // commands below, typed after "monoagentcli --profile p1 ".
 var untrustedKinds = map[string][]string{
-	"draft-reply":        {"aitask complete", "aitask fail"},
-	"recording-analysis": {"record show", "aitask complete", "aitask fail"},
-	"workflow-generate": {"workflow search", "workflow templates list", "workflow templates show", "workflow get",
-		"node list", "node schema", "ref", "aitask complete", "aitask fail"},
-	"failed-run-fix": {"workflow get", "workflow list", "workflow search", "workflow executions", "workflow execution", "aitask complete", "aitask fail"},
+	"draft-reply": {"aitask complete", "aitask fail"},
 }
 
 func prefixes(verbs []string) []string {
@@ -56,7 +52,7 @@ func TestUntrustedKindsAreConfinedToTheirExactAllowList(t *testing.T) {
 		}
 	}
 	// The kinds that need no confinement stay as they are.
-	for _, kind := range []string{"generic", "extension-form"} {
+	for _, kind := range []string{"generic", "extension-form", "workflow-generate", "recording-analyze", "failed-run-fix"} {
 		if confinedKind(kind) {
 			t.Errorf("%s is confined", kind)
 		}
@@ -236,7 +232,7 @@ func TestInlinedContextBudgetCutsUntrustedTextFirst(t *testing.T) {
 // first turn (the holder's own env), a follow-up on an open task (id and a
 // fresh token), and a follow-up on a closed or queued one (the id alone).
 func TestEveryConfinedTurnCarriesTheTaskID(t *testing.T) {
-	kinds := []string{"application-apply", "draft-reply", "recording-analysis", "workflow-generate", "failed-run-fix", "extension-fill", "extension-ask"}
+	kinds := []string{"application-apply", "draft-reply", "extension-fill", "extension-ask"}
 	for _, kind := range kinds {
 		for _, status := range []string{aitask.StatusNeedsUser, aitask.StatusRunning, aitask.StatusComplete, aitask.StatusFailed, aitask.StatusCancelled, aitask.StatusQueued} {
 			r := newTaskRig(t)
@@ -306,7 +302,7 @@ func withMonomindVersion(t *testing.T, version string) {
 // versions let through (ANSI-C quoting): every confined kind refuses to start on
 // one, in its first turn and in every follow-up, and runs on a fixed one.
 func TestConfinedTurnsNeedAMonomindWithTheFixedScanner(t *testing.T) {
-	kinds := []string{"application-apply", "draft-reply", "recording-analysis", "workflow-generate", "failed-run-fix", "extension-fill", "extension-ask"}
+	kinds := []string{"application-apply", "draft-reply", "extension-fill", "extension-ask"}
 	for _, kind := range kinds {
 		for _, status := range []string{aitask.StatusNeedsUser, aitask.StatusRunning, aitask.StatusComplete, aitask.StatusFailed} {
 			for _, version := range []string{"2.26.0", "2.9.99", ""} {
@@ -348,5 +344,27 @@ func TestConfinedTurnsNeedAMonomindWithTheFixedScanner(t *testing.T) {
 	}
 	if !monomind.ConfinementSupported("2.27.1") || !monomind.ConfinementSupported("v2.30.0") || monomind.ConfinementSupported("2.26.9") || monomind.ConfinementSupported("garbage") {
 		t.Error("ConfinementSupported misjudges a version")
+	}
+}
+
+// coder set --default-access only fills in `chat history create`; a confined
+// task's turn is scoped to its allow-list whatever level new chats default to.
+func TestConfinedTurnsIgnoreTheDefaultAccessOfNewChats(t *testing.T) {
+	for _, level := range []string{"full", "workspace", "coding"} {
+		for _, kind := range []string{"application-apply", "draft-reply"} {
+			r := newTaskRig(t)
+			setCoderSettings(t, r.dbPath, coderSettings{Enabled: true, DefaultAccess: level})
+			r.taskOfKind(t, "default", aitask.StatusNeedsUser, kind)
+			r.turn(t, "t1", nil)
+			args := r.execArgs(t)
+			for _, bad := range []string{"--access", "--settings", "--tools stdio"} {
+				if strings.Contains(args, bad) {
+					t.Errorf("%s with default access %s ran with %q: %s", kind, level, bad, args)
+				}
+			}
+			if want := "--allow-bash-prefix " + strings.Join(bashPrefixesFor(kind, "default"), ","); !strings.Contains(args, want) {
+				t.Errorf("%s with default access %s: allow-list differs:\n%s", kind, level, args)
+			}
+		}
 	}
 }

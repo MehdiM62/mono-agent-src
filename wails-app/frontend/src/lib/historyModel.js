@@ -2,15 +2,18 @@
 // how a row's status merges with an open bubble's live summary, how times and
 // filters read, and how a delete result splits into outcomes.
 
+import { orgBubbleKey } from './coderBubbles.js'
+
 export const PAGE_SIZE = 30
 export const ACCESS_LEVELS = ['scoped', 'coding', 'workspace', 'full']
 export const KIND_FILTERS = ['chat', 'org']
 export const STATUS_FILTERS = ['running', 'needs', 'error', 'done', 'idle']
 
 // bubbleKeyOf is the key the bubble store uses for a row: a chat's key is its
-// conversation id, an org's is org:<name> (per-run bubbles are wave U5).
+// conversation id, an org run's is org:<name>#<runId> (org:<name> while the
+// run id is not known).
 export function bubbleKeyOf(row) {
-  return row.kind === 'org' ? `org:${row.orgName}` : row.id
+  return row.kind === 'org' ? orgBubbleKey(row.orgName, row.runId || '') : row.id
 }
 
 // liveStatus overlays an open bubble's live summary on the stored row. Only
@@ -79,15 +82,19 @@ export function chatIdsOnly(rows) {
   return rows.filter(r => r.kind === 'chat').map(r => r.id)
 }
 
-// orgRunTarget says where an org-run row opens. The org bubble always shows
-// the org's latest run, so only that run opens it; any other run opens in the
-// Orgs tab with the run selected. status is `org status` for the org (its
-// current or last run id in .run) or null when it could not be read.
-export function orgRunTarget(row, status) {
+// orgRunOpening says how an org-run row opens as a bubble: { runId, finished }.
+// A run that is running now (status is `org status` for the org: its current
+// or last run in .run, null when it could not be read) opens the org's live
+// bubble; any other run with an id opens read-only, as a finished run. A row
+// with neither a run id nor a live run has nothing to open (null: the Orgs tab).
+export function orgRunOpening(row, status) {
+  const runId = row.runId || ''
   const current = status?.run || ''
-  if (row.runId && current) return row.runId === current ? 'bubble' : 'orgs'
-  // No run id to compare: only a run that is running now is surely the latest.
-  return row.status === 'running' ? 'bubble' : 'orgs'
+  const liveNow = runId && current
+    ? runId === current && status.status === 'running'
+    : row.status === 'running'
+  if (liveNow) return { runId: runId || current, finished: false }
+  return runId ? { runId, finished: true } : null
 }
 
 // orgRunLabel is the row subtitle: "run <short id> · <date>".

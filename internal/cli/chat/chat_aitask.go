@@ -29,8 +29,7 @@ import (
 // environment, keeps that token.
 //
 // A confined kind (confinedKind: application-apply, and the kinds that read
-// untrusted text: draft-reply, recording-analysis, workflow-generate,
-// failed-run-fix) is never a full-access coder turn, in the first turn or in
+// untrusted text: draft-reply) is never a full-access coder turn, in the first turn or in
 // any later one of its conversation, whatever the task's status.
 //
 // kind is the browser-permission kind the turn runs as: apply for the turn of

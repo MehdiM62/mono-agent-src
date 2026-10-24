@@ -11,9 +11,9 @@ import (
 )
 
 type scopeRig struct {
-	scope               *browserctl.ApplyScope
-	ctx, work, outside  string
-	otherTask, homeFile string
+	scope              *browserctl.ApplyScope
+	ctx, work, outside string
+	otherTask          string
 }
 
 func newScopeRig(t *testing.T) *scopeRig {

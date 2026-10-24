@@ -158,6 +158,7 @@ func init() {
 	// browser verbs type, click, fill and upload (plus a11y, screenshot and wait to read the page), and nothing beyond those.
 	Register(Kind{
 		Name:           KindExtensionFill,
+		Description:    "Fill in the form on the page open in the browser extension (steps, widgets, uploads); it stops before the submit and reports what it filled.",
 		Schema:         ExtensionFillSchema,
 		PromptTemplate: extensionFillTemplate,
 		DefaultAccess:  AccessWorkspace,
@@ -167,6 +168,7 @@ func init() {
 	// nothing here is verified as confined (Launcher.Confined).
 	Register(Kind{
 		Name:           KindExtensionAsk,
+		Description:    "Answer a question about, or suggest a fix for, the page open in the browser extension; it only reads the page.",
 		Schema:         ExtensionAskSchema,
 		PromptTemplate: extensionAskTemplate,
 		DefaultAccess:  AccessQA,

@@ -49,6 +49,7 @@ export namespace main {
 	    error: string;
 	    fallback: string;
 	    reason: string;
+	    result: any;
 	
 	    static createFrom(source: any = {}) {
 	        return new AITask(source);
@@ -67,6 +68,7 @@ export namespace main {
 	        this.error = source["error"];
 	        this.fallback = source["fallback"];
 	        this.reason = source["reason"];
+	        this.result = source["result"];
 	    }
 	}
 	export class AITaskState {
@@ -971,6 +973,24 @@ export namespace main {
 	        this.conflict = source["conflict"];
 	        this.version = source["version"];
 	        this.connected_at = source["connected_at"];
+	    }
+	}
+	export class ExtensionInfo {
+	    path: string;
+	    installed: boolean;
+	    current: boolean;
+	    version: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ExtensionInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.path = source["path"];
+	        this.installed = source["installed"];
+	        this.current = source["current"];
+	        this.version = source["version"];
 	    }
 	}
 	export class BrowsersReport {

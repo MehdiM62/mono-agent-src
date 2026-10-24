@@ -2,7 +2,7 @@
    Status colours match the bubble status rings (bubbles.css). */
 .hist-drawer {
   position: fixed; top: 0; right: 0; bottom: var(--hist-bottom, 26px);
-  width: min(400px, 100vw); z-index: 9400;
+  width: min(400px, 100vw); z-index: 9700; /* above the bubble dock and overlay (9600-9602), below confirm dialogs (10001) */
   display: flex; flex-direction: column;
   background: var(--surface); border-left: 1px solid var(--border-bright);
   box-shadow: -10px 0 30px rgba(0, 0, 0, 0.45); color: var(--text-primary, #e6edf3);

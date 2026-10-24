@@ -93,12 +93,16 @@ func TestCoderSetDefaultAccess(t *testing.T) {
 	if _, code := runCoderCLI(t, r.dbPath, "set", "--default-access", "root"); code == 0 {
 		t.Error("an unknown level must be refused")
 	}
-	// Unset reads as scoped.
+	if st.DefaultAccessSource != "set" {
+		t.Fatalf("source = %q, want set", st.DefaultAccessSource)
+	}
+	// Unset reads as full, from the built-in default.
 	setCoderSettings(t, r.dbPath, coderSettings{Enabled: true})
 	out, _ = runCoderCLI(t, r.dbPath, "status")
+	st = coderStatus{}
 	decodeChatJSON(t, out, &st)
-	if st.DefaultAccess != ai.AccessScoped {
-		t.Fatalf("default = %q, want scoped", st.DefaultAccess)
+	if st.DefaultAccess != ai.AccessFull || st.DefaultAccessSource != "default" {
+		t.Fatalf("default = %q from %q, want full from default", st.DefaultAccess, st.DefaultAccessSource)
 	}
 }
 
@@ -111,5 +115,33 @@ func TestCoderSetDefaultAccessIsOperatorOnly(t *testing.T) {
 	cmd.SilenceErrors, cmd.SilenceUsage = true, true
 	if err := cmd.Execute(); exitCodeFor(err) != 3 {
 		t.Fatalf("agent set exit %d (%v), want 3", exitCodeFor(err), err)
+	}
+}
+
+// Nothing stored: an operator's new chat is a full-access coder chat when
+// coder mode is on and ready; everything else is as before.
+func TestUnsetDefaultAccessIsFullOnlyForTheOperatorWithCoderOn(t *testing.T) {
+	r := newAccessRig(t, true)
+	setCoderSettings(t, r.dbPath, coderSettings{Enabled: true})
+	out, code := createAs(t, r.dbPath, true)
+	if code != 0 || accessOf(t, out) != ai.AccessFull {
+		t.Fatalf("operator, coder on, unset (exit %d) = %s, want full", code, out)
+	}
+	if out, code = createAs(t, r.dbPath, false); code != 0 || accessOf(t, out) != ai.AccessScoped {
+		t.Fatalf("agent, unset (exit %d) = %s, want scoped", code, out)
+	}
+	if out, code = createAs(t, r.dbPath, true, "--access", "coding", "--new-workspace"); code != 0 || accessOf(t, out) != ai.AccessCoding {
+		t.Fatalf("explicit coding (exit %d) = %s", code, out)
+	}
+	if out, code = createAs(t, r.dbPath, true, "--mode", "assistant"); code != 0 || accessOf(t, out) != ai.AccessScoped {
+		t.Fatalf("explicit --mode assistant (exit %d) = %s", code, out)
+	}
+	setCoderSettings(t, r.dbPath, coderSettings{Enabled: true, DefaultAccess: ai.AccessScoped})
+	if out, code = createAs(t, r.dbPath, true); code != 0 || accessOf(t, out) != ai.AccessScoped {
+		t.Fatalf("stored scoped (exit %d) = %s, want scoped", code, out)
+	}
+	setCoderSettings(t, r.dbPath, coderSettings{Enabled: false})
+	if out, code = createAs(t, r.dbPath, true); code != 0 || accessOf(t, out) != ai.AccessScoped {
+		t.Fatalf("coder off, unset (exit %d) = %s, want scoped", code, out)
 	}
 }
