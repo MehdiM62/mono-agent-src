@@ -3618,22 +3618,24 @@ monoagentcli --profile P aitask fail <id> --reason TEXT                   # the 
 - Exit codes: 2 unknown task, 3 refusals (`unknown_kind`, `schema_invalid`, `bad_token`, `task_closed`, …), 1
   `wait_timeout`.
 
+Propose, then apply: `workflow apply-fix <task> [--dry-run] [--allow-active] --json` prints `{ok, workflowId, workflowName, edits:[{node, nodeName, path, before, after}], warnings:[{code, text}]}` (codes `workflow_active`, `new_outbound`, `credential_field`, `expression_added`) or, applying, `{ok, workflowId, applied, needsApproval:true}`; `workflow save-draft <task> --json` prints `{ok, workflowId, name, nodeCount, needsApproval:true}`. Both are operator-only, read the task of THIS profile (kind, status complete, stored result), refuse with typed `code`s (`not_found`, `wrong_kind`, `not_complete`, `no_result`, `no_edit`, `no_change` for a second apply, `unknown_node`, `secret_key`, `invalid_workflow`, `workflow_active`, `bad_result`), and record no approval: the edited or saved workflow stays unapproved until the user saves or activates it.
+
 `aitask kinds --json` prints `{"kinds":[{name, description, defaultAccess, unattendedOk, contextClasses:[…],
 resultSchema:{name, required:[…], properties:[…]}}]}`, sorted by name; fields are only ever added. It opens no database
 and asks for no operator, so an agent can see what it may ask for.
 
-Kinds (`aitask.Register`; the profile-facing ones live in `internal/aitaskkinds`). All three below ask for `workspace`
-access (they drive `monoagentcli --profile P …`, which `coding` is not told about), are never unattended, treat context and
-run output as data, and never run a workflow or send anything:
+Kinds (`aitask.Register`; the profile-facing ones live in `internal/aitaskkinds`). The three workflow kinds below ask for `workspace`
+access but run as CONFINED turns (`confinedVerbs` in `internal/cli/chat/chat_apply.go`: no file tools, only the listed read-only commands,
+result via `aitask complete --result-json`); they are never unattended, treat context and run output as data, and PROPOSE only:
 
 | Kind | Input (`selection`) | Result | What the agent may do |
 | --- | --- | --- | --- |
 | `generic` | the goal | `{summary}` | whatever the goal asks (`coding`) |
 | `application-apply` | posting, facts, documents | fill record | fill the form in the browser, never submit (confined) |
 | `draft-reply` | the text to reply to (selected or pasted) | `{summary, draft:{to?, subject?, body}, assumptions}` | nothing but `aitask complete\|fail` (confined, `qa`); the person saves the draft, nothing is sent |
-| `workflow-generate` | the brief | `{workflowId, name, summary, nodeCount, validation:{ok, errors}}` | `node list/schema`, `ref`, `workflow validate/import`; saved inactive and AI-authored until the user approves; `aitaskkinds.CheckResult` refuses a `workflowId` the profile does not have |
-| `recording-analyze` | recording id + title | `{recordingId, automationName?, summary, saved:false, verified:false}` | `record analyze <id> --json` only; never reads the recording; `record save`/`verify` stay the user's |
-| `failed-run-fix` | workflow id, execution id, failing node ids, redacted error | `{workflowId, executionId, diagnosis, changed, changes, needsApproval}` | `workflow execution/get`, `workflow node …`, `workflow connect`, `workflow validate`; the edit unapproves the workflow; never reruns |
+| `workflow-generate` | the brief | `{summary, workflow:{name, description?, is_active:false, nodes, connections}, validation}` | CONFINED: `workflow search/templates list|show/get`, `node list/schema`, `ref`; the agent writes nothing. `Kind.Check` recomputes the verdict with the `workflow validate` validator; `workflow save-draft <task>` (operator) saves it as a new inactive, unapproved draft |
+| `recording-analyze` | recording id + title | `{recordingId, summary, suggestions[≤12], risks?}` | CONFINED: `record show` only; `Kind.Check` verifies the recording is in the profile; changes nothing |
+| `failed-run-fix` | workflow id, execution id, failing node ids, redacted error | `{summary, diagnosis, workflowId, executionId, fix:{kind:workflow-edit\|advice\|none, description, edits?:[{node, config}]}}` | CONFINED: `workflow get/list/search/executions/execution`; `Kind.Check` plans the edits against the workflow now (`internal/workflowfix`); `workflow apply-fix <task> [--dry-run] [--allow-active]` (operator) applies them |
 
 # monomind:start instructions:opencode
 # Monomind
