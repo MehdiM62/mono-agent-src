@@ -16,6 +16,10 @@ import (
 // never a leading '-'. Anything else is refused before the CLI is run.
 var aitaskIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$`)
 
+// definitionHashPattern is the shape of the definition hash a preview carries
+// (never a leading "-", so it cannot be read as a flag).
+var definitionHashPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9:_-]{7,127}$`)
+
 // aitaskApplyCLI runs `workflow <verb> [flags] -- <taskID>` and returns the
 // CLI's JSON. The id comes after `--`, so it can never be read as a flag.
 func (a *App) aitaskApplyCLI(verb, taskID string, flags ...string) (string, error) {
@@ -52,15 +56,21 @@ func (a *App) PreviewFailedRunFix(taskID string) (string, error) {
 
 // ApplyFailedRunFix is `workflow apply-fix`: it applies the proposed edits to
 // the workflow, which then needs the user's approval again before it runs.
-// allowActive adds --allow-active, which the GUI sets only after the user
-// confirmed that the workflow is running or scheduled. These bindings exist
-// only in the Wails app: the HTTP agent API and the extension bridge never
-// expose them.
-func (a *App) ApplyFailedRunFix(taskID string, allowActive bool) (string, error) {
-	if allowActive {
-		return a.aitaskApplyCLI("apply-fix", taskID, "--allow-active")
+// expectHash is the definition hash of the preview the user reviewed; the CLI
+// refuses (changed_since_preview) when the workflow no longer matches it, and
+// an empty or malformed hash is refused here. allowActive adds --allow-active,
+// which the GUI sets only after the user confirmed that the workflow is
+// running or scheduled. These bindings exist only in the Wails app: the HTTP
+// agent API and the extension bridge never expose them.
+func (a *App) ApplyFailedRunFix(taskID string, allowActive bool, expectHash string) (string, error) {
+	if !definitionHashPattern.MatchString(expectHash) {
+		return "", fmt.Errorf("invalid definition hash")
 	}
-	return a.aitaskApplyCLI("apply-fix", taskID)
+	var flags []string
+	if allowActive {
+		flags = append(flags, "--allow-active")
+	}
+	return a.aitaskApplyCLI("apply-fix", taskID, append(flags, "--expect-hash", expectHash)...)
 }
 
 // SaveGeneratedWorkflow is `workflow save-draft`: it saves a workflow-generate

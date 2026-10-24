@@ -824,7 +824,7 @@ export function ValidateOrgReport(arg1:string):Promise<string>;
 
 export function VerifyDraft(arg1:string,arg2:boolean,arg3:string):Promise<string>;
 
-export function ApplyFailedRunFix(arg1:string,arg2:boolean):Promise<string>;
+export function ApplyFailedRunFix(arg1:string,arg2:boolean,arg3:string):Promise<string>;
 
 export function PreviewFailedRunFix(arg1:string):Promise<string>;
 
