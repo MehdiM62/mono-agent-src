@@ -206,3 +206,52 @@ func TestRedactionKeepsAFillsPersonalValuesAndRemovesSecrets(t *testing.T) {
 		}
 	}
 }
+
+func redactedField(t *testing.T, label, value string) string {
+	t.Helper()
+	b, _ := json.Marshal(map[string]any{"fields": []any{map[string]any{"label": label, "value": value, "source": "page", "generated": false}}})
+	out, _ := json.Marshal(RedactResult(decode(t, string(b))))
+	var back struct {
+		Fields []struct{ Value string }
+	}
+	if err := json.Unmarshal(out, &back); err != nil || len(back.Fields) != 1 {
+		t.Fatalf("%v %s", err, out)
+	}
+	return back.Fields[0].Value
+}
+
+// A form names its secrets in its own words; the label alone decides.
+func TestRedactionOfFormFieldLabels(t *testing.T) {
+	for _, label := range []string{
+		"One-time code", "One-time code (name)", "Authenticator code", "Authenticator app", "MFA code", "TOTP", "Backup code", "Backup codes",
+		"Recovery code", "Confirmation code", "Code from SMS", "6-digit code", "Security code", "Verification code", "SMS code",
+		"PIN", "Your PIN", "PIN code", "Pass", "Token", "Access token", "Passcode", "Password (name)", "Card number (id)",
+	} {
+		if got := redactedField(t, label, "493021"); got != RedactedValue {
+			t.Errorf("label %q kept its value: %q", label, got)
+		}
+	}
+	// Ordinary labels that share a word with a secret keep theirs.
+	for label, value := range map[string]string{
+		"Token Street": "5 Token Street", "Boarding pass": "QR 7788", "Postal code": "SW1Y 4JH", "Zip code": "94105", "Country code": "+44",
+		"Area code": "020", "Pin number of the map": "12", "Street": "Tokenizer Lane 5", "Passenger name": "Ada", "Backup contact": "Sam",
+		"Full name": "Ada Lovelace", "Time of arrival": "10:30",
+	} {
+		if got := redactedField(t, label, value); got != value {
+			t.Errorf("label %q lost its value: %q -> %q", label, value, got)
+		}
+	}
+	// A secret-shaped value is redacted whatever the label says.
+	if got := redactedField(t, "Notes", "ghp_0123456789abcdef0123456789abcdef0123"); got != RedactedValue {
+		t.Errorf("a token under an ordinary label survived: %q", got)
+	}
+}
+
+// JSON keys keep their metadata veto (a count or a name under a token key is no
+// secret); form-field labels do not.
+func TestRedactionKeepsTheMetadataVetoForKeysOnly(t *testing.T) {
+	out, _ := json.Marshal(RedactResult(decode(t, `{"max_tokens":512,"token_name":"deploy","secret_enabled":"yes","otp_type":"sms"}`)))
+	if string(out) != `{"max_tokens":512,"otp_type":"sms","secret_enabled":"yes","token_name":"deploy"}` {
+		t.Errorf("a metadata key was redacted: %s", out)
+	}
+}
