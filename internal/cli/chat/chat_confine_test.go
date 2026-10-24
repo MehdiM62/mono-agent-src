@@ -237,8 +237,16 @@ func TestInlinedContextBudgetCutsUntrustedTextFirst(t *testing.T) {
 // fresh token), and a follow-up on a closed or queued one (the id alone).
 func TestEveryConfinedTurnCarriesTheTaskID(t *testing.T) {
 	kinds := []string{"application-apply", "draft-reply", "workflow-generate", "failed-run-fix", "recording-analyze", "extension-fill", "extension-ask"}
-	for _, kind := range kinds {
-		for _, status := range []string{aitask.StatusNeedsUser, aitask.StatusRunning, aitask.StatusComplete, aitask.StatusFailed, aitask.StatusCancelled, aitask.StatusQueued} {
+	statuses := []string{aitask.StatusNeedsUser, aitask.StatusRunning, aitask.StatusComplete, aitask.StatusFailed, aitask.StatusCancelled, aitask.StatusQueued}
+	for ki, kind := range kinds {
+		// Every status is walked for the first kind; the others take two, rotated so
+		// that every status is still covered for several kinds. The code under test does
+		// not depend on the kind, and each case builds a database and runs a turn.
+		walk := statuses
+		if ki > 0 {
+			walk = []string{statuses[ki%len(statuses)], statuses[(ki+3)%len(statuses)]}
+		}
+		for _, status := range walk {
 			r := newTaskRig(t)
 			task, _ := r.taskOfKind(t, "default", status, kind)
 			r.turn(t, "t1", nil)
@@ -307,9 +315,18 @@ func withMonomindVersion(t *testing.T, version string) {
 // one, in its first turn and in every follow-up, and runs on a fixed one.
 func TestConfinedTurnsNeedAMonomindWithTheFixedScanner(t *testing.T) {
 	kinds := []string{"application-apply", "draft-reply", "workflow-generate", "failed-run-fix", "recording-analyze", "extension-fill", "extension-ask"}
-	for _, kind := range kinds {
-		for _, status := range []string{aitask.StatusNeedsUser, aitask.StatusRunning, aitask.StatusComplete, aitask.StatusFailed} {
-			for _, version := range []string{"2.26.0", "2.9.99", ""} {
+	statuses := []string{aitask.StatusNeedsUser, aitask.StatusRunning, aitask.StatusComplete, aitask.StatusFailed}
+	versions := []string{"2.26.0", "2.9.99", ""}
+	for ki, kind := range kinds {
+		// The first kind is walked through every status and version. For the others each
+		// version is tried once with a rotating status: the gate does not depend on the
+		// kind or the status, and each case builds a database (this test alone took 13
+		// minutes on the CI runner when it walked the whole product).
+		for _, status := range statuses {
+			for vi, version := range versions {
+				if ki > 0 && status != statuses[(ki+vi)%len(statuses)] {
+					continue
+				}
 				r := newTaskRig(t)
 				r.taskOfKind(t, "default", status, kind)
 				withMonomindVersion(t, version)
