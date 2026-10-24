@@ -90,13 +90,18 @@ func TestTaskSessionGuardLeavesOperatorsAndGenericTasksAlone(t *testing.T) {
 	if err := runGuardRoot(t, "--profile", "p2", "workflow", "list"); err != nil && strings.Contains(err.Error(), guardMsg) {
 		t.Errorf("the operator was refused: %v", err)
 	}
-	// Unconfined kinds (the generic one, and the workflow/recording kinds of
-	// internal/aitaskkinds, whose confinement is a separate decision) are not held.
-	for _, kind := range []string{"generic", "workflow-generate", "recording-analyze", "failed-run-fix"} {
+	// An unconfined kind (the generic one) is not held; the workflow/recording kinds are
+	// confined now, so the guard holds their sessions to the task's profile.
+	id = guardRig(t, "generic")
+	asTaskSession(t, id, "tok")
+	if err := runGuardRoot(t, "--profile", "p2", "workflow", "list"); err != nil && strings.Contains(err.Error(), guardMsg) {
+		t.Errorf("a generic task was refused: %v", err)
+	}
+	for _, kind := range []string{"workflow-generate", "recording-analyze", "failed-run-fix"} {
 		id = guardRig(t, kind)
 		asTaskSession(t, id, "tok")
-		if err := runGuardRoot(t, "--profile", "p2", "workflow", "list"); err != nil && strings.Contains(err.Error(), guardMsg) {
-			t.Errorf("a %s task was refused: %v", kind, err)
+		if err := runGuardRoot(t, "--profile", "p2", "workflow", "list"); err == nil || !strings.Contains(err.Error(), guardMsg) {
+			t.Errorf("a %s task session reached another profile: %v", kind, err)
 		}
 	}
 	// A task that cannot be found fails closed.

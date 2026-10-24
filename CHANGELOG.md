@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **AI tasks.** `workflow-generate`, `failed-run-fix` and `recording-analyze` now run as confined turns that only propose. The user reviews and applies: `workflow apply-fix <task> [--dry-run]` shows or applies a failed run's workflow edits, `workflow save-draft <task>` saves a generated workflow as an inactive draft; both leave the workflow unapproved.
+
 - **AI tasks.** `aitask kinds [--json]` lists the kinds of task with their description, default access, context classes and result contract.
 
 - **Agent mode on Windows.** `monoagentcli agent-mode windows` prints the guide (`docs/agent-mode-windows.md`, embedded in the binary) on running the agent as a separate low-privilege account (or in WSL2) with a scoped token over loopback, and `doctor` gains a read-only `core.agent_isolation` row: bwrap / user-namespace / sandbox-exec presence on Linux and macOS, and with `--agent-account NAME` (or `MONOAGENT_AGENT_ACCOUNT`) an `icacls` check that the account has no access to the state folder. Not configured is never a failure.

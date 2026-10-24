@@ -3618,22 +3618,24 @@ monoagentcli --profile P aitask fail <id> --reason TEXT                   # the 
 - Exit codes: 2 unknown task, 3 refusals (`unknown_kind`, `schema_invalid`, `bad_token`, `task_closed`, …), 1
   `wait_timeout`.
 
+Propose, then apply: `workflow apply-fix <task> [--dry-run] [--allow-active] --json` prints `{ok, workflowId, workflowName, edits:[{node, nodeName, path, before, after}], warnings:[{code, text}]}` (codes `workflow_active`, `new_outbound`, `credential_field`, `expression_added`) or, applying, `{ok, workflowId, applied, needsApproval:true}`; `workflow save-draft <task> --json` prints `{ok, workflowId, name, nodeCount, needsApproval:true}`. Both are operator-only and take only the task id (`^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$`, after `--`; the app sends `--profile P --json workflow apply-fix [--dry-run|--allow-active] -- <id>`), read the task of THIS profile (kind, status complete, stored result), re-validate the result against the workflow as it is now, and refuse with typed `code`s: `not_found`, `wrong_kind`, `not_complete`, `no_result`, `no_edit`, `no_change`, `unknown_node`, `secret_key`, `invalid_workflow`, `bad_result`, `stale_proposal` (the workflow or a node changed after the task completed; dry-run says it too), `workflow_active_needs_confirm` (active workflow without `--allow-active`, which the app passes only after a separate confirm) `already_applied`, `changed_since_preview` (the definition or active flag differs from the dry-run's `definitionHash`, checked again inside the writing transaction), `expect_hash_required`, `no_target` / `wrong_target` (the workflow and run come from the task's own verified context, `workflow: <id>` / `execution: <id>` lines, never from the result; the run must belong to that workflow) and `too_large` (more than 50 changed values or a value over 2000 characters, so the app shows everything it applies). `--expect-hash` must match `^[A-Za-z0-9][A-Za-z0-9:_-]{7,127}$` (checked first, `invalid_input`, so a flag swallowed as its value is refused); the dry-run's `definitionHash` is 64 hex characters. A real apply passes `--expect-hash <definitionHash>` from the dry-run (`apply-fix [--allow-active] --expect-hash H -- <id>`) and removes every stored approval of the workflow in the same transaction, so a revert to an older approved definition needs a fresh approval. Each apply or save writes one `ai_task_applies` row (migration 123: task, kind, workflow, edit count, actor; no values) whose primary key refuses a second apply; a refused or failed write leaves no row. They record no approval: the edited or saved workflow stays unapproved until the user saves or activates it. No HTTP route reaches them (`TestTheAPIHasNoRouteToApplyAnAITaskProposal`).
+
 `aitask kinds --json` prints `{"kinds":[{name, description, defaultAccess, unattendedOk, contextClasses:[…],
 resultSchema:{name, required:[…], properties:[…]}}]}`, sorted by name; fields are only ever added. It opens no database
 and asks for no operator, so an agent can see what it may ask for.
 
-Kinds (`aitask.Register`; the profile-facing ones live in `internal/aitaskkinds`). All three below ask for `workspace`
-access (they drive `monoagentcli --profile P …`, which `coding` is not told about), are never unattended, treat context and
-run output as data, and never run a workflow or send anything:
+Kinds (`aitask.Register`; the profile-facing ones live in `internal/aitaskkinds`). The three workflow kinds below ask for `workspace`
+access but run as CONFINED turns (`confinedVerbs` in `internal/cli/chat/chat_apply.go`: no file tools, only the listed read-only commands,
+result via `aitask complete --result-json`); they are never unattended, treat context and run output as data, and PROPOSE only:
 
 | Kind | Input (`selection`) | Result | What the agent may do |
 | --- | --- | --- | --- |
 | `generic` | the goal | `{summary}` | whatever the goal asks (`coding`) |
 | `application-apply` | posting, facts, documents | fill record | fill the form in the browser, never submit (confined) |
 | `draft-reply` | the text to reply to (selected or pasted) | `{summary, draft:{to?, subject?, body}, assumptions}` | nothing but `aitask complete\|fail` (confined, `qa`); the person saves the draft, nothing is sent |
-| `workflow-generate` | the brief | `{workflowId, name, summary, nodeCount, validation:{ok, errors}}` | `node list/schema`, `ref`, `workflow validate/import`; saved inactive and AI-authored until the user approves; `aitaskkinds.CheckResult` refuses a `workflowId` the profile does not have |
-| `recording-analyze` | recording id + title | `{recordingId, automationName?, summary, saved:false, verified:false}` | `record analyze <id> --json` only; never reads the recording; `record save`/`verify` stay the user's |
-| `failed-run-fix` | workflow id, execution id, failing node ids, redacted error | `{workflowId, executionId, diagnosis, changed, changes, needsApproval}` | `workflow execution/get`, `workflow node …`, `workflow connect`, `workflow validate`; the edit unapproves the workflow; never reruns |
+| `workflow-generate` | the brief | `{summary, workflow:{name, description?, is_active:false, nodes, connections}, validation}` | CONFINED: `workflow search/templates list|show/get`, `node list/schema`, `ref`; the agent writes nothing. `Kind.Check` recomputes the verdict with the `workflow validate` validator; `workflow save-draft <task>` (operator) saves it as a new inactive, unapproved draft |
+| `recording-analyze` | recording id + title | `{recordingId, summary, suggestions[≤12], risks?}` | CONFINED: `record show` only; `Kind.Check` verifies the recording is in the profile; changes nothing |
+| `failed-run-fix` | workflow id, execution id, failing node ids, redacted error | `{summary, diagnosis, workflowId, executionId, fix:{kind:workflow-edit\|advice\|none, description, edits?:[{node, config}]}}` | CONFINED: `workflow get/list/search/executions/execution`; `Kind.Check` plans the edits against the workflow now (`internal/workflowfix`); `workflow apply-fix <task> [--dry-run] [--allow-active]` (operator) applies them |
 
 # monomind:start instructions:opencode
 # Monomind
