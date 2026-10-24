@@ -43,8 +43,11 @@ func IsExtensionKind(name string) bool { return name == KindExtensionFill || nam
 // ExtensionTargetFile is where an extension task's queue record lives in its
 // context (class folder posting): the tab, browser and origin the person had
 // open when they pressed the button. The context snapshot is read-only and
-// hash-checked, and the agent's turn is never shown this file (it is not text),
-// so only the browser CLI reads it.
+// hash-checked. The agent's turn IS shown this file (the confined session
+// inlines .json context files, fenced as data): it holds only the tab id, the
+// browser and the origin, which are no secret. What matters is that the browser
+// CLI reads the record from the snapshot, not from anything the agent says: the
+// agent cannot change it, and a --tab or --browser it passes is refused.
 const ExtensionTargetFile = "posting/target.json"
 
 // ExtensionTarget is the queue record of an extension task: the one tab it may
