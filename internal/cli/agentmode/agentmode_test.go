@@ -87,3 +87,10 @@ func TestBwrapProfileHidesStateDir(t *testing.T) {
 		t.Fatalf("sandbox exposed ~/.monoagent: %s", out)
 	}
 }
+
+func TestWindowsRefusalPointsAtTheRecipe(t *testing.T) {
+	_, err := Profile(Windows)
+	if err == nil || !strings.Contains(err.Error(), WindowsDoc) || !strings.Contains(err.Error(), "WSL2") {
+		t.Fatalf("%v", err)
+	}
+}
