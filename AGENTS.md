@@ -3588,6 +3588,25 @@ run output as data, and never run a workflow or send anything:
 | `recording-analyze` | recording id + title | `{recordingId, automationName?, summary, saved:false, verified:false}` | `record analyze <id> --json` only; never reads the recording; `record save`/`verify` stay the user's |
 | `failed-run-fix` | workflow id, execution id, failing node ids, redacted error | `{workflowId, executionId, diagnosis, changed, changes, needsApproval}` | `workflow execution/get`, `workflow node …`, `workflow connect`, `workflow validate`; the edit unapproves the workflow; never reruns |
 
+### Agent API and client mode
+
+An agent that has no access to the user's database finishes and reads its own AI task through the daemon's API
+(`internal/httpapi/handlers_aitask.go`): `GET /profiles/{profile}/agent/v1/aitask/kinds`, `GET …/aitask/{id}` and
+`…/{id}/result` (scope read), `POST …/{id}/complete|fail|cancel` (scope write). They call the same `internal/aitask`
+service as the commands, so validation, the kind's schema and check, and the single terminal state are the same. They take
+scoped agent tokens only (never the profile's own bearer), and act on a task only for a token bound to it:
+`agent-mode token create --name N --scope write --task ID --conversation ID` (operator-only; migration 123). `complete`,
+`fail` and `cancel` also need the task's own token in the `X-Aitask-Token` header, as the commands need
+`MONOAGENT_AITASK_TOKEN`; the API checks its hash but not the holder's process tree (`Service.Remote`). The result of
+`complete` is the request body, the bytes `--result FILE` reads. Every call is audited under the token's name.
+
+Client mode: with `MONOAGENT_API_URL` and `MONOAGENT_API_TOKEN` both set (`agent-mode env` prints them), `monoagentcli`
+runs `aitask kinds|status|result|complete|fail|cancel` through that API (`internal/agentclient`) and never opens the local
+database or key store. Every other command is classified in `clientModeClasses` (`cmd/monoagentcli/client_mode_table.go`):
+local-safe ones (`help`, `version`, `ref`) run as ever; the rest exit 3 with code `not_available_in_agent_mode`, are never
+forwarded and never pass an operator check. A new command, or a new subcommand of a mapped or local-safe one, fails
+`TestEveryCommandIsClassifiedForClientMode` until it is classified. The token variables are never printed.
+
 # monomind:start instructions:opencode
 # Monomind
 
