@@ -3527,6 +3527,7 @@ normal coder conversation (a bubble in the app); the code is `internal/aitask` a
 monoagentcli --profile P aitask submit --kind generic --goal "…" [--context CLASS=PATH]… [--application ID] \
     [--access coding|workspace|qa] [--runtime R] [--budget-usd N] [--unattended] [--queue-only] --json
 monoagentcli --profile P aitask status|result|wait|cancel <id> --json     # list [--kind K] [--application ID]
+monoagentcli --profile P aitask kinds --json                              # read-only, anyone: what can be asked for
 monoagentcli --profile P aitask complete <id> --result FILE               # the task's own session
 monoagentcli --profile P aitask fail <id> --reason TEXT                   # the task's own session
 ```
@@ -3575,6 +3576,10 @@ monoagentcli --profile P aitask fail <id> --reason TEXT                   # the 
   access or changes routing stays operator-only (`TestEveryAitaskFlagIsClassified`).
 - Exit codes: 2 unknown task, 3 refusals (`unknown_kind`, `schema_invalid`, `bad_token`, `task_closed`, …), 1
   `wait_timeout`.
+
+`aitask kinds --json` prints `{"kinds":[{name, description, defaultAccess, unattendedOk, contextClasses:[…],
+resultSchema:{name, required:[…], properties:[…]}}]}`, sorted by name; fields are only ever added. It opens no database
+and asks for no operator, so an agent can see what it may ask for.
 
 Kinds (`aitask.Register`; the profile-facing ones live in `internal/aitaskkinds`). All three below ask for `workspace`
 access (they drive `monoagentcli --profile P …`, which `coding` is not told about), are never unattended, treat context and
