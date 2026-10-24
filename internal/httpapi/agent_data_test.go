@@ -8,11 +8,11 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
