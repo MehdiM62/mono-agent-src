@@ -27,6 +27,7 @@ export function errParts(e) {
 const MAX_LEAVES = 50
 const MAX_VALUE = 2000
 const MAX_PATH = 512
+const NOT_CALLED = Symbol('not called')
 
 const show = (v) => { try { return typeof v === 'string' ? v : JSON.stringify(v) ?? '' } catch { return '' } }
 
@@ -79,14 +80,18 @@ export default function FailedRunFixResult({ taskId, result, onNavigate }) {
   const [applyErr, setApplyErr] = useState(null) // { code, message }
   const [done, setDone] = useState(false) // already applied
   const [reload, setReload] = useState(0) // bumped to ask for a fresh preview
+  const request = useRef(null) // { key, promise }: one preview request per task and reload, even under StrictMode
+  const flight = useRef(null) // the token of the apply in flight
 
   useEffect(() => {
     if (!editable || !taskId) return undefined
     let live = true
     const asked = taskId
     // A new task starts from nothing: no edits, hash or error of another task.
-    setPreviewState(null); setErrState(null); setApplied(null); setApplyErr(null); setDone(false); setBusy(false)
-    aitaskApplyApi.preview(asked).then(p => { if (live) setPreviewState({ taskId: asked, data: isObj(p) ? p : { ok: false, edits: [] } }) }).catch(e => { if (live) setErrState({ taskId: asked, message: String(e?.message || e) }) })
+    setPreviewState(null); setErrState(null); setApplied(null); setApplyErr(null); setDone(false); setBusy(false); flight.current = null
+    const key = `${asked}:${reload}`
+    if (request.current?.key !== key) request.current = { key, promise: aitaskApplyApi.preview(asked) }
+    request.current.promise.then(p => { if (live) setPreviewState({ taskId: asked, data: isObj(p) ? p : { ok: false, edits: [] } }) }).catch(e => { if (live) setErrState({ taskId: asked, message: String(e?.message || e) }) })
     return () => { live = false }
   }, [editable, taskId, reload])
 
@@ -102,15 +107,32 @@ export default function FailedRunFixResult({ taskId, result, onNavigate }) {
   const canApply = previewOk && !applied && !done && !busy
   const workflowIsActive = warnings.some(w => w.code === ACTIVE_WARNING)
 
+  // What is on screen right now, read by callApply at the moment of the call.
+  const shown = useRef({ taskId: null, hash: '' })
+  shown.current = { taskId: previewState?.taskId === taskId ? taskId : null, hash }
+
+  // callApply is the ONLY path to the apply binding (first apply, the retry
+  // after an active-workflow confirm, the apply after Review again). Right
+  // before calling it re-checks that this apply is the one in flight, that the
+  // task on screen is the one asked for, and that the hash is the one of the
+  // preview currently shown. Otherwise it calls nothing and returns NOT_CALLED.
+  const callApply = (token, asked, allow, reviewed) => {
+    const s = shown.current
+    if (flight.current !== token || currentTask.current !== asked || s.taskId !== asked || s.hash !== reviewed || reviewed === '') return NOT_CALLED
+    return aitaskApplyApi.apply(asked, allow, reviewed)
+  }
+
   const confirmActive = () => confirm(t('taskResult.activeBody'), { title: t('taskResult.activeTitle'), confirmLabel: t('taskResult.activeConfirm') })
 
   // apply runs only from the Apply button's click: busy is set first, so a
   // second click cannot start a second apply while a dialog or the call is open.
   const apply = async () => {
-    if (!canApply) return
+    if (!canApply || flight.current) return
     const reviewed = hash // the hash of the preview the user is looking at
     const asked = taskId
     if (previewState?.taskId !== asked) return
+    const token = {}
+    flight.current = token
     setBusy(true); setApplyErr(null)
     try {
       const nodes = new Set(edits.map(e => e.node)).size
@@ -120,16 +142,16 @@ export default function FailedRunFixResult({ taskId, result, onNavigate }) {
         if (!(await confirmActive())) return
         allow = true
       }
-      if (currentTask.current !== asked) return // the user moved to another task meanwhile
       let r
       try {
-        r = await aitaskApplyApi.apply(taskId, allow, reviewed)
+        r = await callApply(token, asked, allow, reviewed)
       } catch (e) {
         const p = errParts(e)
         // The CLI refused an active workflow the preview did not flag: ask, then retry with the flag.
-        if (!allow && p.code === ACTIVE_REFUSAL && (await confirmActive())) r = await aitaskApplyApi.apply(taskId, true, reviewed)
+        if (!allow && p.code === ACTIVE_REFUSAL && (await confirmActive())) r = await callApply(token, asked, true, reviewed)
         else throw e
       }
+      if (r === NOT_CALLED) return // the screen changed meanwhile; nothing was applied
       if (currentTask.current !== asked) return
       setApplied({ count: Number.isFinite(r?.applied) ? r.applied : edits.length, workflowId: text(r?.workflowId || workflowId, 200) })
     } catch (e) {
@@ -137,7 +159,7 @@ export default function FailedRunFixResult({ taskId, result, onNavigate }) {
       const p = errParts(e)
       if (p.code === 'already_applied') setDone(true)
       else setApplyErr(p)
-    } finally { setBusy(false) }
+    } finally { if (flight.current === token) flight.current = null; if (currentTask.current === asked) setBusy(false) }
   }
 
   const errorLine = (() => {
