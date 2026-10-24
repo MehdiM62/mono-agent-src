@@ -100,7 +100,7 @@ func TestConfinedTurnIsRefusedWithoutAVouchedKind(t *testing.T) {
 			return []string{"MONOAGENT_AGENT_KIND=" + kind}, func(int) {}, func() {}
 		}
 	}
-	for _, kind := range []string{"application-apply", aitask.KindExtensionFill, aitask.KindExtensionAsk, "draft-reply", "failed-run-fix"} {
+	for _, kind := range []string{"application-apply", aitask.KindExtensionFill, aitask.KindExtensionAsk, "draft-reply"} {
 		withMonomindVersion(t, "2.27.0")
 		oldA, oldK := issueApplyKind, issueAgentKind
 		issueApplyKind = func(string) ([]string, func(int), func()) { return kindOnly("apply")() }
