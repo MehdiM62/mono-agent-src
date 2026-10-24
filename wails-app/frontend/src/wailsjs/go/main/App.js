@@ -1642,8 +1642,8 @@ export function VerifyDraft(arg1, arg2, arg3) {
   return window['go']['main']['App']['VerifyDraft'](arg1, arg2, arg3);
 }
 
-export function ApplyFailedRunFix(arg1) {
-  return window['go']['main']['App']['ApplyFailedRunFix'](arg1);
+export function ApplyFailedRunFix(arg1, arg2) {
+  return window['go']['main']['App']['ApplyFailedRunFix'](arg1, arg2);
 }
 
 export function PreviewFailedRunFix(arg1) {

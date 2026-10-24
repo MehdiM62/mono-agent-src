@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 )
@@ -31,6 +32,12 @@ func (a *App) aitaskApplyCLI(verb, taskID string, flags ...string) (string, erro
 	}
 	var out json.RawMessage
 	if err := a.jsonCLIInto(&out, full); err != nil {
+		// The CLI's typed refusal (stale_proposal, already_applied,
+		// operator_only, …) leads the message as "code: message".
+		var ae *aitaskError
+		if errors.As(err, &ae) && ae.code != "" {
+			return "", fmt.Errorf("%s: %s", ae.code, ae.msg)
+		}
 		return "", err
 	}
 	return string(out), nil
@@ -45,7 +52,14 @@ func (a *App) PreviewFailedRunFix(taskID string) (string, error) {
 
 // ApplyFailedRunFix is `workflow apply-fix`: it applies the proposed edits to
 // the workflow, which then needs the user's approval again before it runs.
-func (a *App) ApplyFailedRunFix(taskID string) (string, error) {
+// allowActive adds --allow-active, which the GUI sets only after the user
+// confirmed that the workflow is running or scheduled. These bindings exist
+// only in the Wails app: the HTTP agent API and the extension bridge never
+// expose them.
+func (a *App) ApplyFailedRunFix(taskID string, allowActive bool) (string, error) {
+	if allowActive {
+		return a.aitaskApplyCLI("apply-fix", taskID, "--allow-active")
+	}
 	return a.aitaskApplyCLI("apply-fix", taskID)
 }
 
