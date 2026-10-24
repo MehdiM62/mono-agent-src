@@ -39,7 +39,9 @@ var aitaskPolicy = map[string]struct {
 	"complete":  {"holder", map[string]string{"result": "input", "result-json": "input"}, []string{"{id}", "--result", "{file}"}},
 	// "nested": has subcommands of its own, classified in aitask_budget_flags_test.go.
 	"budget": {"nested", map[string]string{}, nil},
-	"fail":   {"holder", map[string]string{"reason": "input"}, []string{"{id}", "--reason", "cannot"}},
+	// "anyone": read-only, opens nothing and asks for no operator (it lists what can be asked for).
+	"kinds": {"anyone", map[string]string{}, nil},
+	"fail":  {"holder", map[string]string{"reason": "input"}, []string{"{id}", "--reason", "cannot"}},
 }
 
 func TestEveryAitaskFlagIsClassified(t *testing.T) {
@@ -254,5 +256,28 @@ func TestAitaskSubmitUnattendedFullAccessIsRefused(t *testing.T) {
 		if clicore.ExitCodeFor(err) != 3 || errCode(err) != aitask.CodeUnattendedFull {
 			t.Errorf("--unattended --access %s: %v", access, err)
 		}
+	}
+}
+
+// An agent may list the kinds; nothing is written (no task rows appear).
+func TestAitaskKindsIsOpenToAnAgentAndWritesNothing(t *testing.T) {
+	r := newAitaskRig(t)
+	asPlainAgent(t)
+	out, err := r.run(t, "kinds")
+	if err != nil || !strings.Contains(out, `"workflow-generate"`) || !strings.Contains(out, `"application-apply"`) {
+		t.Fatalf("%v %s", err, out)
+	}
+	var v struct{ Kinds []map[string]any }
+	if err := json.Unmarshal([]byte(out), &v); err != nil || len(v.Kinds) < 5 {
+		t.Fatalf("%v %s", err, out)
+	}
+	db, err := initDB(r.cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	var n int
+	if err := db.DB.QueryRow(`SELECT COUNT(*) FROM ai_tasks`).Scan(&n); err != nil || n != 2 {
+		t.Fatalf("tasks = %d (%v), want the 2 the rig made", n, err)
 	}
 }

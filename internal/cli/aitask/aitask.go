@@ -50,7 +50,7 @@ func New(d Deps) *cobra.Command {
 	}
 	c := &cli{d: &d}
 	for _, sub := range []*cobra.Command{c.submit(), c.start(), c.status(), c.result(), c.wait(), c.cancel(), c.list(),
-		c.complete(), c.fail(), c.supervise(), c.budgetCmd()} {
+		c.complete(), c.fail(), c.supervise(), c.budgetCmd(), c.kinds()} {
 		clicore.WithJSONErrors(d.JSONOutput, sub)
 		cmd.AddCommand(sub)
 	}

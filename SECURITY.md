@@ -325,7 +325,9 @@ profile's own bearer also allows the `X-Full-Outputs` header.
 Windows has no profile: it has no sandbox that a command can start a process in without
 extra installs, so `agent-mode sandbox --runtime windows` refuses and says what to use instead:
 WSL2 with the bwrap profile, a separate Windows user account for the agent, or Windows Sandbox / a VM,
-each reaching the API with a scoped token.
+each reaching the API with a scoped token. The steps, and what they do not protect against, are in
+`monoagentcli agent-mode windows` (the file `docs/agent-mode-windows.md`, embedded in the binary); `monoagentcli doctor --agent-account NAME` checks that the
+account has no access to the state folder.
 
 What a token reaches besides workflows (all under `/profiles/{profile}/`, the token's own profile
 only; another profile's id is "not found", and a token used on another profile's path is refused

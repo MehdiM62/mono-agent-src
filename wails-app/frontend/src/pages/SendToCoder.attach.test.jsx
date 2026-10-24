@@ -26,6 +26,8 @@ vi.mock('../wailsjs/go/main/App', () => App)
 vi.mock('../services/api.js', () => ({ api, notify: vi.fn() }))
 vi.mock('../components/SendToCoderApi.js', async (orig) => ({ ...(await orig()), aitaskApi }))
 vi.mock('../components/ConfirmDialog.jsx', () => ({ confirm: vi.fn(() => Promise.resolve(true)) }))
+// The two buttons below are hidden while their kinds run unconfined; this file checks what they send once shown.
+vi.mock('../lib/confinedKinds.js', () => ({ UNCONFINED_KIND_BUTTONS: true }))
 
 import Info from './Info.jsx'
 import Logs from './Logs.jsx'
