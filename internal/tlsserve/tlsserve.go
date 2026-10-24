@@ -159,6 +159,23 @@ func IsLoopbackAddr(addr string) bool {
 	return ip != nil && ip.IsLoopback()
 }
 
+// ClientAddr turns a bind address into one a local client connects to, and sends as its
+// Host header: an unspecified host (":9322", "0.0.0.0:9322", "[::]:9322") becomes loopback.
+func ClientAddr(addr string) string {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return addr
+	}
+	if ip := net.ParseIP(host); host == "" || (ip != nil && ip.IsUnspecified()) {
+		if ip != nil && ip.To4() == nil {
+			host = "::1"
+		} else {
+			host = "127.0.0.1"
+		}
+	}
+	return net.JoinHostPort(host, port)
+}
+
 // selfSignedValidity is deliberately under two years: long enough that
 // local and LAN use won't hit renewal often, short enough to stay inside
 // browser and OS maximum leaf-certificate lifetimes.

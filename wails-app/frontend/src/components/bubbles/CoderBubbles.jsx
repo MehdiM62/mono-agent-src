@@ -117,7 +117,7 @@ export default function CoderBubbles({ store, onNavigate, onCloseOrg, onOpenArti
     <>
       {expanded && isOrgBubble(expanded) && (
         <OrgBubbleOverlay
-          key={expanded.key}
+          key={expanded.slot || expanded.key}
           bubble={expanded}
           store={store}
           originRect={originRect}

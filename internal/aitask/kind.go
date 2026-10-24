@@ -1,6 +1,8 @@
 package aitask
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"sort"
@@ -27,6 +29,13 @@ func FullAccess(a string) bool { return a != AccessQA }
 // result it hands back.
 type Kind struct {
 	Name string
+	// Description is one line saying what the kind does, listed with the kinds.
+	Description string
+	// Check, when set, is called by Service.Complete after the schema check
+	// and before the task is closed, with the task's profile and the result.
+	// Its error refuses the result (schema_invalid) so the agent can fix it and
+	// complete again; a panic or a run past CheckTimeout refuses too.
+	Check func(ctx context.Context, profile string, raw json.RawMessage) error
 	// Schema is the JSON Schema (the subset Validate checks) the result must
 	// match; nil accepts any JSON object.
 	Schema map[string]any
@@ -38,12 +47,6 @@ type Kind struct {
 	// UnattendedOK says the kind may run with --unattended (and then only at
 	// the qa access level).
 	UnattendedOK bool
-	// Validate, when set, checks a result that already matches Schema against
-	// rules a JSON Schema can't state (a workflow that must pass the real
-	// validator, say). v is the decoded result. The error text is shown to the
-	// agent that wrote the result, so it must say what to fix. Nil means no
-	// further check.
-	Validate func(v any) error
 }
 
 var kindName = regexp.MustCompile(`^[a-z][a-z0-9-]{0,39}$`)
@@ -80,7 +83,7 @@ func Lookup(name string) (Kind, error) {
 	}
 	return Kind{}, &Error{Code: CodeUnknownKind,
 		Message: fmt.Sprintf("unknown task kind %q (kinds: %v)", name, namesLocked()),
-		Fields:  map[string]any{"kinds": namesLocked()}}
+		Fields:  map[string]any{"kinds": namesLocked(), "descriptions": descriptionsLocked()}}
 }
 
 // Names are the registered kinds, sorted.
@@ -88,6 +91,16 @@ func Names() []string {
 	kindsMu.RLock()
 	defer kindsMu.RUnlock()
 	return namesLocked()
+}
+
+func descriptionsLocked() map[string]string {
+	out := make(map[string]string, len(kinds))
+	for n, k := range kinds {
+		if k.Description != "" {
+			out[n] = k.Description
+		}
+	}
+	return out
 }
 
 func namesLocked() []string {

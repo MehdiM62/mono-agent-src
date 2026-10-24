@@ -158,7 +158,7 @@ func newCoderSetCmd(cfg *Deps) *cobra.Command {
 		"and effort the lead leaves open, with --org-router model too. Only removing the Jev key keeps briefs on this machine."
 	c.Flags().BoolVar(&sendAppr, "send-approval", true, "An agent's sends (email, DM, comment, post, connect, publish) wait for your approval (operator only)")
 	c.Flags().StringVar(&appAcc, "app-access", "", "on (default) or off: what agents are told and offered, not what they can do. Off, coder prompts carry no profile summary and a dynamic org's workers are not offered the workspace profile (MonoAgent's tasks, documents, people, vault, workflows and apps) or told about those surfaces; the coder lead keeps full access, a worker with a shell can still run monoagentcli, operator-only commands and the send gate still apply, and with a Jev key set a worker's brief still goes to Jev, whatever the router (operator only)")
-	c.Flags().StringVar(&defAcc, "default-access", "", "scoped (default), coding, workspace or full: the level an operator-run chat creation without --access makes when coder mode is ready; an agent-run creation stays scoped (operator only)")
+	c.Flags().StringVar(&defAcc, "default-access", "", "scoped, coding, workspace or full (default full): the level an operator-run chat creation without --access makes when coder mode is ready; an agent-run creation stays scoped (operator only)")
 	c.Flags().StringVar(&root, "workspace-root", "", "Folder new test workspaces are created in (operator only)")
 	c.Flags().IntVar(&maxTurns, "max-turns", 0, "Agent turn cap per message (operator only)")
 	c.Flags().StringVar(&timeout, "timeout", "", "Wall-clock cap per message (e.g. 60m; operator only)")

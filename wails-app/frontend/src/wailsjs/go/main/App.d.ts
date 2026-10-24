@@ -140,6 +140,8 @@ export function CoderSet(arg1:string,arg2:number,arg3:string,arg4:number,arg5:st
 
 export function CoderSetAppAccess(arg1:boolean):Promise<string>;
 
+export function CoderSetDefaultAccess(arg1:string):Promise<string>;
+
 export function ConfirmApplicationSubmitted(arg1:string):Promise<void>;
 
 export function CoderStatus():Promise<string>;
@@ -275,6 +277,8 @@ export function GetEffectiveTools(arg1:string,arg2:string):Promise<string>;
 export function GetExecutionDetail(arg1:string):Promise<Record<string, any>>;
 
 export function GetExtensionStatus():Promise<string>;
+
+export function GetExtensionInfo():Promise<main.ExtensionInfo>;
 
 export function GetGlobalOrgSummary(arg1:boolean):Promise<string>;
 
@@ -542,6 +546,8 @@ export function ListWorkflowTemplates():Promise<Array<workflow.Template>>;
 
 export function ListWorkflows():Promise<Array<main.WorkflowSummary>>;
 
+export function LowerAITaskBudget(arg1:string,arg2:string,arg3:number):Promise<string>;
+
 export function LoginSocial(arg1:string):Promise<string>;
 
 export function MarkPersonMessageUnread(arg1:string):Promise<void>;
@@ -581,6 +587,8 @@ export function OrgSignatureReview(arg1:string):Promise<string>;
 export function OrgSignatureStatus(arg1:string):Promise<string>;
 
 export function PairExtension():Promise<string>;
+
+export function InstallExtension():Promise<main.ExtensionInfo>;
 
 export function PauseOrgAutonomy(arg1:string,arg2:string):Promise<string>;
 

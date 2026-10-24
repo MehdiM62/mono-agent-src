@@ -79,12 +79,11 @@ func TestEveryAitaskFlagIsClassified(t *testing.T) {
 }
 
 type aitaskRig struct {
-	cfg          *globalConfig
-	own, other   string
-	ownToken     string
-	otherToken   string
-	resultFile   string
-	badResultErr string
+	cfg        *globalConfig
+	own, other string
+	ownToken   string
+	otherToken string
+	resultFile string
 }
 
 func newAitaskRig(t *testing.T) *aitaskRig {

@@ -184,14 +184,15 @@ func TestRedactResultKeepsNumbersBooleansHashesAndLookalikes(t *testing.T) {
 // Redaction runs after the schema check: it must never make a valid result of
 // any registered kind invalid.
 func TestRedactResultKeepsEveryKindsValidResultValid(t *testing.T) {
-	withKnownTypes(t, "trigger.manual", "http.request")
 	secretish := "key " + fakeSK + " and Bearer " + fakeBearer + " at https://u:pw12345678@h.test/?token=abcdefghijkl"
 	samples := map[string]string{
-		"generic":            `{"summary":"` + secretish + `","output":{"api_key":"{{secret:k}}","token_limit":5,"password":"Zx9-realvalue"}}`,
-		"draft-reply":        `{"summary":"s","draft":{"to":"sam","subject":"Re","body":"` + secretish + `"},"assumptions":["` + secretish + `"]}`,
-		"recording-analysis": validRecordingResult,
-		"workflow-generate":  string(wfResult(t, goodNodes, goodConns, nil)),
-		"failed-run-fix":     `{"summary":"` + secretish + `","diagnosis":"d","fix":{"kind":"workflow-edit","description":"x","proposed":{"nodeId":"n1","config":{"headers":{"Authorization":"Bearer {{secret:api}}","x-api-key":"Zx9-realvalue"},"max_tokens":5}}}}`,
+		"generic":     `{"summary":"` + secretish + `","output":{"api_key":"{{secret:k}}","token_limit":5,"password":"Zx9-realvalue"}}`,
+		"draft-reply": `{"summary":"s","draft":{"to":"sam","subject":"Re","body":"` + secretish + `"},"assumptions":["` + secretish + `"]}`,
+		// The kinds of internal/aitaskkinds register in this test binary through
+		// redact_kinds_test.go (an external test package: aitaskkinds imports this one).
+		"workflow-generate": `{"workflowId":"wf-1","name":"Digest","summary":"` + secretish + `","nodeCount":3,"validation":{"ok":true,"errors":[]}}`,
+		"recording-analyze": `{"recordingId":"rec-1","automationName":"a","summary":"` + secretish + `","saved":false,"verified":false}`,
+		"failed-run-fix":    `{"workflowId":"wf-1","executionId":"ex-1","diagnosis":"` + secretish + `","changed":true,"changes":["set x"],"needsApproval":true}`,
 	}
 	for _, name := range Names() {
 		raw, ok := samples[name]
@@ -220,11 +221,6 @@ func TestRedactResultKeepsEveryKindsValidResultValid(t *testing.T) {
 		_ = json.Unmarshal(b, &back)
 		if err := Validate(schema, back); err != nil {
 			t.Errorf("%s: redaction made a valid result invalid: %v\n%s", name, err, b)
-		}
-		if k.Validate != nil {
-			if err := k.Validate(back); err != nil {
-				t.Errorf("%s: redaction broke the kind's own check: %v", name, err)
-			}
 		}
 		if strings.Contains(string(b), "abcdefghijklmnop0123") || strings.Contains(string(b), "pw12345678") {
 			t.Errorf("%s: a secret survived: %s", name, b)

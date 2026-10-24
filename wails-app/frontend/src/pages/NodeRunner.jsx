@@ -4,7 +4,7 @@ import {
   ChevronDown, ChevronRight, X, Settings2, Copy, RefreshCw,
   AlertCircle, CheckCircle, Clock, Loader, Plus,
   Save, FolderOpen, ToggleLeft, ToggleRight, List, LayoutTemplate,
-  Braces, LayoutDashboard, Upload, UploadCloud,
+  Braces, LayoutDashboard, Upload, UploadCloud, Bot,
 } from 'lucide-react'
 import * as WailsApp from '../wailsjs/go/main/App'
 import { api, notify, reportRunFailure, subscribeEvent } from '../services/api.js'
@@ -21,14 +21,14 @@ import {
 } from './nodeConfigFields.js'
 import { SaveModal, WorkflowsModal, TriggerInputModal } from './NodeRunnerModals.jsx'
 import WorkflowImportDialog from './WorkflowImportDialog.jsx'
+import GenerateWorkflowDialog from '../components/GenerateWorkflowDialog.jsx'
 import PublishToMonoesDialog from '../components/library/PublishToMonoesDialog.jsx'
 import { derivePlatformId, isSessionPicker, isMediaField, automationIdsFrom, credentialPickerMode, connectionLabel, fieldIsVisible, fieldValueFor, configDefaults, configAfterChange, jsonTextError, curlImportConfig, isFormFieldsField } from './nodeInspectorRules.js'
 import { CollectionField, AnyPlatformConnections, CurlImport, FormFieldsEditor } from './NodeInspectorWidgets.jsx'
 import { onAutomationsChanged } from '../lib/appEvents.js'
 import { arrangePaletteCategories, DEPRECATED, paletteCategoryLabel, paletteSectionOf, splitPaletteSections } from './paletteSections.js'
 import { runProblem } from '../lib/runFailure.js'
-import WorkflowCoderBrief from '../components/WorkflowCoderBrief.jsx'
-import RunProblemPanel, { failedRunGoal } from '../components/RunProblemPanel.jsx'
+import RunProblemPanel from '../components/RunProblemPanel.jsx'
 import { rememberTriggerInput, rememberedTriggerInput } from './triggerInput.js'
 import { usePageVisibleRef } from '../lib/usePageVisible.js'
 import { fitCamera, placeAfter, autoConnect, panToShow, placeBelow, autoConnectSub } from './canvasPlacement.js'
@@ -1141,6 +1141,7 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
   const [saveMsg,       setSaveMsg]       = useState(null) // { ok: bool, text: string }
   const [showWfModal,   setShowWfModal]   = useState(false) // false | 'saved' | 'templates'
   const [showImport,    setShowImport]    = useState(false)
+  const [showGenerate,  setShowGenerate]  = useState(false)
   const [showPublish,   setShowPublish]   = useState(false)
   const [showSaveModal, setShowSaveModal] = useState(false)
   // { asked, fields, value } — asked flips once the modal has been answered
@@ -2160,6 +2161,11 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
           <LayoutTemplate size={13} /> Templates
         </button>
 
+        {/* Generate a workflow from a brief (coder task `workflow-generate`) */}
+        <button style={{ ...tbBtn, gap: 5, fontFamily: 'var(--font-mono)', fontSize: 10 }} onClick={() => setShowGenerate(true)} title="Generate a workflow with coder">
+          <Bot size={13} /> Generate
+        </button>
+
         {/* Import a workflow file (CLI `workflow import`) */}
         <button style={tbBtn} onClick={() => setShowImport(true)} title="Import workflow" aria-label="Import workflow"><Upload size={13} /></button>
 
@@ -2288,6 +2294,8 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
       )}
 
       {/* ── WORKFLOWS MODAL ── */}
+      {showGenerate && <GenerateWorkflowDialog onClose={() => setShowGenerate(false)} />}
+
       {showImport && (
         <WorkflowImportDialog
           onClose={() => setShowImport(false)}
@@ -2320,9 +2328,11 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
       {execOverlay?.problem && !problemHidden && (
         <RunProblemPanel
           problem={execOverlay.problem}
+          workflowId={wfId}
+          executionId={execOverlay.id}
           onSelectNode={(id) => { setSelectedId(id); setInspectorOpen(true) }}
           onClose={() => setProblemHidden(true)}
-          onSendToCoder={() => ({ goal: failedRunGoal({ workflowId: wfId, workflowName: wfName, executionId: execOverlay.id }), origin: { page: 'noderunner', label: 'Workflows' } })}
+          onSendToCoder={() => ({ goal: 'Work out why this workflow run failed and fix the workflow.', origin: { page: 'noderunner', label: 'Workflows' } })}
         />
       )}
 
@@ -2411,9 +2421,6 @@ export default function NodeRunner({ onNavigate, navData, onWorkflowsChanged }) 
                 <button className="btn btn-secondary btn-sm" style={{ pointerEvents: 'auto', gap: 6 }} onClick={() => setShowWfModal('templates')}>
                   <LayoutTemplate size={13} /> Start from a template
                 </button>
-                <div style={{ pointerEvents: 'auto' }}>
-                  <WorkflowCoderBrief origin={{ page: 'noderunner', label: 'Workflows' }} />
-                </div>
                 <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.8 }}>
                   or click or drag nodes from the left panel<br />
                   Connect output → input ports to chain them<br />

@@ -5,7 +5,12 @@
 import React, { useEffect } from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import '@testing-library/jest-dom/vitest'
-import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, cleanup, configure } from '@testing-library/react'
+
+// The first render in a file costs about 3 s while modules warm up (0.5-1 s after), so the 1 s waitFor
+// and 5 s test defaults fail on a loaded machine without anything being wrong.
+configure({ asyncUtilTimeout: 8000 })
+vi.setConfig({ testTimeout: 20000 })
 import '../../i18n.js'
 import journal from '../../lib/__fixtures__/orgStageJournal.json'
 

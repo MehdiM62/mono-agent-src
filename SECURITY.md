@@ -235,12 +235,32 @@ own is not enough.
 Against a process of your own OS user only an OS boundary works, so this is the
 supported way to run a coding agent that you do not fully trust:
 
-1. Print a sandbox profile and start the agent inside it:
-   `monoagentcli agent-mode sandbox --runtime bwrap > agent-sandbox.sh; sh agent-sandbox.sh claude`
-   (`--runtime seatbelt` for macOS `sandbox-exec`, `--runtime claude-code` for
-   Claude Code's own sandbox settings). The profile hides `~/.monoagent`, the
-   Secret Service / KWallet / macOS keychain files and, where it can, the D-Bus
-   session bus. It leaves loopback networking open.
+1. Print a sandbox profile and start the agent inside it. On Linux there are two bwrap profiles:
+   `monoagentcli agent-mode sandbox --runtime bwrap --strict > agent-sandbox.sh`, then run
+   `sh agent-sandbox.sh claude` from the project directory. **Strict is the supported separation.**
+   The filesystem is read-only; `$HOME`, `/tmp`, `/var/tmp` and `/run` are empty in-memory mounts;
+   only the current directory, the agent runtimes' own config (`~/.claude`, `~/.codex`,
+   `~/.config/opencode`, `~/.gemini`, `~/.config/github-copilot`, which hold their logins) and paths
+   you name with `--allow-rw` / `--allow-ro` are bound back. Whatever the agent writes elsewhere,
+   shell startup files and autostart entries included, disappears with the sandbox, and the ssh/gpg
+   agent sockets, the session bus, keyrings, `~/.ssh` and `~/.monoagent` are not there. The script
+   refuses a working directory or allowed path that is your home directory, is under or contains
+   a credential or startup location, or resolves into one through a symlink. The process also gets
+   its own pid and IPC namespaces and session, no capabilities, and a cleared environment with
+   an allowlist (`PATH`, `HOME`, the `MONOAGENT_API_*` variables and the runtimes' API-key and
+   config-directory variables), so `SSH_AUTH_SOCK` and cloud credentials are not passed on.
+   What stays writable outlives the sandbox: a git hook or editor task inside the current
+   directory, and a hooks or settings change inside a runtime's config directory.
+   `--compat` (the default for now, and what `--runtime bwrap` prints without `--strict`) keeps the whole
+   filesystem writable and hides or protects a list of paths (state, keyrings, ssh/aws/gh/git
+   credentials, the session bus, common startup and autostart files). It is best effort and reduces
+   what a cooperative agent does by accident; it is not a boundary, because other places that start
+   code later cannot all be listed and a writable parent can be renamed away. The macOS profile
+   (`--runtime seatbelt`, `sandbox-exec`) denies reading and writing `~/.monoagent`,
+   `~/Library/Keychains`, `~/.ssh`, `~/.aws`, `~/.config/gh`, `~/.git-credentials` and `~/.netrc`, denies
+   looking up the keychain Mach services, and denies writing `~/Library/LaunchAgents` and the shell
+   startup files; everything else stays as it is. It has not been run on a Mac by the authors.
+   `--runtime claude-code` prints Claude Code's own sandbox settings.
 2. The agent does not run `monoagentcli` as you. It calls the daemon's HTTP API
    (`127.0.0.1:9322`, `/profiles/{profile}/...`) with a token that opens that one
    profile only. The API is read-only unless the daemon was started with
@@ -287,7 +307,15 @@ supported way to run a coding agent that you do not fully trust:
    advisory only: a process can hide the marks, and finding none proves nothing. The sandbox is the
    boundary, never this report.
 
-Limits: the profiles are written for Linux (bwrap), macOS (seatbelt) and Claude
+The API server answers 421 to any request whose `Host` header is not a loopback spelling of
+the port it is bound to (`127.0.0.1`, `localhost`, `[::1]`), before routing and before any token
+check, so a web page cannot reach it under another name. A server bound to a non-loopback address
+serves other names (a LAN IP, a hostname) only when you list them in `MONOAGENT_HTTPAPI_ALLOWED_HOSTS=host:port,...`; without it that server prints a warning at start and answers those requests with 421. This check covers the control API; the webhook listener and the OpenAI-compatible `/v1` listener can be reached by any Host and rely on their own authentication.
+
+Limits: the operator check (the markers and process-ancestry test that decide whether a command
+is the user's own terminal) is a convenience guard, not a security boundary; an OS sandbox as above is
+the supported way to keep an agent apart from your keys. Windows has no OS boundary from this tool (see
+below). The profiles are written for Linux (bwrap), macOS (seatbelt) and Claude
 Code's settings; the seatbelt service names and Claude Code's setting keys were
 not checked against every release, so test that the agent cannot read
 `~/.monoagent` before you rely on one. An abstract-socket D-Bus session bus (some
@@ -897,8 +925,8 @@ parent process carries one. They exit 3 with code `operator_only`.
 
 Printing the token (`extension pair` without `--open`) stays open, because
 anything running as you can read `~/.monoagent/extension.token`. So does
-the plain `extension install`, which installs only the release matching
-the CLI, checked against its signed manifest. `serve`, `status` and
+the plain `extension install`, which unpacks only the extension built into
+the CLI (the binary itself is verified by the signed update path). `serve`, `status` and
 `browsers` stay open too: they change no binding, rotate no token, and
 agents use `serve` for private test bridges. Like the other operator
 checks, this keeps agents from doing these things by accident or on a

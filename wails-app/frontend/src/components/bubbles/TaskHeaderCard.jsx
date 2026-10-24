@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { aitaskApi, taskIsDone } from '../SendToCoderApi.js'
+import { TaskResultLine } from './TaskResultLine.jsx'
 import { aitaskBudgetApi, money } from '../settings/aitaskBudgetApi.js'
 
 const POLL_MS = 4000
@@ -11,6 +12,7 @@ const BUDGET_POLL_MS = 15000
 export function TaskHeaderCard({ task, onNavigate }) {
   const [status, setStatus] = useState(task.status || '')
   const [error, setError] = useState('')
+  const [result, setResult] = useState(null) // { kind, data } once the task completed
   const [cancelling, setCancelling] = useState(false)
 
   useEffect(() => {
@@ -21,6 +23,15 @@ export function TaskHeaderCard({ task, onNavigate }) {
     }, POLL_MS)
     return () => { live = false; clearInterval(id) }
   }, [task.taskId, status])
+
+  // The validated result, read once the task is complete (also for a task
+  // reopened after it finished).
+  useEffect(() => {
+    if (!task.taskId || status !== 'complete') return undefined
+    let live = true
+    aitaskApi.get(task.taskId).then(t => { if (live && t?.result) setResult({ kind: t.kind || task.kind, data: t.result }) }).catch(() => {})
+    return () => { live = false }
+  }, [task.taskId, task.kind, status])
 
   // What the task has spent against its cap; absent when the CLI can't say.
   const [budget, setBudget] = useState(null)
@@ -65,6 +76,7 @@ export function TaskHeaderCard({ task, onNavigate }) {
       {!taskIsDone(status) && (
         <button type="button" className="btn btn-ghost btn-sm" onClick={cancel} disabled={cancelling}>Cancel</button>
       )}
+      {result && <TaskResultLine kind={result.kind} result={result.data} onNavigate={onNavigate} />}
       {error && <span role="alert" style={{ color: 'var(--red)', width: '100%' }}>{error}</span>}
     </section>
   )

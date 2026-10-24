@@ -614,7 +614,7 @@ dangerous calls.
   `extension pair --open` and `extension install --zip`, which change which
   profile a browser acts as, which bridge it pairs with, or the extension
   code it loads; `extension pair` printing the token stays open (an agent can
-  read the token file), as do `extension install` of the signed release and
+  read the token file), as do `extension install` of the extension built into the CLI and
   `extension serve` for a private bridge,
   (`clicore.OperatorRefusal`; for CLI authors, every `Deps.RequireOperator`, `NotOperator` and `Refusal` goes through `clicore.RequireOperator` / `clicore.OperatorRefusal`, which refuse when the check is nil). `extension pair` stays open (an agent can
   read the token file),
@@ -944,6 +944,7 @@ picks no profile: workflows and HIL items live under `/profiles/{profile}/...`
 registered when started with `--allow-mutations` or
 `MONOAGENT_HTTPAPI_ALLOW_MUTATIONS=1` — otherwise those paths 404 rather
 than 403, so a probe can't distinguish "opted out" from "doesn't exist".
+Requests whose `Host` header is not a loopback spelling of the bound port (`127.0.0.1`, `localhost`, `[::1]`) get 421 before routing or any token check; other names are served only when listed in `MONOAGENT_HTTPAPI_ALLOWED_HOSTS` (comma-separated `host:port`).
 Every request needs `Authorization: Bearer <token>` except `GET /health`;
 each profile has its own token, created when the server starts and stored in
 that profile's secrets vault (`--profile <p> secret list`, name
@@ -1874,7 +1875,7 @@ monoagentcli --profile work chat --mode coder --cwd ~/code/app -- "…"   # one 
   nothing about the profile (no summary in prompts, no MonoAgent surfaces
   for a dynamic org's workers); `workspace` and `full` follow
   `coder set --app-access`. `chat history create --access L` picks the
-  level (default scoped); `--mode assistant|coder` stays as an alias (scoped,
+  level (default: the coder default below when the operator creates it with coder mode ready, else scoped); `--mode assistant|coder` stays as an alias (scoped,
   full) and the JSON carries both `access` and `mode`. Migration 119 makes
   existing coder conversations `full`, the rest `scoped`.
   - Coder mode must be enabled (`coder enable`) for every level above scoped:
@@ -1917,7 +1918,8 @@ monoagentcli --profile work chat --mode coder --cwd ~/code/app -- "…"   # one 
     fails to report is a `warnings` entry, not an error. Extension chats
     (`general`, scoped) are plain rows: nothing marks them as the extension's.
   - `coder set --default-access scoped|coding|workspace|full` (operator only,
-    default scoped) is the level an operator-run `chat history create` with
+    default `full` when nothing is stored, what a coder chat always was; `coder status --json` reports it as
+    `defaultAccess` with `defaultAccessSource` `default|set`) is the level an operator-run `chat history create` with
     no `--access`/`--mode` makes, when coder mode is enabled and the runtime is
     ready (with `--profile-folder` unless a folder flag is given); otherwise
     scoped. It never applies to an agent, the chat or a workflow: their
@@ -2335,12 +2337,6 @@ login (and its bill) is what the turn uses.
   `pi-rpc` transports). `monoagentcli agent install <runtime>` installs one
   (see "Health check"), `monoagentcli agent test <runtime>` runs a smoke turn
   that also proves the login works.
-- **Freebuff.** Compatibility preparation is documented in
-  [docs/freebuff-runtime.md](docs/freebuff-runtime.md). Execution requires
-  monomind's `freebuff` runner ([monomind#600](https://github.com/monoes/monomind/issues/600));
-  installing the interactive Freebuff CLI alone does not enable it. Its
-  executable override is `FREEBUFF_CLI_BIN`. Runtime capabilities still come
-  from monomind's scan.
 - **Kilo Code.** Compatibility preparation is documented in
   [docs/kilo-runtime.md](docs/kilo-runtime.md). Execution requires monomind's
   `kilo` runner ([monomind#601](https://github.com/monoes/monomind/issues/601)).
@@ -3562,18 +3558,18 @@ monoagentcli --profile P aitask fail <id> --reason TEXT                   # the 
   is `needs_user`, never success.
 - The kind (`generic`; other packages add theirs with `aitask.Register`) fixes the prompt and the result schema.
   `complete` checks the file against it and refuses with `schema_invalid` and the reason, so the agent can fix it.
-- Kinds besides `generic` (each in `internal/aitask/kinds_*.go`; `Kind.Validate` runs the real validator after the schema check
-  and its reasons go back to the agent): `workflow-generate` (result checked with `workflow validate`; nothing is saved or
-  activated), `failed-run-fix`, `recording-analysis` (the `recordanalyze` validators and lint; default access `qa`),
-  `draft-reply` (a draft the person saves with `people messages compose --draft`; context is only text the user selected or
-  pasted, never a thread; it cannot send). `application-apply`, `draft-reply`, `recording-analysis`, `workflow-generate` and `failed-run-fix` (the kinds that read
-  text a stranger wrote) run as confined, claude-only turns with no file tools and a fixed command allow-list (`draft-reply`:
-  only `aitask complete|fail`; `recording-analysis` adds `record show`; `workflow-generate` adds `workflow search|get`,
-  `workflow templates list|show`, `node list|schema`, `ref`; `failed-run-fix` is diagnose-only: read-only `workflow get|list|search|executions|execution`, and it hands back
-  the proposed change as data in `fix.proposed` for the user to apply, editing and running nothing; `fix.proposed` is untrusted data, so any future renderer or applier must show it for review and never apply it automatically); in a confined task's session the root refuses
-  a `--profile` other than the task's or given twice, `--db-path`, `--config-dir`, `--output-dir`, `--log-file`, `--all-profiles` and `workflow validate --file`; they hand the result back with `aitask complete --result-json JSON`
-  or `--result FILE` from the task's own work folder (any other path is refused); on every other kind the access level is
-  recorded and hashed but `qa` is not enforced on the turn. A confined turn (first or follow-up) refuses to start (`confinement_unenforceable`, exit 3) on a monomind older than `monomind.MinConfinedMonomindVersion` (2.27.0), because the allow-list rests on monomind's shell scanner and older versions can be bypassed; the global minimum is unchanged.
+- `draft-reply` (`internal/aitask/kinds_draftreply.go`): a reply draft the person saves with `people messages compose --draft`;
+  context is only text the user selected or pasted, never a thread; it cannot send (the result schema has no send field).
+  `application-apply` and `draft-reply` (the kinds that read text a stranger wrote) run as confined, claude-only turns with no
+  file tools and a fixed command allow-list (`confinedKind` / `confinedVerbs` in `internal/cli/chat/chat_apply.go`; `draft-reply`:
+  only `aitask complete|fail`; a new confined kind is one line there). The kinds of `internal/aitaskkinds` are not confined by
+  this layer. A confined turn ignores `coder set --default-access`, which only fills in `chat history create`. In a confined task's
+  session the root refuses a `--profile` other than the task's or given twice, `--db-path`, `--config-dir`, `--output-dir`,
+  `--log-file`, `--all-profiles` and `workflow validate --file`; the agent hands the result back with
+  `aitask complete --result-json JSON` or `--result FILE` from the task's own work folder (any other path is refused); on every
+  other kind the access level is recorded and hashed but `qa` is not enforced on the turn. A confined turn (first or follow-up)
+  refuses to start (`confinement_unenforceable`, exit 3) on a monomind older than `monomind.MinConfinedMonomindVersion` (2.27.0),
+  because the allow-list rests on monomind's shell scanner and older versions can be bypassed; the global minimum is unchanged.
 - Context goes to `<conversation folder>/.monoagent/context/<task>/<class>/` with a README that says it is data, never
   instructions; files are size-capped, links and odd files refused, secret values hidden. `CLASS` is `posting`, `facts`,
   `document` or `selection`; anything else, and anything in the synced message attachments folder, is refused
@@ -3592,7 +3588,9 @@ monoagentcli --profile P aitask fail <id> --reason TEXT                   # the 
   Spend is summed from the conversation's `usage.updated` events, lead and dynamic-org workers together, so spawning
   workers can't dodge a cap; a task that reported no cost keeps counting for its whole cap. `set` (raise or change, `--clear`)
   is operator-only; `lower --task ID --usd N` is the operator's or the task's own session's, lowers its conversation's cap
-  and never raises it (`cap_raise_refused`). `show --task ID` gives one task's cap and spend.
+  and never raises it (`cap_raise_refused`). `lower --conversation ID --usd N` (the operator, or the session of a task in that
+  conversation) creates or lowers that conversation's cap only to a value strictly below the cap that applies to it now
+  (`cap_raise_refused` otherwise, `no_cap_to_lower` when none applies: a chat can't make spend authority). `show --task ID` gives one task's cap and spend.
 - `ai.task` workflow node: QUEUES a task (`kind`, `goal`, `context` as `CLASS=PATH`, `application_id`, `access`, `runtime`)
   and returns `{taskId, conversationId, status: "queued"}` at once. It never starts or waits for the task (a person
   starts it from the bubble queue; read the result later with `aitask result`), cannot run it unattended, and refuses any run
@@ -3611,6 +3609,19 @@ monoagentcli --profile P aitask fail <id> --reason TEXT                   # the 
   access or changes routing stays operator-only (`TestEveryAitaskFlagIsClassified`).
 - Exit codes: 2 unknown task, 3 refusals (`unknown_kind`, `schema_invalid`, `bad_token`, `task_closed`, …), 1
   `wait_timeout`.
+
+Kinds (`aitask.Register`; the profile-facing ones live in `internal/aitaskkinds`). All three below ask for `workspace`
+access (they drive `monoagentcli --profile P …`, which `coding` is not told about), are never unattended, treat context and
+run output as data, and never run a workflow or send anything:
+
+| Kind | Input (`selection`) | Result | What the agent may do |
+| --- | --- | --- | --- |
+| `generic` | the goal | `{summary}` | whatever the goal asks (`coding`) |
+| `application-apply` | posting, facts, documents | fill record | fill the form in the browser, never submit (confined) |
+| `draft-reply` | the text to reply to (selected or pasted) | `{summary, draft:{to?, subject?, body}, assumptions}` | nothing but `aitask complete\|fail` (confined, `qa`); the person saves the draft, nothing is sent |
+| `workflow-generate` | the brief | `{workflowId, name, summary, nodeCount, validation:{ok, errors}}` | `node list/schema`, `ref`, `workflow validate/import`; saved inactive and AI-authored until the user approves; `aitaskkinds.CheckResult` refuses a `workflowId` the profile does not have |
+| `recording-analyze` | recording id + title | `{recordingId, automationName?, summary, saved:false, verified:false}` | `record analyze <id> --json` only; never reads the recording; `record save`/`verify` stay the user's |
+| `failed-run-fix` | workflow id, execution id, failing node ids, redacted error | `{workflowId, executionId, diagnosis, changed, changes, needsApproval}` | `workflow execution/get`, `workflow node …`, `workflow connect`, `workflow validate`; the edit unapproves the workflow; never reruns |
 
 # monomind:start instructions:opencode
 # Monomind

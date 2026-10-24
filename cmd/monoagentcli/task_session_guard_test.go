@@ -53,7 +53,7 @@ func runGuardRoot(t *testing.T, args ...string) error {
 // In a confined task's session the root hook refuses what would leave the
 // task's profile, through the real command tree.
 func TestTaskSessionRefusesFlagsThatLeaveTheTask(t *testing.T) {
-	id := guardRig(t, "failed-run-fix")
+	id := guardRig(t, "draft-reply")
 	asTaskSession(t, id, "tok")
 	for name, args := range map[string][]string{
 		"other profile":      {"--profile", "p2", "workflow", "list"},
@@ -84,16 +84,20 @@ func TestTaskSessionRefusesFlagsThatLeaveTheTask(t *testing.T) {
 
 // Only an agent in a confined kind's session is held to it.
 func TestTaskSessionGuardLeavesOperatorsAndGenericTasksAlone(t *testing.T) {
-	id := guardRig(t, "failed-run-fix")
+	id := guardRig(t, "draft-reply")
 	asOperatorProcess(t)
 	t.Setenv(aitask.EnvTaskID, id) // the supervisor carries the id but is the operator
 	if err := runGuardRoot(t, "--profile", "p2", "workflow", "list"); err != nil && strings.Contains(err.Error(), guardMsg) {
 		t.Errorf("the operator was refused: %v", err)
 	}
-	id = guardRig(t, "generic")
-	asTaskSession(t, id, "tok")
-	if err := runGuardRoot(t, "--profile", "p2", "workflow", "list"); err != nil && strings.Contains(err.Error(), guardMsg) {
-		t.Errorf("a generic task was refused: %v", err)
+	// Unconfined kinds (the generic one, and the workflow/recording kinds of
+	// internal/aitaskkinds, whose confinement is a separate decision) are not held.
+	for _, kind := range []string{"generic", "workflow-generate", "recording-analyze", "failed-run-fix"} {
+		id = guardRig(t, kind)
+		asTaskSession(t, id, "tok")
+		if err := runGuardRoot(t, "--profile", "p2", "workflow", "list"); err != nil && strings.Contains(err.Error(), guardMsg) {
+			t.Errorf("a %s task was refused: %v", kind, err)
+		}
 	}
 	// A task that cannot be found fails closed.
 	guardRig(t, "draft-reply")

@@ -155,7 +155,8 @@ func TestCreateKeepsModeAsAnAlias(t *testing.T) {
 		access, mode string
 		code         int
 	}{
-		{[]string{}, "scoped", "assistant", 0},
+		{[]string{}, "full", "coder", 0}, // coder is on and nothing is stored: the built-in default
+		{[]string{"--access", "scoped"}, "scoped", "assistant", 0},
 		{[]string{"--mode", "assistant"}, "scoped", "assistant", 0},
 		{[]string{"--mode", "coder", "--new-workspace"}, "full", "coder", 0},
 		{[]string{"--access", "coding", "--new-workspace"}, "coding", "coder", 0},

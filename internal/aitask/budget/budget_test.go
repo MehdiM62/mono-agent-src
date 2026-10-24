@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -357,5 +358,46 @@ func TestAdmitTurnGivesOnlyWhatIsLeft(t *testing.T) {
 	_ = r.l.SetCap(ScopeConversation, "c2", 1.5, "operator")
 	if got, err := r.l.AdmitTurn(ctx, b, 0); err != nil || got < 0.4999 || got > 0.5001 {
 		t.Fatalf("grant under a lowered conversation cap = %v, %v; want 0.50", got, err)
+	}
+}
+
+// A chat lowers its own cap below the one that applies, never to or above it,
+// and never from nothing; Admit then runs under the new cap.
+func TestLowerConversationCap(t *testing.T) {
+	ctx := context.Background()
+	r := newRig(t, 0)
+	if err := r.l.LowerConversationCap("c1", 1, "agent"); code(err) != CodeNoCapToLower {
+		t.Fatalf("no cap applies: %v", err)
+	}
+	_ = r.l.SetCap(ScopeGlobal, "", 5, "operator")
+	for _, usd := range []float64{5, 9} {
+		if err := r.l.LowerConversationCap("c1", usd, "agent"); code(err) != CodeCapRaise {
+			t.Fatalf("%v at or above the effective 5: %v", usd, err)
+		}
+	}
+	for _, usd := range []float64{math.NaN(), math.Inf(1), -1} {
+		if err := r.l.LowerConversationCap("c1", usd, "agent"); err == nil {
+			t.Fatalf("%v accepted", usd)
+		}
+	}
+	if _, ok, _ := r.l.get(ScopeConversation, "c1"); ok {
+		t.Fatal("a refusal left a cap behind")
+	}
+	if err := r.l.LowerConversationCap("c1", 2, "agent"); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.l.LowerConversationCap("c1", 2, "agent"); code(err) != CodeCapRaise {
+		t.Fatalf("equal to its own 2: %v", err)
+	}
+	if got, err := r.l.Admit(ctx, r.task("c1", "generic", 4)); err != nil || got != 2 {
+		t.Fatalf("Admit = %v, %v; want 2 under the new cap", got, err)
+	}
+	// The operator's ceiling counts as a cap that applies.
+	op := newRig(t, 3)
+	if err := op.l.LowerConversationCap("c1", 3, "agent"); code(err) != CodeCapRaise {
+		t.Fatalf("at the coder budget: %v", err)
+	}
+	if err := op.l.LowerConversationCap("c1", 1, "agent"); err != nil {
+		t.Fatal(err)
 	}
 }

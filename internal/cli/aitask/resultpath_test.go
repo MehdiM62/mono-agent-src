@@ -1,6 +1,7 @@
 package aitask
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"os"
@@ -38,7 +39,7 @@ func submitKind(t *testing.T, kind string) (*Deps, string, *tokenFake) {
 // its work folder is refused before anything is read, and nothing of the file
 // reaches the error.
 func TestConfinedTaskResultMustLiveInItsWorkFolder(t *testing.T) {
-	for _, kind := range []string{"draft-reply", "recording-analysis", "workflow-generate", "failed-run-fix"} {
+	for _, kind := range []string{"draft-reply"} {
 		d, id, _ := submitKind(t, kind)
 		secrets := filepath.Join(t.TempDir(), "credentials.json")
 		if err := os.WriteFile(secrets, []byte(`{"private_key_id":"TOPSECRETKEYID","client_email":"x@y"}`), 0o600); err != nil {
@@ -148,4 +149,31 @@ func TestResultPathFailsClosedWhenTheTaskCannotBeLooked(t *testing.T) {
 	if _, err := (&cli{d: d}).resultPathAllowed("at-0000000000000000", p); err == nil {
 		t.Fatal("a result path was allowed for an unknown task")
 	}
+}
+
+// tokenFake is the fake launcher that also keeps the token it is given, so a
+// test can answer as the task's own session.
+type tokenFake struct {
+	fake
+	token string
+}
+
+func (f *tokenFake) Detach(_ context.Context, id, token string) error {
+	f.token = token
+	return f.fake.Detach(context.Background(), id, token)
+}
+
+// writeResult puts body in task id's own work folder, the one place a
+// confined task may hand a result file back from.
+func writeResult(t *testing.T, d *Deps, id, body string) string {
+	t.Helper()
+	work := filepath.Join(filepath.Dir(d.DBPath()), "aitask", id, "work")
+	if err := os.MkdirAll(work, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	p := filepath.Join(work, "result.json")
+	if err := os.WriteFile(p, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return p
 }

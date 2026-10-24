@@ -7,12 +7,12 @@ import (
 	"reflect"
 	"sort"
 	"strings"
-	"unicode/utf8"
 )
 
 // Validate checks v (decoded with encoding/json) against schema, a pragmatic
 // subset of JSON Schema: type (a name or a list), required, properties,
-// additionalProperties:false, items, enum, const, minLength, maxLength and minItems.
+// additionalProperties:false, items, enum, const, minLength, maxLength, minItems, maxItems and
+// maxProperties.
 // Other keywords are ignored. The error names the first problem by its path,
 // so the agent that wrote the result can fix it. It is the same subset
 // internal/nodes/agent checks; that one is unexported, and the task result
@@ -47,7 +47,7 @@ func validateAt(path string, schema map[string]any, v any) error {
 		if n, ok := schema["minLength"].(float64); ok && float64(len([]rune(t))) < n {
 			return fmt.Errorf("%s: must be at least %d characters", path, int(n))
 		}
-		if n, ok := schema["maxLength"].(float64); ok && float64(utf8.RuneCountInString(t)) > n {
+		if n, ok := schema["maxLength"].(float64); ok && float64(len([]rune(t))) > n {
 			return fmt.Errorf("%s: must be at most %d characters", path, int(n))
 		}
 	case map[string]any:
@@ -55,6 +55,9 @@ func validateAt(path string, schema map[string]any, v any) error {
 	case []any:
 		if n, ok := schema["minItems"].(float64); ok && float64(len(t)) < n {
 			return fmt.Errorf("%s: must have at least %d items", path, int(n))
+		}
+		if n, ok := schema["maxItems"].(float64); ok && float64(len(t)) > n {
+			return fmt.Errorf("%s: must have at most %d items", path, int(n))
 		}
 		if items, ok := schema["items"].(map[string]any); ok {
 			for i, e := range t {
@@ -68,6 +71,9 @@ func validateAt(path string, schema map[string]any, v any) error {
 }
 
 func validateObject(path string, schema map[string]any, obj map[string]any) error {
+	if n, ok := schema["maxProperties"].(float64); ok && float64(len(obj)) > n {
+		return fmt.Errorf("%s: must have at most %d properties", path, int(n))
+	}
 	if req, ok := schema["required"].([]any); ok {
 		for _, r := range req {
 			if k, ok := r.(string); ok {

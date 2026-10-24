@@ -283,6 +283,7 @@ export const api = {
   hilSendSetApproval:  (on) => GoApp.HilSendSetApproval(on).then(parseStreamResult),
   // `coder set --app-access on|off` (operator only): whether a coder chat's
   // workers get the workspace profile. Returns coder status ({appAccess}).
+  coderSetDefaultAccess: (level) => GoApp.CoderSetDefaultAccess(level).then(parseStreamResult),
   coderSetAppAccess:   (on) => GoApp.CoderSetAppAccess(!!on).then(parseStreamResult),
   coderWorkspaceRoot: (runtimeID = '') => GoApp.CoderWorkspaceRoot(runtimeID).then(parseStreamResult),
   coderWorkspaceList: () => GoApp.CoderWorkspaceList().then(parseStreamResult),

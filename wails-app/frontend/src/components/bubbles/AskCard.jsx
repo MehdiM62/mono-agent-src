@@ -48,7 +48,7 @@ function Frame({ ask, pending, icon: Icon, title, label, children }) {
   )
 }
 
-function QuestionBody({ ask, nameOf, canAct, busy, outcome, onAnswer, onDismiss }) {
+function QuestionBody({ ask, nameOf, canAct, readOnly, busy, outcome, onAnswer, onDismiss }) {
   const { t } = useTranslation()
   const [text, setText] = useState('')
   const pending = ask.pending && !outcome?.state
@@ -66,7 +66,7 @@ function QuestionBody({ ask, nameOf, canAct, busy, outcome, onAnswer, onDismiss 
             {busy ? <Loader size={11} className="spin" /> : t('orgBubble.answer')}
           </button>
           {ask.blocking && (
-            <button type="button" className="btn btn-ghost btn-sm" data-testid="org-chat-dismiss" disabled={busy}
+            <button type="button" className="btn btn-ghost btn-sm" data-testid="org-chat-dismiss" disabled={readOnly || busy}
               title={t('orgBubble.dismissHint')} onClick={() => onDismiss?.(ask)}>
               {t('orgBubble.dismiss')}
             </button>
@@ -250,7 +250,7 @@ function Attachments({ ask }) {
 // Edit makes the text editable; Approve then sends the text as shown. A
 // card whose text says what the step sends, not a message (textReadOnly),
 // has no Edit: there is nothing to edit, and approving sends it as shown.
-function SendBody({ ask, nameOf, canAct, busy, outcome, onDecide, onNavigate }) {
+function SendBody({ ask, nameOf, canAct, readOnly, busy, outcome, onDecide, onNavigate }) {
   const { t } = useTranslation()
   const [editing, setEditing] = useState(false)
   const [text, setText] = useState(ask.text)
@@ -308,7 +308,7 @@ function SendBody({ ask, nameOf, canAct, busy, outcome, onDecide, onNavigate }) 
       </dl>
       {editing && pending && !ask.textReadOnly ? (
         <textarea className="ask-text-edit" data-testid="ask-text-edit" rows={Math.min(12, Math.max(4, text.split('\n').length + 1))}
-          value={text} onChange={e => setText(e.target.value)} disabled={busy}
+          value={text} onChange={e => setText(e.target.value)} disabled={readOnly || busy}
           aria-label={t('ask.textLabel')} />
       ) : (
         <pre className="ask-text" data-testid="ask-text" aria-label={t('ask.textLabel')} tabIndex={0}>{text}</pre>
@@ -340,7 +340,7 @@ function SendBody({ ask, nameOf, canAct, busy, outcome, onDecide, onNavigate }) 
             </button>
           )}
           {!ask.textReadOnly && (
-            <button type="button" className="btn btn-ghost btn-sm" data-testid="ask-edit" aria-pressed={editing} disabled={busy}
+            <button type="button" className="btn btn-ghost btn-sm" data-testid="ask-edit" aria-pressed={editing} disabled={readOnly || busy}
               onClick={() => setEditing(e => !e)} style={{ gap: 4 }}>
               <Pencil size={11} /> {editing ? t('ask.doneEditing') : t('ask.edit')}
             </button>
@@ -361,9 +361,11 @@ function SendBody({ ask, nameOf, canAct, busy, outcome, onDecide, onNavigate }) 
 // Human-in-Loop item and the approval of a send. It only renders: the
 // caller decides how an answer reaches the CLI.
 //   ask      an item (lib/askModel.js, or an `org chat history` item)
+//   readOnly a finished run's record: nothing in the card may act (a stopped
+//            live org still lets a question be dismissed, so canAct is not enough)
 //   onAnswer(ask, text)  onDismiss(ask)  onDecide(ask, approve, {note, editText, data})
-export function AskCard({ ask, nameOf = id => id, canAct = true, busy = false, outcome, onAnswer, onDismiss, onDecide, onNavigate }) {
-  const shared = { ask, nameOf, canAct, busy, outcome }
+export function AskCard({ ask, nameOf = id => id, canAct = true, readOnly = false, busy = false, outcome, onAnswer, onDismiss, onDecide, onNavigate }) {
+  const shared = { ask, nameOf, canAct, readOnly, busy, outcome }
   switch (ask.kind) {
     case 'question': return <QuestionBody {...shared} onAnswer={onAnswer} onDismiss={onDismiss} />
     case 'approval':

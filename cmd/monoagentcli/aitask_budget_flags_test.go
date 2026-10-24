@@ -16,7 +16,7 @@ import (
 // listed, which is the moment to decide whether only the operator may use it.
 //
 //	operator: an agent, the chat or a workflow is refused (exit 3, operator_only), even with a task's token
-//	either:   the operator, or the task's own session for its own task (--task)
+//	either:   the operator, or the task's own session for its own task (--task) or a conversation it runs in (--conversation)
 var aitaskBudgetPolicy = map[string]struct {
 	who   string
 	flags map[string]string
@@ -24,7 +24,7 @@ var aitaskBudgetPolicy = map[string]struct {
 }{
 	"set":   {"operator", map[string]string{"scope": "routing", "key": "routing", "usd": "routing", "clear": "routing"}, []string{"--scope", "global", "--usd", "9"}},
 	"show":  {"either", map[string]string{"task": "filter"}, []string{"--task", "{id}"}},
-	"lower": {"either", map[string]string{"task": "routing", "usd": "routing"}, []string{"--task", "{id}", "--usd", "1"}},
+	"lower": {"either", map[string]string{"task": "routing", "conversation": "routing", "usd": "routing"}, []string{"--task", "{id}", "--usd", "1"}},
 }
 
 func TestEveryAitaskBudgetFlagIsClassified(t *testing.T) {
@@ -176,5 +176,54 @@ func TestAitaskBudgetShow(t *testing.T) {
 	}
 	if _, err := r.budget(t, "show", "--task", r.other); errCode(err) != "operator_only" {
 		t.Fatalf("a session showed another task: %v", err)
+	}
+}
+
+// `lower --conversation` creates or lowers a chat's cap below the cap that
+// applies now; the operator and a task session of that conversation may, no
+// other conversation's session, and it never raises.
+func TestAitaskBudgetLowerConversation(t *testing.T) {
+	r := newAitaskRig(t)
+	asPlainOperator(t)
+	if _, err := r.budget(t, "lower", "--task", "", "--conversation", "d", "--usd", "1"); errCode(err) != budget.CodeNoCapToLower {
+		t.Fatalf("no cap applies: %v", err)
+	}
+	if _, err := r.budget(t, "set"); err != nil { // global 9
+		t.Fatal(err)
+	}
+	for _, usd := range []string{"9", "50", "NaN", "-1"} {
+		if _, err := r.budget(t, "lower", "--task", "", "--conversation", "d", "--usd", usd); err == nil {
+			t.Errorf("lowering to %s was accepted", usd)
+		}
+	}
+	if _, ok := r.caps(t)["conversation:d"]; ok {
+		t.Fatal("a refused lowering left a cap behind")
+	}
+	if _, err := r.budget(t, "lower", "--task", "", "--conversation", "d", "--usd", "4"); err != nil {
+		t.Fatalf("the operator lowers: %v", err)
+	}
+	if got := r.caps(t)["conversation:d"]; got != 4 {
+		t.Fatalf("conversation cap = %v, want 4", got)
+	}
+	if _, err := r.budget(t, "lower", "--task", "", "--conversation", "d", "--usd", "4"); errCode(err) != budget.CodeCapRaise {
+		t.Fatalf("equal to the cap: %v", err)
+	}
+	// The session of a task in conversation c lowers c, not d.
+	asTaskSession(t, r.own, r.ownToken)
+	if _, err := r.budget(t, "lower", "--task", "", "--conversation", "d", "--usd", "1"); errCode(err) != "operator_only" {
+		t.Errorf("a session lowered another conversation's cap: %v", err)
+	}
+	if _, err := r.budget(t, "lower", "--task", "", "--conversation", "c", "--usd", "2"); err != nil {
+		t.Fatalf("a session lowers its own conversation: %v", err)
+	}
+	if _, err := r.budget(t, "lower", "--task", "", "--conversation", "c", "--usd", "3"); errCode(err) != budget.CodeCapRaise {
+		t.Fatalf("raising its own 2 to 3: %v", err)
+	}
+	asPlainAgent(t)
+	if _, err := r.budget(t, "lower", "--task", "", "--conversation", "c", "--usd", "1"); errCode(err) != "operator_only" {
+		t.Errorf("an agent with no token lowered a cap: %v", err)
+	}
+	if _, err := r.budget(t, "set", "--scope", "conversation", "--key", "d", "--usd", "100"); errCode(err) != "operator_only" {
+		t.Errorf("an agent raised a cap: %v", err)
 	}
 }

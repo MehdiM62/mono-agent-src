@@ -85,28 +85,14 @@ func applyBashPrefixes(profile string) []string {
 }
 
 // What the other confined kinds may run, after "monoagentcli --profile <p> ".
-// They read text a stranger wrote (a message to reply to, a recorded page, a
-// failed run's node output, a workflow brief), so a prompt injected into it must
-// not run code as the user: each gets the read-only verbs its job needs and
-// `aitask complete|fail`, nothing else (no browser verbs, no shell).
+// They read text a stranger wrote (a message to reply to), so a prompt injected
+// into it must not run code as the user: each gets the read-only verbs its job
+// needs and `aitask complete|fail`, nothing else (no browser verbs, no shell).
+// Adding a confined kind is one line here.
 //
 //   - draft-reply: nothing but the hand-back.
-//   - recording-analysis: `record show` (the recording's events).
-//   - workflow-generate: look-ups (search, templates list|show, node list|schema,
-//     ref). Not `workflow validate`: it takes --file PATH, which would read any
-//     file, and the agent has no file to validate anyway: `aitask complete`
-//     runs the same validator and refuses with its reasons.
-//   - failed-run-fix: DIAGNOSE ONLY: read the run and the workflow
-//     (profile-scoped `workflow get|list|search|executions|execution`). No
-//     edit verb (`workflow node set` replaces a node's config wholesale on any
-//     workflow, active ones included), no `workflow validate` (its --file form
-//     reads any file) and no `workflow node list` or `workflow inputs`. The fix
-//     comes back as data in the result, for the user to apply.
 var confinedVerbs = map[string][]string{
-	aitask.KindDraftReply:        {},
-	aitask.KindRecordingAnalysis: {"record show"},
-	aitask.KindWorkflowGenerate:  {"workflow search", "workflow templates list", "workflow templates show", "workflow get", "node list", "node schema", "ref"},
-	aitask.KindFailedRunFix:      {"workflow get", "workflow list", "workflow search", "workflow executions", "workflow execution"},
+	aitask.KindDraftReply: {},
 }
 
 // ConfinedKind reports whether tasks of this kind run as confined turns

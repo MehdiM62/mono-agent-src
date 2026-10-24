@@ -107,9 +107,9 @@ func conversationOf(r ai.ConversationRecord) Conversation {
 }
 
 // CreateChatConversationAccess creates a conversation at an access level
-// (scoped, coding, workspace or full; "" takes the coder default the operator
-// set). Above scoped it works in cwd, or in the profile's folder when cwd is
-// empty. The GUI window runs as the operator, so any level is allowed.
+// (scoped, coding, workspace or full; "" takes the coder default: the one the
+// operator set, else full, when coder mode is ready).
+// Above scoped it works in cwd, or in the profile's folder when cwd is empty. The GUI window runs as the operator, so any level is allowed.
 func (a *App) CreateChatConversationAccess(workflowID, runtimeID, model, effort, access, cwd string) (Conversation, error) {
 	if err := a.signedOut(); err != nil {
 		return Conversation{}, err
