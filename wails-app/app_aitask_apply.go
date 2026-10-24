@@ -63,6 +63,11 @@ func (a *App) PreviewFailedRunFix(taskID string) (string, error) {
 // running or scheduled. These bindings exist only in the Wails app: the HTTP
 // agent API and the extension bridge never expose them.
 func (a *App) ApplyFailedRunFix(taskID string, allowActive bool, expectHash string) (string, error) {
+	// The sign-in gate comes first: a signed-out app refuses before it looks at
+	// any argument.
+	if err := a.signedOut(); err != nil {
+		return "", err
+	}
 	if !definitionHashPattern.MatchString(expectHash) {
 		return "", fmt.Errorf("invalid definition hash")
 	}
