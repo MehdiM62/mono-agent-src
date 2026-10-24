@@ -31,8 +31,15 @@ const (
 	KindNone         = "none"
 )
 
-// MaxEdits is how many node edits a result may carry.
-const MaxEdits = 10
+// Limits that keep a proposal fully displayable: the app shows every changed leaf.
+const (
+	// MaxEdits is how many node edits a result may carry.
+	MaxEdits = 10
+	// MaxLeafChanges is how many changed config values a proposal may hold in all.
+	MaxLeafChanges = 50
+	// MaxValueChars is the longest changed value, before or after.
+	MaxValueChars = 2000
+)
 
 // Warning codes.
 const (
@@ -53,6 +60,11 @@ const (
 	CodeInvalid        = "invalid_workflow"
 	CodeWorkflowActive = "workflow_active_needs_confirm"
 	CodeStale          = "stale_proposal"
+	CodeChanged        = "changed_since_preview"
+	CodeNoTarget       = "no_target"
+	CodeWrongTarget    = "wrong_target"
+	CodeTooLarge       = "too_large"
+	CodeExpectHash     = "expect_hash_required"
 	CodeNoBackend      = "no_backend"
 )
 
@@ -70,9 +82,14 @@ func fail(code, format string, a ...any) error {
 type Backend interface {
 	// Load returns workflow id when profile owns it, else (nil, nil).
 	Load(ctx context.Context, profile, id string) (*workflow.Workflow, error)
-	// SaveNodes stores the nodes of an existing workflow, as `workflow node set`
-	// does, and records no approval.
-	SaveNodes(ctx context.Context, profile, id string, nodes []workflow.WorkflowNode) error
+	// SaveNodesGuarded stores the nodes of an existing workflow in one transaction that
+	// first compares its ReviewHash with guard.ExpectHash (workflow.ErrChangedSincePreview
+	// when it differs), and, with guard.RevokeApprovals, removes its stored approvals.
+	// It records no approval.
+	SaveNodesGuarded(ctx context.Context, profile, id string, nodes []workflow.WorkflowNode, guard workflow.SaveGuard) error
+	// ExecutionWorkflow is the id of the workflow run executionID belongs to, "" when there is
+	// no such run in this profile.
+	ExecutionWorkflow(ctx context.Context, profile, executionID string) (string, error)
 }
 
 // Store is the Backend in force, and NodeTypeKnown the node-type hook of the
@@ -99,18 +116,22 @@ type Warning struct {
 
 // Preview is what applying a result would do to the workflow as it is now.
 type Preview struct {
-	WorkflowID   string    `json:"workflowId"`
-	WorkflowName string    `json:"workflowName"`
-	Active       bool      `json:"active"`
-	Edits        []Edit    `json:"edits"`
-	Warnings     []Warning `json:"warnings"`
+	WorkflowID   string `json:"workflowId"`
+	WorkflowName string `json:"workflowName"`
+	Active       bool   `json:"active"`
+	// DefinitionHash identifies the reviewed workflow (its definition and whether it is
+	// active); a real apply must present it (workflow.ReviewHash).
+	DefinitionHash string    `json:"definitionHash"`
+	Edits          []Edit    `json:"edits"`
+	Warnings       []Warning `json:"warnings"`
 
 	nodes []workflow.WorkflowNode // the whole node list after the edits
 }
 
 type proposal struct {
-	WorkflowID string `json:"workflowId"`
-	Fix        struct {
+	WorkflowID  string `json:"workflowId"`
+	ExecutionID string `json:"executionId"`
+	Fix         struct {
 		Kind  string `json:"kind"`
 		Edits []struct {
 			Node   string         `json:"node"`
@@ -145,6 +166,16 @@ func modified(wf *workflow.Workflow) time.Time {
 // completed; zero skips the check): a workflow changed after that is stale_proposal,
 // because the person who looked at the proposal did not look at this workflow.
 func PlanSince(ctx context.Context, profile string, result []byte, since time.Time) (Preview, error) {
+	return planFor(ctx, profile, result, since, "")
+}
+
+// PlanExpect is PlanSince for an apply of the definition whose Preview.DefinitionHash is
+// expect: another definition (edited or activated since) is changed_since_preview.
+func PlanExpect(ctx context.Context, profile string, result []byte, since time.Time, expect string) (Preview, error) {
+	return planFor(ctx, profile, result, since, expect)
+}
+
+func planFor(ctx context.Context, profile string, result []byte, since time.Time, expect string) (Preview, error) {
 	var p proposal
 	if err := json.Unmarshal(result, &p); err != nil {
 		return Preview{}, fail(CodeBadResult, "the result is not a failed-run-fix result: %v", err)
@@ -158,6 +189,9 @@ func PlanSince(ctx context.Context, profile string, result []byte, since time.Ti
 	if Store == nil {
 		return Preview{}, fail(CodeNoBackend, "workflows cannot be read here")
 	}
+	if err := VerifyTarget(ctx, profile, p.WorkflowID, p.ExecutionID); err != nil {
+		return Preview{}, err
+	}
 	wf, err := Store.Load(ctx, profile, p.WorkflowID)
 	if err != nil {
 		return Preview{}, err
@@ -165,8 +199,9 @@ func PlanSince(ctx context.Context, profile string, result []byte, since time.Ti
 	if wf == nil {
 		return Preview{}, fail(CodeNotFound, "no workflow %q in this profile", p.WorkflowID)
 	}
-	if !since.IsZero() && modified(wf).After(since) {
-		return Preview{}, fail(CodeStale, "the workflow changed since this fix was proposed: ask again")
+	hash, err := workflow.ReviewHash(wf)
+	if err != nil {
+		return Preview{}, err
 	}
 	baseline := validate(wf)
 
@@ -197,6 +232,9 @@ func PlanSince(ctx context.Context, profile string, result []byte, since time.Ti
 		}
 		changed = append(changed, nodes[i])
 	}
+	if err := checkDisplayable(plan.Edits); err != nil {
+		return Preview{}, err
+	}
 	if len(plan.Edits) == 0 {
 		return Preview{}, fail(CodeNoChange, "the edits change nothing in the workflow as it is now (already applied?)")
 	}
@@ -211,7 +249,16 @@ func PlanSince(ctx context.Context, profile string, result []byte, since time.Ti
 	if fresh := newErrors(baseline, validate(&after)); len(fresh) > 0 {
 		return Preview{}, fail(CodeInvalid, "the edited workflow does not pass `workflow validate`:\n- %s", strings.Join(fresh, "\n- "))
 	}
+	// Not the definition the person reviewed: ask them again (before staleness, which an edit
+	// made since the preview would also trip).
+	if expect != "" && hash != expect {
+		return Preview{}, fail(CodeChanged, "the workflow is not the one you reviewed: preview it again")
+	}
+	if !since.IsZero() && modified(wf).After(since) {
+		return Preview{}, fail(CodeStale, "the workflow changed since this fix was proposed: ask again")
+	}
 	plan.nodes = nodes
+	plan.DefinitionHash = hash
 	plan.Warnings = dedupe(plan.Warnings)
 	return plan, nil
 }
@@ -222,20 +269,32 @@ type Options struct {
 	AllowActive bool
 	// Since is when the proposal was made; a workflow changed after it is stale.
 	Since time.Time
+	// ExpectHash is the Preview.DefinitionHash the person reviewed. Required: the edit
+	// is applied only to that definition, in the same transaction that checks it.
+	ExpectHash string
 }
 
 // Apply plans result again against the workflow as it is now and stores the
 // edits. An active workflow is refused unless opts.AllowActive. The workflow stays
 // unapproved: no approval is recorded. It returns the number of edits applied.
 func Apply(ctx context.Context, profile string, result []byte, opts Options) (int, error) {
-	plan, err := PlanSince(ctx, profile, result, opts.Since)
+	if opts.ExpectHash == "" {
+		return 0, fail(CodeExpectHash, "an apply needs the definitionHash the dry-run showed (--expect-hash)")
+	}
+	plan, err := planFor(ctx, profile, result, opts.Since, opts.ExpectHash)
 	if err != nil {
 		return 0, err
 	}
 	if plan.Active && !opts.AllowActive {
 		return 0, fail(CodeWorkflowActive, "workflow %q is active: review the edit, then confirm to apply it", plan.WorkflowName)
 	}
-	if err := Store.SaveNodes(ctx, profile, plan.WorkflowID, plan.nodes); err != nil {
+	// The comparison is made again inside the transaction that writes, and every stored
+	// approval goes with the write, so an older approved definition cannot be restored by it.
+	err = Store.SaveNodesGuarded(ctx, profile, plan.WorkflowID, plan.nodes, workflow.SaveGuard{ExpectHash: opts.ExpectHash, RevokeApprovals: true})
+	if errors.Is(err, workflow.ErrChangedSincePreview) {
+		return 0, fail(CodeChanged, "the workflow changed while the edit was being applied: preview it again")
+	}
+	if err != nil {
 		return 0, fmt.Errorf("save nodes: %w", err)
 	}
 	return len(plan.Edits), nil
@@ -388,4 +447,27 @@ func Exists(ctx context.Context, profile, id string) (bool, error) {
 	}
 	wf, err := Store.Load(ctx, profile, id)
 	return wf != nil, err
+}
+
+// checkDisplayable refuses a proposal the app could not show in full.
+func checkDisplayable(edits []Edit) error {
+	if len(edits) > MaxLeafChanges {
+		return fail(CodeTooLarge, "the fix changes %d values; at most %d are allowed: propose a smaller change", len(edits), MaxLeafChanges)
+	}
+	for _, e := range edits {
+		for _, v := range []any{e.Before, e.After} {
+			if valueChars(v) > MaxValueChars {
+				return fail(CodeTooLarge, "the value at %q is longer than %d characters: propose a smaller change", e.Path, MaxValueChars)
+			}
+		}
+	}
+	return nil
+}
+
+func valueChars(v any) int {
+	if s, ok := v.(string); ok {
+		return len([]rune(s))
+	}
+	b, _ := json.Marshal(v)
+	return len([]rune(string(b)))
 }

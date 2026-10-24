@@ -128,6 +128,12 @@ func secretValue(m map[string]any) string {
 
 func checkFailedRunFix(ctx context.Context, profile string, raw []byte, obj map[string]any) error {
 	fix, _ := obj["fix"].(map[string]any)
+	// The task, not the result, says which workflow and run this is about.
+	wfID, _ := obj["workflowId"].(string)
+	exID, _ := obj["executionId"].(string)
+	if err := workflowfix.VerifyTarget(ctx, profile, wfID, exID); err != nil {
+		return err
+	}
 	if kind, _ := fix["kind"].(string); kind == workflowfix.KindWorkflowEdit {
 		if _, err := workflowfix.Plan(ctx, profile, raw); err != nil {
 			return err

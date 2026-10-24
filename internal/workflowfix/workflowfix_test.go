@@ -3,16 +3,21 @@ package workflowfix
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/aitask"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
 type fakeBackend struct {
-	wf    *workflow.Workflow
-	saved int
+	wf      *workflow.Workflow
+	saved   int
+	revoked int
 }
 
 func (f *fakeBackend) Load(_ context.Context, profile, id string) (*workflow.Workflow, error) {
@@ -31,11 +36,31 @@ func (f *fakeBackend) Load(_ context.Context, profile, id string) (*workflow.Wor
 	return &cp, nil
 }
 
-func (f *fakeBackend) SaveNodes(_ context.Context, _, _ string, nodes []workflow.WorkflowNode) error {
+func (f *fakeBackend) SaveNodesGuarded(_ context.Context, _, _ string, nodes []workflow.WorkflowNode, g workflow.SaveGuard) error {
+	have, _ := workflow.ReviewHash(f.wf)
+	if have != g.ExpectHash {
+		return workflow.ErrChangedSincePreview
+	}
+	if g.RevokeApprovals {
+		f.revoked++
+	}
 	f.wf.Nodes = nodes
 	f.saved++
 	return nil
 }
+
+func (f *fakeBackend) ExecutionWorkflow(_ context.Context, _, id string) (string, error) {
+	switch id {
+	case "ex-1":
+		return "wf-1", nil
+	case "ex-2":
+		return "wf-2", nil
+	}
+	return "", nil
+}
+
+// bg is a context for task at-1, whose target is workflow wf-1 and run ex-1.
+func bg() context.Context { return aitask.WithTaskID(context.Background(), "at-1") }
 
 func rig(t *testing.T, active bool) *fakeBackend {
 	t.Helper()
@@ -49,9 +74,12 @@ func rig(t *testing.T, active bool) *fakeBackend {
 			{ID: "c1", SourceNodeID: "t", TargetNodeID: "set", SourceHandle: "main", TargetHandle: "main"},
 			{ID: "c2", SourceNodeID: "set", TargetNodeID: "http", SourceHandle: "main", TargetHandle: "main"},
 		}}}
-	prevS, prevK := Store, NodeTypeKnown
+	prevS, prevK, prevT := Store, NodeTypeKnown, TargetFor
 	Store, NodeTypeKnown = b, nil
-	t.Cleanup(func() { Store, NodeTypeKnown = prevS, prevK })
+	TargetFor = func(context.Context, string, string) (Target, error) {
+		return Target{WorkflowID: "wf-1", ExecutionID: "ex-1"}, nil
+	}
+	t.Cleanup(func() { Store, NodeTypeKnown, TargetFor = prevS, prevK, prevT })
 	return b
 }
 
@@ -70,7 +98,7 @@ func edit(node string, config map[string]any) map[string]any {
 
 func TestPlanShowsBeforeAndAfterAndDeepMerges(t *testing.T) {
 	rig(t, false)
-	p, err := Plan(context.Background(), "p1", result(KindWorkflowEdit, edit("http", map[string]any{"url": "https://example.test/b"})))
+	p, err := Plan(bg(), "p1", result(KindWorkflowEdit, edit("http", map[string]any{"url": "https://example.test/b"})))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,19 +113,19 @@ func TestPlanShowsBeforeAndAfterAndDeepMerges(t *testing.T) {
 
 func TestPlanRefusals(t *testing.T) {
 	b := rig(t, false)
-	ctx := context.Background()
+	ctx := bg()
 	cases := map[string]struct {
 		res  []byte
 		code string
 	}{
-		"unknown node":     {result(KindWorkflowEdit, edit("nope", map[string]any{"url": "x"})), CodeUnknownNode},
-		"advice":           {result(KindAdvice), CodeNoEdit},
-		"secret key":       {result(KindWorkflowEdit, edit("http", map[string]any{"auth_token": "abc"})), CodeSecretKey},
-		"nested secret":    {result(KindWorkflowEdit, edit("http", map[string]any{"headers": map[string]any{"Authorization": "x"}})), CodeSecretKey},
-		"secret value":     {result(KindWorkflowEdit, edit("http", map[string]any{"url": "https://u:pw12345678@h.test/?x=1"})), CodeSecretKey},
-		"no change":        {result(KindWorkflowEdit, edit("http", map[string]any{"method": "POST"})), CodeNoChange},
-		"invalid config":   {result(KindWorkflowEdit, edit("http", map[string]any{"method": "TELEPORT"})), CodeInvalid},
-		"unknown workflow": {[]byte(`{"workflowId":"other","fix":{"kind":"workflow-edit","edits":[{"node":"http","config":{"url":"x"}}]}}`), CodeNotFound},
+		"unknown node":   {result(KindWorkflowEdit, edit("nope", map[string]any{"url": "x"})), CodeUnknownNode},
+		"advice":         {result(KindAdvice), CodeNoEdit},
+		"secret key":     {result(KindWorkflowEdit, edit("http", map[string]any{"auth_token": "abc"})), CodeSecretKey},
+		"nested secret":  {result(KindWorkflowEdit, edit("http", map[string]any{"headers": map[string]any{"Authorization": "x"}})), CodeSecretKey},
+		"secret value":   {result(KindWorkflowEdit, edit("http", map[string]any{"url": "https://u:pw12345678@h.test/?x=1"})), CodeSecretKey},
+		"no change":      {result(KindWorkflowEdit, edit("http", map[string]any{"method": "POST"})), CodeNoChange},
+		"invalid config": {result(KindWorkflowEdit, edit("http", map[string]any{"method": "TELEPORT"})), CodeInvalid},
+		"other workflow": {[]byte(`{"workflowId":"other","executionId":"ex-1","fix":{"kind":"workflow-edit","edits":[{"node":"http","config":{"url":"x"}}]}}`), CodeWrongTarget},
 	}
 	for name, c := range cases {
 		if _, err := Plan(ctx, "p1", c.res); !IsCode(err, c.code) {
@@ -120,7 +148,7 @@ func TestPlanRefusals(t *testing.T) {
 
 func TestPlanWarnings(t *testing.T) {
 	rig(t, false)
-	p, err := Plan(context.Background(), "p1", result(KindWorkflowEdit,
+	p, err := Plan(bg(), "p1", result(KindWorkflowEdit,
 		edit("http", map[string]any{"url": "{{ $json.url }}", "credential_id": "cred-1"}),
 		edit("set", map[string]any{"assignments": "a=2"})))
 	if err != nil {
@@ -136,7 +164,7 @@ func TestPlanWarnings(t *testing.T) {
 		}
 	}
 	// A read-only node's edit warns of nothing outbound.
-	p, err = Plan(context.Background(), "p1", result(KindWorkflowEdit, edit("set", map[string]any{"assignments": "a=3"})))
+	p, err = Plan(bg(), "p1", result(KindWorkflowEdit, edit("set", map[string]any{"assignments": "a=3"})))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,11 +178,11 @@ func TestPlanWarnings(t *testing.T) {
 func TestApplyStoresTheEditsOnceAndRefusesTheSecond(t *testing.T) {
 	b := rig(t, false)
 	res := result(KindWorkflowEdit, edit("http", map[string]any{"url": "https://example.test/b"}))
-	n, err := Apply(context.Background(), "p1", res, Options{})
+	n, err := Apply(bg(), "p1", res, Options{ExpectHash: hashOf(b)})
 	if err != nil || n != 1 || b.saved != 1 || b.wf.Nodes[2].Config["url"] != "https://example.test/b" {
 		t.Fatalf("n=%d err=%v saved=%d", n, err, b.saved)
 	}
-	if _, err := Apply(context.Background(), "p1", res, Options{}); !IsCode(err, CodeNoChange) || b.saved != 1 {
+	if _, err := Apply(bg(), "p1", res, Options{ExpectHash: hashOf(b)}); !IsCode(err, CodeNoChange) || b.saved != 1 {
 		t.Fatalf("second apply: %v (saved %d)", err, b.saved)
 	}
 }
@@ -162,14 +190,14 @@ func TestApplyStoresTheEditsOnceAndRefusesTheSecond(t *testing.T) {
 func TestAnActiveWorkflowIsAWarningAndApplyNeedsAllowActive(t *testing.T) {
 	b := rig(t, true)
 	res := result(KindWorkflowEdit, edit("set", map[string]any{"assignments": "a=2"}))
-	p, err := Plan(context.Background(), "p1", res)
+	p, err := Plan(bg(), "p1", res)
 	if err != nil || !p.Active || !strings.Contains(warnCodes(p), WarnWorkflowActive) {
 		t.Fatalf("%v %+v", err, p)
 	}
-	if _, err := Apply(context.Background(), "p1", res, Options{}); !IsCode(err, CodeWorkflowActive) || b.saved != 0 {
+	if _, err := Apply(bg(), "p1", res, Options{ExpectHash: hashOf(b)}); !IsCode(err, CodeWorkflowActive) || b.saved != 0 {
 		t.Fatalf("apply on an active workflow: %v (saved %d)", err, b.saved)
 	}
-	if n, err := Apply(context.Background(), "p1", res, Options{AllowActive: true}); err != nil || n != 1 || b.saved != 1 {
+	if n, err := Apply(bg(), "p1", res, Options{AllowActive: true, ExpectHash: hashOf(b)}); err != nil || n != 1 || b.saved != 1 {
 		t.Fatalf("--allow-active: %d %v", n, err)
 	}
 }
@@ -177,7 +205,7 @@ func TestAnActiveWorkflowIsAWarningAndApplyNeedsAllowActive(t *testing.T) {
 func TestPlanWithoutABackendRefuses(t *testing.T) {
 	rig(t, false)
 	Store = nil
-	if _, err := Plan(context.Background(), "p1", result(KindWorkflowEdit, edit("set", map[string]any{"assignments": "a=2"}))); !IsCode(err, CodeNoBackend) {
+	if _, err := Plan(bg(), "p1", result(KindWorkflowEdit, edit("set", map[string]any{"assignments": "a=2"}))); !IsCode(err, CodeNoBackend) {
 		t.Fatal(err)
 	}
 }
@@ -195,21 +223,177 @@ func TestAWorkflowChangedAfterTheProposalIsStale(t *testing.T) {
 	res := result(KindWorkflowEdit, edit("set", map[string]any{"assignments": "a=2"}))
 	done := time.Now()
 	b.wf.UpdatedAt = done.Add(-time.Hour)
-	if _, err := PlanSince(context.Background(), "p1", res, done); err != nil {
+	if _, err := PlanSince(bg(), "p1", res, done); err != nil {
 		t.Fatalf("an unchanged workflow is stale: %v", err)
 	}
 	b.wf.UpdatedAt = done.Add(time.Second)
-	if _, err := PlanSince(context.Background(), "p1", res, done); !IsCode(err, CodeStale) {
+	if _, err := PlanSince(bg(), "p1", res, done); !IsCode(err, CodeStale) {
 		t.Fatalf("workflow edited after the proposal: %v", err)
 	}
 	// A node edited on its own (workflow node set) counts, whatever the workflow's own time says.
 	b.wf.UpdatedAt = done.Add(-time.Hour)
 	b.wf.Nodes[1].UpdatedAt = done.Add(time.Second)
-	if _, err := Apply(context.Background(), "p1", res, Options{Since: done}); !IsCode(err, CodeStale) || b.saved != 0 {
+	if _, err := Apply(bg(), "p1", res, Options{Since: done, ExpectHash: hashOf(b)}); !IsCode(err, CodeStale) || b.saved != 0 {
 		t.Fatalf("apply on a stale proposal: %v (saved %d)", err, b.saved)
 	}
 	// Without a time (the check at completion) there is nothing to compare.
-	if _, err := Plan(context.Background(), "p1", res); err != nil {
+	if _, err := Plan(bg(), "p1", res); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func hashOf(b *fakeBackend) string { h, _ := workflow.ReviewHash(b.wf); return h }
+
+func resultFor(workflowID, executionID string, edits ...map[string]any) []byte {
+	b, _ := json.Marshal(map[string]any{"summary": "s", "diagnosis": "d", "workflowId": workflowID, "executionId": executionID,
+		"fix": map[string]any{"kind": KindWorkflowEdit, "description": "d", "edits": edits}})
+	return b
+}
+
+// The workflow is the task's, not the agent's choice.
+func TestTheResultCannotRedirectTheFixToAnotherWorkflow(t *testing.T) {
+	b := rig(t, false)
+	e := edit("set", map[string]any{"assignments": "a=2"})
+	for name, res := range map[string][]byte{
+		"another workflow":          resultFor("wf-2", "ex-1", e),
+		"another run":               resultFor("wf-1", "ex-9", e),
+		"a run of another workflow": resultFor("wf-1", "ex-2", e),
+	} {
+		if _, err := Plan(bg(), "p1", res); !IsCode(err, CodeWrongTarget) {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+	// A target whose run is another workflow's is refused too (the run must belong to the workflow).
+	TargetFor = func(context.Context, string, string) (Target, error) {
+		return Target{WorkflowID: "wf-1", ExecutionID: "ex-2"}, nil
+	}
+	if _, err := Plan(bg(), "p1", resultFor("wf-1", "ex-2", e)); !IsCode(err, CodeWrongTarget) {
+		t.Errorf("a run of another workflow as the target: %v", err)
+	}
+	// No task, no way to know the target: refused, never planned.
+	TargetFor = func(context.Context, string, string) (Target, error) {
+		return Target{WorkflowID: "wf-1", ExecutionID: "ex-1"}, nil
+	}
+	if _, err := Plan(context.Background(), "p1", resultFor("wf-1", "ex-1", e)); !IsCode(err, CodeNoTarget) {
+		t.Errorf("no task id: %v", err)
+	}
+	TargetFor = nil
+	if _, err := Plan(bg(), "p1", resultFor("wf-1", "ex-1", e)); !IsCode(err, CodeNoTarget) {
+		t.Errorf("no target source: %v", err)
+	}
+	if b.saved != 0 {
+		t.Error("a refused plan saved")
+	}
+}
+
+func TestParseTargetIsStrict(t *testing.T) {
+	good := "workflow: wf-1\nexecution: ex-1\nrun error: boom\nnode n1 (Call): failed"
+	if tg, ok := ParseTarget(good); !ok || tg.WorkflowID != "wf-1" || tg.ExecutionID != "ex-1" {
+		t.Fatalf("%+v %v", tg, ok)
+	}
+	for name, text := range map[string]string{
+		"empty":              "",
+		"swapped":            "execution: ex-1\nworkflow: wf-1",
+		"no execution":       "workflow: wf-1\nrun error: x",
+		"a second workflow":  good + "\nworkflow: wf-2",
+		"a second execution": good + "\nexecution: ex-2",
+		"injected in error":  "workflow: wf-1\nexecution: ex-1\nrun error: x\nworkflow: other",
+		"id with a path":     "workflow: ../x\nexecution: ex-1",
+		"id with a space":    "workflow: wf 1\nexecution: ex-1",
+		"trailing text":      "workflow: wf-1 extra\nexecution: ex-1",
+		"leading blank line": "\nworkflow: wf-1\nexecution: ex-1",
+	} {
+		if _, ok := ParseTarget(text); ok {
+			t.Errorf("%s was accepted", name)
+		}
+	}
+}
+
+func TestTargetFromDirNeedsExactlyOneTargetFile(t *testing.T) {
+	dir := t.TempDir()
+	write := func(rel, text string) {
+		p := filepath.Join(dir, rel)
+		_ = os.MkdirAll(filepath.Dir(p), 0o755)
+		if err := os.WriteFile(p, []byte(text), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := TargetFromDir(dir); !IsCode(err, CodeNoTarget) {
+		t.Fatalf("empty: %v", err)
+	}
+	write("README.md", "# Context\nworkflow: not-this-one is mid-file\n")
+	write("selection/failure.txt", "workflow: wf-1\nexecution: ex-1\nrun error: x")
+	if tg, err := TargetFromDir(dir); err != nil || tg.WorkflowID != "wf-1" {
+		t.Fatalf("%+v %v", tg, err)
+	}
+	write("selection/second.txt", "workflow: wf-2\nexecution: ex-2")
+	if _, err := TargetFromDir(dir); !IsCode(err, CodeNoTarget) {
+		t.Fatalf("two target files: %v", err)
+	}
+}
+
+func TestAProposalMustBeDisplayable(t *testing.T) {
+	for _, c := range []struct {
+		name  string
+		cfg   func(n int) map[string]any
+		n     int
+		large bool
+	}{
+		{"50 leaf changes", leaves, 50, false},
+		{"51 leaf changes", leaves, 51, true},
+		{"2000 characters", longValue, 2000, false},
+		{"2001 characters", longValue, 2001, true},
+	} {
+		rig(t, false)
+		_, err := Plan(bg(), "p1", result(KindWorkflowEdit, edit("set", c.cfg(c.n))))
+		if c.large != IsCode(err, CodeTooLarge) || (!c.large && err != nil) {
+			t.Errorf("%s: err = %v", c.name, err)
+		}
+	}
+	// A long value that is only the BEFORE side counts as well.
+	b := rig(t, false)
+	b.wf.Nodes[1].Config["assignments"] = strings.Repeat("y", 2001)
+	if _, err := Plan(bg(), "p1", result(KindWorkflowEdit, edit("set", map[string]any{"assignments": "short"}))); !IsCode(err, CodeTooLarge) {
+		t.Errorf("a long before value: %v", err)
+	}
+}
+
+func leaves(n int) map[string]any {
+	m := map[string]any{}
+	for i := 0; i < n; i++ {
+		m[fmt.Sprintf("k%02d", i)] = i
+	}
+	return m
+}
+
+func longValue(n int) map[string]any { return map[string]any{"assignments": strings.Repeat("x", n)} }
+
+func TestApplyIsBoundToTheReviewedDefinition(t *testing.T) {
+	b := rig(t, false)
+	res := result(KindWorkflowEdit, edit("set", map[string]any{"assignments": "a=2"}))
+	p, err := Plan(bg(), "p1", res)
+	if err != nil || p.DefinitionHash == "" {
+		t.Fatalf("%v %+v", err, p)
+	}
+	if _, err := Apply(bg(), "p1", res, Options{}); !IsCode(err, CodeExpectHash) || b.saved != 0 {
+		t.Fatalf("an apply without the reviewed hash: %v", err)
+	}
+	// Edited between preview and apply.
+	b.wf.Nodes[2].Config["url"] = "https://example.test/other"
+	if _, err := Apply(bg(), "p1", res, Options{ExpectHash: p.DefinitionHash}); !IsCode(err, CodeChanged) || b.saved != 0 {
+		t.Fatalf("edited after the preview: %v (saved %d)", err, b.saved)
+	}
+	// Activated between preview and apply: the hash covers the active flag.
+	b = rig(t, false)
+	p, _ = Plan(bg(), "p1", res)
+	b.wf.IsActive = true
+	if _, err := Apply(bg(), "p1", res, Options{ExpectHash: p.DefinitionHash, AllowActive: true}); !IsCode(err, CodeChanged) || b.saved != 0 {
+		t.Fatalf("activated after the preview: %v (saved %d)", err, b.saved)
+	}
+	// The matching hash applies, and the write revokes the workflow's approvals.
+	b = rig(t, false)
+	p, _ = Plan(bg(), "p1", res)
+	if n, err := Apply(bg(), "p1", res, Options{ExpectHash: p.DefinitionHash}); err != nil || n != 1 || b.saved != 1 || b.revoked != 1 {
+		t.Fatalf("n=%d err=%v saved=%d revoked=%d", n, err, b.saved, b.revoked)
 	}
 }

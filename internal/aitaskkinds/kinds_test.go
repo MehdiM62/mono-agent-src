@@ -41,14 +41,27 @@ func (f fakeStore) Load(_ context.Context, profile, id string) (*workflow.Workfl
 	}
 	return &cp, nil
 }
-func (fakeStore) SaveNodes(context.Context, string, string, []workflow.WorkflowNode) error {
+func (fakeStore) SaveNodesGuarded(context.Context, string, string, []workflow.WorkflowNode, workflow.SaveGuard) error {
 	return errors.New("a check must not write")
+}
+
+func (fakeStore) ExecutionWorkflow(_ context.Context, _, id string) (string, error) {
+	switch id {
+	case "ex-1", "e":
+		return "wf-1", nil
+	case "ex-2":
+		return "wf-2", nil
+	}
+	return "", nil
 }
 
 // withWorld installs a profile "p1" with workflow wf-1 and recording rec-1.
 func withWorld(t *testing.T) {
 	t.Helper()
-	prevS, prevR := workflowfix.Store, RecordingExists
+	prevS, prevR, prevT := workflowfix.Store, RecordingExists, workflowfix.TargetFor
+	workflowfix.TargetFor = func(context.Context, string, string) (workflowfix.Target, error) {
+		return workflowfix.Target{WorkflowID: "wf-1", ExecutionID: "ex-1"}, nil
+	}
 	workflowfix.Store = fakeStore{wf: &workflow.Workflow{ID: "wf-1", Name: "Digest", Nodes: []workflow.WorkflowNode{
 		{ID: "t", Type: "trigger.manual", Name: "Start", Config: map[string]any{}},
 		{ID: "s", Type: "core.set", Name: "Shape", Config: map[string]any{"assignments": "a=1"}},
@@ -56,7 +69,7 @@ func withWorld(t *testing.T) {
 	RecordingExists = func(_ context.Context, profile, id string) (bool, error) {
 		return profile == "p1" && id == "rec-1", nil
 	}
-	t.Cleanup(func() { workflowfix.Store, RecordingExists = prevS, prevR })
+	t.Cleanup(func() { workflowfix.Store, RecordingExists, workflowfix.TargetFor = prevS, prevR, prevT })
 }
 
 func TestRegistryListsTheKinds(t *testing.T) {
@@ -75,7 +88,7 @@ func TestRegistryListsTheKinds(t *testing.T) {
 func TestGoodResultsPassTheirChecks(t *testing.T) {
 	withWorld(t)
 	for name, ok := range good {
-		if err := CheckResult(context.Background(), "p1", name, []byte(ok)); err != nil {
+		if err := CheckResult(taskCtx(), "p1", name, []byte(ok)); err != nil {
 			t.Errorf("%s: good result refused: %v", name, err)
 		}
 	}
@@ -104,14 +117,14 @@ func TestSchemasRefuseBadResults(t *testing.T) {
 		},
 		FailedRunFix: {
 			`{"summary":"s","diagnosis":"d","workflowId":"w","executionId":"e"}`,
-			`{"summary":"s","diagnosis":"d","workflowId":"w","executionId":"e","fix":{"kind":"rewrite","description":"d"}}`,
-			`{"summary":"s","diagnosis":"` + long + `","workflowId":"w","executionId":"e","fix":{"kind":"none","description":"d"}}`,
-			`{"summary":"s","diagnosis":"d","workflowId":"w","executionId":"e","fix":{"kind":"none","description":"d","run":true}}`,
+			`{"summary":"s","diagnosis":"d","workflowId":"w","executionId":"ex-1","fix":{"kind":"rewrite","description":"d"}}`,
+			`{"summary":"s","diagnosis":"` + long + `","workflowId":"w","executionId":"ex-1","fix":{"kind":"none","description":"d"}}`,
+			`{"summary":"s","diagnosis":"d","workflowId":"w","executionId":"ex-1","fix":{"kind":"none","description":"d","run":true}}`,
 		},
 	}
 	for name, list := range bad {
 		for _, raw := range list {
-			if err := CheckResult(context.Background(), "p1", name, []byte(raw)); err == nil {
+			if err := CheckResult(taskCtx(), "p1", name, []byte(raw)); err == nil {
 				t.Errorf("%s: accepted %.90s", name, raw)
 			}
 		}
@@ -128,13 +141,13 @@ func TestWorkflowGenerateRecomputesTheVerdict(t *testing.T) {
 		"secret value":           `{"name":"n","nodes":[{"id":"t","type":"trigger.manual","name":"T","config":{}},{"id":"h","type":"http.request","name":"H","config":{"url":"https://u:pw12345678@h.test/x","method":"GET"}}],"connections":[{"source":"t","target":"h","source_handle":"main","target_handle":"main"}]}`,
 	} {
 		raw := `{"summary":"s","workflow":` + wf + `,"validation":{"valid":true,"errors":[]}}`
-		if err := CheckResult(context.Background(), "p1", WorkflowGenerate, []byte(raw)); err == nil {
+		if err := CheckResult(taskCtx(), "p1", WorkflowGenerate, []byte(raw)); err == nil {
 			t.Errorf("%s: a workflow that fails validation was accepted although the agent said valid", name)
 		}
 	}
 	// And the other way: an agent claiming invalid does not make a valid workflow invalid.
 	raw := `{"summary":"s","workflow":` + goodWorkflow + `,"validation":{"valid":false,"errors":["x"]}}`
-	if err := CheckResult(context.Background(), "p1", WorkflowGenerate, []byte(raw)); err != nil {
+	if err := CheckResult(taskCtx(), "p1", WorkflowGenerate, []byte(raw)); err != nil {
 		t.Errorf("the agent's verdict was used: %v", err)
 	}
 }
@@ -142,23 +155,23 @@ func TestWorkflowGenerateRecomputesTheVerdict(t *testing.T) {
 func TestFailedRunFixChecksTheEditAgainstTheWorkflow(t *testing.T) {
 	withWorld(t)
 	for name, c := range map[string]struct{ res, want string }{
-		"unknown node":    {`{"summary":"s","diagnosis":"d","workflowId":"wf-1","executionId":"e","fix":{"kind":"workflow-edit","description":"d","edits":[{"node":"zz","config":{"a":1}}]}}`, "zz"},
-		"empty edits":     {`{"summary":"s","diagnosis":"d","workflowId":"wf-1","executionId":"e","fix":{"kind":"workflow-edit","description":"d"}}`, "edits"},
-		"secret key":      {`{"summary":"s","diagnosis":"d","workflowId":"wf-1","executionId":"e","fix":{"kind":"workflow-edit","description":"d","edits":[{"node":"s","config":{"api_key":"x"}}]}}`, "secret"},
-		"unknown wf":      {`{"summary":"s","diagnosis":"d","workflowId":"nope","executionId":"e","fix":{"kind":"advice","description":"d"}}`, "nope"},
-		"edits on advice": {`{"summary":"s","diagnosis":"d","workflowId":"wf-1","executionId":"e","fix":{"kind":"advice","description":"d","edits":[{"node":"s","config":{"a":1}}]}}`, "edits"},
+		"unknown node":    {`{"summary":"s","diagnosis":"d","workflowId":"wf-1","executionId":"ex-1","fix":{"kind":"workflow-edit","description":"d","edits":[{"node":"zz","config":{"a":1}}]}}`, "zz"},
+		"empty edits":     {`{"summary":"s","diagnosis":"d","workflowId":"wf-1","executionId":"ex-1","fix":{"kind":"workflow-edit","description":"d"}}`, "edits"},
+		"secret key":      {`{"summary":"s","diagnosis":"d","workflowId":"wf-1","executionId":"ex-1","fix":{"kind":"workflow-edit","description":"d","edits":[{"node":"s","config":{"api_key":"x"}}]}}`, "secret"},
+		"unknown wf":      {`{"summary":"s","diagnosis":"d","workflowId":"nope","executionId":"ex-1","fix":{"kind":"advice","description":"d"}}`, "nope"},
+		"edits on advice": {`{"summary":"s","diagnosis":"d","workflowId":"wf-1","executionId":"ex-1","fix":{"kind":"advice","description":"d","edits":[{"node":"s","config":{"a":1}}]}}`, "edits"},
 	} {
-		err := CheckResult(context.Background(), "p1", FailedRunFix, []byte(c.res))
+		err := CheckResult(taskCtx(), "p1", FailedRunFix, []byte(c.res))
 		if err == nil || !strings.Contains(err.Error(), c.want) {
 			t.Errorf("%s: err = %v", name, err)
 		}
 	}
 	// advice and none for a workflow of the profile pass; another profile's does not.
-	ok := `{"summary":"s","diagnosis":"d","workflowId":"wf-1","executionId":"e","fix":{"kind":"none","description":"d"}}`
-	if err := CheckResult(context.Background(), "p1", FailedRunFix, []byte(ok)); err != nil {
+	ok := `{"summary":"s","diagnosis":"d","workflowId":"wf-1","executionId":"ex-1","fix":{"kind":"none","description":"d"}}`
+	if err := CheckResult(taskCtx(), "p1", FailedRunFix, []byte(ok)); err != nil {
 		t.Error(err)
 	}
-	if err := CheckResult(context.Background(), "p2", FailedRunFix, []byte(ok)); err == nil {
+	if err := CheckResult(taskCtx(), "p2", FailedRunFix, []byte(ok)); err == nil {
 		t.Error("another profile's workflow was accepted")
 	}
 }
@@ -166,11 +179,11 @@ func TestFailedRunFixChecksTheEditAgainstTheWorkflow(t *testing.T) {
 func TestRecordingAnalyzeChecksTheRecordingExists(t *testing.T) {
 	withWorld(t)
 	raw := `{"recordingId":"rec-9","summary":"s","suggestions":[]}`
-	if err := CheckResult(context.Background(), "p1", RecordingAnalyze, []byte(raw)); err == nil || !strings.Contains(err.Error(), "rec-9") {
+	if err := CheckResult(taskCtx(), "p1", RecordingAnalyze, []byte(raw)); err == nil || !strings.Contains(err.Error(), "rec-9") {
 		t.Fatalf("unknown recording: %v", err)
 	}
 	RecordingExists = nil
-	if CheckResult(context.Background(), "p1", RecordingAnalyze, []byte(good[RecordingAnalyze])) == nil {
+	if CheckResult(taskCtx(), "p1", RecordingAnalyze, []byte(good[RecordingAnalyze])) == nil {
 		t.Error("with no way to check, the result was trusted")
 	}
 }
@@ -179,10 +192,10 @@ func TestRecordingAnalyzeChecksTheRecordingExists(t *testing.T) {
 func TestKindCheckRunsTheKindsChecks(t *testing.T) {
 	withWorld(t)
 	k, _ := aitask.Lookup(RecordingAnalyze)
-	if err := k.Check(context.Background(), "p1", json.RawMessage(`{"recordingId":"rec-9","summary":"s","suggestions":[]}`)); err == nil {
+	if err := k.Check(taskCtx(), "p1", json.RawMessage(`{"recordingId":"rec-9","summary":"s","suggestions":[]}`)); err == nil {
 		t.Error("the registered check accepted an unknown recording")
 	}
-	if err := k.Check(context.Background(), "p1", json.RawMessage(good[RecordingAnalyze])); err != nil {
+	if err := k.Check(taskCtx(), "p1", json.RawMessage(good[RecordingAnalyze])); err != nil {
 		t.Error(err)
 	}
 }
@@ -206,5 +219,28 @@ func TestPromptsAreConfinedWordedAndHoldNoContext(t *testing.T) {
 				t.Errorf("%s: prompt holds %q", name, banned)
 			}
 		}
+	}
+}
+
+// taskCtx is the context Service.Complete gives a check: it names the task.
+func taskCtx() context.Context { return aitask.WithTaskID(context.Background(), "at-1") }
+
+// The result cannot pick a workflow: the task's own target is the only one.
+func TestFailedRunFixRefusesAResultAboutAnotherWorkflowOrRun(t *testing.T) {
+	withWorld(t)
+	for name, res := range map[string]string{
+		"other workflow, advice":    `{"summary":"s","diagnosis":"d","workflowId":"wf-2","executionId":"ex-1","fix":{"kind":"none","description":"d"}}`,
+		"other workflow, edit":      `{"summary":"s","diagnosis":"d","workflowId":"wf-2","executionId":"ex-1","fix":{"kind":"workflow-edit","description":"d","edits":[{"node":"s","config":{"assignments":"a=2"}}]}}`,
+		"other run":                 `{"summary":"s","diagnosis":"d","workflowId":"wf-1","executionId":"ex-9","fix":{"kind":"none","description":"d"}}`,
+		"a run of another workflow": `{"summary":"s","diagnosis":"d","workflowId":"wf-1","executionId":"ex-2","fix":{"kind":"none","description":"d"}}`,
+	} {
+		err := CheckResult(taskCtx(), "p1", FailedRunFix, []byte(res))
+		if err == nil || !strings.Contains(err.Error(), "wf-1") {
+			t.Errorf("%s: err = %v, want a refusal naming the task's workflow", name, err)
+		}
+	}
+	// Without a task in the context there is no target, so nothing passes.
+	if err := CheckResult(context.Background(), "p1", FailedRunFix, []byte(good[FailedRunFix])); err == nil {
+		t.Error("a result was accepted with no task to take the target from")
 	}
 }

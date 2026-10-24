@@ -191,6 +191,7 @@ func (d Deps) start(what string) error {
 
 func (d Deps) applyFix() *cobra.Command {
 	var dryRun, allowActive bool
+	var expectHash string
 	cmd := &cobra.Command{
 		Use:   "apply-fix <task-id>",
 		Short: "Show or apply the workflow edits a finished failed-run-fix task proposed (the user's own)",
@@ -198,7 +199,8 @@ func (d Deps) applyFix() *cobra.Command {
 			"--dry-run prints them (node, path, before, after) and warnings (workflow_active, new_outbound, credential_field, expression_added) and changes nothing. " +
 			"Without it the edits are stored once; the workflow is then UNAPPROVED (a person saves or activates it to approve it again). " +
 			"Refused: a workflow that changed since the task completed (stale_proposal), an active workflow unless --allow-active " +
-			"(workflow_active_needs_confirm), a proposal applied before (already_applied). " + clicore.OperatorOnlyHelp,
+			"(workflow_active_needs_confirm), a proposal applied before (already_applied), a proposal whose result names another workflow or run than the task (wrong_target) or is too big to display (too_large). " +
+			"The apply is bound to the definition you reviewed (--expect-hash, changed_since_preview) and removes every stored approval of the workflow. " + clicore.OperatorOnlyHelp,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := d.start("apply an AI task's workflow fix"); err != nil {
@@ -213,15 +215,22 @@ func (d Deps) applyFix() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			ctx := context.Background()
+			// The task, not the result, names the workflow: workflowfix reads its target from the task's context.
+			ctx := aitask.WithTaskID(context.Background(), t.ID)
 			since := completedAt(t)
-			plan, err := workflowfix.PlanSince(ctx, d.ProfileID(), t.Result, since)
+			expect := expectHash
+			if dryRun {
+				expect = ""
+			} else if expect == "" {
+				return refuse(workflowfix.CodeExpectHash, "an apply needs --expect-hash with the definitionHash the dry-run showed")
+			}
+			plan, err := workflowfix.PlanExpect(ctx, d.ProfileID(), t.Result, since, expect)
 			if err != nil {
 				return cliErr(err)
 			}
 			if dryRun {
 				return d.print(cmd, map[string]any{"ok": true, "workflowId": plan.WorkflowID, "workflowName": plan.WorkflowName,
-					"edits": plan.Edits, "warnings": plan.Warnings},
+					"edits": plan.Edits, "warnings": plan.Warnings, "definitionHash": plan.DefinitionHash},
 					fmt.Sprintf("%d edit(s) to %s (%s); %d warning(s)", len(plan.Edits), plan.WorkflowName, plan.WorkflowID, len(plan.Warnings)))
 			}
 			if plan.Active && !allowActive {
@@ -230,7 +239,7 @@ func (d Deps) applyFix() *cobra.Command {
 			if err := d.claim(db, t, plan.WorkflowID, len(plan.Edits)); err != nil {
 				return err
 			}
-			n, err := workflowfix.Apply(ctx, d.ProfileID(), t.Result, workflowfix.Options{AllowActive: allowActive, Since: since})
+			n, err := workflowfix.Apply(ctx, d.ProfileID(), t.Result, workflowfix.Options{AllowActive: allowActive, Since: since, ExpectHash: expectHash})
 			if err != nil {
 				unclaim(db, t.ID)
 				return cliErr(err)
@@ -240,6 +249,7 @@ func (d Deps) applyFix() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the edits and warnings; change nothing")
+	cmd.Flags().StringVar(&expectHash, "expect-hash", "", "The definitionHash the dry-run showed (required to apply): the edit is applied only to that definition")
 	cmd.Flags().BoolVar(&allowActive, "allow-active", false, "Apply to a workflow that is active (the user confirmed)")
 	return cmd
 }
@@ -286,6 +296,8 @@ func (d Deps) saveDraft() *cobra.Command {
 				return err
 			}
 			_, _ = db.DB.Exec(`UPDATE ai_task_applies SET workflow_id = ? WHERE task_id = ?`, wf.ID, t.ID)
+			// A new workflow has no approvals; revoking is the rule for everything this command writes.
+			_ = d.WorkflowStore(db).RevokeApprovals(context.Background(), wf.ID)
 			return d.print(cmd, map[string]any{"ok": true, "workflowId": wf.ID, "name": wf.Name, "nodeCount": len(wf.Nodes), "needsApproval": true},
 				fmt.Sprintf("saved draft %s (%s), inactive; approve it by saving or activating it", wf.Name, wf.ID))
 		},

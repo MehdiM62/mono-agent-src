@@ -3,14 +3,19 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/monoes/mono-agent/internal/aitask"
 	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/workflow"
+	"github.com/monoes/mono-agent/internal/workflowfix"
 )
 
 type fixRig struct {
@@ -51,6 +56,18 @@ func newFixRig(t *testing.T, active bool) *fixRig {
 	}
 	if !r.approved(t, "wf-1") {
 		t.Fatal("the rig's workflow is not approved to begin with")
+	}
+	// A failed run of it (ex-1), and a second workflow with a run of its own (wf-2, ex-2).
+	wf2 := &workflow.Workflow{ID: "wf-2", Name: "Other", ProfileID: cfg.ProfileID, Version: 1,
+		Nodes: []workflow.WorkflowNode{{ID: "t2", WorkflowID: "wf-2", Type: "trigger.manual", Name: "Start", Config: map[string]any{}}}}
+	_ = wf2.Nodes[0].MarshalConfig()
+	if err := store.SaveWorkflow(context.Background(), wf2); err != nil {
+		t.Fatal(err)
+	}
+	for id, wfID := range map[string]string{"ex-1": "wf-1", "ex-2": "wf-2"} {
+		if err := store.CreateExecution(context.Background(), &workflow.WorkflowExecution{ID: id, WorkflowID: wfID, ProfileID: cfg.ProfileID, Status: "FAILED", TriggerType: "manual"}); err != nil {
+			t.Fatal(err)
+		}
 	}
 	return r
 }
@@ -96,7 +113,21 @@ func (r *fixRig) task(t *testing.T, kind, status, result string) string {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	task, err := (&aitask.Store{DB: db.DB, Profile: r.cfg.ProfileID}).Insert(aitask.Task{ID: aitask.NewID(), Kind: kind, ConversationID: "c", Status: status, Goal: "g"})
+	id := aitask.NewID()
+	cwd := t.TempDir()
+	ctxDir := filepath.Join(cwd, filepath.FromSlash(aitask.ContextDir), id, "selection")
+	if err := os.MkdirAll(ctxDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// What the app writes for a failed run: the structured target first, then the errors.
+	if err := os.WriteFile(filepath.Join(ctxDir, "failure.txt"), []byte("workflow: wf-1\nexecution: ex-1\nrun error: boom"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	hash, err := aitask.HashDir(filepath.Join(cwd, filepath.FromSlash(aitask.ContextDir), id))
+	if err != nil {
+		t.Fatal(err)
+	}
+	task, err := (&aitask.Store{DB: db.DB, Profile: r.cfg.ProfileID}).Insert(aitask.Task{ID: id, Kind: kind, ConversationID: "c", Status: status, Goal: "g", Cwd: cwd, ContextHash: hash})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +139,30 @@ func (r *fixRig) task(t *testing.T, kind, status, result string) string {
 	return task.ID
 }
 
+// run runs a command; a real apply-fix gets the --expect-hash a dry-run of the same task shows,
+// as the app passes it (use runRaw to send exactly the args).
 func (r *fixRig) run(t *testing.T, args ...string) (map[string]any, error) {
+	t.Helper()
+	if len(args) > 1 && args[0] == "apply-fix" && !hasArg(args, "--dry-run") && !hasArg(args, "--expect-hash") {
+		hash := "unknown"
+		if body, err := r.runRaw(t, "apply-fix", args[1], "--dry-run"); err == nil {
+			hash, _ = body["definitionHash"].(string)
+		}
+		args = append(append([]string{}, args...), "--expect-hash", hash)
+	}
+	return r.runRaw(t, args...)
+}
+
+func hasArg(args []string, a string) bool {
+	for _, x := range args {
+		if x == a {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *fixRig) runRaw(t *testing.T, args ...string) (map[string]any, error) {
 	t.Helper()
 	cmd := &cobra.Command{Use: "workflow"}
 	cmd.AddCommand(newWorkflowAitaskCmds(r.cfg)...)
@@ -359,10 +413,16 @@ func TestApplyFixRefusesAStaleProposal(t *testing.T) {
 		t.Fatal(err)
 	}
 	db.Close()
-	for _, args := range [][]string{{"apply-fix", id, "--dry-run"}, {"apply-fix", id}} {
-		if body, err := r.run(t, args...); err == nil || codeOf(body) != "stale_proposal" {
-			t.Errorf("%v: %v %v", args, err, body)
-		}
+	if body, err := r.run(t, "apply-fix", id, "--dry-run"); err == nil || codeOf(body) != "stale_proposal" {
+		t.Errorf("dry-run: %v %v", err, body)
+	}
+	// An apply that names the definition as it is now (the person previewed another task meanwhile) is still stale.
+	db, _ = initDB(r.cfg)
+	cur, _ := openWorkflowStore(db).GetWorkflow(context.Background(), "wf-1")
+	db.Close()
+	hash, _ := workflow.ReviewHash(cur)
+	if body, err := r.runRaw(t, "apply-fix", id, "--expect-hash", hash); err == nil || codeOf(body) != "stale_proposal" {
+		t.Errorf("apply: %v %v", err, body)
 	}
 	if r.workflow(t, "wf-1").Nodes[1].Config["assignments"] != "a=1" {
 		t.Fatal("a stale proposal was applied")
@@ -387,7 +447,15 @@ func TestApplyFixAndSaveDraftTakeTheAppsArgv(t *testing.T) {
 	if body, err := root("workflow", "apply-fix", "--dry-run", "--", fix); err != nil || body["ok"] != true || body["workflowId"] != "wf-1" {
 		t.Fatalf("dry-run: %v %v", err, body)
 	}
-	if body, err := root("workflow", "apply-fix", "--", fix); err != nil || body["applied"] != float64(1) {
+	dry, _ := root("workflow", "apply-fix", "--dry-run", "--", fix)
+	hash, _ := dry["definitionHash"].(string)
+	if hash == "" {
+		t.Fatalf("the dry-run shows no definitionHash: %v", dry)
+	}
+	if body, err := root("workflow", "apply-fix", "--", fix); err == nil || codeOf(body) != "expect_hash_required" {
+		t.Fatalf("apply without the hash: %v %v", err, body)
+	}
+	if body, err := root("workflow", "apply-fix", "--expect-hash", hash, "--", fix); err != nil || body["applied"] != float64(1) {
 		t.Fatalf("apply: %v %v", err, body)
 	}
 	if body, err := root("workflow", "save-draft", "--", gen); err != nil || body["ok"] != true || body["needsApproval"] != true {
@@ -437,9 +505,201 @@ func TestSaveDraftRefusals(t *testing.T) {
 	}
 	defer db.Close()
 	list, _ := openWorkflowStore(db).ListWorkflows(context.Background(), r.cfg.ProfileID)
-	if len(list) != 1 {
-		t.Errorf("%d workflows after refused saves, want the 1 the rig made", len(list))
+	if len(list) != 2 {
+		t.Errorf("%d workflows after refused saves, want the 2 the rig made", len(list))
 	}
 }
 
 func toJSON(v any) string { b, _ := json.Marshal(v); return string(b) }
+
+// taskAbout inserts a complete failed-run-fix task whose context names workflow wfID and run exID.
+func (r *fixRig) taskAbout(t *testing.T, wfID, exID, result string) string {
+	t.Helper()
+	db, err := initDB(r.cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	id := aitask.NewID()
+	cwd := t.TempDir()
+	dir := filepath.Join(cwd, filepath.FromSlash(aitask.ContextDir), id)
+	if err := os.MkdirAll(filepath.Join(dir, "selection"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	text := "workflow: " + wfID + "\nexecution: " + exID + "\nrun error: boom"
+	if wfID == "" {
+		text = "run error: boom, no target here"
+	}
+	if err := os.WriteFile(filepath.Join(dir, "selection", "failure.txt"), []byte(text), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	hash, _ := aitask.HashDir(dir)
+	if _, err := (&aitask.Store{DB: db.DB, Profile: r.cfg.ProfileID}).Insert(aitask.Task{ID: id, Kind: "failed-run-fix", ConversationID: "c", Status: aitask.StatusComplete, Goal: "g", Cwd: cwd, ContextHash: hash}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.DB.Exec(`UPDATE ai_tasks SET result_json = ? WHERE id = ?`, result, id); err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
+func resultAbout(wfID, exID, node, config string) string {
+	return `{"summary":"s","diagnosis":"d","workflowId":"` + wfID + `","executionId":"` + exID + `","fix":{"kind":"workflow-edit","description":"d","edits":[` + editOf(node, config) + `]}}`
+}
+
+// The agent cannot choose the workflow: the task's own context does.
+func TestApplyFixTakesTheTargetFromTheTaskNotTheResult(t *testing.T) {
+	r := newFixRig(t, false)
+	// wf-2 is a real workflow of the same profile; the result tries to send the fix there.
+	redirect := r.taskAbout(t, "wf-1", "ex-1", resultAbout("wf-2", "ex-2", "t2", `{"a":1}`))
+	otherRun := r.taskAbout(t, "wf-1", "ex-1", resultAbout("wf-1", "ex-2", "s", `{"assignments":"a=2"}`))
+	for name, id := range map[string]string{"another workflow": redirect, "another workflow's run": otherRun} {
+		for _, args := range [][]string{{"apply-fix", id, "--dry-run"}, {"apply-fix", id}} {
+			if body, err := r.run(t, args...); err == nil || codeOf(body) != "wrong_target" {
+				t.Errorf("%s %v: %v %v", name, args, err, body)
+			}
+		}
+	}
+	// A context that names no workflow, or two, has no target.
+	none := r.taskAbout(t, "", "", resultAbout("wf-1", "ex-1", "s", `{"assignments":"a=2"}`))
+	if body, err := r.run(t, "apply-fix", none, "--dry-run"); err == nil || codeOf(body) != "no_target" {
+		t.Errorf("no target: %v %v", err, body)
+	}
+	// A context changed after it was queued is not read.
+	id := r.taskAbout(t, "wf-1", "ex-1", resultAbout("wf-1", "ex-1", "s", `{"assignments":"a=2"}`))
+	db, _ := initDB(r.cfg)
+	var cwd string
+	_ = db.DB.QueryRow(`SELECT cwd FROM ai_tasks WHERE id = ?`, id).Scan(&cwd)
+	db.Close()
+	_ = os.WriteFile(filepath.Join(cwd, filepath.FromSlash(aitask.ContextDir), id, "selection", "failure.txt"), []byte("workflow: wf-2\nexecution: ex-2\n"), 0o644)
+	if body, err := r.run(t, "apply-fix", id, "--dry-run"); err == nil || codeOf(body) != "no_target" {
+		t.Errorf("a changed context: %v %v", err, body)
+	}
+	if r.workflow(t, "wf-2").Nodes[0].Config["a"] != nil || r.workflow(t, "wf-1").Nodes[1].Config["assignments"] != "a=1" {
+		t.Fatal("a redirected fix was applied")
+	}
+}
+
+// The edit is applied to the definition that was previewed, or not at all.
+func TestApplyFixRefusesADefinitionThatChangedSincePreview(t *testing.T) {
+	r := newFixRig(t, false)
+	id := r.task(t, "failed-run-fix", aitask.StatusComplete, fixResult("workflow-edit", editOf("s", `{"assignments":"a=2"}`)))
+	dry, err := r.run(t, "apply-fix", id, "--dry-run")
+	hash, _ := dry["definitionHash"].(string)
+	if err != nil || len(hash) != 64 {
+		t.Fatalf("%v %v", err, dry)
+	}
+	// Edited after the preview (an unrelated node).
+	db, _ := initDB(r.cfg)
+	store := openWorkflowStore(db)
+	wf, _ := store.GetWorkflow(context.Background(), "wf-1")
+	wf.Nodes[2].Config["url"] = "https://example.test/elsewhere"
+	if err := store.SaveWorkflowNodes(context.Background(), "wf-1", wf.Nodes); err != nil {
+		t.Fatal(err)
+	}
+	db.Close()
+	if body, err := r.runRaw(t, "apply-fix", id, "--expect-hash", hash); err == nil || codeOf(body) != "changed_since_preview" {
+		t.Fatalf("edited after the preview: %v %v", err, body)
+	}
+	if r.workflow(t, "wf-1").Nodes[1].Config["assignments"] != "a=1" {
+		t.Fatal("the edit was applied to a definition nobody reviewed")
+	}
+	// Activated after the preview.
+	r2 := newFixRig(t, false)
+	id2 := r2.task(t, "failed-run-fix", aitask.StatusComplete, fixResult("workflow-edit", editOf("s", `{"assignments":"a=2"}`)))
+	dry, _ = r2.run(t, "apply-fix", id2, "--dry-run")
+	hash2, _ := dry["definitionHash"].(string)
+	db, _ = initDB(r2.cfg)
+	if err := openWorkflowStore(db).SetWorkflowActive(context.Background(), "wf-1", true); err != nil {
+		t.Fatal(err)
+	}
+	db.Close()
+	if body, err := r2.runRaw(t, "apply-fix", id2, "--allow-active", "--expect-hash", hash2); err == nil || codeOf(body) != "changed_since_preview" {
+		t.Fatalf("activated after the preview: %v %v", err, body)
+	}
+	if r2.workflow(t, "wf-1").Nodes[1].Config["assignments"] != "a=1" {
+		t.Fatal("an edit was applied to a workflow activated since the preview")
+	}
+}
+
+// Two proposals reviewed against the same definition: one write, and the other is told to preview again.
+func TestConcurrentAppliesWriteOnce(t *testing.T) {
+	r := newFixRig(t, false)
+	a := r.task(t, "failed-run-fix", aitask.StatusComplete, fixResult("workflow-edit", editOf("s", `{"assignments":"a=2"}`)))
+	b := r.task(t, "failed-run-fix", aitask.StatusComplete, fixResult("workflow-edit", editOf("s", `{"assignments":"a=3"}`)))
+	dry, _ := r.run(t, "apply-fix", a, "--dry-run")
+	hash, _ := dry["definitionHash"].(string)
+	wireAitaskKinds(r.cfg)
+	apply := func(id string) error {
+		db, err := initDB(r.cfg)
+		if err != nil {
+			return err
+		}
+		var res string
+		var done string
+		_ = db.DB.QueryRow(`SELECT result_json, updated_at FROM ai_tasks WHERE id = ?`, id).Scan(&res, &done)
+		db.Close()
+		ts, _ := time.Parse(time.RFC3339Nano, done)
+		_, err = workflowfix.Apply(aitask.WithTaskID(context.Background(), id), r.cfg.ProfileID, []byte(res), workflowfix.Options{ExpectHash: hash, Since: ts})
+		return err
+	}
+	errs := make([]error, 2)
+	var wg sync.WaitGroup
+	for i, id := range []string{a, b} {
+		wg.Add(1)
+		go func() { defer wg.Done(); errs[i] = apply(id) }()
+	}
+	wg.Wait()
+	wins := 0
+	for _, err := range errs {
+		switch {
+		case err == nil:
+			wins++
+		case workflowfix.IsCode(err, "changed_since_preview"):
+		default:
+			t.Errorf("the loser got %v, want changed_since_preview", err)
+		}
+	}
+	got := r.workflow(t, "wf-1").Nodes[1].Config["assignments"]
+	if wins != 1 || (got != "a=2" && got != "a=3") {
+		t.Fatalf("%d winners, assignments = %v", wins, got)
+	}
+}
+
+// An approved definition cannot be restored by a revert: every approval goes with the apply.
+func TestApplyRevokesApprovalsSoARevertNeedsAFreshOne(t *testing.T) {
+	r := newFixRig(t, false)
+	first := r.task(t, "failed-run-fix", aitask.StatusComplete, fixResult("workflow-edit", editOf("s", `{"assignments":"a=2"}`)))
+	if _, err := r.run(t, "apply-fix", first); err != nil {
+		t.Fatal(err)
+	}
+	if r.approved(t, "wf-1") {
+		t.Fatal("v2 is approved")
+	}
+	// The user approves v2 themselves; then a proposal reverts to v1, which was approved at the start.
+	db, _ := initDB(r.cfg)
+	if err := openWorkflowStore(db).ApproveDefinition(context.Background(), "wf-1"); err != nil {
+		t.Fatal(err)
+	}
+	db.Close()
+	if !r.approved(t, "wf-1") {
+		t.Fatal("the user's own approval did not take")
+	}
+	second := r.task(t, "failed-run-fix", aitask.StatusComplete, fixResult("workflow-edit", editOf("s", `{"assignments":"a=1"}`)))
+	if _, err := r.run(t, "apply-fix", second); err != nil {
+		t.Fatal(err)
+	}
+	if got := r.workflow(t, "wf-1").Nodes[1].Config["assignments"]; got != "a=1" {
+		t.Fatalf("not reverted: %v", got)
+	}
+	if r.approved(t, "wf-1") {
+		t.Error("reverting to the approved v1 restored its approval")
+	}
+	db, _ = initDB(r.cfg)
+	defer db.Close()
+	var n int
+	_ = db.DB.QueryRow(`SELECT COUNT(*) FROM workflow_approvals WHERE workflow_id = 'wf-1'`).Scan(&n)
+	if n != 0 {
+		t.Errorf("%d approvals of the workflow survived the apply", n)
+	}
+}

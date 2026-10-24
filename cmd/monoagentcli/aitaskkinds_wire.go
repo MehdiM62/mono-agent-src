@@ -3,9 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"sync"
 
+	"github.com/monoes/mono-agent/internal/aitask"
 	"github.com/monoes/mono-agent/internal/aitaskkinds"
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/recording"
 	"github.com/monoes/mono-agent/internal/workflow"
 	"github.com/monoes/mono-agent/internal/workflowfix"
@@ -25,7 +28,24 @@ func (b cliWorkflowBackend) Load(ctx context.Context, profile, id string) (*work
 	return ownedWorkflow(ctx, openWorkflowStore(db), db.DB, profile, id), nil
 }
 
-func (b cliWorkflowBackend) SaveNodes(ctx context.Context, profile, id string, nodes []workflow.WorkflowNode) error {
+func (b cliWorkflowBackend) ExecutionWorkflow(ctx context.Context, profile, executionID string) (string, error) {
+	db, err := initDB(b.cfg)
+	if err != nil {
+		return "", fmt.Errorf("open database: %w", err)
+	}
+	defer db.Close()
+	store := openWorkflowStore(db)
+	ex, err := store.GetExecution(ctx, executionID)
+	if err != nil || ex == nil {
+		return "", nil
+	}
+	if ownedWorkflow(ctx, store, db.DB, profile, ex.WorkflowID) == nil {
+		return "", nil
+	}
+	return ex.WorkflowID, nil
+}
+
+func (b cliWorkflowBackend) SaveNodesGuarded(ctx context.Context, profile, id string, nodes []workflow.WorkflowNode, guard workflow.SaveGuard) error {
 	db, err := initDB(b.cfg)
 	if err != nil {
 		return fmt.Errorf("open database: %w", err)
@@ -35,7 +55,7 @@ func (b cliWorkflowBackend) SaveNodes(ctx context.Context, profile, id string, n
 	if ownedWorkflow(ctx, store, db.DB, profile, id) == nil {
 		return fmt.Errorf("workflow %q not found", id)
 	}
-	return store.SaveWorkflowNodes(ctx, id, nodes)
+	return store.SaveNodesGuarded(ctx, id, nodes, guard)
 }
 
 var nodeTypesOnce struct {
@@ -51,6 +71,22 @@ func wireAitaskKinds(cfg *globalConfig) {
 	workflowfix.NodeTypeKnown = func(t string) bool {
 		nodeTypesOnce.Do(func() { nodeTypesOnce.reg = buildNodeRegistry(false, nil) })
 		return nodeTypesOnce.reg.Has(t)
+	}
+	workflowfix.TargetFor = func(ctx context.Context, profile, taskID string) (workflowfix.Target, error) {
+		db, err := initDB(cfg)
+		if err != nil {
+			return workflowfix.Target{}, fmt.Errorf("open database: %w", err)
+		}
+		defer db.Close()
+		t, err := (&aitask.Store{DB: db.DB, Profile: profile}).Get(taskID)
+		if err != nil {
+			return workflowfix.Target{}, err
+		}
+		dir, err := aitask.VerifiedContext(filepath.Dir(clicore.ExpandPath(cfg.DBPath)), t)
+		if err != nil {
+			return workflowfix.Target{}, err
+		}
+		return workflowfix.TargetFromDir(dir)
 	}
 	aitaskkinds.RecordingExists = func(_ context.Context, profile, id string) (bool, error) {
 		if err := recording.SetProfile(profile); err != nil {
