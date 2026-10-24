@@ -8,6 +8,7 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -913,8 +914,24 @@ func TestConcurrentTagCreatesStayUnderTheCap(t *testing.T) {
 	if n != 500 {
 		t.Errorf("the profile holds %d tags, want exactly 500 (cap 500, 495 before)", n)
 	}
-	if got[200] != 5 || got[409] != workers-5 || len(got) != 2 {
-		t.Errorf("statuses = %v, want 5 x 200 and %d x 409", got, workers-5)
+	// Under heavy machine load a request can wait out the busy timeout: it is told 503
+	// (retry), never 500. The cap itself must hold exactly: every 200 added one tag.
+	for code := range got {
+		if code != 200 && code != 409 && code != 503 {
+			t.Errorf("statuses = %v, want only 200, 409 and 503", got)
+		}
+	}
+	if n != 495+got[200] {
+		t.Errorf("%d tags after %d x 200 from 495", n, got[200])
+	}
+}
+
+// A lock held past the busy timeout is a retryable 503, not a 500.
+func TestABusyDatabaseIsARetryable503(t *testing.T) {
+	rw := httptest.NewRecorder()
+	dataFail(rw, "tag document", errors.New("update: database is locked (5) (SQLITE_BUSY)"))
+	if rw.Code != http.StatusServiceUnavailable || rw.Header().Get("Retry-After") == "" {
+		t.Errorf("busy -> %d, Retry-After %q", rw.Code, rw.Header().Get("Retry-After"))
 	}
 }
 
