@@ -154,3 +154,25 @@ func TestTaskSessionGuardRefusesForbiddenFlagsBeforeTheLookup(t *testing.T) {
 		}
 	}
 }
+
+// The extension's kinds are confined kinds: the same guard holds them to their
+// profile and database, and it coexists with the tab pin of browser commands.
+func TestTaskSessionGuardHoldsTheExtensionKinds(t *testing.T) {
+	for _, kind := range []string{aitask.KindExtensionFill, aitask.KindExtensionAsk} {
+		id := guardRig(t, kind)
+		asTaskSession(t, id, "tok")
+		for name, args := range map[string][]string{
+			"other profile": {"--profile", "p2", "browser", "a11y"},
+			"profile twice": {"--profile", "p1", "--profile", "p2", "browser", "a11y"},
+			"db-path":       {"--profile", "p1", "--db-path", "/tmp/x.db", "browser", "a11y"},
+		} {
+			if err := runGuardRoot(t, args...); err == nil || !strings.Contains(err.Error(), guardMsg) {
+				t.Errorf("%s/%s: not refused by the task-session guard: %v", kind, name, err)
+			}
+		}
+		// Its own profile passes the guard (whatever the browser then says).
+		if err := runGuardRoot(t, "--profile", "p1", "browser", "a11y"); err != nil && strings.Contains(err.Error(), guardMsg) {
+			t.Errorf("%s: its own profile was refused: %v", kind, err)
+		}
+	}
+}

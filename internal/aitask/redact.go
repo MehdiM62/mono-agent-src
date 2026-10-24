@@ -42,9 +42,13 @@ var (
 // "tokenizer" is not a token.
 var (
 	secretWords = map[string]bool{"password": true, "passwd": true, "pass": true, "passcode": true, "passphrase": true, "passport": true,
-		"pwd": true, "pw": true, "secret": true, "tok" + "en": true, "apikey": true, "otp": true, "2fa": true, "cvv": true, "cvc": true, "ssn": true, "iban": true, "privatekey": true}
+		"pwd": true, "pw": true, "secret": true, "tok" + "en": true, "apikey": true, "otp": true, "2fa": true, "cvv": true, "cvc": true, "ssn": true, "iban": true, "privatekey": true,
+		"totp": true, "mfa": true, "authenticator": true}
 	secretPairs = map[string]bool{"api key": true, "private key": true, "card number": true, "card no": true, "social security": true,
-		"access key": true, "secret key": true}
+		"access key": true, "secret key": true,
+		// one-time codes, as a form labels them (a fill reports labels and values)
+		"one time": true, "security code": true, "verification code": true, "sms code": true, "login code": true, "authentication code": true,
+		"confirmation code": true, "digit code": true, "backup code": true, "backup codes": true, "recovery code": true, "recovery codes": true}
 	// A key that also holds one of these words describes a secret (its name, its
 	// limit, its type) and is not one.
 	metadataWords = map[string]bool{"name": true, "id": true, "ref": true, "enabled": true, "type": true, "limit": true, "count": true, "max": true,
@@ -99,6 +103,57 @@ func isSecretLabel(s string) bool {
 	return true
 }
 
+// Form-field labels are the page's words, not ours: a page can call a field
+// "One-time code (name)" to hit the metadata veto of a JSON key, or label a
+// street "Token Street". So a label is judged by isSecretFieldLabel: no veto,
+// and the words that are also ordinary ones (pass, token, pin, backup) name a
+// secret only as the label itself ("PIN", "Your token"), not inside other words
+// ("Boarding pass", "Token Street"). The value's own shape still decides
+// separately (looksSecret).
+var (
+	ambiguousSecretWords = map[string]bool{"pass": true, "pw": true, "tok" + "en": true, "pin": true, "backup": true}
+	// The label, once these filler words are dropped, that names a secret alone.
+	exactSecretLabels = map[string]bool{"pass": true, "pw": true, "tok" + "en": true, "pin": true, "pin code": true, "pin number": true,
+		"access tok" + "en": true, "api tok" + "en": true, "auth tok" + "en": true, "security tok" + "en": true, "refresh tok" + "en": true,
+		"session tok" + "en": true, "backup": true}
+	labelFiller = map[string]bool{"your": true, "enter": true, "the": true, "a": true, "an": true, "new": true, "current": true, "old": true,
+		"my": true, "please": true, "repeat": true, "confirm": true}
+	// "code" next to one of these (anywhere in the label) is a one-time code:
+	// "Code from SMS", "Authenticator code", "6-digit code".
+	codeQualifiers = map[string]bool{"sms": true, "authenticator": true, "verification": true, "security": true, "confirmation": true,
+		"login": true, "authentication": true, "backup": true, "recovery": true, "otp": true, "digit": true, "text": true, "onetime": true, "time": true}
+)
+
+// isSecretFieldLabel says whether the label of a form field names a secret.
+func isSecretFieldLabel(s string) bool {
+	words := labelWords(s)
+	var core []string
+	for _, w := range words {
+		if !labelFiller[w] {
+			core = append(core, w)
+		}
+	}
+	if exactSecretLabels[strings.Join(core, " ")] {
+		return true
+	}
+	hasCode, qualified := false, false
+	for i, w := range words {
+		if w == "code" || w == "codes" {
+			hasCode = true
+		}
+		if codeQualifiers[w] {
+			qualified = true
+		}
+		if ambiguousSecretWords[w] {
+			continue
+		}
+		if secretWords[w] || (i+1 < len(words) && secretPairs[w+" "+words[i+1]]) {
+			return true
+		}
+	}
+	return hasCode && qualified
+}
+
 // isPlaceholder says whether s is a whole placeholder whose name is only a name.
 func isPlaceholder(s string) bool {
 	m := placeholderShape.FindStringSubmatch(s)
@@ -127,7 +182,7 @@ func looksSecret(label, value string) bool {
 	if isPlaceholder(value) {
 		return false
 	}
-	return isSecretLabel(label) || redactString(strings.TrimSpace(value)) != strings.TrimSpace(value)
+	return isSecretFieldLabel(label) || redactString(strings.TrimSpace(value)) != strings.TrimSpace(value)
 }
 
 // hasMoreThanLowercase is true when s holds a digit, an upper-case letter or a symbol.
@@ -365,7 +420,7 @@ func RedactResult(v any) any {
 			case float64:
 				// A number typed as a number under a secret LABEL ({"label":"Card number",
 				// "value":4111...}) is still the secret; a count under a key stays a number.
-				if k == "value" && label != "" && isSecretLabel(label) {
+				if k == "value" && label != "" && isSecretFieldLabel(label) {
 					out[name] = RedactedValue
 				} else {
 					out[name] = e

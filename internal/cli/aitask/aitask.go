@@ -49,7 +49,7 @@ func New(d Deps) *cobra.Command {
 			"), may only status, result, list, cancel, complete and fail that one task.",
 	}
 	c := &cli{d: &d}
-	for _, sub := range []*cobra.Command{c.submit(), c.start(), c.status(), c.result(), c.wait(), c.cancel(), c.list(),
+	for _, sub := range []*cobra.Command{c.submit(), c.submitPage(), c.start(), c.status(), c.result(), c.wait(), c.cancel(), c.list(),
 		c.complete(), c.fail(), c.supervise(), c.budgetCmd(), c.kinds()} {
 		clicore.WithJSONErrors(d.JSONOutput, sub)
 		cmd.AddCommand(sub)
@@ -205,7 +205,14 @@ func (c *cli) start() *cobra.Command {
 			if err := clicore.RequireOperator(c.d.RequireOperator, "start an AI task"); err != nil {
 				return err
 			}
-			return c.withTask(cmd, args[0], func(svc *aitask.Service) (aitask.Task, error) { return svc.Start(cmd.Context(), args[0]) })
+			return c.withTask(cmd, args[0], func(svc *aitask.Service) (aitask.Task, error) {
+				if t, err := svc.Store.Get(args[0]); err == nil && t.Status == aitask.StatusQueued {
+					if err := c.checkTarget(cmd.Context(), t); err != nil {
+						return aitask.Task{}, err
+					}
+				}
+				return svc.Start(cmd.Context(), args[0])
+			})
 		},
 	}
 }

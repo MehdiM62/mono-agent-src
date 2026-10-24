@@ -236,7 +236,7 @@ func TestInlinedContextBudgetCutsUntrustedTextFirst(t *testing.T) {
 // first turn (the holder's own env), a follow-up on an open task (id and a
 // fresh token), and a follow-up on a closed or queued one (the id alone).
 func TestEveryConfinedTurnCarriesTheTaskID(t *testing.T) {
-	kinds := []string{"application-apply", "draft-reply", "workflow-generate", "failed-run-fix", "recording-analyze"}
+	kinds := []string{"application-apply", "draft-reply", "workflow-generate", "failed-run-fix", "recording-analyze", "extension-fill", "extension-ask"}
 	for _, kind := range kinds {
 		for _, status := range []string{aitask.StatusNeedsUser, aitask.StatusRunning, aitask.StatusComplete, aitask.StatusFailed, aitask.StatusCancelled, aitask.StatusQueued} {
 			r := newTaskRig(t)
@@ -306,7 +306,7 @@ func withMonomindVersion(t *testing.T, version string) {
 // versions let through (ANSI-C quoting): every confined kind refuses to start on
 // one, in its first turn and in every follow-up, and runs on a fixed one.
 func TestConfinedTurnsNeedAMonomindWithTheFixedScanner(t *testing.T) {
-	kinds := []string{"application-apply", "draft-reply", "workflow-generate", "failed-run-fix", "recording-analyze"}
+	kinds := []string{"application-apply", "draft-reply", "workflow-generate", "failed-run-fix", "recording-analyze", "extension-fill", "extension-ask"}
 	for _, kind := range kinds {
 		for _, status := range []string{aitask.StatusNeedsUser, aitask.StatusRunning, aitask.StatusComplete, aitask.StatusFailed} {
 			for _, version := range []string{"2.26.0", "2.9.99", ""} {

@@ -198,6 +198,14 @@ func TestRedactResultKeepsEveryKindsValidResultValid(t *testing.T) {
 		"recording-analyze": `{"recordingId":"rec-20261013-101010-abcd","summary":"` + secretish + `","suggestions":["automate the export","` + secretish + `"],"risks":["a step changes the site"]}`,
 		"failed-run-fix": `{"summary":"s","diagnosis":"` + secretish + `","workflowId":"wf-1","executionId":"ex-1",` +
 			`"fix":{"kind":"workflow-edit","description":"` + secretish + `","edits":[{"node":"h","config":{"url":"https://example.test/feed","headers":{"Accept":"application/json"}}}]}}`,
+		"extension-fill": `{"summary":"Filled 4 fields; left the VAT number empty.","stopped_before_submit":true,"fields":[` +
+			`{"label":"Full name","value":"Ada Lovelace","source":"profile: name","generated":false},` +
+			`{"label":"Email","value":"ada@example.com","source":"profile: email","generated":false},` +
+			`{"label":"Phone","value":"+44 20 7946 0958","source":"profile: phone","generated":false},` +
+			`{"label":"Street address","value":"12 St James's Square, London SW1Y 4JH","source":"profile: address","generated":false},` +
+			`{"label":"Date of birth","value":"1815-12-10","source":"profile: dob","generated":false},` +
+			`{"label":"Why us","value":"I enjoy compilers and your team ships them.","source":"generated","generated":true}]}`,
+		"extension-ask": `{"summary":"The Pay button is disabled.","answer":"Tick the terms box first; contact ada@example.com or call +44 20 7946 0958 if it stays disabled.","suggested_actions":["Tick the terms box.","Reload the page."]}`,
 	}
 	for _, name := range Names() {
 		raw, ok := samples[name]

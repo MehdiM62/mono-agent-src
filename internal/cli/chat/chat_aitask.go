@@ -73,8 +73,8 @@ func taskTurn(cfg *Deps, conversationID string, turnCap *float64) (run taskRun) 
 		return run
 	}
 	if confined {
-		if apply {
-			run.kind = browserctl.KindApply
+		if apply || aitask.IsExtensionKind(t.Kind) {
+			run.kind = browserctl.KindApply // the browser-capable confined kinds
 		}
 		if run.confine, err = confineTurn(cfg, t.Kind, t.ID); err != nil {
 			run.kind, run.err = browserctl.KindCoder, err
