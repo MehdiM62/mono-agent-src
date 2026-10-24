@@ -63,6 +63,21 @@ const (
 // taskIDPattern is what a task id looks like; anything else is refused before the database is opened.
 var taskIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$`)
 
+// hashPattern is what --expect-hash may be: it starts alphanumeric, so a value that looks
+// like a flag (the next flag swallowed as this one's value) is refused, not obeyed.
+var hashPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9:_-]{7,127}$`)
+
+// checkInputs validates the positional task id and --expect-hash before anything else runs.
+func checkInputs(cmd *cobra.Command, taskID string) error {
+	if !taskIDPattern.MatchString(taskID) {
+		return refuse(CodeBadTaskID, "%q is not an AI task id", taskID)
+	}
+	if f := cmd.Flags().Lookup("expect-hash"); f != nil && f.Changed && !hashPattern.MatchString(f.Value.String()) {
+		return refuse(CodeBadTaskID, "--expect-hash %q is not a definitionHash (8 to 128 characters, starting with a letter or digit)", f.Value.String())
+	}
+	return nil
+}
+
 type coded struct {
 	exit   int
 	msg    string
@@ -203,6 +218,9 @@ func (d Deps) applyFix() *cobra.Command {
 			"The apply is bound to the definition you reviewed (--expect-hash, changed_since_preview) and removes every stored approval of the workflow. " + clicore.OperatorOnlyHelp,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := checkInputs(cmd, args[0]); err != nil {
+				return err
+			}
 			if err := d.start("apply an AI task's workflow fix"); err != nil {
 				return err
 			}
@@ -262,6 +280,9 @@ func (d Deps) saveDraft() *cobra.Command {
 			"and saves it once as a NEW inactive workflow (it never overwrites one). The draft is unapproved: a person saves or activates it to approve it. " + clicore.OperatorOnlyHelp,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := checkInputs(cmd, args[0]); err != nil {
+				return err
+			}
 			if err := d.start("save an AI task's generated workflow"); err != nil {
 				return err
 			}

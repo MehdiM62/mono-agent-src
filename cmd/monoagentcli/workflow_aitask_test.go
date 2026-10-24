@@ -144,7 +144,7 @@ func (r *fixRig) task(t *testing.T, kind, status, result string) string {
 func (r *fixRig) run(t *testing.T, args ...string) (map[string]any, error) {
 	t.Helper()
 	if len(args) > 1 && args[0] == "apply-fix" && !hasArg(args, "--dry-run") && !hasArg(args, "--expect-hash") {
-		hash := "unknown"
+		hash := "0000000000000000"
 		if body, err := r.runRaw(t, "apply-fix", args[1], "--dry-run"); err == nil {
 			hash, _ = body["definitionHash"].(string)
 		}
@@ -701,5 +701,44 @@ func TestApplyRevokesApprovalsSoARevertNeedsAFreshOne(t *testing.T) {
 	_ = db.DB.QueryRow(`SELECT COUNT(*) FROM workflow_approvals WHERE workflow_id = 'wf-1'`).Scan(&n)
 	if n != 0 {
 		t.Errorf("%d approvals of the workflow survived the apply", n)
+	}
+}
+
+// A hash that looks like a flag is refused before anything else, so the flag it swallowed is not lost silently.
+func TestExpectHashMustNotLookLikeAFlag(t *testing.T) {
+	r := newFixRig(t, true)
+	id := r.task(t, "failed-run-fix", aitask.StatusComplete, fixResult("workflow-edit", editOf("s", `{"assignments":"a=2"}`)))
+	dry, _ := r.run(t, "apply-fix", id, "--dry-run")
+	hash, _ := dry["definitionHash"].(string)
+	if len(hash) < 8 {
+		t.Fatalf("definitionHash %q does not satisfy the pattern", hash)
+	}
+	for name, h := range map[string]string{
+		"a flag":         "--allow-active",
+		"a short flag":   "-x",
+		"empty":          "",
+		"7 characters":   strings.Repeat("a", 7),
+		"129 characters": strings.Repeat("a", 129),
+		"a space":        "abcdefgh ijkl",
+	} {
+		body, err := r.runRaw(t, "apply-fix", "--expect-hash", h, id)
+		if err == nil || codeOf(body) != "invalid_input" || clicore.ExitCodeFor(err) != 3 {
+			t.Errorf("%s: %v %v", name, err, body)
+		}
+		// Even a dry-run, and before the operator check.
+		asPlainAgent(t)
+		if body, err = r.runRaw(t, "apply-fix", "--dry-run", "--expect-hash", h, id); err == nil || codeOf(body) != "invalid_input" {
+			t.Errorf("%s (dry-run, agent): %v %v", name, err, body)
+		}
+		asPlainOperator(t)
+	}
+	// 8 and 128 characters are fine; the flag after a valid hash still works.
+	for _, h := range []string{strings.Repeat("a", 8), strings.Repeat("b", 128)} {
+		if body, err := r.runRaw(t, "apply-fix", "--expect-hash", h, id); err == nil || codeOf(body) != "changed_since_preview" {
+			t.Errorf("a well-formed but wrong hash %d: %v %v", len(h), err, body)
+		}
+	}
+	if body, err := r.runRaw(t, "apply-fix", "--expect-hash", hash, "--allow-active", id); err != nil || body["applied"] != float64(1) {
+		t.Fatalf("--allow-active after a valid hash: %v %v", err, body)
 	}
 }
