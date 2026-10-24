@@ -1876,8 +1876,7 @@
       "sends": "Envía, publica o ejecuta algo",
       "credential": "Cambia un campo de credencial",
       "expression": "Añade una expresión",
-      "active": "El flujo está activo",
-      "other": "Conviene revisarlo"
+      "active": "El flujo está activo"
     },
     "created": "Se creó {{name}} ({{count}} nodos)",
     "valid": "Válido",

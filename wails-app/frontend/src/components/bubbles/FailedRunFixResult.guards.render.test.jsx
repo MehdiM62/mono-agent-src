@@ -94,6 +94,14 @@ describe('Apply is disabled', () => {
   })
 })
 
+describe('warning codes', () => {
+  it('an unknown code shows the CLI text plainly', async () => {
+    aitaskApplyApi.preview.mockResolvedValue(preview({ warnings: [{ code: 'something_new', text: 'The CLI says hello' }] }))
+    mount()
+    expect(await screen.findByText('The CLI says hello')).toBeInTheDocument()
+  })
+})
+
 describe('typed refusals', () => {
   const clickApply = async () => { await screen.findByTestId('fix-diff'); fireEvent.click(applyBtn()) }
 
@@ -150,7 +158,7 @@ describe('typed refusals', () => {
 
   it('a refusal for an active workflow the preview did not flag: asks, then retries with the flag', async () => {
     aitaskApplyApi.preview.mockResolvedValue(preview())
-    aitaskApplyApi.apply.mockRejectedValueOnce(new Error('workflow_active: it is running')).mockResolvedValueOnce({ ok: true, applied: 1, workflowId: 'w1' })
+    aitaskApplyApi.apply.mockRejectedValueOnce(new Error('workflow_active_needs_confirm: it is running')).mockResolvedValueOnce({ ok: true, applied: 1, workflowId: 'w1' })
     mount()
     await clickApply()
     await screen.findByText(/Applied 1 edits/)

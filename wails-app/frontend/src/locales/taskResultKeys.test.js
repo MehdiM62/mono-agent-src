@@ -11,7 +11,7 @@ const dir = join(__dirname, '..', 'components', 'bubbles')
 const source = ['FailedRunFixResult.jsx', 'TaskResultLine.jsx'].map(f => readFileSync(join(dir, f), 'utf8')).join('\n')
 const literal = [...new Set([...source.matchAll(/['"`](taskResult\.[a-zA-Z0-9_.]+)['"`]/g)].map(m => m[1]))]
 // t(`taskResult.warn.${key}`)
-const used = [...literal, ...['sends', 'credential', 'expression', 'active', 'other'].map(k => `taskResult.warn.${k}`)]
+const used = [...literal, ...['sends', 'credential', 'expression', 'active'].map(k => `taskResult.warn.${k}`)]
 
 describe('taskResult i18n', () => {
   const enKeys = flat(en)

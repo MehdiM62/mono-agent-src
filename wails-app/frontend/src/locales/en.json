@@ -1918,8 +1918,7 @@
       "sends": "Sends, publishes or runs something",
       "credential": "Changes a credential field",
       "expression": "Adds an expression",
-      "active": "The workflow is active",
-      "other": "Needs a look"
+      "active": "The workflow is active"
     },
     "created": "Created {{name}} ({{count}} nodes)",
     "valid": "Valid",

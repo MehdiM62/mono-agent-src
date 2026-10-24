@@ -9,15 +9,11 @@ import { Chip, text, isObj, lineStyle, wrapText, mutedText } from './resultText.
 const YELLOW = 'var(--yellow, #fbbf24)'
 const VALUE_CAP = 120
 
-// warnKey maps a CLI warning code to the plain wording's key.
-function warnKey(code) {
-  const c = String(code || '').toLowerCase()
-  if (/send|publish|run|post|write/.test(c)) return 'sends'
-  if (/cred|secret|token|key/.test(c)) return 'credential'
-  if (/expr/.test(c)) return 'expression'
-  if (/active/.test(c)) return 'active'
-  return 'other'
-}
+// WARN_KEYS maps the CLI's exact warning codes to the plain wording's key;
+// an unknown code shows the CLI's own text.
+const WARN_KEYS = { new_outbound: 'sends', credential_field: 'credential', expression_added: 'expression', workflow_active: 'active' }
+const ACTIVE_WARNING = 'workflow_active'
+const ACTIVE_REFUSAL = 'workflow_active_needs_confirm'
 
 // errParts splits the binding's "code: message" refusal.
 export function errParts(e) {
@@ -25,7 +21,6 @@ export function errParts(e) {
   const m = /^([a-z][a-z0-9_]*): ([\s\S]*)$/.exec(raw)
   return m ? { code: m[1], message: m[2] } : { code: '', message: raw }
 }
-const isActiveCode = (c) => /active/.test(String(c || ''))
 
 const show = (v) => { try { return typeof v === 'string' ? v : JSON.stringify(v) ?? '' } catch { return '' } }
 
@@ -84,7 +79,7 @@ export default function FailedRunFixResult({ taskId, result, onNavigate }) {
   const workflowId = text(preview?.workflowId || result.workflowId, 200)
   const previewOk = !!preview && preview.ok !== false && !preview.error && edits.length > 0
   const canApply = previewOk && !applied && !done && !busy
-  const workflowIsActive = warnings.some(w => isActiveCode(w.code))
+  const workflowIsActive = warnings.some(w => w.code === ACTIVE_WARNING)
 
   const confirmActive = () => confirm(t('taskResult.activeBody'), { title: t('taskResult.activeTitle'), confirmLabel: t('taskResult.activeConfirm') })
 
@@ -107,7 +102,7 @@ export default function FailedRunFixResult({ taskId, result, onNavigate }) {
       } catch (e) {
         const p = errParts(e)
         // The CLI refused an active workflow the preview did not flag: ask, then retry with the flag.
-        if (!allow && isActiveCode(p.code) && (await confirmActive())) r = await aitaskApplyApi.apply(taskId, true)
+        if (!allow && p.code === ACTIVE_REFUSAL && (await confirmActive())) r = await aitaskApplyApi.apply(taskId, true)
         else throw e
       }
       setApplied({ count: Number.isFinite(r?.applied) ? r.applied : edits.length, workflowId: text(r?.workflowId || workflowId, 200) })
@@ -122,7 +117,7 @@ export default function FailedRunFixResult({ taskId, result, onNavigate }) {
     if (!applyErr) return null
     if (applyErr.code === 'stale_proposal') return t('taskResult.stale')
     if (applyErr.code === 'operator_only') return t('taskResult.operatorOnly')
-    if (isActiveCode(applyErr.code)) return t('taskResult.activeDeclined')
+    if (applyErr.code === ACTIVE_REFUSAL) return t('taskResult.activeDeclined')
     return t('taskResult.applyError', { error: text(applyErr.message, 300) })
   })()
 
@@ -135,7 +130,7 @@ export default function FailedRunFixResult({ taskId, result, onNavigate }) {
       {previewErr && <span role="alert" style={{ color: 'var(--red)', width: '100%' }}>{t('taskResult.previewError', { error: text(previewErr, 300) })}</span>}
       {preview && <Edits edits={edits} />}
       {preview && preview.ok === false && <span role="alert" style={{ color: 'var(--red)', width: '100%' }}>{text(preview.error, 300) || t('taskResult.previewInvalid')}</span>}
-      {warnings.map((w, i) => <Chip key={i} tone={YELLOW} title={text(w.text, 200)}>{t(`taskResult.warn.${warnKey(w.code)}`)}</Chip>)}
+      {warnings.map((w, i) => <Chip key={i} tone={YELLOW} title={text(w.text, 200)}>{WARN_KEYS[w.code] ? t(`taskResult.warn.${WARN_KEYS[w.code]}`) : text(w.text || w.code, 120)}</Chip>)}
       {editable && !applied && !done && (
         <button type="button" className="btn btn-primary btn-sm" onClick={apply} disabled={!canApply}>{busy ? t('taskResult.applying') : t('taskResult.apply')}</button>
       )}

@@ -30,7 +30,7 @@ const fixResult = (fix = { kind: 'workflow-edit', description: 'Fix the URL', ed
 const preview = (over = {}) => ({
   ok: true, workflowId: 'w1', workflowName: 'Daily digest',
   edits: [{ node: 'n1', nodeName: 'Fetch rows', path: 'url', before: '/v1/rows', after: '/v2/rows' }],
-  warnings: [{ code: 'sends_something', text: 'sends email' }, { code: 'credential_field', text: 'x' }, { code: 'expression_added', text: 'y' }, { code: 'workflow_active', text: 'z' }], ...over,
+  warnings: [{ code: 'new_outbound', text: 'sends email' }, { code: 'credential_field', text: 'x' }, { code: 'expression_added', text: 'y' }, { code: 'workflow_active', text: 'z' }], ...over,
 })
 
 describe('failed-run-fix result', () => {
