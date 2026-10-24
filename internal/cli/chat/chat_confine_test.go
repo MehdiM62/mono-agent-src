@@ -3,6 +3,8 @@ package chat
 import (
 	"errors"
 	"fmt"
+	"github.com/monoes/mono-agent/internal/monomind"
+	"github.com/spf13/cobra"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -113,10 +115,10 @@ func TestUntrustedKindTurnIsRefusedWithoutASnapshotOrAnOperator(t *testing.T) {
 // Only the runtime whose gate is verified runs them.
 func TestUntrustedKindRefusesARuntimeItCannotConfine(t *testing.T) {
 	c := &confinement{kind: "draft-reply", workDir: t.TempDir(), contextDir: t.TempDir(), bashPrefixes: bashPrefixesFor("draft-reply", "p1")}
-	if err := c.check("claude"); err != nil {
+	if err := c.check("claude", "2.27.0"); err != nil {
 		t.Fatal(err)
 	}
-	err := c.check("codex")
+	err := c.check("codex", "2.27.0")
 	if err == nil || !strings.Contains(err.Error(), "draft-reply") {
 		t.Errorf("codex: %v", err)
 	}
@@ -287,5 +289,64 @@ func TestOmittedFilesLineIsFencedAndBounded(t *testing.T) {
 	}
 	if len(p) > maxInlineContext+8<<10 {
 		t.Errorf("the prompt holds %d bytes", len(p))
+	}
+}
+
+// withMonomindVersion makes the capability handshake report version.
+func withMonomindVersion(t *testing.T, version string) {
+	t.Helper()
+	old := capabilityProbe
+	capabilityProbe = func(*cobra.Command) (*monomind.CapabilitySet, error) {
+		return monomind.NewCapabilitySet(version, monomind.CoderCapabilities...), nil
+	}
+	t.Cleanup(func() { capabilityProbe = old })
+}
+
+// The command allow-list rests on monomind's shell scanner, which older
+// versions let through (ANSI-C quoting): every confined kind refuses to start on
+// one, in its first turn and in every follow-up, and runs on a fixed one.
+func TestConfinedTurnsNeedAMonomindWithTheFixedScanner(t *testing.T) {
+	kinds := []string{"application-apply", "draft-reply", "recording-analysis", "workflow-generate", "failed-run-fix"}
+	for _, kind := range kinds {
+		for _, status := range []string{aitask.StatusNeedsUser, aitask.StatusRunning, aitask.StatusComplete, aitask.StatusFailed} {
+			for _, version := range []string{"2.26.0", "2.9.99", ""} {
+				r := newTaskRig(t)
+				r.taskOfKind(t, "default", status, kind)
+				withMonomindVersion(t, version)
+				err := r.turnErr(t, "t1", nil)
+				var ce *coderError
+				if !errors.As(err, &ce) || ce.code != "confinement_unenforceable" || ce.err.Code != 3 {
+					t.Fatalf("%s/%s on monomind %q: err = %v", kind, status, version, err)
+				}
+				want := version
+				if want == "" {
+					want = "(unknown)"
+				}
+				for _, s := range []string{kind, "monomind " + want, "2.27.0 or newer", "shell scanner of older versions can be bypassed", "npm install -g @monoes/monomindcli@latest"} {
+					if !strings.Contains(err.Error(), s) {
+						t.Errorf("%s/%s on %q: the message lacks %q: %v", kind, status, version, s, err)
+					}
+				}
+				if b, _ := os.ReadFile(r.argsLog); strings.Contains(string(b), "agent exec") {
+					t.Fatalf("%s/%s on monomind %q: the agent ran: %s", kind, status, version, b)
+				}
+			}
+		}
+		r := newTaskRig(t)
+		r.taskOfKind(t, "default", aitask.StatusNeedsUser, kind)
+		withMonomindVersion(t, "2.27.0")
+		if err := r.turnErr(t, "t1", nil); err != nil {
+			t.Errorf("%s on monomind 2.27.0: %v", kind, err)
+		}
+	}
+	// Other turns do not care.
+	r := newTaskRig(t)
+	r.task(t, "default", aitask.StatusNeedsUser)
+	withMonomindVersion(t, "2.26.0")
+	if err := r.turnErr(t, "t1", nil); err != nil {
+		t.Errorf("a generic task on monomind 2.26.0: %v", err)
+	}
+	if !monomind.ConfinementSupported("2.27.1") || !monomind.ConfinementSupported("v2.30.0") || monomind.ConfinementSupported("2.26.9") || monomind.ConfinementSupported("garbage") {
+		t.Error("ConfinementSupported misjudges a version")
 	}
 }

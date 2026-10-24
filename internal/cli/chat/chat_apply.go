@@ -179,9 +179,22 @@ func confineTurn(cfg *Deps, kind, taskID string) (*confinement, error) {
 }
 
 // check refuses a runtime that cannot enforce the confinement.
-func (c *confinement) check(runtime string) error {
+func (c *confinement) check(runtime, monomindVersion string) error {
 	if runtime == confinedRuntime {
-		return nil
+		if monomind.ConfinementSupported(monomindVersion) {
+			return nil
+		}
+		kind := c.kind
+		if kind == "" {
+			kind = applyfill.Kind
+		}
+		found := monomindVersion
+		if found == "" {
+			found = "(unknown)"
+		}
+		return &coderError{code: "confinement_unenforceable", err: &clicore.Error{Code: 3,
+			Msg: fmt.Sprintf("a %s task was not run: monomind %s is too old to confine it, it needs %s or newer because the shell scanner of older versions can be bypassed. "+
+				"Upgrade with `npm install -g @monoes/monomindcli@latest`", kind, found, monomind.MinConfinedMonomindVersion)}}
 	}
 	kind := c.kind
 	if kind == "" {

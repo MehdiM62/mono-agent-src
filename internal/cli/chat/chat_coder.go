@@ -138,7 +138,7 @@ func runCoderTurn(cmd *cobra.Command, cfg *Deps, journal *turnJournal, t coderTu
 		return err
 	}
 	if t.confine != nil {
-		if err := t.confine.check(rt.ID); err != nil {
+		if err := t.confine.check(rt.ID, st.MonomindVersion); err != nil {
 			return err
 		}
 		t.cwd, t.orgMode, systemPrompt = t.confine.workDir, "", t.confine.systemPrompt()
