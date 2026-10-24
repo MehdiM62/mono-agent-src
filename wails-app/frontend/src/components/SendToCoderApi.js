@@ -16,7 +16,7 @@ export const aitaskApi = {
 const parsed = (p) => p.then(s => (typeof s === 'string' ? JSON.parse(s) : s))
 export const aitaskApplyApi = {
   preview: (id) => parsed(Promise.resolve().then(() => GoApp.PreviewFailedRunFix(id))),
-  apply: (id) => parsed(Promise.resolve().then(() => GoApp.ApplyFailedRunFix(id))),
+  apply: (id, allowActive = false) => parsed(Promise.resolve().then(() => GoApp.ApplyFailedRunFix(id, !!allowActive))),
   saveDraft: (id) => parsed(Promise.resolve().then(() => GoApp.SaveGeneratedWorkflow(id))),
 }
 

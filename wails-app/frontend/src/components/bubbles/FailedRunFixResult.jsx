@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { aitaskApplyApi } from '../SendToCoderApi.js'
 import { confirm } from '../ConfirmDialog.jsx'
+import SendToCoderButton from '../SendToCoderButton.jsx'
+import { selectionText } from '../SendToCoderApi.js'
 import { Chip, text, isObj, lineStyle, wrapText, mutedText } from './resultText.jsx'
 
 const YELLOW = 'var(--yellow, #fbbf24)'
@@ -16,6 +18,14 @@ function warnKey(code) {
   if (/active/.test(c)) return 'active'
   return 'other'
 }
+
+// errParts splits the binding's "code: message" refusal.
+export function errParts(e) {
+  const raw = String(e?.message || e || '')
+  const m = /^([a-z][a-z0-9_]*): ([\s\S]*)$/.exec(raw)
+  return m ? { code: m[1], message: m[2] } : { code: '', message: raw }
+}
+const isActiveCode = (c) => /active/.test(String(c || ''))
 
 const show = (v) => { try { return typeof v === 'string' ? v : JSON.stringify(v) ?? '' } catch { return '' } }
 
@@ -59,7 +69,8 @@ export default function FailedRunFixResult({ taskId, result, onNavigate }) {
   const [previewErr, setPreviewErr] = useState('')
   const [busy, setBusy] = useState(false)
   const [applied, setApplied] = useState(null)
-  const [applyErr, setApplyErr] = useState('')
+  const [applyErr, setApplyErr] = useState(null) // { code, message }
+  const [done, setDone] = useState(false) // already applied
 
   useEffect(() => {
     if (!editable || !taskId) return undefined
@@ -71,18 +82,49 @@ export default function FailedRunFixResult({ taskId, result, onNavigate }) {
   const edits = Array.isArray(preview?.edits) ? preview.edits.filter(isObj) : []
   const warnings = Array.isArray(preview?.warnings) ? preview.warnings.filter(isObj).slice(0, 10) : []
   const workflowId = text(preview?.workflowId || result.workflowId, 200)
-  const canApply = !!preview && preview.ok !== false && !preview.error && edits.length > 0 && !applied
+  const previewOk = !!preview && preview.ok !== false && !preview.error && edits.length > 0
+  const canApply = previewOk && !applied && !done && !busy
+  const workflowIsActive = warnings.some(w => isActiveCode(w.code))
 
+  const confirmActive = () => confirm(t('taskResult.activeBody'), { title: t('taskResult.activeTitle'), confirmLabel: t('taskResult.activeConfirm') })
+
+  // apply runs only from the Apply button's click: busy is set first, so a
+  // second click cannot start a second apply while a dialog or the call is open.
   const apply = async () => {
-    const nodes = new Set(edits.map(e => e.node)).size
-    const ok = await confirm(t('taskResult.applyBody', { fields: edits.length, nodes, name: text(preview.workflowName || workflowId, 80) }), { title: t('taskResult.applyTitle'), confirmLabel: t('taskResult.applyConfirm') })
-    if (!ok) return
-    setBusy(true); setApplyErr('')
+    if (!canApply) return
+    setBusy(true); setApplyErr(null)
     try {
-      const r = await aitaskApplyApi.apply(taskId)
+      const nodes = new Set(edits.map(e => e.node)).size
+      if (!(await confirm(t('taskResult.applyBody', { fields: edits.length, nodes, name: text(preview.workflowName || workflowId, 80) }), { title: t('taskResult.applyTitle'), confirmLabel: t('taskResult.applyConfirm') }))) return
+      let allow = false
+      if (workflowIsActive) {
+        if (!(await confirmActive())) return
+        allow = true
+      }
+      let r
+      try {
+        r = await aitaskApplyApi.apply(taskId, allow)
+      } catch (e) {
+        const p = errParts(e)
+        // The CLI refused an active workflow the preview did not flag: ask, then retry with the flag.
+        if (!allow && isActiveCode(p.code) && (await confirmActive())) r = await aitaskApplyApi.apply(taskId, true)
+        else throw e
+      }
       setApplied({ count: Number.isFinite(r?.applied) ? r.applied : edits.length, workflowId: text(r?.workflowId || workflowId, 200) })
-    } catch (e) { setApplyErr(String(e?.message || e)) } finally { setBusy(false) }
+    } catch (e) {
+      const p = errParts(e)
+      if (p.code === 'already_applied') setDone(true)
+      else setApplyErr(p)
+    } finally { setBusy(false) }
   }
+
+  const errorLine = (() => {
+    if (!applyErr) return null
+    if (applyErr.code === 'stale_proposal') return t('taskResult.stale')
+    if (applyErr.code === 'operator_only') return t('taskResult.operatorOnly')
+    if (isActiveCode(applyErr.code)) return t('taskResult.activeDeclined')
+    return t('taskResult.applyError', { error: text(applyErr.message, 300) })
+  })()
 
   return (
     <div data-testid="task-result" style={{ ...lineStyle, alignItems: 'flex-start' }}>
@@ -94,16 +136,22 @@ export default function FailedRunFixResult({ taskId, result, onNavigate }) {
       {preview && <Edits edits={edits} />}
       {preview && preview.ok === false && <span role="alert" style={{ color: 'var(--red)', width: '100%' }}>{text(preview.error, 300) || t('taskResult.previewInvalid')}</span>}
       {warnings.map((w, i) => <Chip key={i} tone={YELLOW} title={text(w.text, 200)}>{t(`taskResult.warn.${warnKey(w.code)}`)}</Chip>)}
-      {editable && preview && !applied && (
-        <button type="button" className="btn btn-primary btn-sm" onClick={apply} disabled={!canApply || busy}>{busy ? t('taskResult.applying') : t('taskResult.apply')}</button>
+      {editable && !applied && !done && (
+        <button type="button" className="btn btn-primary btn-sm" onClick={apply} disabled={!canApply}>{busy ? t('taskResult.applying') : t('taskResult.apply')}</button>
       )}
+      {done && <button type="button" className="btn btn-primary btn-sm" disabled>{t('taskResult.alreadyApplied')}</button>}
       {applied && (
         <span role="status" style={{ ...wrapText, width: '100%' }}>
           {t('taskResult.applied', { count: applied.count })}
           {applied.workflowId && onNavigate && <> <button type="button" className="btn btn-ghost btn-sm" onClick={() => onNavigate('noderunner', { workflowId: applied.workflowId })}>{t('taskResult.openWorkflow')}</button></>}
         </span>
       )}
-      {applyErr && <span role="alert" style={{ color: 'var(--red)', width: '100%' }}>{t('taskResult.applyError', { error: text(applyErr, 300) })}</span>}
+      {errorLine && <span role="alert" style={{ color: 'var(--red)', width: '100%' }}>{errorLine}</span>}
+      {applyErr?.code === 'stale_proposal' && (
+        <SendToCoderButton kind="failed-run-fix" label={t('taskResult.askAgain')} goal="Work out why this workflow run failed and propose a fix."
+          context={[selectionText(`workflow: ${text(result.workflowId, 200)}\nexecution: ${text(result.executionId, 200)}`)]}
+          origin={{ page: 'noderunner', label: 'Workflows' }} />
+      )}
     </div>
   )
 }

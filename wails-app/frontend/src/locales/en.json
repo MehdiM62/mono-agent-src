@@ -1930,7 +1930,15 @@
     "saved": "Saved as a draft: needs your approval before it can run",
     "saveError": "Could not save the draft: {{error}}",
     "suggestions": "Suggestions",
-    "risks": "Risks"
+    "risks": "Risks",
+    "stale": "The workflow changed since this was proposed: ask again.",
+    "askAgain": "Ask again",
+    "operatorOnly": "Only you can apply this, from the app window.",
+    "activeTitle": "This workflow is running",
+    "activeBody": "This workflow is active: it is running or scheduled, so the change takes effect for its next run. Apply it anyway?",
+    "activeConfirm": "Apply to the active workflow",
+    "activeDeclined": "The workflow is active, so the fix was not applied.",
+    "alreadyApplied": "Applied"
   },
   "coderOrg": {
     "title": "Coder chat team and sends",
