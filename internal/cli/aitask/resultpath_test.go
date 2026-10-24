@@ -39,7 +39,7 @@ func submitKind(t *testing.T, kind string) (*Deps, string, *tokenFake) {
 // its work folder is refused before anything is read, and nothing of the file
 // reaches the error.
 func TestConfinedTaskResultMustLiveInItsWorkFolder(t *testing.T) {
-	for _, kind := range []string{"draft-reply"} {
+	for _, kind := range []string{"draft-reply", "workflow-generate", "failed-run-fix", "recording-analyze"} {
 		d, id, _ := submitKind(t, kind)
 		secrets := filepath.Join(t.TempDir(), "credentials.json")
 		if err := os.WriteFile(secrets, []byte(`{"private_key_id":"TOPSECRETKEYID","client_email":"x@y"}`), 0o600); err != nil {
