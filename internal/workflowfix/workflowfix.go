@@ -17,6 +17,9 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
+
+	"golang.org/x/text/unicode/norm"
 
 	"github.com/monoes/mono-agent/internal/ai/generate"
 	"github.com/monoes/mono-agent/internal/aitask"
@@ -71,6 +74,7 @@ const (
 	CodeTooLarge       = "too_large"
 	CodeExpectHash     = "expect_hash_required"
 	CodeFileSync       = "file_sync_failed"
+	CodeInvalidKey     = "invalid_key"
 	CodeNoBackend      = "no_backend"
 )
 
@@ -225,7 +229,10 @@ func planFor(ctx context.Context, profile string, result []byte, since time.Time
 		}
 		before := nodes[i].Config
 		after := deepMerge(before, e.Config)
-		diffs := diff("", 0, 0, before, after)
+		if err := checkKeys(before, e.Config, nil); err != nil {
+			return Preview{}, err
+		}
+		diffs := diff(nil, 0, 0, before, after)
 		for _, d := range diffs {
 			if err := checkBounds(d); err != nil {
 				return Preview{}, err
@@ -356,9 +363,24 @@ func indexOf(nodes []workflow.WorkflowNode, id string) int {
 }
 
 type change struct {
-	path          string
+	segs          []string // the structured path: one entry per key, never split on a dot
+	path          string   // the display label of segs (escapeKey joined by ".")
 	before, after any
 	depth, maxKey int // path segments, and the longest key on the path
+}
+
+// escapeKey makes a key safe to join into a label: a literal "\" or "." becomes "\\" or "\.", so
+// two different paths never render alike (the keys "a.b" and "a" > "b" are "a\.b" and "a.b").
+func escapeKey(k string) string {
+	return strings.NewReplacer(`\`, `\\`, ".", `\.`).Replace(k)
+}
+
+func label(segs []string) string {
+	out := make([]string, len(segs))
+	for i, k := range segs {
+		out[i] = escapeKey(k)
+	}
+	return strings.Join(out, ".")
 }
 
 // deepMerge returns base with patch merged in: objects merge key by key,
@@ -384,7 +406,7 @@ func deepMerge(base, patch map[string]any) map[string]any {
 // newly added key whose value is an empty object (before: absent, after: {}), so that
 // nothing the edit adds is invisible. Recursion stops one level past MaxDepth; the
 // change it leaves there is refused by checkBounds.
-func diff(prefix string, depth, maxKey int, a, b map[string]any) []change {
+func diff(prefix []string, depth, maxKey int, a, b map[string]any) []change {
 	keys := map[string]bool{}
 	for k := range a {
 		keys[k] = true
@@ -399,10 +421,7 @@ func diff(prefix string, depth, maxKey int, a, b map[string]any) []change {
 	sort.Strings(sorted)
 	var out []change
 	for _, k := range sorted {
-		path := k
-		if prefix != "" {
-			path = prefix + "." + k
-		}
+		segs := append(append([]string(nil), prefix...), k)
 		mk := maxKey
 		if n := len([]rune(k)); n > mk {
 			mk = n
@@ -413,10 +432,10 @@ func diff(prefix string, depth, maxKey int, a, b map[string]any) []change {
 		bm, bIsMap := bv.(map[string]any)
 		switch {
 		case bIsMap && (aIsMap || !aok) && depth+1 <= MaxDepth && !(!aok && len(bm) == 0):
-			out = append(out, diff(path, depth+1, mk, am, bm)...)
+			out = append(out, diff(segs, depth+1, mk, am, bm)...)
 		case aok && bok && reflect.DeepEqual(av, bv):
 		default:
-			out = append(out, change{path: path, before: av, after: bv, depth: depth + 1, maxKey: mk})
+			out = append(out, change{segs: segs, path: label(segs), before: av, after: bv, depth: depth + 1, maxKey: mk})
 		}
 	}
 	return out
@@ -482,22 +501,119 @@ func shape(v any) (maxKey, depth int) {
 // value that redacts to something else (it holds a secret).
 func checkNew(c change) error {
 	if c.before == nil {
-		for _, part := range strings.Split(c.path, ".") {
-			if secretKey.MatchString(part) && !credentialRef[strings.ToLower(part)] {
-				return fail(CodeSecretKey, "the edit adds %q, which looks like a secret: a fix never carries one (use a saved connection)", c.path)
+		for _, part := range c.segs {
+			if looksSecretKey(part) {
+				return fail(CodeSecretKey, "the edit adds %q, which looks like a secret: a fix never carries one (use a saved connection)", clip(c.path))
 			}
 		}
 	}
-	if s, ok := c.after.(string); ok && aitask.RedactText(s) != s {
-		return fail(CodeSecretKey, "the edit puts a secret-looking value at %q", c.path)
+	return checkAdded(c.path, c.after)
+}
+
+// checkAdded walks a new value, objects and lists to any depth: a credential-looking key or a
+// secret-looking string anywhere inside is refused.
+func checkAdded(path string, v any) error {
+	switch t := v.(type) {
+	case string:
+		if aitask.RedactText(t) != t {
+			return fail(CodeSecretKey, "the edit puts a secret-looking value at %q", clip(path))
+		}
+	case map[string]any:
+		for k, e := range t {
+			if looksSecretKey(k) {
+				return fail(CodeSecretKey, "the edit adds %q under %q, which looks like a secret: a fix never carries one (use a saved connection)", clip(k), clip(path))
+			}
+			if err := checkAdded(path+"."+escapeKey(k), e); err != nil {
+				return err
+			}
+		}
+	case []any:
+		for i, e := range t {
+			if err := checkAdded(fmt.Sprintf("%s[%d]", path, i), e); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// looksSecretKey is the secret-key rule over a key with format and control characters
+// stripped and case folded, so a zero-width character cannot hide "api_key". A reference to a
+// saved connection (credential_id) is not a secret.
+func looksSecretKey(k string) bool {
+	n := strings.ToLower(stripInvisible(k))
+	return secretKey.MatchString(n) && !credentialRef[n]
+}
+
+// stripInvisible removes control and format characters (zero-width, bidi controls).
+func stripInvisible(s string) string {
+	return strings.Map(func(r rune) rune {
+		if unicode.Is(unicode.Cc, r) || unicode.Is(unicode.Cf, r) {
+			return -1
+		}
+		return r
+	}, s)
+}
+
+// foldKey is what two keys must differ in to be different keys: case and surrounding space do not count.
+func foldKey(k string) string { return strings.ToLower(strings.TrimSpace(k)) }
+
+// checkKeys refuses keys the app could not show unambiguously: control, format or bidi
+// characters, text that is not in NFC, or a key that collides with a sibling (an existing one, or
+// another in the same patch) after case folding and trimming. It walks objects and lists to any
+// depth; base is the existing object at this level (nil for a new one).
+func checkKeys(base, patch map[string]any, at []string) error {
+	if len(at) > MaxDepth {
+		return fail(CodeTooLarge, "the change is nested deeper than %d levels: propose a smaller change", MaxDepth)
+	}
+	seen := map[string]string{}
+	for k := range base {
+		seen[foldKey(k)] = k
+	}
+	for k, v := range patch {
+		where := label(append(append([]string(nil), at...), k))
+		if stripInvisible(k) != k {
+			return fail(CodeInvalidKey, "the key %q contains a control, format or direction character: propose a plain key", clip(where))
+		}
+		if !norm.NFC.IsNormalString(k) {
+			return fail(CodeInvalidKey, "the key %q is not in normalized (NFC) form", clip(where))
+		}
+		if other, ok := seen[foldKey(k)]; ok && other != k {
+			return fail(CodeInvalidKey, "the key %q collides with the existing key %q (they differ only in case or spacing)", clip(where), clip(other))
+		}
+		seen[foldKey(k)] = k
+		var next map[string]any
+		if b, ok := base[k].(map[string]any); ok {
+			next = b
+		}
+		if err := checkKeysIn(next, v, append(append([]string(nil), at...), k)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func checkKeysIn(base map[string]any, v any, at []string) error {
+	if len(at) > MaxDepth+1 {
+		return fail(CodeTooLarge, "the change is nested deeper than %d levels: propose a smaller change", MaxDepth)
+	}
+	switch t := v.(type) {
+	case map[string]any:
+		return checkKeys(base, t, at)
+	case []any:
+		for i, e := range t {
+			if err := checkKeysIn(nil, e, append(append([]string(nil), at...), fmt.Sprintf("[%d]", i))); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }
 
 func warningsFor(n workflow.WorkflowNode, c change) []Warning {
 	var out []Warning
-	for _, part := range strings.Split(c.path, ".") {
-		if secretKey.MatchString(part) {
+	for _, part := range c.segs {
+		if secretKey.MatchString(strings.ToLower(stripInvisible(part))) {
 			out = append(out, Warning{WarnCredentialKey, fmt.Sprintf("node %q: the edit touches %q, a credential field", n.ID, c.path)})
 			break
 		}
