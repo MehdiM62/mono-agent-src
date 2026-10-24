@@ -16,6 +16,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/monoes/mono-agent/internal/ai/generate"
 	"github.com/monoes/mono-agent/internal/aitask"
@@ -50,7 +51,8 @@ const (
 	CodeUnknownNode    = "unknown_node"
 	CodeSecretKey      = "secret_key"
 	CodeInvalid        = "invalid_workflow"
-	CodeWorkflowActive = "workflow_active"
+	CodeWorkflowActive = "workflow_active_needs_confirm"
+	CodeStale          = "stale_proposal"
 	CodeNoBackend      = "no_backend"
 )
 
@@ -125,6 +127,24 @@ var credentialRef = map[string]bool{"credential_id": true, "credentialid": true,
 // Plan computes the edits of result (a failed-run-fix result) against the
 // workflow as it is now, in profile. It changes nothing.
 func Plan(ctx context.Context, profile string, result []byte) (Preview, error) {
+	return PlanSince(ctx, profile, result, time.Time{})
+}
+
+// modified is when wf, or any of its nodes, last changed.
+func modified(wf *workflow.Workflow) time.Time {
+	t := wf.UpdatedAt
+	for _, n := range wf.Nodes {
+		if n.UpdatedAt.After(t) {
+			t = n.UpdatedAt
+		}
+	}
+	return t
+}
+
+// PlanSince is Plan for a proposal that was made at since (when the task
+// completed; zero skips the check): a workflow changed after that is stale_proposal,
+// because the person who looked at the proposal did not look at this workflow.
+func PlanSince(ctx context.Context, profile string, result []byte, since time.Time) (Preview, error) {
 	var p proposal
 	if err := json.Unmarshal(result, &p); err != nil {
 		return Preview{}, fail(CodeBadResult, "the result is not a failed-run-fix result: %v", err)
@@ -144,6 +164,9 @@ func Plan(ctx context.Context, profile string, result []byte) (Preview, error) {
 	}
 	if wf == nil {
 		return Preview{}, fail(CodeNotFound, "no workflow %q in this profile", p.WorkflowID)
+	}
+	if !since.IsZero() && modified(wf).After(since) {
+		return Preview{}, fail(CodeStale, "the workflow changed since this fix was proposed: ask again")
 	}
 	baseline := validate(wf)
 
@@ -193,16 +216,24 @@ func Plan(ctx context.Context, profile string, result []byte) (Preview, error) {
 	return plan, nil
 }
 
+// Options say how Apply runs.
+type Options struct {
+	// AllowActive lets the edit touch an active workflow (the operator confirmed).
+	AllowActive bool
+	// Since is when the proposal was made; a workflow changed after it is stale.
+	Since time.Time
+}
+
 // Apply plans result again against the workflow as it is now and stores the
-// edits. An active workflow is refused unless allowActive. The workflow stays
+// edits. An active workflow is refused unless opts.AllowActive. The workflow stays
 // unapproved: no approval is recorded. It returns the number of edits applied.
-func Apply(ctx context.Context, profile string, result []byte, allowActive bool) (int, error) {
-	plan, err := Plan(ctx, profile, result)
+func Apply(ctx context.Context, profile string, result []byte, opts Options) (int, error) {
+	plan, err := PlanSince(ctx, profile, result, opts.Since)
 	if err != nil {
 		return 0, err
 	}
-	if plan.Active && !allowActive {
-		return 0, fail(CodeWorkflowActive, "workflow %q is active: review the edit, then apply it with --allow-active", plan.WorkflowName)
+	if plan.Active && !opts.AllowActive {
+		return 0, fail(CodeWorkflowActive, "workflow %q is active: review the edit, then confirm to apply it", plan.WorkflowName)
 	}
 	if err := Store.SaveNodes(ctx, profile, plan.WorkflowID, plan.nodes); err != nil {
 		return 0, fmt.Errorf("save nodes: %w", err)

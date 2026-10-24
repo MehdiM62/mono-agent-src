@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/monoes/mono-agent/internal/workflow"
 )
@@ -149,11 +150,11 @@ func TestPlanWarnings(t *testing.T) {
 func TestApplyStoresTheEditsOnceAndRefusesTheSecond(t *testing.T) {
 	b := rig(t, false)
 	res := result(KindWorkflowEdit, edit("http", map[string]any{"url": "https://example.test/b"}))
-	n, err := Apply(context.Background(), "p1", res, false)
+	n, err := Apply(context.Background(), "p1", res, Options{})
 	if err != nil || n != 1 || b.saved != 1 || b.wf.Nodes[2].Config["url"] != "https://example.test/b" {
 		t.Fatalf("n=%d err=%v saved=%d", n, err, b.saved)
 	}
-	if _, err := Apply(context.Background(), "p1", res, false); !IsCode(err, CodeNoChange) || b.saved != 1 {
+	if _, err := Apply(context.Background(), "p1", res, Options{}); !IsCode(err, CodeNoChange) || b.saved != 1 {
 		t.Fatalf("second apply: %v (saved %d)", err, b.saved)
 	}
 }
@@ -165,10 +166,10 @@ func TestAnActiveWorkflowIsAWarningAndApplyNeedsAllowActive(t *testing.T) {
 	if err != nil || !p.Active || !strings.Contains(warnCodes(p), WarnWorkflowActive) {
 		t.Fatalf("%v %+v", err, p)
 	}
-	if _, err := Apply(context.Background(), "p1", res, false); !IsCode(err, CodeWorkflowActive) || b.saved != 0 {
+	if _, err := Apply(context.Background(), "p1", res, Options{}); !IsCode(err, CodeWorkflowActive) || b.saved != 0 {
 		t.Fatalf("apply on an active workflow: %v (saved %d)", err, b.saved)
 	}
-	if n, err := Apply(context.Background(), "p1", res, true); err != nil || n != 1 || b.saved != 1 {
+	if n, err := Apply(context.Background(), "p1", res, Options{AllowActive: true}); err != nil || n != 1 || b.saved != 1 {
 		t.Fatalf("--allow-active: %d %v", n, err)
 	}
 }
@@ -187,4 +188,28 @@ func warnCodes(p Preview) string {
 		out = append(out, w.Code)
 	}
 	return strings.Join(out, ",")
+}
+
+func TestAWorkflowChangedAfterTheProposalIsStale(t *testing.T) {
+	b := rig(t, false)
+	res := result(KindWorkflowEdit, edit("set", map[string]any{"assignments": "a=2"}))
+	done := time.Now()
+	b.wf.UpdatedAt = done.Add(-time.Hour)
+	if _, err := PlanSince(context.Background(), "p1", res, done); err != nil {
+		t.Fatalf("an unchanged workflow is stale: %v", err)
+	}
+	b.wf.UpdatedAt = done.Add(time.Second)
+	if _, err := PlanSince(context.Background(), "p1", res, done); !IsCode(err, CodeStale) {
+		t.Fatalf("workflow edited after the proposal: %v", err)
+	}
+	// A node edited on its own (workflow node set) counts, whatever the workflow's own time says.
+	b.wf.UpdatedAt = done.Add(-time.Hour)
+	b.wf.Nodes[1].UpdatedAt = done.Add(time.Second)
+	if _, err := Apply(context.Background(), "p1", res, Options{Since: done}); !IsCode(err, CodeStale) || b.saved != 0 {
+		t.Fatalf("apply on a stale proposal: %v (saved %d)", err, b.saved)
+	}
+	// Without a time (the check at completion) there is nothing to compare.
+	if _, err := Plan(context.Background(), "p1", res); err != nil {
+		t.Fatal(err)
+	}
 }

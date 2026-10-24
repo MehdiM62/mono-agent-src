@@ -2,9 +2,16 @@
 // user's side of the AI task kinds failed-run-fix and workflow-generate. The
 // agent of those kinds only proposes (its result is data); these commands turn
 // a finished proposal into a change, only for the operator, after the user has
-// looked at it (apply-fix --dry-run shows the exact edits). Neither approves
-// what it writes: the workflow stays unapproved until the user saves or
-// activates it themselves.
+// looked at it (apply-fix --dry-run shows the exact edits).
+//
+// They take only a task id. The result is read from the task row, checked again
+// against the workflow as it is NOW, and refused when the workflow changed since
+// the task completed (stale_proposal) or is active (workflow_active_needs_confirm,
+// unless --allow-active, which the app passes only after a separate confirm).
+// Each proposal is applied once: ai_task_applies (migration 123) records who,
+// which task, which workflow and how many edits, and its primary key refuses a
+// second apply. Neither command approves what it writes: the workflow stays
+// unapproved until the user saves or activates it themselves.
 package workflowaitask
 
 import (
@@ -12,6 +19,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
@@ -19,6 +28,7 @@ import (
 	"github.com/monoes/mono-agent/internal/aitask"
 	"github.com/monoes/mono-agent/internal/aitaskkinds"
 	"github.com/monoes/mono-agent/internal/cli/clicore"
+	"github.com/monoes/mono-agent/internal/operator"
 	"github.com/monoes/mono-agent/internal/storage"
 	"github.com/monoes/mono-agent/internal/workflow"
 	"github.com/monoes/mono-agent/internal/workflowfix"
@@ -37,14 +47,21 @@ type Deps struct {
 	Wire func()
 }
 
-// Typed refusals, in --json as "code".
+// Typed refusals, in --json as "code". The codes of workflowfix (unknown_node,
+// secret_key, invalid_workflow, stale_proposal, workflow_active_needs_confirm, no_edit, no_change)
+// pass through unchanged.
 const (
 	CodeNotFound    = "not_found"
 	CodeWrongKind   = "wrong_kind"
 	CodeNotComplete = "not_complete"
 	CodeNoResult    = "no_result"
 	CodeBadResult   = "bad_result"
+	CodeBadTaskID   = "invalid_input"
+	CodeApplied     = "already_applied"
 )
+
+// taskIDPattern is what a task id looks like; anything else is refused before the database is opened.
+var taskIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$`)
 
 type coded struct {
 	exit   int
@@ -84,6 +101,9 @@ func (d Deps) print(cmd *cobra.Command, v any, human string) error {
 // task returns this profile's finished task id of the given kind, with its
 // stored result. The result is read from the task row only, never from a path.
 func (d Deps) task(db *storage.Database, id, kind string) (aitask.Task, error) {
+	if !taskIDPattern.MatchString(id) {
+		return aitask.Task{}, refuse(CodeBadTaskID, "%q is not an AI task id", id)
+	}
 	t, err := (&aitask.Store{DB: db.DB, Profile: d.ProfileID()}).Get(id)
 	if err != nil {
 		var ae *aitask.Error
@@ -100,7 +120,54 @@ func (d Deps) task(db *storage.Database, id, kind string) (aitask.Task, error) {
 	case len(t.Result) == 0:
 		return t, refuse(CodeNoResult, "task %s has no result", id)
 	}
+	if done, err := applied(db, t.ID); err != nil {
+		return t, err
+	} else if done {
+		return t, refuse(CodeApplied, "the proposal of task %s was already applied: ask again for a new one", t.ID)
+	}
 	return t, nil
+}
+
+// applied says whether the proposal of task id was already applied or saved.
+func applied(db *storage.Database, id string) (bool, error) {
+	var n int
+	if err := db.DB.QueryRow(`SELECT COUNT(*) FROM ai_task_applies WHERE task_id = ?`, id).Scan(&n); err != nil {
+		return false, err
+	}
+	return n > 0, nil
+}
+
+// claim records the apply of task t before anything is written: the primary key makes a second
+// apply of the same proposal (even a concurrent one) fail. The row is the audit line: who
+// (operator.Caller, "operator" for the user's own process), task, workflow and count, no value.
+func (d Deps) claim(db *storage.Database, t aitask.Task, workflowID string, edits int) error {
+	actor := operator.Caller()
+	if actor == "" {
+		actor = "operator"
+	}
+	_, err := db.DB.Exec(`INSERT INTO ai_task_applies (task_id, profile_id, kind, workflow_id, edit_count, actor, applied_at) VALUES (?,?,?,?,?,?,?)`,
+		t.ID, d.ProfileID(), t.Kind, workflowID, edits, actor, time.Now().UTC().Format(time.RFC3339Nano))
+	if err != nil {
+		if ok, _ := applied(db, t.ID); ok {
+			return refuse(CodeApplied, "the proposal of task %s was already applied: ask again for a new one", t.ID)
+		}
+		return err
+	}
+	return nil
+}
+
+// unclaim takes the claim back when the write after it failed, so the user can try again.
+func unclaim(db *storage.Database, id string) {
+	_, _ = db.DB.Exec(`DELETE FROM ai_task_applies WHERE task_id = ?`, id)
+}
+
+// completedAt is when the task's result was handed back.
+func completedAt(t aitask.Task) time.Time {
+	ts, err := time.Parse(time.RFC3339Nano, t.UpdatedAt)
+	if err != nil {
+		return time.Now().Add(time.Hour) // unreadable: the check can only fail, never pass by accident
+	}
+	return ts
 }
 
 // New returns the two commands, for `workflow`.
@@ -112,6 +179,16 @@ func New(d Deps) []*cobra.Command {
 	return cmds
 }
 
+func (d Deps) start(what string) error {
+	if err := clicore.RequireOperator(d.RequireOperator, what); err != nil {
+		return err
+	}
+	if d.Wire != nil {
+		d.Wire()
+	}
+	return nil
+}
+
 func (d Deps) applyFix() *cobra.Command {
 	var dryRun, allowActive bool
 	cmd := &cobra.Command{
@@ -119,27 +196,26 @@ func (d Deps) applyFix() *cobra.Command {
 		Short: "Show or apply the workflow edits a finished failed-run-fix task proposed (the user's own)",
 		Long: "Reads the result of a finished failed-run-fix task of this profile and plans its edits against the workflow as it is now. " +
 			"--dry-run prints them (node, path, before, after) and warnings (workflow_active, new_outbound, credential_field, expression_added) and changes nothing. " +
-			"Without it the edits are stored; the workflow is then UNAPPROVED (a person saves or activates it to approve it again). " +
-			"An active workflow is refused unless --allow-active. The agent only proposed: this command is the operator's. " + clicore.OperatorOnlyHelp,
+			"Without it the edits are stored once; the workflow is then UNAPPROVED (a person saves or activates it to approve it again). " +
+			"Refused: a workflow that changed since the task completed (stale_proposal), an active workflow unless --allow-active " +
+			"(workflow_active_needs_confirm), a proposal applied before (already_applied). " + clicore.OperatorOnlyHelp,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := clicore.RequireOperator(d.RequireOperator, "apply an AI task's workflow fix"); err != nil {
+			if err := d.start("apply an AI task's workflow fix"); err != nil {
 				return err
-			}
-			if d.Wire != nil {
-				d.Wire()
 			}
 			db, err := d.OpenDB()
 			if err != nil {
 				return fmt.Errorf("open database: %w", err)
 			}
+			defer db.Close()
 			t, err := d.task(db, args[0], aitaskkinds.FailedRunFix)
-			db.Close()
 			if err != nil {
 				return err
 			}
 			ctx := context.Background()
-			plan, err := workflowfix.Plan(ctx, d.ProfileID(), t.Result)
+			since := completedAt(t)
+			plan, err := workflowfix.PlanSince(ctx, d.ProfileID(), t.Result, since)
 			if err != nil {
 				return cliErr(err)
 			}
@@ -148,8 +224,15 @@ func (d Deps) applyFix() *cobra.Command {
 					"edits": plan.Edits, "warnings": plan.Warnings},
 					fmt.Sprintf("%d edit(s) to %s (%s); %d warning(s)", len(plan.Edits), plan.WorkflowName, plan.WorkflowID, len(plan.Warnings)))
 			}
-			n, err := workflowfix.Apply(ctx, d.ProfileID(), t.Result, allowActive)
+			if plan.Active && !allowActive {
+				return refuse(workflowfix.CodeWorkflowActive, "workflow %q is active: confirm to apply the edit to it", plan.WorkflowName)
+			}
+			if err := d.claim(db, t, plan.WorkflowID, len(plan.Edits)); err != nil {
+				return err
+			}
+			n, err := workflowfix.Apply(ctx, d.ProfileID(), t.Result, workflowfix.Options{AllowActive: allowActive, Since: since})
 			if err != nil {
+				unclaim(db, t.ID)
 				return cliErr(err)
 			}
 			return d.print(cmd, map[string]any{"ok": true, "workflowId": plan.WorkflowID, "applied": n, "needsApproval": true},
@@ -157,7 +240,7 @@ func (d Deps) applyFix() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the edits and warnings; change nothing")
-	cmd.Flags().BoolVar(&allowActive, "allow-active", false, "Apply to a workflow that is active")
+	cmd.Flags().BoolVar(&allowActive, "allow-active", false, "Apply to a workflow that is active (the user confirmed)")
 	return cmd
 }
 
@@ -166,14 +249,11 @@ func (d Deps) saveDraft() *cobra.Command {
 		Use:   "save-draft <task-id>",
 		Short: "Save the workflow a finished workflow-generate task proposed, as an inactive, unapproved draft (the user's own)",
 		Long: "Reads the result of a finished workflow-generate task of this profile, checks the workflow again with the validator `workflow validate` uses, " +
-			"and saves it as a NEW inactive workflow (it never overwrites one). The draft is unapproved: a person saves or activates it to approve it. " + clicore.OperatorOnlyHelp,
+			"and saves it once as a NEW inactive workflow (it never overwrites one). The draft is unapproved: a person saves or activates it to approve it. " + clicore.OperatorOnlyHelp,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := clicore.RequireOperator(d.RequireOperator, "save an AI task's generated workflow"); err != nil {
+			if err := d.start("save an AI task's generated workflow"); err != nil {
 				return err
-			}
-			if d.Wire != nil {
-				d.Wire()
 			}
 			db, err := d.OpenDB()
 			if err != nil {
@@ -197,10 +277,15 @@ func (d Deps) saveDraft() *cobra.Command {
 			if err != nil {
 				return refuse(CodeBadResult, "the workflow does not parse: %v", err)
 			}
-			wf, err := d.save(context.Background(), db, doc)
-			if err != nil {
+			if err := d.claim(db, t, "", len(doc.Nodes)); err != nil {
 				return err
 			}
+			wf, err := d.save(context.Background(), db, doc)
+			if err != nil {
+				unclaim(db, t.ID)
+				return err
+			}
+			_, _ = db.DB.Exec(`UPDATE ai_task_applies SET workflow_id = ? WHERE task_id = ?`, wf.ID, t.ID)
 			return d.print(cmd, map[string]any{"ok": true, "workflowId": wf.ID, "name": wf.Name, "nodeCount": len(wf.Nodes), "needsApproval": true},
 				fmt.Sprintf("saved draft %s (%s), inactive; approve it by saving or activating it", wf.Name, wf.ID))
 		},

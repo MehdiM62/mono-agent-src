@@ -215,7 +215,7 @@ func TestApplyFixDryRunThenApplyLeavesTheWorkflowUnapproved(t *testing.T) {
 		t.Error("the workflow is still approved after the edit")
 	}
 	// The same task again changes nothing: the edit is already in.
-	if body, err = r.run(t, "apply-fix", id); err == nil || codeOf(body) != "no_change" {
+	if body, err = r.run(t, "apply-fix", id); err == nil || codeOf(body) != "already_applied" {
 		t.Errorf("second apply: %v %v", err, body)
 	}
 }
@@ -246,7 +246,7 @@ func TestApplyFixToAnActiveWorkflowNeedsAllowActive(t *testing.T) {
 	if err != nil || !strings.Contains(toJSON(body["warnings"]), "workflow_active") {
 		t.Fatalf("dry-run: %v %v", err, body)
 	}
-	if body, err = r.run(t, "apply-fix", id); err == nil || codeOf(body) != "workflow_active" {
+	if body, err = r.run(t, "apply-fix", id); err == nil || codeOf(body) != "workflow_active_needs_confirm" {
 		t.Fatalf("apply: %v %v", err, body)
 	}
 	if r.workflow(t, "wf-1").Nodes[1].Config["assignments"] != "a=1" {
@@ -285,10 +285,132 @@ func TestSaveDraftSavesANewInactiveUnapprovedWorkflow(t *testing.T) {
 	if orig := r.workflow(t, "wf-1"); orig.Name != "Digest" || len(orig.Nodes) != 3 {
 		t.Errorf("the workflow with the document's id was overwritten: %+v", orig)
 	}
-	// A second save is a second draft.
+	// The same proposal is saved once.
 	body, err = r.run(t, "save-draft", id)
-	if err != nil || body["workflowId"] == newID {
+	if err == nil || codeOf(body) != "already_applied" {
 		t.Fatalf("second save: %v %v", err, body)
+	}
+}
+
+// A proposal is applied once, whoever asks again; the audit row says who, which task and workflow, and how many edits, no value.
+func TestApplyFixWritesTheAuditLineAndRefusesTheSecondApply(t *testing.T) {
+	r := newFixRig(t, false)
+	id := r.task(t, "failed-run-fix", aitask.StatusComplete, fixResult("workflow-edit", editOf("s", `{"assignments":"a=2"}`)))
+	if _, err := r.run(t, "apply-fix", id); err != nil {
+		t.Fatal(err)
+	}
+	db, err := initDB(r.cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	var kind, wf, actor, at string
+	var edits int
+	if err := db.DB.QueryRow(`SELECT kind, workflow_id, edit_count, actor, applied_at FROM ai_task_applies WHERE task_id = ?`, id).Scan(&kind, &wf, &edits, &actor, &at); err != nil {
+		t.Fatalf("no audit line: %v", err)
+	}
+	if kind != "failed-run-fix" || wf != "wf-1" || edits != 1 || actor != "operator" || at == "" {
+		t.Fatalf("audit = %s %s %d %s %s", kind, wf, edits, actor, at)
+	}
+	for _, args := range [][]string{{"apply-fix", id}, {"apply-fix", id, "--dry-run"}, {"apply-fix", id, "--allow-active"}} {
+		if body, err := r.run(t, args...); err == nil || codeOf(body) != "already_applied" {
+			t.Errorf("%v again: %v %v", args, err, body)
+		}
+	}
+	var n int
+	_ = db.DB.QueryRow(`SELECT COUNT(*) FROM ai_task_applies WHERE task_id = ?`, id).Scan(&n)
+	if n != 1 {
+		t.Errorf("%d audit rows", n)
+	}
+}
+
+// A refused or failed apply leaves no claim, so the user can ask again after fixing the cause.
+func TestARefusedApplyLeavesNoClaim(t *testing.T) {
+	r := newFixRig(t, true)
+	id := r.task(t, "failed-run-fix", aitask.StatusComplete, fixResult("workflow-edit", editOf("s", `{"assignments":"a=2"}`)))
+	if _, err := r.run(t, "apply-fix", id); err == nil {
+		t.Fatal("an active workflow was edited without --allow-active")
+	}
+	db, _ := initDB(r.cfg)
+	defer db.Close()
+	var n int
+	_ = db.DB.QueryRow(`SELECT COUNT(*) FROM ai_task_applies`).Scan(&n)
+	if n != 0 {
+		t.Fatalf("a refused apply left %d claim(s)", n)
+	}
+	if _, err := r.run(t, "apply-fix", id, "--allow-active"); err != nil {
+		t.Fatalf("after the refusal: %v", err)
+	}
+}
+
+// The workflow changed after the task completed: the person looked at another workflow.
+func TestApplyFixRefusesAStaleProposal(t *testing.T) {
+	r := newFixRig(t, false)
+	id := r.task(t, "failed-run-fix", aitask.StatusComplete, fixResult("workflow-edit", editOf("s", `{"assignments":"a=2"}`)))
+	// The user edits a node (workflow node set) after the task completed.
+	db, err := initDB(r.cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := openWorkflowStore(db)
+	wf, _ := store.GetWorkflow(context.Background(), "wf-1")
+	wf.Nodes[2].Config["url"] = "https://example.test/changed"
+	if err := store.SaveWorkflowNodes(context.Background(), "wf-1", wf.Nodes); err != nil {
+		t.Fatal(err)
+	}
+	db.Close()
+	for _, args := range [][]string{{"apply-fix", id, "--dry-run"}, {"apply-fix", id}} {
+		if body, err := r.run(t, args...); err == nil || codeOf(body) != "stale_proposal" {
+			t.Errorf("%v: %v %v", args, err, body)
+		}
+	}
+	if r.workflow(t, "wf-1").Nodes[1].Config["assignments"] != "a=1" {
+		t.Fatal("a stale proposal was applied")
+	}
+}
+
+// The argv the app sends: global flags before the verb, the task id after `--`.
+func TestApplyFixAndSaveDraftTakeTheAppsArgv(t *testing.T) {
+	r := newFixRig(t, false)
+	fix := r.task(t, "failed-run-fix", aitask.StatusComplete, fixResult("workflow-edit", editOf("s", `{"assignments":"a=2"}`)))
+	gen := r.task(t, "workflow-generate", aitask.StatusComplete, `{"summary":"s","workflow":`+draftWorkflow+`,"validation":{"valid":true}}`)
+	root := func(args ...string) (map[string]any, error) {
+		cmd := newRootCmd()
+		cmd.SetArgs(append([]string{"--profile", r.cfg.ProfileID, "--db-path", r.cfg.DBPath, "--json"}, args...))
+		cmd.SilenceErrors, cmd.SilenceUsage = true, true
+		var err error
+		out := captureStdout(t, func() { err = cmd.Execute() })
+		var body map[string]any
+		_ = json.Unmarshal([]byte(strings.TrimSpace(out)), &body)
+		return body, err
+	}
+	if body, err := root("workflow", "apply-fix", "--dry-run", "--", fix); err != nil || body["ok"] != true || body["workflowId"] != "wf-1" {
+		t.Fatalf("dry-run: %v %v", err, body)
+	}
+	if body, err := root("workflow", "apply-fix", "--", fix); err != nil || body["applied"] != float64(1) {
+		t.Fatalf("apply: %v %v", err, body)
+	}
+	if body, err := root("workflow", "save-draft", "--", gen); err != nil || body["ok"] != true || body["needsApproval"] != true {
+		t.Fatalf("save-draft: %v %v", err, body)
+	}
+	// A task id is a plain id, never a path or a flag.
+	for _, bad := range []string{"../../etc/passwd", "/tmp/x.json", "a b", "-rf", ""} {
+		if body, err := root("workflow", "apply-fix", "--", bad); err == nil || (codeOf(body) != "invalid_input" && body != nil) {
+			t.Errorf("%q: %v %v", bad, err, body)
+		}
+	}
+}
+
+// A task's own confined session is an agent: it can propose, never apply.
+func TestATaskSessionCannotApplyItsOwnProposal(t *testing.T) {
+	r := newFixRig(t, false)
+	id := r.task(t, "failed-run-fix", aitask.StatusComplete, fixResult("workflow-edit", editOf("s", `{"assignments":"a=2"}`)))
+	asTaskSession(t, id, "tok")
+	if body, err := r.run(t, "apply-fix", id, "--allow-active"); err == nil || codeOf(body) != "operator_only" {
+		t.Fatalf("%v %v", err, body)
+	}
+	if r.workflow(t, "wf-1").Nodes[1].Config["assignments"] != "a=1" {
+		t.Fatal("a task session applied its own proposal")
 	}
 }
 
