@@ -2309,12 +2309,6 @@ login (and its bill) is what the turn uses.
   `pi-rpc` transports). `monoagentcli agent install <runtime>` installs one
   (see "Health check"), `monoagentcli agent test <runtime>` runs a smoke turn
   that also proves the login works.
-- **Freebuff.** Compatibility preparation is documented in
-  [docs/freebuff-runtime.md](docs/freebuff-runtime.md). Execution requires
-  monomind's `freebuff` runner ([monomind#600](https://github.com/monoes/monomind/issues/600));
-  installing the interactive Freebuff CLI alone does not enable it. Its
-  executable override is `FREEBUFF_CLI_BIN`. Runtime capabilities still come
-  from monomind's scan.
 - **Kilo Code.** Compatibility preparation is documented in
   [docs/kilo-runtime.md](docs/kilo-runtime.md). Execution requires monomind's
   `kilo` runner ([monomind#601](https://github.com/monoes/monomind/issues/601)).
