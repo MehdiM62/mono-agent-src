@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/monoes/mono-agent/internal/aitask"
+	"github.com/monoes/mono-agent/internal/aitaskkinds"
 	"github.com/monoes/mono-agent/internal/applyfill"
 	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/monomind"
@@ -91,8 +92,19 @@ func applyBashPrefixes(profile string) []string {
 // Adding a confined kind is one line here.
 //
 //   - draft-reply: nothing but the hand-back.
+//   - workflow-generate: look-ups to build from (workflows, templates, node
+//     types, the reference). Not `workflow validate`, whose --file reads any
+//     file (Kind.Check validates), not `templates use` (saves a copy), not `node set`.
+//   - failed-run-fix: read the workflow and the run.
+//   - recording-analyze: read the recording.
+//
+// Each of those also keeps `aitask complete|fail`. Every entry is profile-scoped
+// by the base prefix.
 var confinedVerbs = map[string][]string{
-	aitask.KindDraftReply: {},
+	aitask.KindDraftReply:        {},
+	aitaskkinds.WorkflowGenerate: {"workflow search", "workflow templates list", "workflow templates show", "workflow get", "node list", "node schema", "ref"},
+	aitaskkinds.FailedRunFix:     {"workflow get", "workflow list", "workflow search", "workflow executions", "workflow execution"},
+	aitaskkinds.RecordingAnalyze: {"record show"},
 }
 
 // ConfinedKind reports whether tasks of this kind run as confined turns

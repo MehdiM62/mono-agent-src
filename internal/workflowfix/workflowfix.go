@@ -349,3 +349,12 @@ func IsCode(err error, code string) bool {
 	var e *Error
 	return errors.As(err, &e) && e.Code == code
 }
+
+// Exists reports whether profile owns workflow id.
+func Exists(ctx context.Context, profile, id string) (bool, error) {
+	if Store == nil {
+		return false, fail(CodeNoBackend, "workflows cannot be read here")
+	}
+	wf, err := Store.Load(ctx, profile, id)
+	return wf != nil, err
+}

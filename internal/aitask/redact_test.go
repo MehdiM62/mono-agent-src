@@ -190,9 +190,14 @@ func TestRedactResultKeepsEveryKindsValidResultValid(t *testing.T) {
 		"draft-reply": `{"summary":"s","draft":{"to":"sam","subject":"Re","body":"` + secretish + `"},"assumptions":["` + secretish + `"]}`,
 		// The kinds of internal/aitaskkinds register in this test binary through
 		// redact_kinds_test.go (an external test package: aitaskkinds imports this one).
-		"workflow-generate": `{"workflowId":"wf-1","name":"Digest","summary":"` + secretish + `","nodeCount":3,"validation":{"ok":true,"errors":[]}}`,
-		"recording-analyze": `{"recordingId":"rec-1","automationName":"a","summary":"` + secretish + `","saved":false,"verified":false}`,
-		"failed-run-fix":    `{"workflowId":"wf-1","executionId":"ex-1","diagnosis":"` + secretish + `","changed":true,"changes":["set x"],"needsApproval":true}`,
+		"workflow-generate": `{"summary":"` + secretish + `","workflow":{"name":"Digest","description":"d","is_active":false,` +
+			`"nodes":[{"id":"t","type":"trigger.manual","name":"Start","config":{}},` +
+			`{"id":"h","type":"http.request","name":"Fetch","config":{"url":"https://example.test/feed","method":"GET","credential_id":"REPLACE_ME","auth_token":"{{secret:feed_token}}"}}],` +
+			`"connections":[{"source":"t","target":"h","source_handle":"main","target_handle":"main"}]},` +
+			`"validation":{"valid":true,"errors":[],"warnings":["` + secretish + `"]}}`,
+		"recording-analyze": `{"recordingId":"rec-20261013-101010-abcd","summary":"` + secretish + `","suggestions":["automate the export","` + secretish + `"],"risks":["a step changes the site"]}`,
+		"failed-run-fix": `{"summary":"s","diagnosis":"` + secretish + `","workflowId":"wf-1","executionId":"ex-1",` +
+			`"fix":{"kind":"workflow-edit","description":"` + secretish + `","edits":[{"node":"h","config":{"url":"https://example.test/feed","headers":{"Accept":"application/json"}}}]}}`,
 	}
 	for _, name := range Names() {
 		raw, ok := samples[name]
