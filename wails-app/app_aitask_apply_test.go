@@ -10,19 +10,21 @@ import (
 	"testing"
 )
 
+const testHash = "sha256:abc12345"
+
 func TestAITaskApplyBindingsRunTheExactCommands(t *testing.T) {
 	a, log := aitaskApp(t, `echo '{"ok":true,"workflowId":"w1"}'`+"\n")
-	apply := func(id string) (string, error) { return a.ApplyFailedRunFix(id, false) }
+	apply := func(id string) (string, error) { return a.ApplyFailedRunFix(id, false, testHash) }
 	for _, call := range []func(string) (string, error){a.PreviewFailedRunFix, apply, a.SaveGeneratedWorkflow} {
 		got, err := call("task-1")
 		if err != nil || got != `{"ok":true,"workflowId":"w1"}` {
 			t.Fatalf("got %q, %v", got, err)
 		}
 	}
-	if _, err := a.ApplyFailedRunFix("task-1", true); err != nil {
+	if _, err := a.ApplyFailedRunFix("task-1", true, testHash); err != nil {
 		t.Fatal(err)
 	}
-	want := "--profile work --json workflow apply-fix --dry-run -- task-1\n--profile work --json workflow apply-fix -- task-1\n--profile work --json workflow save-draft -- task-1\n--profile work --json workflow apply-fix --allow-active -- task-1"
+	want := "--profile work --json workflow apply-fix --dry-run -- task-1\n--profile work --json workflow apply-fix --expect-hash sha256:abc12345 -- task-1\n--profile work --json workflow save-draft -- task-1\n--profile work --json workflow apply-fix --allow-active --expect-hash sha256:abc12345 -- task-1"
 	if calls := loggedArgs(t, log); strings.Join(calls, "\n") != want {
 		t.Fatalf("CLI calls = %v", calls)
 	}
@@ -30,7 +32,7 @@ func TestAITaskApplyBindingsRunTheExactCommands(t *testing.T) {
 
 func TestAITaskApplyBindingsKeepTheCLIsRefusal(t *testing.T) {
 	a, _ := aitaskApp(t, `echo '{"error":"the workflow changed since the fix was proposed","code":"stale"}'; exit 1`+"\n")
-	_, err := a.ApplyFailedRunFix("task-1", false)
+	_, err := a.ApplyFailedRunFix("task-1", false, testHash)
 	if err == nil || err.Error() != "stale: the workflow changed since the fix was proposed" {
 		t.Fatalf("err = %v", err)
 	}
@@ -39,7 +41,7 @@ func TestAITaskApplyBindingsKeepTheCLIsRefusal(t *testing.T) {
 func TestAITaskApplyBindingsRefuseAHostileIDBeforeTheCLI(t *testing.T) {
 	a, log := aitaskApp(t, "echo '{}'\n")
 	for _, id := range []string{"", "--all", "-x", "a b", "a;rm", "../x", strings.Repeat("a", 65)} {
-		if _, err := a.ApplyFailedRunFix(id, true); err == nil {
+		if _, err := a.ApplyFailedRunFix(id, true, testHash); err == nil {
 			t.Errorf("id %q was accepted", id)
 		}
 		if _, err := a.PreviewFailedRunFix(id); err == nil {
@@ -67,5 +69,17 @@ func TestAITaskApplyBindingsAreNotExposedElsewhere(t *testing.T) {
 			}
 			return nil
 		})
+	}
+}
+
+func TestApplyFailedRunFixRefusesAMissingOrOddHashBeforeTheCLI(t *testing.T) {
+	a, log := aitaskApp(t, "echo '{}'\n")
+	for _, h := range []string{"", "short", "--allow-active", "a b c d e f g h", "x;y;z;w;v;u", strings.Repeat("a", 129)} {
+		if _, err := a.ApplyFailedRunFix("task-1", false, h); err == nil {
+			t.Errorf("hash %q was accepted", h)
+		}
+	}
+	if _, err := os.Stat(log); err == nil {
+		t.Fatalf("CLI was run: %v", loggedArgs(t, log))
 	}
 }
