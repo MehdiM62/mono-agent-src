@@ -294,7 +294,8 @@ const compactTimeout = 3 * time.Minute
 // could not compact keeps the plain warning, also when the turn itself
 // failed after the warning. A Stop (ctx cancelled) ends it silently. The
 // call's cost joins the turn's usage, and its spend cap is what the turn
-// left of opts.BudgetUSD.
+// left of opts.BudgetUSD (none left, or no cost reported to know it: no
+// compaction, only the warning).
 func compactContext(ctx context.Context, journal *turnJournal, opts monomind.ExecOptions, res *monomind.TurnResult, turnErr error) {
 	journal.mu.Lock()
 	peak := journal.contextPeak
@@ -312,8 +313,13 @@ func compactContext(ctx context.Context, journal *turnJournal, opts monomind.Exe
 		fail()
 		return
 	}
-	if opts.BudgetUSD > 0 && hasSpent {
-		if opts.BudgetUSD-spent <= 0 {
+	if opts.BudgetUSD > 0 {
+		// Under a spend cap the compaction may only use what the turn left. A
+		// runtime that reported no cost leaves nothing to subtract, and running
+		// /compact with the full original cap would let real spend reach twice
+		// the cap; so with no known cost the compaction is skipped and the
+		// plain warning stands (the safer of skipping and a guessed fraction).
+		if !hasSpent || opts.BudgetUSD-spent <= 0 {
 			fail()
 			return
 		}

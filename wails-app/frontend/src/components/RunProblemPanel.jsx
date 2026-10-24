@@ -13,17 +13,17 @@ export function problemText(problem) {
 }
 
 // failedRunGoal is the task goal for a failed run: which workflow and run, and
-// that the coder may fix the workflow but must not run it again on its own.
+// that the coder only diagnoses: it proposes the fix and changes or runs nothing.
 export function failedRunGoal({ workflowId, workflowName, executionId }) {
   const wf = workflowName ? `workflow "${workflowName}"${workflowId ? ` (${workflowId})` : ''}` : (workflowId ? `workflow ${workflowId}` : 'a workflow')
   const run = executionId ? `run ${executionId}` : 'the last run'
-  return `Work out why ${run} of ${wf} failed and fix the workflow. Read the run with the workflow execution commands. Do not run or activate the workflow again unless I ask; if you do, say so.`
+  return `Work out why ${run} of ${wf} failed and propose the fix. Read the run with the workflow execution commands. You only diagnose: change nothing and do not run or activate any workflow; give me the exact change to make myself.`
 }
 
 // The "why did it fail" panel under the editor toolbar: the execution's own
 // error and each failed node's. problem is runProblem() from
 // lib/runFailure.js; clicking a node row selects that node on the canvas.
-// onSendToCoder, when given, adds "Fix with coder": it is called with the
+// onSendToCoder, when given, adds "Diagnose with coder": it is called with the
 // failure text and returns { goal, origin } (how to frame the task and which
 // tab it came from); the failure itself goes to the coder as selection text.
 export default function RunProblemPanel({ problem, onSelectNode, onClose, onSendToCoder }) {
@@ -61,7 +61,7 @@ export default function RunProblemPanel({ problem, onSelectNode, onClose, onSend
         ))}
       </div>
       {coder && (
-        <SendToCoderButton kind="failed-run-fix" label="Fix with coder" goal={coder.goal} origin={coder.origin}
+        <SendToCoderButton kind="failed-run-fix" label="Diagnose with coder" goal={coder.goal} origin={coder.origin}
           context={() => [selectionText(problemText(problem))]} />
       )}
       <button onClick={onClose} aria-label="Hide error" title="Hide error" style={{

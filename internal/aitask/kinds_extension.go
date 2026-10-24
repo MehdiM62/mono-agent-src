@@ -132,7 +132,7 @@ const extensionFillTemplate = `You are filling in the form on a web page the use
 5. NEVER click Submit, Send, Pay, Confirm, Apply or anything that sends the form: the user does that, after looking at it. Nothing
    stops you from clicking a control that is not a form button, so this is on you; a click on a form's submit control is held for
    the user's approval. If a click or fill is held, stop and say so in the summary; do not look for another way around it.
-6. Leave the tab open. End with ` + "`monoagentcli aitask complete`" + `: summary says what you filled and what is left to the user; fields lists
+6. Leave the tab open. End with ` + "`monoagentcli aitask complete --result-json '<the JSON>'`" + ` (you have no file tool: the JSON goes on the command line in single quotes, on one line; write an apostrophe inside a string as \u0027): summary says what you filled and what is left to the user; fields lists
    every field you wrote as {label, value, source, generated} (source says which fact it came from, or "generated"); and
    stopped_before_submit is true, because you stopped before submitting. Never put a password, card number or code in the result.`
 
@@ -144,7 +144,7 @@ You only read: you do not fill, click or send anything.
    own: do not pass --tab or --browser, and you cannot open or navigate to other pages.
 2. Look at the page with ` + "`browser a11y`" + ` and ` + "`browser screenshot`" + ` as the question needs. Do not log in, and never read or repeat a
    password, a card number or a one-time code.
-3. End with ` + "`monoagentcli aitask complete`" + `: summary is one or two sentences; answer is the answer to the question, in plain
+3. End with ` + "`monoagentcli aitask complete --result-json '<the JSON>'`" + ` (you have no file tool: the JSON goes on the command line in single quotes, on one line; write an apostrophe inside a string as \u0027): summary is one or two sentences; answer is the answer to the question, in plain
    text; suggested_actions lists things the user could do next (each one sentence; an empty list when there are none). Never put a
    secret in the result.`
 

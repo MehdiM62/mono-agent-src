@@ -172,3 +172,37 @@ func TestExtensionTasksRefuseToRunUnattended(t *testing.T) {
 		}
 	}
 }
+
+// Personal form values are the point of a fill: redaction keeps them, still
+// redacts what is obviously a secret, and the redacted result is still valid.
+func TestRedactionKeepsAFillsPersonalValuesAndRemovesSecrets(t *testing.T) {
+	doc := fillResult(func(m map[string]any) {
+		m["fields"] = []any{
+			map[string]any{"label": "Full name", "value": "Ada Lovelace", "source": "profile: name", "generated": false},
+			map[string]any{"label": "Email", "value": "ada@example.com", "source": "profile: email", "generated": false},
+			map[string]any{"label": "Phone", "value": "+44 20 7946 0958", "source": "profile: phone", "generated": false},
+			map[string]any{"label": "Address", "value": "12 St James's Square, London", "source": "profile: address", "generated": false},
+			map[string]any{"label": "Password", "value": "hunter2hunter2", "source": "page", "generated": false},
+			map[string]any{"label": "Card number", "value": "4111 1111 1111 1111", "source": "page", "generated": false},
+			map[string]any{"label": "One-time code", "value": "493021", "source": "page", "generated": false},
+			map[string]any{"label": "Notes", "value": "ghp_0123456789abcdef0123456789abcdef0123", "source": "page", "generated": false},
+		}
+	})
+	red := RedactResult(decode(t, doc))
+	b, _ := json.Marshal(red)
+	var back any
+	_ = json.Unmarshal(b, &back)
+	if err := Validate(ExtensionFillSchema, back); err != nil {
+		t.Fatalf("redaction made a valid result invalid: %v\n%s", err, b)
+	}
+	for _, keep := range []string{"Ada Lovelace", "ada@example.com", "+44 20 7946 0958", "12 St James's Square, London"} {
+		if !strings.Contains(string(b), keep) {
+			t.Errorf("redaction removed %q: %s", keep, b)
+		}
+	}
+	for _, gone := range []string{"hunter2hunter2", "4111 1111 1111 1111", "493021", "ghp_0123"} {
+		if strings.Contains(string(b), gone) {
+			t.Errorf("a secret survived: %q in %s", gone, b)
+		}
+	}
+}
