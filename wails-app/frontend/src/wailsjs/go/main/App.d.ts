@@ -278,6 +278,8 @@ export function GetExecutionDetail(arg1:string):Promise<Record<string, any>>;
 
 export function GetExtensionStatus():Promise<string>;
 
+export function GetExtensionInfo():Promise<main.ExtensionInfo>;
+
 export function GetGlobalOrgSummary(arg1:boolean):Promise<string>;
 
 export function GetGlobalSummary():Promise<string>;
@@ -585,6 +587,8 @@ export function OrgSignatureReview(arg1:string):Promise<string>;
 export function OrgSignatureStatus(arg1:string):Promise<string>;
 
 export function PairExtension():Promise<string>;
+
+export function InstallExtension():Promise<main.ExtensionInfo>;
 
 export function PauseOrgAutonomy(arg1:string,arg2:string):Promise<string>;
 

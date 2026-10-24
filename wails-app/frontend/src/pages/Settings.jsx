@@ -13,6 +13,7 @@ import ApiSection from '../components/settings/ApiSection.jsx'
 import VaultKeyringSection from '../components/settings/VaultKeyringSection.jsx'
 import CoderModeSection from '../components/settings/CoderModeSection.jsx'
 import CoderOrgSection from '../components/settings/CoderOrgSection.jsx'
+import ExtensionSection from '../components/settings/ExtensionSection.jsx'
 import BrowserPermissionsSection from '../components/settings/BrowserPermissionsSection.jsx'
 import AiTaskBudgetsSection from '../components/settings/AiTaskBudgetsSection.jsx'
 import SandboxFallbackSection from '../components/settings/SandboxFallbackSection.jsx'
@@ -426,6 +427,14 @@ export default function Settings({ onNavigate, navData, isActive = true }) {
           </div>
 
           <CoderOrgSection part="machine" />
+
+          {/* The browser extension: the only way monoagent drives a browser */}
+          <div style={headingStyle}>
+            <span style={headingText}>Browser Extension</span>
+            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+          </div>
+
+          <ExtensionSection />
 
           {/* What AI agents may do in the browsers (machine-wide; plan C8) */}
           <div style={headingStyle}>
