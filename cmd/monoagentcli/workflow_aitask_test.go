@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -740,5 +741,49 @@ func TestExpectHashMustNotLookLikeAFlag(t *testing.T) {
 	}
 	if body, err := r.runRaw(t, "apply-fix", "--expect-hash", hash, "--allow-active", id); err != nil || body["applied"] != float64(1) {
 		t.Fatalf("--allow-active after a valid hash: %v %v", err, body)
+	}
+}
+
+// The exact argv the app sends, through the real root command: a bad --expect-hash value is
+// refused before anything is opened or written, and the valid forms still work.
+func TestExpectHashThroughTheRootCommand(t *testing.T) {
+	r := newFixRig(t, true)
+	id := r.task(t, "failed-run-fix", aitask.StatusComplete, fixResult("workflow-edit", editOf("s", `{"assignments":"a=2"}`)))
+	root := func(args ...string) (map[string]any, error) {
+		cmd := newRootCmd()
+		cmd.SetArgs(append([]string{"--profile", r.cfg.ProfileID, "--db-path", r.cfg.DBPath, "--json", "workflow", "apply-fix"}, args...))
+		cmd.SilenceErrors, cmd.SilenceUsage = true, true
+		var err error
+		out := captureStdout(t, func() { err = cmd.Execute() })
+		var body map[string]any
+		_ = json.Unmarshal([]byte(strings.TrimSpace(out)), &body)
+		return body, err
+	}
+	dry, err := root("--dry-run", "--", id)
+	hash, _ := dry["definitionHash"].(string)
+	if err != nil || !regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9:_-]{7,127}$`).MatchString(hash) {
+		t.Fatalf("the dry-run needs no hash and shows a well-formed one: %v %v", err, dry)
+	}
+	for name, args := range map[string][]string{
+		"a flag as the value": {"--expect-hash", "--allow-active", "--", id},
+		"a short flag":        {"--expect-hash", "-x", "--", id},
+		"empty":               {"--expect-hash", "", "--", id},
+		"7 characters":        {"--expect-hash", strings.Repeat("a", 7), "--", id},
+		"129 characters":      {"--expect-hash", strings.Repeat("a", 129), "--", id},
+	} {
+		body, err := root(args...)
+		if err == nil || clicore.ExitCodeFor(err) != 3 || codeOf(body) != "invalid_input" {
+			t.Errorf("%s: %v %v", name, err, body)
+		}
+	}
+	db, _ := initDB(r.cfg)
+	var n int
+	_ = db.DB.QueryRow(`SELECT COUNT(*) FROM ai_task_applies`).Scan(&n)
+	db.Close()
+	if n != 0 || r.workflow(t, "wf-1").Nodes[1].Config["assignments"] != "a=1" {
+		t.Fatalf("a refused input left a claim (%d) or changed the workflow", n)
+	}
+	if body, err := root("--expect-hash", hash, "--allow-active", "--", id); err != nil || body["applied"] != float64(1) {
+		t.Fatalf("a valid hash followed by --allow-active: %v %v", err, body)
 	}
 }
