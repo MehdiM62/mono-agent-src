@@ -75,7 +75,11 @@ const (
 )
 
 // Error is a refusal with a code the CLI and the GUI show.
-type Error struct{ Code, Message string }
+type Error struct {
+	Code, Message string
+	// Fields are extra machine-readable details for --json (for example file_inconsistent).
+	Fields map[string]any
+}
 
 func (e *Error) Error() string { return e.Message }
 
@@ -302,6 +306,14 @@ func Apply(ctx context.Context, profile string, result []byte, opts Options) (in
 	err = Store.SaveNodesGuarded(ctx, profile, plan.WorkflowID, plan.nodes, workflow.SaveGuard{ExpectHash: opts.ExpectHash, RevokeApprovals: true})
 	if errors.Is(err, workflow.ErrChangedSincePreview) {
 		return 0, fail(CodeChanged, "the workflow changed while the edit was being applied: preview it again")
+	}
+	var he *workflow.TxHookError
+	if errors.As(err, &he) {
+		return 0, he.Err // the caller's own refusal from inside the transaction (the apply-once claim)
+	}
+	if errors.Is(err, workflow.ErrFileInconsistent) {
+		return 0, &Error{Code: CodeFileSync, Message: fmt.Sprintf("the workflow file could not be written and could not be put back: the file and the database may disagree about workflow %s: %v", plan.WorkflowID, err),
+			Fields: map[string]any{"file_inconsistent": plan.WorkflowID}}
 	}
 	if errors.Is(err, workflow.ErrFileSyncFailed) {
 		return 0, fail(CodeFileSync, "the workflow file could not be written, so nothing was changed: %v", err)

@@ -16,6 +16,7 @@ package workflowaitask
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -100,7 +101,11 @@ func refuse(code, format string, a ...any) error {
 func cliErr(err error) error {
 	var fe *workflowfix.Error
 	if errors.As(err, &fe) {
-		return refuse(fe.Code, "%s", fe.Message)
+		e := refuse(fe.Code, "%s", fe.Message).(*coded)
+		for k, v := range fe.Fields {
+			e.fields[k] = v
+		}
+		return e
 	}
 	return err
 }
@@ -152,28 +157,40 @@ func applied(db *storage.Database, id string) (bool, error) {
 	return n > 0, nil
 }
 
-// claim records the apply of task t before anything is written: the primary key makes a second
-// apply of the same proposal (even a concurrent one) fail. The row is the audit line: who
-// (operator.Caller, "operator" for the user's own process), task, workflow and count, no value.
-func (d Deps) claim(db *storage.Database, t aitask.Task, workflowID string, edits int) error {
-	actor := operator.Caller()
-	if actor == "" {
-		actor = "operator"
-	}
-	_, err := db.DB.Exec(`INSERT INTO ai_task_applies (task_id, profile_id, kind, workflow_id, edit_count, actor, applied_at) VALUES (?,?,?,?,?,?,?)`,
-		t.ID, d.ProfileID(), t.Kind, workflowID, edits, actor, time.Now().UTC().Format(time.RFC3339Nano))
-	if err != nil {
-		if ok, _ := applied(db, t.ID); ok {
-			return refuse(CodeApplied, "the proposal of task %s was already applied: ask again for a new one", t.ID)
+// claimHook is the apply-once claim as a function for workflow.WithTxHook: it runs inside the
+// transaction of the write it guards, so the row commits with that write or not at all. The
+// primary key makes a second apply of the same proposal (even a concurrent one) fail. The row is
+// the audit line: who (operator.Caller, "operator" for the user's own process), task, workflow and
+// count, no value.
+func (d Deps) claimHook(t aitask.Task, workflowID string, edits int) func(context.Context, *sql.Tx) error {
+	return func(ctx context.Context, tx *sql.Tx) error {
+		actor := operator.Caller()
+		if actor == "" {
+			actor = "operator"
 		}
-		return err
+		_, err := tx.ExecContext(ctx, `INSERT INTO ai_task_applies (task_id, profile_id, kind, workflow_id, edit_count, actor, applied_at) VALUES (?,?,?,?,?,?,?)`,
+			t.ID, d.ProfileID(), t.Kind, workflowID, edits, actor, time.Now().UTC().Format(time.RFC3339Nano))
+		if err != nil {
+			var n int
+			if qerr := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM ai_task_applies WHERE task_id = ?`, t.ID).Scan(&n); qerr == nil && n > 0 {
+				return refuse(CodeApplied, "the proposal of task %s was already applied: ask again for a new one", t.ID)
+			}
+			return err
+		}
+		return nil
 	}
-	return nil
 }
 
-// unclaim takes the claim back when the write after it failed, so the user can try again.
-func unclaim(db *storage.Database, id string) {
-	_, _ = db.DB.Exec(`DELETE FROM ai_task_applies WHERE task_id = ?`, id)
+// auditInconsistent records that the file of workflow id may disagree with the database after a
+// failed save that could not put the previous file back. It returns err joined with a failure to
+// write the record, so nothing is lost silently.
+func (d Deps) auditInconsistent(db *storage.Database, t aitask.Task, workflowID string, err error) error {
+	_, werr := db.DB.Exec(`INSERT INTO ai_task_apply_audit (task_id, profile_id, workflow_id, event, at) VALUES (?,?,?,?,?)`,
+		t.ID, d.ProfileID(), workflowID, "file_inconsistent", time.Now().UTC().Format(time.RFC3339Nano))
+	if werr != nil {
+		return errors.Join(err, fmt.Errorf("recording the inconsistency: %w", werr))
+	}
+	return err
 }
 
 // completedAt is when the task's result was handed back.
@@ -254,12 +271,14 @@ func (d Deps) applyFix() *cobra.Command {
 			if plan.Active && !allowActive {
 				return refuse(workflowfix.CodeWorkflowActive, "workflow %q is active: confirm to apply the edit to it", plan.WorkflowName)
 			}
-			if err := d.claim(db, t, plan.WorkflowID, len(plan.Edits)); err != nil {
-				return err
-			}
-			n, err := workflowfix.Apply(ctx, d.ProfileID(), t.Result, workflowfix.Options{AllowActive: allowActive, Since: since, ExpectHash: expectHash})
+			// The claim commits with the write, inside its transaction: nothing to clean up on failure.
+			applyCtx := workflow.WithTxHook(ctx, d.claimHook(t, plan.WorkflowID, len(plan.Edits)))
+			n, err := workflowfix.Apply(applyCtx, d.ProfileID(), t.Result, workflowfix.Options{AllowActive: allowActive, Since: since, ExpectHash: expectHash})
 			if err != nil {
-				unclaim(db, t.ID)
+				var fe *workflowfix.Error
+				if errors.As(err, &fe) && fe.Fields["file_inconsistent"] != nil {
+					err = d.auditInconsistent(db, t, plan.WorkflowID, err)
+				}
 				return cliErr(err)
 			}
 			return d.print(cmd, map[string]any{"ok": true, "workflowId": plan.WorkflowID, "applied": n, "needsApproval": true},
@@ -308,15 +327,10 @@ func (d Deps) saveDraft() *cobra.Command {
 			if err != nil {
 				return refuse(CodeBadResult, "the workflow does not parse: %v", err)
 			}
-			if err := d.claim(db, t, "", len(doc.Nodes)); err != nil {
-				return err
-			}
-			wf, err := d.save(context.Background(), db, doc)
+			wf, err := d.save(context.Background(), db, t, doc)
 			if err != nil {
-				unclaim(db, t.ID)
 				return err
 			}
-			_, _ = db.DB.Exec(`UPDATE ai_task_applies SET workflow_id = ? WHERE task_id = ?`, wf.ID, t.ID)
 			// A new workflow has no approvals; revoking is the rule for everything this command writes.
 			_ = d.WorkflowStore(db).RevokeApprovals(context.Background(), wf.ID)
 			return d.print(cmd, map[string]any{"ok": true, "workflowId": wf.ID, "name": wf.Name, "nodeCount": len(wf.Nodes), "needsApproval": true},
@@ -327,7 +341,7 @@ func (d Deps) saveDraft() *cobra.Command {
 
 // save stores doc as a new inactive workflow of the profile under a fresh id,
 // whatever id or active flag the document carries, and records no approval.
-func (d Deps) save(ctx context.Context, db *storage.Database, doc workflow.Workflow) (*workflow.Workflow, error) {
+func (d Deps) save(ctx context.Context, db *storage.Database, t aitask.Task, doc workflow.Workflow) (*workflow.Workflow, error) {
 	wf := &workflow.Workflow{
 		ID:          uuid.New().String(),
 		Name:        doc.Name,
@@ -348,7 +362,13 @@ func (d Deps) save(ctx context.Context, db *storage.Database, doc workflow.Workf
 		c.WorkflowID = ""
 		wf.Connections = append(wf.Connections, c)
 	}
+	// The apply-once claim is written in the save's own transaction.
+	ctx = workflow.WithTxHook(ctx, d.claimHook(t, wf.ID, len(wf.Nodes)))
 	if err := d.WorkflowStore(db).SaveWorkflow(ctx, wf); err != nil {
+		var he *workflow.TxHookError
+		if errors.As(err, &he) {
+			return nil, he.Err
+		}
 		return nil, fmt.Errorf("save workflow: %w", err)
 	}
 	return wf, nil
