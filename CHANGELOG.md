@@ -21,6 +21,7 @@ Every command, tool and request that acts on a profile now names that profile. T
 
 ### Changed
 
+- **Freebuff is no longer a listed agent runtime.** monomind has no headless transport for it, so `Scan` drops it and the `FREEBUFF_CLI_BIN` override, its docs and its runtime labels are gone.
 - **The browser extension is the only way to browse, and it ships with the CLI.** `monoagentcli crawl <url>` and `action template capture <url>` no longer start a Chrome of their own: they open the page in your browser through the MonoAgent Bridge extension (public http and https pages only: not localhost, private addresses or local names) and fail if it is not connected. Their `--headless` flag is gone. The full extension folder is built into the CLI, so `extension install` unpacks the matching version into `~/.monoagent/extension` without a download (`--zip` still installs a zip of your own), and the new `extension info` says where it is and whether it is current. Settings → Browser Extension shows the folder, a copy button and the steps to load it unpacked.
 
 - **CLI.**
