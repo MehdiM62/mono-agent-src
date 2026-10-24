@@ -1895,7 +1895,11 @@
     "activeBody": "Este flujo está activo: se está ejecutando o está programado, así que el cambio afectará a su próxima ejecución. ¿Aplicarlo de todos modos?",
     "activeConfirm": "Aplicar al flujo activo",
     "activeDeclined": "El flujo está activo, así que no se aplicó el arreglo.",
-    "alreadyApplied": "Aplicado"
+    "alreadyApplied": "Aplicado",
+    "changedSincePreview": "El flujo cambió después de que lo revisaras: no se aplicó nada. Revísalo de nuevo.",
+    "reviewAgain": "Revisar de nuevo",
+    "tooLarge": "Esta propuesta es más grande de lo que la revisión puede mostrar: pide de nuevo un cambio más pequeño.",
+    "tooBigToReview": "Este cambio es más grande de lo que la revisión puede mostrar, así que no se puede aplicar desde aquí. Pide de nuevo un cambio más pequeño."
   },
   "coderOrg": {
     "title": "Equipo del chat de código y envíos",

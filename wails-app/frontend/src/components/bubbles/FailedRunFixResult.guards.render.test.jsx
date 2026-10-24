@@ -18,7 +18,7 @@ import { TaskResultLine } from './TaskResultLine.jsx'
 import { CoderBubbleContext } from './CoderBubbleContext.jsx'
 
 const result = { diagnosis: 'd', workflowId: 'w1', executionId: 'e1', fix: { kind: 'workflow-edit', description: 'x', edits: [{ node: 'n1', config: {} }] } }
-const preview = (over = {}) => ({ ok: true, workflowId: 'w1', workflowName: 'WF', edits: [{ node: 'n1', nodeName: 'N', path: 'url', before: 'a', after: 'b' }], warnings: [], ...over })
+const preview = (over = {}) => ({ ok: true, definitionHash: 'sha256:aaaa1111', workflowId: 'w1', workflowName: 'WF', edits: [{ node: 'n1', nodeName: 'N', path: 'url', before: 'a', after: 'b' }], warnings: [], ...over })
 const mount = (extra = {}) => render(<CoderBubbleContext.Provider value={{ openDraft: vi.fn(), navigate: vi.fn() }}><TaskResultLine kind="failed-run-fix" taskId="t1" result={result} {...extra} /></CoderBubbleContext.Provider>)
 const applyBtn = () => screen.getByRole('button', { name: /Apply fix|Applying|^Applied$/ })
 
@@ -102,6 +102,82 @@ describe('warning codes', () => {
   })
 })
 
+describe('the reviewed hash and size limits', () => {
+  it('passes back the hash of the preview that was shown, and keeps Apply disabled without one', async () => {
+    aitaskApplyApi.preview.mockResolvedValue(preview({ definitionHash: undefined }))
+    mount()
+    await screen.findByTestId('fix-diff')
+    expect(applyBtn()).toBeDisabled()
+    cleanup()
+    aitaskApplyApi.preview.mockResolvedValue(preview({ definitionHash: 'sha256:bbbb2222' }))
+    aitaskApplyApi.apply.mockResolvedValue({ ok: true, applied: 1, workflowId: 'w1' })
+    mount()
+    await screen.findByTestId('fix-diff')
+    fireEvent.click(applyBtn())
+    await screen.findByText(/Applied 1 edits/)
+    expect(aitaskApplyApi.apply).toHaveBeenCalledWith('t1', false, 'sha256:bbbb2222')
+  })
+
+  it('changed_since_preview: says nothing was applied, and Review again loads a fresh preview whose hash is used', async () => {
+    aitaskApplyApi.preview.mockResolvedValueOnce(preview({ definitionHash: 'sha256:old00001' })).mockResolvedValueOnce(preview({ definitionHash: 'sha256:new00002' }))
+    aitaskApplyApi.apply.mockRejectedValueOnce(new Error('changed_since_preview: differs')).mockResolvedValueOnce({ ok: true, applied: 1, workflowId: 'w1' })
+    mount()
+    await screen.findByTestId('fix-diff')
+    fireEvent.click(applyBtn())
+    expect(await screen.findByRole('alert')).toHaveTextContent('The workflow changed after you reviewed this: nothing was applied. Review it again.')
+    fireEvent.click(screen.getByRole('button', { name: 'Review again' }))
+    await waitFor(() => expect(aitaskApplyApi.preview).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(applyBtn()).toBeEnabled())
+    fireEvent.click(applyBtn())
+    await screen.findByText(/Applied 1 edits/)
+    expect(aitaskApplyApi.apply.mock.calls.map(c => c[2])).toEqual(['sha256:old00001', 'sha256:new00002'])
+  })
+
+  it('too_large: the plain sentence and Ask again; no_target: the CLI text', async () => {
+    aitaskApplyApi.preview.mockResolvedValue(preview())
+    aitaskApplyApi.apply.mockRejectedValueOnce(new Error('too_large: big'))
+    mount()
+    await screen.findByTestId('fix-diff')
+    fireEvent.click(applyBtn())
+    expect(await screen.findByRole('alert')).toHaveTextContent('This proposal is bigger than the review can show: ask again for a smaller change.')
+    expect(screen.getByRole('button', { name: /Ask again/ })).toBeInTheDocument()
+    cleanup()
+    aitaskApplyApi.apply.mockRejectedValueOnce(new Error('no_target: the node n9 does not exist'))
+    mount()
+    await screen.findByTestId('fix-diff')
+    fireEvent.click(applyBtn())
+    expect(await screen.findByRole('alert')).toHaveTextContent('the node n9 does not exist')
+  })
+
+  it('shows every changed leaf (no cut-off at 50) and a full 2000-character value behind Show more', async () => {
+    const edits = Array.from({ length: 50 }, (_, i) => ({ node: `n${i}`, nodeName: `Node ${i}`, path: 'p', before: 'a', after: i === 49 ? 'z'.repeat(2000) : 'b' }))
+    aitaskApplyApi.preview.mockResolvedValue(preview({ edits }))
+    mount()
+    const diff = await screen.findByTestId('fix-diff')
+    expect(diff.querySelectorAll('li')).toHaveLength(50)
+    expect(screen.queryByText('z'.repeat(2000))).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
+    expect(screen.getByText('z'.repeat(2000))).toBeInTheDocument()
+    expect(applyBtn()).toBeEnabled()
+  })
+
+  it('more than 50 leaves, or a value over 2000 characters: Apply is disabled and the review says it cannot show it', async () => {
+    const many = Array.from({ length: 51 }, (_, i) => ({ node: `n${i}`, nodeName: 'N', path: 'p', before: 'a', after: 'b' }))
+    aitaskApplyApi.preview.mockResolvedValue(preview({ edits: many }))
+    mount()
+    await screen.findByTestId('fix-diff')
+    expect(screen.getByRole('alert')).toHaveTextContent('bigger than the review can show')
+    expect(applyBtn()).toBeDisabled()
+    cleanup()
+    aitaskApplyApi.preview.mockResolvedValue(preview({ edits: [{ node: 'n', nodeName: 'N', path: 'p', before: 'a', after: 'c'.repeat(2001) }] }))
+    mount()
+    await screen.findByTestId('fix-diff')
+    expect(applyBtn()).toBeDisabled()
+    fireEvent.click(applyBtn())
+    expect(aitaskApplyApi.apply).not.toHaveBeenCalled()
+  })
+})
+
 describe('typed refusals', () => {
   const clickApply = async () => { await screen.findByTestId('fix-diff'); fireEvent.click(applyBtn()) }
 
@@ -144,7 +220,7 @@ describe('typed refusals', () => {
     await screen.findByText(/Applied 1 edits/)
     expect(confirm).toHaveBeenCalledTimes(2)
     expect(confirm.mock.calls[1][0]).toMatch(/running or scheduled/)
-    expect(aitaskApplyApi.apply).toHaveBeenCalledWith('t1', true)
+    expect(aitaskApplyApi.apply).toHaveBeenCalledWith('t1', true, 'sha256:aaaa1111')
   })
 
   it('an active workflow, second confirm declined: nothing is applied', async () => {
@@ -162,7 +238,7 @@ describe('typed refusals', () => {
     mount()
     await clickApply()
     await screen.findByText(/Applied 1 edits/)
-    expect(aitaskApplyApi.apply.mock.calls).toEqual([['t1', false], ['t1', true]])
+    expect(aitaskApplyApi.apply.mock.calls).toEqual([['t1', false, 'sha256:aaaa1111'], ['t1', true, 'sha256:aaaa1111']])
   })
 
   it('a normal apply never sends the allow flag', async () => {
@@ -171,6 +247,6 @@ describe('typed refusals', () => {
     mount()
     await clickApply()
     await screen.findByText(/Applied 1 edits/)
-    expect(aitaskApplyApi.apply).toHaveBeenCalledWith('t1', false)
+    expect(aitaskApplyApi.apply).toHaveBeenCalledWith('t1', false, 'sha256:aaaa1111')
   })
 })

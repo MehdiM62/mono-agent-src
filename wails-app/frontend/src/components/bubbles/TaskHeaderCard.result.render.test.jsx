@@ -28,7 +28,7 @@ function done(kind, result, onNavigate) {
 const fixResult = (fix = { kind: 'workflow-edit', description: 'Fix the URL', edits: [{ node: 'n1', config: {} }] }) =>
   ({ summary: 's', diagnosis: 'The URL returns 500.', workflowId: 'w1', executionId: 'e1', fix })
 const preview = (over = {}) => ({
-  ok: true, workflowId: 'w1', workflowName: 'Daily digest',
+  ok: true, definitionHash: 'sha256:cccc3333', workflowId: 'w1', workflowName: 'Daily digest',
   edits: [{ node: 'n1', nodeName: 'Fetch rows', path: 'url', before: '/v1/rows', after: '/v2/rows' }],
   warnings: [{ code: 'new_outbound', text: 'sends email' }, { code: 'credential_field', text: 'x' }, { code: 'expression_added', text: 'y' }, { code: 'workflow_active', text: 'z' }], ...over,
 })

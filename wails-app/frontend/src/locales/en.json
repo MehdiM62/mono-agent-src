@@ -1937,7 +1937,11 @@
     "activeBody": "This workflow is active: it is running or scheduled, so the change takes effect for its next run. Apply it anyway?",
     "activeConfirm": "Apply to the active workflow",
     "activeDeclined": "The workflow is active, so the fix was not applied.",
-    "alreadyApplied": "Applied"
+    "alreadyApplied": "Applied",
+    "changedSincePreview": "The workflow changed after you reviewed this: nothing was applied. Review it again.",
+    "reviewAgain": "Review again",
+    "tooLarge": "This proposal is bigger than the review can show: ask again for a smaller change.",
+    "tooBigToReview": "This change is bigger than the review can show, so it cannot be applied from here. Ask again for a smaller change."
   },
   "coderOrg": {
     "title": "Coder chat team and sends",
