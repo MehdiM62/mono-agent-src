@@ -127,27 +127,11 @@ func (s *Server) holderFor(w http.ResponseWriter, r *http.Request) (*aitask.Serv
 	return svc, token, true
 }
 
-type kindInfo struct {
-	Name          string         `json:"name"`
-	Description   string         `json:"description,omitempty"`
-	DefaultAccess string         `json:"defaultAccess,omitempty"`
-	UnattendedOK  bool           `json:"unattendedOk"`
-	Schema        map[string]any `json:"schema,omitempty"`
-}
-
 func (s *Server) handleAitaskKinds(w http.ResponseWriter, r *http.Request) {
 	if _, ok := aitaskCaller(w, r); !ok {
 		return
 	}
-	out := []kindInfo{}
-	for _, n := range aitask.Names() {
-		k, err := aitask.Lookup(n)
-		if err != nil {
-			continue
-		}
-		out = append(out, kindInfo{Name: k.Name, Description: k.Description, DefaultAccess: k.DefaultAccess,
-			UnattendedOK: k.UnattendedOK, Schema: k.Schema})
-	}
+	out := aitask.KindInfos()
 	writeJSON(w, http.StatusOK, map[string]any{"kinds": out})
 }
 

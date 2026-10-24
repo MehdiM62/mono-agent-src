@@ -20,6 +20,7 @@ import (
 //
 //	operator: an agent, the chat or a workflow is refused (exit 3, operator_only), even with a task's token
 //	either:   the operator, or the task's own session for its own task
+//	open:     anyone: it reads the kind registry and nothing of the user's
 //	holder:   only the holder of the task's token (bad_token otherwise), the operator included
 var aitaskPolicy = map[string]struct {
 	who   string
@@ -35,6 +36,7 @@ var aitaskPolicy = map[string]struct {
 	"status":    {"either", map[string]string{}, []string{"{id}"}},
 	"result":    {"either", map[string]string{}, []string{"{id}"}},
 	"cancel":    {"either", map[string]string{}, []string{"{id}"}},
+	"kinds":     {"open", map[string]string{}, nil},
 	"list":      {"either", map[string]string{"kind": "filter", "application": "filter"}, nil},
 	"complete":  {"holder", map[string]string{"result": "input"}, []string{"{id}", "--result", "{file}"}},
 	// "nested": has subcommands of its own, classified in aitask_budget_flags_test.go.
@@ -254,5 +256,13 @@ func TestAitaskSubmitUnattendedFullAccessIsRefused(t *testing.T) {
 		if clicore.ExitCodeFor(err) != 3 || errCode(err) != aitask.CodeUnattendedFull {
 			t.Errorf("--unattended --access %s: %v", access, err)
 		}
+	}
+}
+
+func TestAitaskKindsIsOpenToAnAgent(t *testing.T) {
+	r := newAitaskRig(t)
+	asPlainAgent(t)
+	if out, err := r.run(t, "kinds"); err != nil || !strings.Contains(out, "generic") {
+		t.Fatalf("an agent listing the kinds: %v %s", err, out)
 	}
 }
