@@ -12,9 +12,9 @@ type ExtensionInfo struct {
 	Version   string `json:"version"`
 }
 
-// GetExtensionInfo says where the extension is unpacked. A missing or out of
-// date copy is unpacked first (from the CLI's own bundle, no download), so
-// the path it returns always holds the extension to load.
+// GetExtensionInfo says where the extension is unpacked and whether that
+// copy is the one this app ships. It only reads: unpacking replaces the
+// folder the browser has loaded, so the user asks for it (InstallExtension).
 func (a *App) GetExtensionInfo() (*ExtensionInfo, error) {
 	if err := a.signedOut(); err != nil {
 		return nil, err
@@ -23,13 +23,10 @@ func (a *App) GetExtensionInfo() (*ExtensionInfo, error) {
 	if err := a.globalJSON(profileCLITimeout, &info, "extension", "info"); err != nil {
 		return nil, err
 	}
-	if !info.Current {
-		return a.InstallExtension()
-	}
 	return &info, nil
 }
 
-// InstallExtension unpacks the bundled extension again (after an update) and
+// InstallExtension unpacks the extension that ships with the app (first time, or after an update) and
 // returns the fresh info.
 func (a *App) InstallExtension() (*ExtensionInfo, error) {
 	if err := a.signedOut(); err != nil {

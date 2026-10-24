@@ -10,3 +10,9 @@ import "embed"
 //
 //go:embed chrome-extension
 var ChromeExtension embed.FS
+
+// ExtensionNotice is the NOTICE file the release zip carries beside the
+// extension; `extension install` writes it into the unpacked folder too.
+//
+//go:embed NOTICE
+var ExtensionNotice []byte

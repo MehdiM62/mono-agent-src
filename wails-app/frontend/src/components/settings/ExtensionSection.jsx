@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { GetExtensionInfo, InstallExtension } from '../../wailsjs/go/main/App'
 
 // The browser extension is how monoagent drives a browser; there is no other
-// way. It ships inside the app and is unpacked to a fixed folder
+// way. It ships inside the app and is unpacked, on request, to a fixed folder
 // (`monoagentcli extension info|install`, app_extension_install.go), which
 // the browser loads once with "Load unpacked". This shows that folder and
 // the steps.
@@ -37,6 +37,7 @@ export default function ExtensionSection() {
     }
   }, [])
   useEffect(() => { run(GetExtensionInfo) }, [run])
+  const stale = info && (!info.installed || !info.current)
 
   const copy = async () => {
     try {
@@ -63,6 +64,13 @@ export default function ExtensionSection() {
             </code>
             <button style={button} onClick={copy}>{copied ? 'Copied' : 'Copy path'}</button>
           </div>
+          {stale && (
+            <div data-testid="extension-stale" style={{ ...hint, color: 'var(--yellow)' }}>
+              {info.installed
+                ? 'The unpacked copy is not the one this app ships. Click Update, then Reload the extension in your browser.'
+                : 'The extension is not unpacked yet. Click Install to put it in the folder above.'}
+            </div>
+          )}
           <ol style={{ ...hint, margin: 0, paddingLeft: 18 }}>
             <li>Open <code>chrome://extensions</code> (Edge: <code>edge://extensions</code>).</li>
             <li>Turn on <strong>Developer mode</strong> (top right).</li>
@@ -74,7 +82,7 @@ export default function ExtensionSection() {
               {info.version ? `Version ${info.version}. ` : ''}After MonoAgent updates, reinstall and click <strong>Reload</strong> on the extension.
             </span>
             <button style={{ ...button, marginLeft: 'auto' }} disabled={busy} onClick={() => run(InstallExtension)}>
-              {busy ? 'Working…' : 'Reinstall'}
+              {busy ? 'Working…' : !info.installed ? 'Install' : info.current ? 'Reinstall' : 'Update'}
             </button>
           </div>
         </>

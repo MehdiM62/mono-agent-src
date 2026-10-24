@@ -33,6 +33,9 @@ var bundledExtension = func() fs.FS {
 	return sub
 }()
 
+// bundledNotice is the NOTICE written beside the extension, as in the release zip.
+var bundledNotice = monoagent.ExtensionNotice
+
 // extensionDir is where the extension is unpacked: the folder the browser
 // loads it from, so it stays put across updates.
 func extensionDir() (string, error) {
@@ -45,7 +48,9 @@ func extensionDir() (string, error) {
 
 // shipsWithExtension reports whether a bundled file goes into the unpacked
 // folder: the unit tests stay in the repo.
-func shipsWithExtension(name string) bool { return !strings.HasSuffix(name, ".test.mjs") }
+func shipsWithExtension(name string) bool {
+	return !strings.HasSuffix(name, ".test.mjs") && name != "NOTICE"
+}
 
 func newExtensionInstallCmd(cfg *Deps) *cobra.Command {
 	var zipPath string
@@ -167,7 +172,7 @@ func manifestVersion(fsys fs.FS) string {
 }
 
 // extensionDigest is one sha256 over the names and contents of every file
-// that ships, so an unpacked folder can be compared with the bundled one.
+// that ships (the NOTICE is written by the installer, not part of the folder), so an unpacked folder can be compared with the bundled one.
 func extensionDigest(fsys fs.FS) (string, error) {
 	h := sha256.New()
 	err := fs.WalkDir(fsys, ".", func(name string, d fs.DirEntry, err error) error {
@@ -188,6 +193,11 @@ func extensionDigest(fsys fs.FS) (string, error) {
 // installExtensionFS copies the extension in fsys into dir, replacing what is there.
 func installExtensionFS(fsys fs.FS, dir string) error {
 	return swapExtensionIn(dir, func(staged string) error {
+		if len(bundledNotice) > 0 {
+			if err := os.WriteFile(filepath.Join(staged, "NOTICE"), bundledNotice, 0o644); err != nil {
+				return err
+			}
+		}
 		return fs.WalkDir(fsys, ".", func(name string, d fs.DirEntry, err error) error {
 			if err != nil || d.IsDir() || !shipsWithExtension(name) {
 				return err

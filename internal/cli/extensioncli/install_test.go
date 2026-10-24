@@ -125,6 +125,9 @@ func TestExtensionInstallUnpacksTheBundledExtension(t *testing.T) {
 		t.Fatalf("install: %v\n%s", err, out)
 	}
 	dir := filepath.Join(home, ".monoagent", "extension")
+	if b, _ := os.ReadFile(filepath.Join(dir, "NOTICE")); len(b) == 0 {
+		t.Errorf("the NOTICE was not written beside the extension")
+	}
 	for _, want := range []string{"manifest.json", "background.js", "sub/nested.js"} {
 		if _, err := os.Stat(filepath.Join(dir, want)); err != nil {
 			t.Errorf("%s was not unpacked: %v", want, err)

@@ -36,6 +36,20 @@ describe('ExtensionSection', () => {
     await waitFor(() => expect(screen.getByText(/Version 1.6.0/)).toBeInTheDocument())
   })
 
+  it('offers Install when nothing is unpacked, and does not unpack on its own', async () => {
+    App.GetExtensionInfo.mockResolvedValue({ ...info, installed: false, current: false, version: '' })
+    await mount()
+    expect(await screen.findByTestId('extension-stale')).toHaveTextContent(/not unpacked yet/)
+    expect(screen.getByRole('button', { name: 'Install' })).toBeInTheDocument()
+    expect(App.InstallExtension).not.toHaveBeenCalled()
+  })
+
+  it('offers Update when the unpacked copy is not the shipped one', async () => {
+    App.GetExtensionInfo.mockResolvedValue({ ...info, current: false })
+    await mount()
+    expect(await screen.findByRole('button', { name: 'Update' })).toBeInTheDocument()
+  })
+
   it('shows the CLI error instead of a path', async () => {
     App.GetExtensionInfo.mockRejectedValue(new Error('sign in first'))
     await mount()
