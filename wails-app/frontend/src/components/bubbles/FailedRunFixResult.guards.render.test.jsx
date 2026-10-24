@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import '@testing-library/jest-dom/vitest'
+import React from 'react'
 import { render, screen, fireEvent, waitFor, cleanup, act } from '@testing-library/react'
 import '../../i18n.js'
 
@@ -249,6 +250,79 @@ describe('a preview is bound to its task', () => {
     rerender(wrap('tB'))
     expect(screen.queryByTestId('fix-diff')).toBeNull()
     expect(applyBtn()).toBeDisabled()
+  })
+})
+
+describe('every apply call re-verifies', () => {
+  const activePreview = (hash = 'sha256:hashAAAA') => preview({ definitionHash: hash, warnings: [{ code: 'workflow_active', text: 'active' }] })
+
+  it('switching tasks while the active-workflow confirm is open, then confirming: no binding call', async () => {
+    aitaskApplyApi.preview.mockResolvedValueOnce(activePreview()).mockReturnValueOnce(new Promise(() => {}))
+    let answerActive
+    confirm.mockResolvedValueOnce(true).mockReturnValueOnce(new Promise(r => { answerActive = r }))
+    const { rerender } = render(withTask('tA'))
+    await screen.findByTestId('fix-diff')
+    fireEvent.click(applyBtn())
+    await waitFor(() => expect(confirm).toHaveBeenCalledTimes(2))
+    rerender(withTask('tB'))
+    await act(async () => { answerActive(true) })
+    expect(aitaskApplyApi.apply).not.toHaveBeenCalled()
+    expect(applyBtn()).toBeDisabled()
+  })
+
+  it('the retry after a workflow_active_needs_confirm refusal is dropped when the task changed meanwhile', async () => {
+    aitaskApplyApi.preview.mockResolvedValueOnce(preview()).mockReturnValueOnce(new Promise(() => {}))
+    aitaskApplyApi.apply.mockRejectedValueOnce(new Error('workflow_active_needs_confirm: running'))
+    let answerActive
+    confirm.mockResolvedValueOnce(true).mockReturnValueOnce(new Promise(r => { answerActive = r }))
+    const { rerender } = render(withTask('tA'))
+    await screen.findByTestId('fix-diff')
+    fireEvent.click(applyBtn())
+    await waitFor(() => expect(confirm).toHaveBeenCalledTimes(2))
+    rerender(withTask('tB'))
+    await act(async () => { answerActive(true) })
+    expect(aitaskApplyApi.apply).toHaveBeenCalledTimes(1) // only the first, refused call
+  })
+
+  it('Review again, then Apply: only the NEW hash is ever sent', async () => {
+    aitaskApplyApi.preview.mockResolvedValueOnce(preview({ definitionHash: 'sha256:old00001' })).mockResolvedValueOnce(preview({ definitionHash: 'sha256:new00002' }))
+    aitaskApplyApi.apply.mockRejectedValueOnce(new Error('changed_since_preview: x')).mockResolvedValueOnce({ ok: true, applied: 1, workflowId: 'w1' })
+    mount()
+    await screen.findByTestId('fix-diff')
+    fireEvent.click(applyBtn())
+    await screen.findByRole('button', { name: 'Review again' })
+    fireEvent.click(screen.getByRole('button', { name: 'Review again' }))
+    await waitFor(() => expect(applyBtn()).toBeEnabled())
+    fireEvent.click(applyBtn())
+    await screen.findByText(/Applied 1 edits/)
+    expect(aitaskApplyApi.apply.mock.calls.map(c => c[2])).toEqual(['sha256:old00001', 'sha256:new00002'])
+  })
+
+  it('StrictMode makes exactly one preview request and one apply', async () => {
+    aitaskApplyApi.preview.mockResolvedValue(preview())
+    aitaskApplyApi.apply.mockResolvedValue({ ok: true, applied: 1, workflowId: 'w1' })
+    render(<React.StrictMode>{withTask('tA')}</React.StrictMode>)
+    await screen.findByTestId('fix-diff')
+    expect(aitaskApplyApi.preview).toHaveBeenCalledTimes(1)
+    fireEvent.click(applyBtn())
+    fireEvent.click(applyBtn())
+    await screen.findByText(/Applied 1 edits/)
+    expect(aitaskApplyApi.apply).toHaveBeenCalledTimes(1)
+  })
+
+  it('invalid_key and file_sync_failed show the CLI text plainly', async () => {
+    aitaskApplyApi.preview.mockResolvedValue(preview())
+    aitaskApplyApi.apply.mockRejectedValueOnce(new Error('invalid_key: key "a\u202eb" has hidden characters'))
+    mount()
+    await screen.findByTestId('fix-diff')
+    fireEvent.click(applyBtn())
+    expect(await screen.findByRole('alert')).toHaveTextContent('has hidden characters')
+    cleanup()
+    aitaskApplyApi.apply.mockRejectedValueOnce(new Error('file_sync_failed: the file could not be synced (file_inconsistent)'))
+    mount()
+    await screen.findByTestId('fix-diff')
+    fireEvent.click(applyBtn())
+    expect(await screen.findByRole('alert')).toHaveTextContent('file_inconsistent')
   })
 })
 
