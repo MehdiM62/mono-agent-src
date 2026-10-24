@@ -124,8 +124,23 @@ export function moveBubble(bubbles, fromKey, toKey) {
 
 // orgBubble is a running org opened as a bubble (#229): chatted with
 // through its boss. Its key can never collide with a conversation id.
-export function orgBubble(orgName) {
-  return { key: `org:${orgName}`, kind: 'org', orgName, conversationId: '', cwd: '', model: '', runtime: '' }
+// A circle is one org RUN: the key is org:<name>#<runId> once the run is
+// known, org:<name> before (and for bubbles saved by older builds). finished
+// marks a read-only bubble for a run that is over; an org has at most one
+// live (not finished) bubble. slot is a React identity that survives the
+// key changing when the run id arrives, so nothing remounts.
+let slotSeq = 0
+export function orgBubbleKey(orgName, runId = '') {
+  return runId ? `org:${orgName}#${runId}` : `org:${orgName}`
+}
+
+export function orgBubble(orgName, runId = '', finished = false) {
+  const id = typeof runId === 'string' ? runId : ''
+  slotSeq += 1
+  return {
+    key: orgBubbleKey(orgName, id), slot: `org-slot-${slotSeq}`, kind: 'org', orgName, runId: id, finished: !!finished && !!id,
+    conversationId: '', cwd: '', model: '', runtime: '',
+  }
 }
 
 export function isOrgBubble(b) {
@@ -142,9 +157,19 @@ export function loadState(storage = globalThis.localStorage) {
   try {
     const raw = storage?.getItem(STORAGE_KEY)
     const parsed = raw ? JSON.parse(raw) : null
+    const liveOrgs = new Set()
     const bubbles = Array.isArray(parsed?.bubbles)
       ? parsed.bubbles.map(b => {
-        if (b?.kind === 'org' && typeof b.orgName === 'string' && b.orgName) return orgBubble(b.orgName)
+        if (b?.kind === 'org' && typeof b.orgName === 'string' && b.orgName) {
+          // Entries saved before per-run bubbles have no runId or finished flag.
+          const runId = typeof b.runId === 'string' ? b.runId : ''
+          let finished = b.finished === true && !!runId
+          if (!finished) {
+            // Never more than one live bubble per org: a second one is a finished run, or nothing if it has no run.
+            if (liveOrgs.has(b.orgName)) { if (!runId) return null; finished = true } else liveOrgs.add(b.orgName)
+          }
+          return orgBubble(b.orgName, runId, finished)
+        }
         if (b && typeof b.conversationId === 'string' && b.conversationId) {
           // No stored level is unknown, never assumed: the pane looks the real one up.
           return {
@@ -154,7 +179,7 @@ export function loadState(storage = globalThis.localStorage) {
           }
         }
         return null
-      }).filter(Boolean)
+      }).filter(Boolean).filter((b, i, all) => all.findIndex(x => x.key === b.key) === i)
       : []
     const side = parsed?.side === 'left' ? 'left' : 'right'
     return { bubbles, side }
@@ -167,7 +192,7 @@ export function saveState(state, storage = globalThis.localStorage) {
   try {
     const bubbles = state.bubbles.filter(b => b.conversationId || (b.kind === 'org' && b.orgName))
       .map(b => (b.kind === 'org'
-        ? { kind: 'org', orgName: b.orgName }
+        ? { kind: 'org', orgName: b.orgName, runId: b.runId || '', finished: !!b.finished }
         : {
           conversationId: b.conversationId, cwd: b.cwd || '', model: b.model || '', runtime: b.runtime || '',
           // Additive fields: an older build reads the first four and ignores the rest.

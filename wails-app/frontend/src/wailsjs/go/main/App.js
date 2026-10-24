@@ -274,6 +274,10 @@ export function CoderSetAppAccess(arg1) {
   return window['go']['main']['App']['CoderSetAppAccess'](arg1);
 }
 
+export function CoderSetDefaultAccess(arg1) {
+  return window['go']['main']['App']['CoderSetDefaultAccess'](arg1);
+}
+
 export function ConfirmApplicationSubmitted(arg1) {
   return window['go']['main']['App']['ConfirmApplicationSubmitted'](arg1);
 }
@@ -1076,6 +1080,10 @@ export function ListWorkflowTemplates() {
 
 export function ListWorkflows() {
   return window['go']['main']['App']['ListWorkflows']();
+}
+
+export function LowerAITaskBudget(arg1, arg2, arg3) {
+  return window['go']['main']['App']['LowerAITaskBudget'](arg1, arg2, arg3);
 }
 
 export function LoginSocial(arg1) {

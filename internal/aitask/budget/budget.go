@@ -185,10 +185,7 @@ func (l *Ledger) LowerCap(scope, key string, usd float64, kind, by string) error
 		return &aitask.Error{Code: CodeCapRaise,
 			Message: fmt.Sprintf("a cap can only be lowered here: %v USD is above the current %v USD, and only the operator raises a cap", usd, cur)}
 	}
-	_, err = l.DB.Exec(`INSERT INTO ai_budgets (scope, key, cap_usd, updated_by, updated_at) VALUES (?,?,?,?,?)
-		ON CONFLICT(scope, key) DO UPDATE SET cap_usd = MIN(cap_usd, excluded.cap_usd), updated_by = excluded.updated_by, updated_at = excluded.updated_at`,
-		scope, key, usd, by, l.now())
-	return err
+	return l.SetCapMin(scope, key, usd, by)
 }
 
 // Resolve is the cap that applies to a task of kind in conversationID (role

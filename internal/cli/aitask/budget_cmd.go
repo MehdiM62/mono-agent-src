@@ -2,6 +2,7 @@ package aitask
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -124,23 +125,42 @@ func (c *cli) budgetSet() *cobra.Command {
 }
 
 func (c *cli) budgetLower() *cobra.Command {
-	var taskID string
+	var taskID, conversationID string
 	var usd float64
 	cmd := &cobra.Command{
-		Use:   "lower --task ID --usd N",
-		Short: "Lower the cap of a task's conversation (never raises it)",
-		Long: "Lowers the spend cap of the task's conversation to N, or refuses when N is above the cap that applies now " +
-			"(cap_raise_refused). The task's own session may run it for its own task, and the user for any.",
+		Use:   "lower (--task ID | --conversation ID) --usd N",
+		Short: "Lower the cap of a chat (never raises it)",
+		Long: "--task lowers the spend cap of the task's conversation to N, or refuses when N is above the cap that applies now " +
+			"(cap_raise_refused). --conversation creates or lowers the cap of that conversation, only to a value strictly below the " +
+			"cap that applies to it now (cap_raise_refused otherwise, no_cap_to_lower when no cap applies at all). The user may lower " +
+			"any; a task's own session only its own task's conversation.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if taskID == "" || !cmd.Flags().Changed("usd") {
-				return clicore.InvalidInput("--task and --usd are required")
+			if (taskID == "") == (conversationID == "") || !cmd.Flags().Changed("usd") {
+				return clicore.InvalidInput("--usd and exactly one of --task and --conversation are required")
 			}
 			svc, closeDB, err := c.open()
 			if err != nil {
 				return err
 			}
 			defer closeDB()
+			if conversationID != "" {
+				by := "operator"
+				if id := os.Getenv(aitask.EnvTaskID); id != "" && holder(svc.Store, id) {
+					if t, err := svc.Store.Get(id); err == nil && t.ConversationID == conversationID {
+						by = "task:" + id
+					}
+				}
+				if by == "operator" {
+					if err := clicore.RequireOperator(c.d.RequireOperator, "lower an AI task budget"); err != nil {
+						return err
+					}
+				}
+				if err := ledger(svc).LowerConversationCap(conversationID, usd, by); err != nil {
+					return cliErr(err)
+				}
+				return c.print(cmd, map[string]any{"conversationId": conversationID, "capUsd": usd}, "ok")
+			}
 			by := "operator"
 			if holder(svc.Store, taskID) {
 				by = "task:" + taskID
@@ -158,6 +178,7 @@ func (c *cli) budgetLower() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&taskID, "task", "", "The task whose conversation's cap is lowered")
+	cmd.Flags().StringVar(&conversationID, "conversation", "", "The conversation whose cap is created or lowered")
 	cmd.Flags().Float64Var(&usd, "usd", 0, "The new cap in USD (0 means no spend)")
 	return cmd
 }

@@ -32,7 +32,7 @@ export function useBrowserLevel(kind, active) {
 // useCostVsCap: { spentUsd, capUsd, scope } for a conversation bound to a task
 // (that task's cap), else the global cap from the budget list; null when none
 // is set or it cannot be read.
-export function useCostVsCap(taskId, active) {
+export function useCostVsCap(taskId, active, version = 0) {
   const [cap, setCap] = useState(undefined)
   useEffect(() => {
     if (!active) return undefined
@@ -45,7 +45,7 @@ export function useCostVsCap(taskId, active) {
       })
     read.then(v => { if (live) setCap(v) }).catch(() => { if (live) setCap(null) })
     return () => { live = false }
-  }, [taskId, active])
+  }, [taskId, active, version])
   return cap
 }
 

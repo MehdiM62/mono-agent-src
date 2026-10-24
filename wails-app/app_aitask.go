@@ -48,6 +48,9 @@ type AITask struct {
 	Error          string `json:"error"`
 	Fallback       string `json:"fallback"`
 	Reason         string `json:"reason"`
+	// Result is the validated result the task completed with (its shape is
+	// the kind's); the task header renders it as text.
+	Result any `json:"result"`
 }
 
 // AITaskState says whether a button can hand work to the coder, and why not.

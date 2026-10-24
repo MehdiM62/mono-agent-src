@@ -153,8 +153,8 @@ export default function RecordingReview({ recording, automationId, onBack, onSav
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <button className="btn btn-ghost btn-sm" onClick={onBack} style={{ gap: 5 }}><ArrowLeft size={11} /> Recordings</button>
         <span title={recording.title || recording.id} style={{ ...mono, fontSize: 11.5, color: 'var(--text)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{recording.title || recording.id}</span>
-        <SendToCoderButton label="Discuss with coder" goal="Review this recording and the action drafted from it: check the steps and inputs, and suggest improvements."
-          context={[selectionText(`Recording ${recording.id}${recording.title ? `: ${recording.title}` : ''}; automation ${automationId || '(new)'}`)]}
+        <SendToCoderButton kind="recording-analyze" label="Discuss with coder" goal="Review this recording and the action drafted from it: check the steps and inputs, and suggest improvements."
+          context={[selectionText(`recording: ${recording.id}${recording.title ? `\ntitle: ${String(recording.title).replace(/\s+/g, ' ').slice(0, 200)}` : ''}`)]}
           origin={{ page: 'connections', label: 'Connections' }} />
       </div>
       {phase === 'analyzing' && <Busy text="Analyzing the recording with AI — this can take a minute…" />}

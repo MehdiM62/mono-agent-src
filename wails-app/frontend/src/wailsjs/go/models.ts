@@ -49,6 +49,7 @@ export namespace main {
 	    error: string;
 	    fallback: string;
 	    reason: string;
+	    result: any;
 	
 	    static createFrom(source: any = {}) {
 	        return new AITask(source);
@@ -67,6 +68,7 @@ export namespace main {
 	        this.error = source["error"];
 	        this.fallback = source["fallback"];
 	        this.reason = source["reason"];
+	        this.result = source["result"];
 	    }
 	}
 	export class AITaskState {

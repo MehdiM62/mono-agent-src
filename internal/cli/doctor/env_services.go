@@ -26,6 +26,7 @@ import (
 	"github.com/monoes/mono-agent/internal/logging"
 	"github.com/monoes/mono-agent/internal/monomind"
 	"github.com/monoes/mono-agent/internal/statedir"
+	"github.com/monoes/mono-agent/internal/tlsserve"
 )
 
 // addServiceHooks wires the browser, services and integrations checks to
@@ -77,7 +78,7 @@ func addServiceHooks(env *health.Env, d EnvDeps) {
 	env.APIHealth = func(ctx context.Context, addr string) error {
 		ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 		defer cancel()
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+addr+"/health", nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+tlsserve.ClientAddr(addr)+"/health", nil)
 		if err != nil {
 			return err
 		}

@@ -27,6 +27,10 @@ beforeEach(() => {
 })
 afterEach(cleanup)
 
+// The page is read-only until the agent shell answers, and keys do nothing
+// then; the New task button only exists once it has. Wait for it before keys.
+const writable = () => screen.findByRole('button', { name: /New task/ })
+
 describe('Tasks page', () => {
   it('shows the five columns with their cards', async () => {
     render(<Tasks />)
@@ -58,6 +62,7 @@ describe('Tasks page', () => {
       return { id: 1 }
     })
     render(<Tasks />)
+    await writable()
     fireEvent.keyDown(await screen.findByRole('button', { name: 'Task 1' }), { key: 'ArrowRight', shiftKey: true })
     const ready = await screen.findByRole('region', { name: 'Ready' })
     await waitFor(() => expect(within(ready).getByRole('button', { name: 'Task 1' })).toHaveFocus())
@@ -87,6 +92,7 @@ describe('Tasks page', () => {
   it('shows a refusal and puts the card back', async () => {
     api.move.mockResolvedValue({ error: 'nope', code: 'x' })
     render(<Tasks />)
+    await writable()
     fireEvent.keyDown(await screen.findByRole('button', { name: 'Task 1' }), { key: 'ArrowRight', shiftKey: true })
     expect(await screen.findByText('Refused: nope')).toBeInTheDocument()
     expect(within(screen.getByRole('region', { name: 'Inbox' })).getByText('Task 1')).toBeInTheDocument()
@@ -161,6 +167,7 @@ describe('Tasks page', () => {
         return { id: 5 }
       })
       render(<Tasks />)
+      await writable()
       fireEvent.keyDown(await screen.findByRole('button', { name: 'Task 5' }), { key: 'ArrowRight', shiftKey: true })
       const done = await screen.findByRole('region', { name: 'Done' })
       return (await within(done).findByRole('button', { name: 'Task 5' })).closest('[data-task-id]')
@@ -292,6 +299,7 @@ describe('Tasks page', () => {
 
     it('opens the drawer on Shift+ArrowRight and on a drop on Ready, moving nothing', async () => {
       render(<Tasks />)
+      await writable()
       fireEvent.keyDown(await screen.findByRole('button', { name: 'Task 2' }), { key: 'ArrowRight', shiftKey: true })
       expect(await screen.findByTestId('read-first')).toBeInTheDocument()
       fireEvent.click(screen.getByRole('button', { name: 'Close' }))
@@ -328,6 +336,7 @@ describe('Tasks page', () => {
   describe('keys and announcements', () => {
     it('approves an Inbox card with A and announces it', async () => {
       render(<Tasks />)
+      await writable()
       fireEvent.keyDown(await screen.findByRole('button', { name: 'Task 1' }), { key: 'a' })
       await waitFor(() => expect(api.approve).toHaveBeenCalledWith([1], false))
       expect(screen.getByTestId('tb-live')).toHaveTextContent('Moved “Task 1” to Ready')
@@ -335,6 +344,7 @@ describe('Tasks page', () => {
 
     it('opens a card with notes to be read on A, approving nothing', async () => {
       render(<Tasks />)
+      await writable()
       fireEvent.keyDown(await screen.findByRole('button', { name: 'Task 2' }), { key: 'A' })
       expect(await screen.findByTestId('read-first')).toBeInTheDocument()
       expect(api.approve).not.toHaveBeenCalled()
@@ -342,6 +352,7 @@ describe('Tasks page', () => {
 
     it('does nothing on A for a card outside Inbox', async () => {
       render(<Tasks />)
+      await writable()
       fireEvent.keyDown(await screen.findByRole('button', { name: 'Task 3' }), { key: 'a' })
       expect(api.approve).not.toHaveBeenCalled()
       expect(api.move).not.toHaveBeenCalled()
@@ -349,6 +360,7 @@ describe('Tasks page', () => {
 
     it('announces a key move', async () => {
       render(<Tasks />)
+      await writable()
       fireEvent.keyDown(await screen.findByRole('button', { name: 'Task 3' }), { key: 'ArrowRight', shiftKey: true })
       await waitFor(() => expect(api.move).toHaveBeenCalled())
       expect(screen.getByTestId('tb-live')).toHaveTextContent('Moved “Task 3” to In progress')
@@ -357,6 +369,7 @@ describe('Tasks page', () => {
     it('focuses search on / and the Inbox quick add on N, but not while typing in a field', async () => {
       render(<Tasks />)
       await screen.findByText('Task 1')
+      await writable()
       const slash = fireEvent.keyDown(document.body, { key: '/' })
       expect(slash).toBe(false) // the / is not typed anywhere
       expect(screen.getByLabelText('Search tasks')).toHaveFocus()

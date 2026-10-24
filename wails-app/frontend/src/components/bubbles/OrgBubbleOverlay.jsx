@@ -79,7 +79,8 @@ export function OrgBubbleOverlay({ bubble, store, originRect, onCollapse, onClos
   const bodyRef = useRef(null)
   const panelRef = useRef(null)
   const pressOnBackdrop = useRef(false)
-  const conv = useOrgBubble(orgName)
+  const finished = !!bubble.finished
+  const conv = useOrgBubble(orgName, { runId: bubble.runId, readOnly: finished })
   const { byRole: access } = useRolesAccess(orgName)
 
   useEffect(() => { store.setView(bubble.key, { draft }) }, [store, bubble.key, draft])
@@ -171,10 +172,10 @@ export function OrgBubbleOverlay({ bubble, store, originRect, onCollapse, onClos
   const boss = (history?.roles || []).find(r => r.id === history?.boss)
   const leadInfo = { runtime: boss?.runtime || '', model: boss?.model || '', effort: '' }
 
-  const status = history?.status || ''
+  const status = finished ? 'finished' : history?.status || ''
   const running = status === 'running'
   const paused = running && !!history?.paused
-  const statusKey = paused ? 'paused' : running ? 'running' : status === 'never run' ? 'neverRun' : status === 'crashed' ? 'crashed' : status ? 'stopped' : 'loading'
+  const statusKey = finished ? 'finished' : paused ? 'paused' : running ? 'running' : status === 'never run' ? 'neverRun' : status === 'crashed' ? 'crashed' : status ? 'stopped' : 'loading'
 
   const control = async (verb) => {
     const ok = await confirm(t(`orgBubble.confirm.${verb}Body`, { name: orgName }), {
@@ -207,9 +208,14 @@ export function OrgBubbleOverlay({ bubble, store, originRect, onCollapse, onClos
           <Network size={13} style={{ color: 'var(--cyan)', flexShrink: 0 }} aria-hidden="true" />
           <span style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{orgName}</span>
           <span data-testid="org-bubble-status" data-status={statusKey} title={statusKey === 'crashed' ? history?.status_error || undefined : undefined}
-            style={{ fontFamily: mono, fontSize: 9.5, color: running && !paused ? 'var(--teal, #00f5d4)' : statusKey === 'crashed' ? 'var(--red, #ef4444)' : 'var(--text-muted)', border: '1px solid var(--border-bright)', borderRadius: 999, padding: '1px 7px', flexShrink: 0, whiteSpace: 'nowrap' }}>
+            style={{ fontFamily: mono, fontSize: 9.5, color: statusKey === 'finished' ? 'var(--text-muted)' : running && !paused ? 'var(--teal, #00f5d4)' : statusKey === 'crashed' ? 'var(--red, #ef4444)' : 'var(--text-muted)', border: '1px solid var(--border-bright)', borderRadius: 999, padding: '1px 7px', flexShrink: 0, whiteSpace: 'nowrap' }}>
             {t(`orgBubble.status.${statusKey}`)}
           </span>
+          {bubble.runId && (
+            <span data-testid="org-bubble-run" title={bubble.runId} style={{ fontFamily: mono, fontSize: 9.5, color: 'var(--text-muted)', flexShrink: 0, whiteSpace: 'nowrap' }}>
+              {t('orgBubble.runLabel', { id: bubble.runId.slice(0, 8) })}
+            </span>
+          )}
           {(boss?.runtime || boss?.model) && (
             <span style={{ fontFamily: mono, fontSize: 9.5, color: 'var(--cyan)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {t('orgBubble.bossIs', { name: boss.title || boss.id })} · {[boss.runtime && runtimeLabel(boss.runtime), boss.model].filter(Boolean).join(' · ')}
@@ -231,7 +237,7 @@ export function OrgBubbleOverlay({ bubble, store, originRect, onCollapse, onClos
             </button>
           )}
           {onNavigate && (
-            <button type="button" className="btn btn-ghost btn-sm" onClick={() => onNavigate('orgs', { org: orgName })} title={t('orgBubble.openInOrgs')} aria-label={t('orgBubble.openInOrgs')} style={{ padding: '3px 6px', flexShrink: 0 }}>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => onNavigate('orgs', { org: orgName, run: bubble.runId || undefined })} title={t('orgBubble.openInOrgs')} aria-label={t('orgBubble.openInOrgs')} style={{ padding: '3px 6px', flexShrink: 0 }}>
               <ExternalLink size={12} />
             </button>
           )}

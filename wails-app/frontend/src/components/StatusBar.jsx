@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { MessageSquare, UserCheck } from 'lucide-react'
+import { History, UserCheck } from 'lucide-react'
 import { getHealth, subscribeHealth, summarize } from '../lib/health.js'
 import { GetVersion, CheckForUpdate, AppSelfUpdate } from '../wailsjs/go/main/App'
 import { subscribeEvent } from '../services/api.js'
-import { useSendToCoder } from './bubbles/CoderBubbleContext.jsx'
+import { toggleHistory } from './history/historyBus.js'
 
 // HealthDot: the latest System health verdict (the background check runs on
 // start and every 30 minutes, see lib/health.js); click opens Settings.
@@ -36,9 +36,7 @@ function HealthDot({ onOpen }) {
 }
 
 export default function StatusBar({ stats, dbConnected, hilOpen, hilCount = 0, onToggleHil, onOpenHealth }) {
-  // The assistant button opens a new chat bubble; a bar rendered without the
-  // bubble store has nothing to open, so it shows no button.
-  const { openNewChat } = useSendToCoder()
+  const { t } = useTranslation()
   const running = stats?.executions_by_status?.RUNNING || 0
   const total   = stats?.total_workflows || 0
   const people  = stats?.total_people || 0
@@ -238,29 +236,30 @@ export default function StatusBar({ stats, dbConnected, hilOpen, hilCount = 0, o
           </button>
         )}
 
-        {/* New chat: small icon at the far right of the bar, reachable from
-            anywhere in the app. */}
-        {openNewChat && (
-          <button
-            onClick={() => openNewChat()}
-            title="New chat"
-            aria-label="New chat"
-            style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              width: 18, height: 18, padding: 0,
-              background: 'transparent',
-              border: 'none',
-              borderRadius: 3,
-              color: 'var(--text-dim)',
-              cursor: 'pointer',
-              transition: 'color .15s',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.color = '#00b4d8' }}
-            onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-dim)' }}
-          >
-            <MessageSquare size={12} />
-          </button>
-        )}
+        {/* Chat history and old sessions: small icon at the far right of the
+            bar, where the chat icon was, reachable from anywhere in the app.
+            A new chat starts from the dock's + button or the drawer. */}
+        <button
+          onClick={() => toggleHistory()}
+          title={t('history.title')}
+          aria-label={t('history.title')}
+          aria-haspopup="dialog"
+          data-testid="history-status-toggle"
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: 18, height: 18, padding: 0,
+            background: 'transparent',
+            border: 'none',
+            borderRadius: 3,
+            color: 'var(--text-dim)',
+            cursor: 'pointer',
+            transition: 'color .15s',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.color = '#00b4d8' }}
+          onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-dim)' }}
+        >
+          <History size={12} />
+        </button>
       </div>
     </div>
   )
