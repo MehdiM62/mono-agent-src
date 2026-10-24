@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -395,5 +396,115 @@ func TestApplyIsBoundToTheReviewedDefinition(t *testing.T) {
 	p, _ = Plan(bg(), "p1", res)
 	if n, err := Apply(bg(), "p1", res, Options{ExpectHash: p.DefinitionHash}); err != nil || n != 1 || b.saved != 1 || b.revoked != 1 {
 		t.Fatalf("n=%d err=%v saved=%d revoked=%d", n, err, b.saved, b.revoked)
+	}
+}
+
+// nest builds {k0:{k1:{...:leaf}}}.
+func nest(keys []string, leaf any) map[string]any {
+	if len(keys) == 1 {
+		return map[string]any{keys[0]: leaf}
+	}
+	return map[string]any{keys[0]: nest(keys[1:], leaf)}
+}
+
+func keysOfDepth(n int) []string {
+	out := make([]string, n)
+	for i := range out {
+		out[i] = fmt.Sprintf("k%d", i)
+	}
+	return out
+}
+
+// An addition that is an empty container is a change like any other: shown, counted, checked.
+func TestEmptyContainerAdditionsAreShownCountedAndChecked(t *testing.T) {
+	rig(t, false)
+	empties := func(n int) map[string]any {
+		m := map[string]any{}
+		for i := 0; i < n; i++ {
+			m[fmt.Sprintf("e%02d", i)] = map[string]any{}
+		}
+		return m
+	}
+	if _, err := Plan(bg(), "p1", result(KindWorkflowEdit, edit("set", empties(50)))); err != nil {
+		t.Fatalf("50 empty objects: %v", err)
+	}
+	if _, err := Plan(bg(), "p1", result(KindWorkflowEdit, edit("set", empties(51)))); !IsCode(err, CodeTooLarge) {
+		t.Fatalf("51 empty objects: %v", err)
+	}
+	p, err := Plan(bg(), "p1", result(KindWorkflowEdit, edit("set", map[string]any{"assignments": "a=2", "extra": map[string]any{}, "list": []any{}})))
+	if err != nil {
+		t.Fatal(err)
+	}
+	paths := map[string]Edit{}
+	for _, e := range p.Edits {
+		paths[e.Path] = e
+	}
+	for _, want := range []string{"assignments", "extra", "list"} {
+		if _, ok := paths[want]; !ok {
+			t.Errorf("no edit for %q: %+v", want, p.Edits)
+		}
+	}
+	if e := paths["extra"]; e.Before != nil || !reflect.DeepEqual(e.After, map[string]any{}) {
+		t.Errorf("extra = %+v, want before absent and after {}", e)
+	}
+	// A secret-looking key under an added empty object, and as an added empty object itself.
+	for name, cfg := range map[string]map[string]any{
+		"under an added object": {"headers": map[string]any{"password": map[string]any{}}},
+		"as the added object":   {"api_key": map[string]any{}},
+	} {
+		if _, err := Plan(bg(), "p1", result(KindWorkflowEdit, edit("http", cfg))); !IsCode(err, CodeSecretKey) {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+}
+
+func TestKeysPathsAndDepthAreBounded(t *testing.T) {
+	rig(t, false)
+	try := func(cfg map[string]any) error {
+		_, err := Plan(bg(), "p1", result(KindWorkflowEdit, edit("set", cfg)))
+		return err
+	}
+	// One key: 128 / 129 characters.
+	if err := try(map[string]any{strings.Repeat("k", 128): 1}); err != nil {
+		t.Errorf("128-character key: %v", err)
+	}
+	if err := try(map[string]any{strings.Repeat("k", 129): 1}); !IsCode(err, CodeTooLarge) {
+		t.Errorf("129-character key: %v", err)
+	}
+	// A long key inside an added container, and inside a list value.
+	if err := try(map[string]any{"a": map[string]any{strings.Repeat("k", 129): 1}}); !IsCode(err, CodeTooLarge) {
+		t.Errorf("a long key in an added object: %v", err)
+	}
+	if err := try(map[string]any{"a": []any{map[string]any{strings.Repeat("k", 129): 1}}}); !IsCode(err, CodeTooLarge) {
+		t.Errorf("a long key in a list value: %v", err)
+	}
+	// The whole dotted path: 512 / 513 (8 keys, 7 dots).
+	path := func(last int) []string {
+		keys := make([]string, 8)
+		for i := 0; i < 7; i++ {
+			keys[i] = strings.Repeat("p", 64)
+		}
+		keys[7] = strings.Repeat("q", last)
+		return keys
+	}
+	if err := try(nest(path(57), 1)); err != nil {
+		t.Errorf("512-character path: %v", err)
+	}
+	if err := try(nest(path(58), 1)); !IsCode(err, CodeTooLarge) {
+		t.Errorf("513-character path: %v", err)
+	}
+	// Depth: 8 levels of keys is fine, 9 is not; a scalar leaf at depth 8, a container under it is 9.
+	if err := try(nest(keysOfDepth(8), 1)); err != nil {
+		t.Errorf("depth 8: %v", err)
+	}
+	if err := try(nest(keysOfDepth(9), 1)); !IsCode(err, CodeTooLarge) {
+		t.Errorf("depth 9: %v", err)
+	}
+	if err := try(nest(keysOfDepth(8), []any{1})); !IsCode(err, CodeTooLarge) {
+		t.Errorf("a list under depth 8: %v", err)
+	}
+	// Absurd nesting is refused without recursing through it.
+	if err := try(nest(keysOfDepth(5000), 1)); !IsCode(err, CodeTooLarge) {
+		t.Errorf("depth 5000: %v", err)
 	}
 }

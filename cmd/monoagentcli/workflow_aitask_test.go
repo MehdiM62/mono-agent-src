@@ -787,3 +787,38 @@ func TestExpectHashThroughTheRootCommand(t *testing.T) {
 		t.Fatalf("a valid hash followed by --allow-active: %v %v", err, body)
 	}
 }
+
+// A workflow file that cannot be written: nothing changes, no apply row, the approval stays.
+func TestApplyFixWithAnUnwritableWorkflowFileChangesNothing(t *testing.T) {
+	r := newFixRig(t, false)
+	id := r.task(t, "failed-run-fix", aitask.StatusComplete, fixResult("workflow-edit", editOf("s", `{"assignments":"a=2"}`)))
+	dir := expandPath("~/.monoagent/workflows")
+	if err := os.Chmod(dir, 0o500); err != nil {
+		t.Skip("cannot make the workflow folder read-only")
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
+	if f, err := os.CreateTemp(dir, "probe"); err == nil {
+		f.Close()
+		os.Remove(f.Name())
+		t.Skip("the folder is writable despite chmod")
+	}
+	body, err := r.run(t, "apply-fix", id)
+	if err == nil || codeOf(body) != "file_sync_failed" || clicore.ExitCodeFor(err) != 3 {
+		t.Fatalf("%v %v", err, body)
+	}
+	_ = os.Chmod(dir, 0o700)
+	if r.workflow(t, "wf-1").Nodes[1].Config["assignments"] != "a=1" || !r.approved(t, "wf-1") {
+		t.Error("the workflow or its approval changed")
+	}
+	db, _ := initDB(r.cfg)
+	defer db.Close()
+	var n int
+	_ = db.DB.QueryRow(`SELECT COUNT(*) FROM ai_task_applies`).Scan(&n)
+	if n != 0 {
+		t.Errorf("%d apply row(s) after a failed write", n)
+	}
+	// And the task can be applied once the folder is writable again.
+	if _, err := r.run(t, "apply-fix", id); err != nil {
+		t.Errorf("after the folder is writable: %v", err)
+	}
+}

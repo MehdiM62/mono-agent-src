@@ -39,6 +39,11 @@ const (
 	MaxLeafChanges = 50
 	// MaxValueChars is the longest changed value, before or after.
 	MaxValueChars = 2000
+	// MaxKeyChars, MaxPathChars and MaxDepth bound the names the app has to display: one key,
+	// the whole dotted path, and how deeply a changed value is nested under the node's config.
+	MaxKeyChars  = 128
+	MaxPathChars = 512
+	MaxDepth     = 8
 )
 
 // Warning codes.
@@ -65,6 +70,7 @@ const (
 	CodeWrongTarget    = "wrong_target"
 	CodeTooLarge       = "too_large"
 	CodeExpectHash     = "expect_hash_required"
+	CodeFileSync       = "file_sync_failed"
 	CodeNoBackend      = "no_backend"
 )
 
@@ -215,8 +221,11 @@ func planFor(ctx context.Context, profile string, result []byte, since time.Time
 		}
 		before := nodes[i].Config
 		after := deepMerge(before, e.Config)
-		diffs := diff("", before, after)
+		diffs := diff("", 0, 0, before, after)
 		for _, d := range diffs {
+			if err := checkBounds(d); err != nil {
+				return Preview{}, err
+			}
 			if err := checkNew(d); err != nil {
 				return Preview{}, err
 			}
@@ -294,6 +303,9 @@ func Apply(ctx context.Context, profile string, result []byte, opts Options) (in
 	if errors.Is(err, workflow.ErrChangedSincePreview) {
 		return 0, fail(CodeChanged, "the workflow changed while the edit was being applied: preview it again")
 	}
+	if errors.Is(err, workflow.ErrFileSyncFailed) {
+		return 0, fail(CodeFileSync, "the workflow file could not be written, so nothing was changed: %v", err)
+	}
 	if err != nil {
 		return 0, fmt.Errorf("save nodes: %w", err)
 	}
@@ -334,6 +346,7 @@ func indexOf(nodes []workflow.WorkflowNode, id string) int {
 type change struct {
 	path          string
 	before, after any
+	depth, maxKey int // path segments, and the longest key on the path
 }
 
 // deepMerge returns base with patch merged in: objects merge key by key,
@@ -355,8 +368,11 @@ func deepMerge(base, patch map[string]any) map[string]any {
 	return out
 }
 
-// diff lists the leaf paths whose value differs between a and b.
-func diff(prefix string, a, b map[string]any) []change {
+// diff lists the paths whose value differs between a and b: leaves, and also every
+// newly added key whose value is an empty object (before: absent, after: {}), so that
+// nothing the edit adds is invisible. Recursion stops one level past MaxDepth; the
+// change it leaves there is refused by checkBounds.
+func diff(prefix string, depth, maxKey int, a, b map[string]any) []change {
 	keys := map[string]bool{}
 	for k := range a {
 		keys[k] = true
@@ -375,19 +391,79 @@ func diff(prefix string, a, b map[string]any) []change {
 		if prefix != "" {
 			path = prefix + "." + k
 		}
+		mk := maxKey
+		if n := len([]rune(k)); n > mk {
+			mk = n
+		}
 		av, aok := a[k]
 		bv, bok := b[k]
 		am, aIsMap := av.(map[string]any)
 		bm, bIsMap := bv.(map[string]any)
 		switch {
-		case bIsMap && (aIsMap || !aok):
-			out = append(out, diff(path, am, bm)...)
+		case bIsMap && (aIsMap || !aok) && depth+1 <= MaxDepth && !(!aok && len(bm) == 0):
+			out = append(out, diff(path, depth+1, mk, am, bm)...)
 		case aok && bok && reflect.DeepEqual(av, bv):
 		default:
-			out = append(out, change{path: path, before: av, after: bv})
+			out = append(out, change{path: path, before: av, after: bv, depth: depth + 1, maxKey: mk})
 		}
 	}
 	return out
+}
+
+// checkBounds refuses a change whose names the app could not display in full: a key over
+// MaxKeyChars (also inside the new value), a dotted path over MaxPathChars, or a value nested
+// deeper than MaxDepth counting the path.
+func checkBounds(c change) error {
+	inKey, inDepth := shape(c.after)
+	if c.maxKey > MaxKeyChars || inKey > MaxKeyChars {
+		return fail(CodeTooLarge, "a key of the change at %q is longer than %d characters: propose a smaller change", clip(c.path), MaxKeyChars)
+	}
+	if len([]rune(c.path)) > MaxPathChars {
+		return fail(CodeTooLarge, "the path %q is longer than %d characters: propose a smaller change", clip(c.path), MaxPathChars)
+	}
+	if c.depth+inDepth > MaxDepth {
+		return fail(CodeTooLarge, "the change at %q is nested deeper than %d levels: propose a smaller change", clip(c.path), MaxDepth)
+	}
+	return nil
+}
+
+func clip(s string) string {
+	if r := []rune(s); len(r) > 60 {
+		return string(r[:60]) + "…"
+	}
+	return s
+}
+
+// shape returns the longest key inside v and how many levels of objects and lists v nests.
+func shape(v any) (maxKey, depth int) {
+	switch t := v.(type) {
+	case map[string]any:
+		depth = 1
+		for k, e := range t {
+			if n := len([]rune(k)); n > maxKey {
+				maxKey = n
+			}
+			ek, ed := shape(e)
+			if ek > maxKey {
+				maxKey = ek
+			}
+			if ed+1 > depth {
+				depth = ed + 1
+			}
+		}
+	case []any:
+		depth = 1
+		for _, e := range t {
+			ek, ed := shape(e)
+			if ek > maxKey {
+				maxKey = ek
+			}
+			if ed+1 > depth {
+				depth = ed + 1
+			}
+		}
+	}
+	return maxKey, depth
 }
 
 // checkNew refuses an edit that adds a key which looks like a secret, or a
