@@ -39,12 +39,20 @@ type SaveGuard struct {
 	RevokeApprovals bool
 }
 
-// SaveNodesGuarded is SaveWorkflowNodes as one transaction that first takes the
-// database's write lock, then compares the stored workflow's ReviewHash with
-// guard.ExpectHash, and only then writes (and revokes approvals when asked). A
-// second writer waits for the lock and then finds a different hash:
-// ErrChangedSincePreview. The canonical workflow file is synced afterwards, as
-// SaveWorkflowNodes does.
+// ErrFileSyncFailed: the canonical workflow file could not be published, so nothing was changed.
+var ErrFileSyncFailed = errors.New("the workflow file could not be written")
+
+// Test seams, nil in production: a failure injected where the canonical file is published,
+// and where the transaction commits.
+var guardedFileFault, guardedCommitFault func() error
+
+// SaveNodesGuarded is SaveWorkflowNodes as ONE critical section under the database's write lock
+// (the lock every definition save takes, the operator's own included): it first takes the lock,
+// compares the stored workflow's ReviewHash with guard.ExpectHash (ErrChangedSincePreview), writes
+// the nodes, revokes approvals when asked, records the version, then publishes the canonical file
+// atomically (temp file in the same folder, fsync, rename, fsync of the folder) and only then
+// commits. A file step that fails rolls everything back (ErrFileSyncFailed); a commit that fails
+// after the file was published puts the previous file bytes back. Every error is returned.
 func (h *HybridWorkflowStore) SaveNodesGuarded(ctx context.Context, workflowID string, nodes []WorkflowNode, guard SaveGuard) error {
 	h.ensureSQLWorkflow(ctx, workflowID)
 	tx, err := h.sql.db.BeginTx(ctx, nil)
@@ -80,12 +88,77 @@ func (h *HybridWorkflowStore) SaveNodesGuarded(ctx context.Context, workflowID s
 			return fmt.Errorf("revoking approvals: %w", err)
 		}
 	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("committing guarded save: %w", err)
+	var rowVersion int
+	if err := tx.QueryRowContext(ctx, `SELECT version FROM workflows WHERE id = ?`, workflowID).Scan(&rowVersion); err != nil {
+		return fmt.Errorf("reading version of workflow %s: %w", workflowID, err)
 	}
-	h.syncFileNodes(ctx, workflowID)
-	_, _ = h.captureVersion(ctx, workflowID)
+	next := *cur
+	next.Nodes = nodes
+	version, _, err := recordVersionTx(ctx, tx, &next, rowVersion, false, "")
+	if err != nil {
+		return err
+	}
+	restore, err := h.publishNodesFile(ctx, workflowID, nodes, cur.Connections, version)
+	if err != nil {
+		return err
+	}
+	if guardedCommitFault != nil {
+		err = guardedCommitFault()
+	}
+	if err == nil {
+		err = tx.Commit()
+	}
+	if err != nil {
+		err = fmt.Errorf("committing guarded save: %w", err)
+		if restore != nil {
+			if rerr := restore(); rerr != nil {
+				err = errors.Join(err, fmt.Errorf("restoring the previous workflow file: %w", rerr))
+			}
+		}
+		return err
+	}
 	return h.saved(ctx, workflowID, nil)
+}
+
+// publishNodesFile writes the canonical file with nodes and conns, atomically and durably, and
+// returns the function that puts the previous bytes back. A workflow without a file (SQLite only)
+// has nothing to publish.
+func (h *HybridWorkflowStore) publishNodesFile(ctx context.Context, id string, nodes []WorkflowNode, conns []WorkflowConnection, version int) (func() error, error) {
+	if h.files == nil {
+		return nil, nil
+	}
+	fail := func(err error) (func() error, error) { return nil, fmt.Errorf("%w: %v", ErrFileSyncFailed, err) }
+	prev, existed, err := h.files.readRaw(id)
+	if err != nil {
+		return fail(err)
+	}
+	if !existed {
+		return nil, nil
+	}
+	fw, err := h.files.GetWorkflow(ctx, id)
+	if err != nil {
+		return fail(err)
+	}
+	if fw == nil {
+		return nil, nil
+	}
+	fw.Nodes, fw.Connections, fw.Version = nodes, conns, version
+	restore := func() error { return h.files.restoreRaw(id, prev, true) }
+	err = nil
+	if guardedFileFault != nil {
+		err = guardedFileFault()
+	}
+	if err == nil {
+		err = h.files.saveWorkflowDurable(ctx, fw)
+	}
+	if err != nil {
+		// The rename may have happened before the failure: put the old bytes back either way.
+		if rerr := restore(); rerr != nil {
+			err = errors.Join(err, fmt.Errorf("restoring the previous workflow file: %w", rerr))
+		}
+		return fail(err)
+	}
+	return restore, nil
 }
 
 // RevokeApprovals removes every stored approval of workflow id.

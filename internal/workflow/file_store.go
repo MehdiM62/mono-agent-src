@@ -3,6 +3,7 @@ package workflow
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -97,6 +98,16 @@ func (s *WorkflowFileStore) filePath(id string) (string, error) {
 // Assigns a new UUID if wf.ID is empty.
 // Embeds default schema for any node missing its Schema field.
 func (s *WorkflowFileStore) SaveWorkflow(ctx context.Context, wf *Workflow) error {
+	return s.saveWorkflow(ctx, wf, false)
+}
+
+// saveWorkflowDurable is SaveWorkflow with the temp file flushed to disk before the rename and
+// the directory flushed after it, so a power cut leaves the old file or the new one.
+func (s *WorkflowFileStore) saveWorkflowDurable(ctx context.Context, wf *Workflow) error {
+	return s.saveWorkflow(ctx, wf, true)
+}
+
+func (s *WorkflowFileStore) saveWorkflow(ctx context.Context, wf *Workflow, durable bool) error {
 	if wf.ID == "" {
 		wf.ID = uuid.New().String()
 		wf.CreatedAt = time.Now().UTC()
@@ -163,7 +174,11 @@ func (s *WorkflowFileStore) SaveWorkflow(ctx context.Context, wf *Workflow) erro
 	// Write atomically: write to a temp file then rename over the target, so a
 	// crash mid-write cannot truncate/corrupt an existing workflow definition.
 	tmp := path + ".tmp"
-	if err := statedir.WriteFile(tmp, data); err != nil {
+	write := statedir.WriteFile
+	if durable {
+		write = writeFileSynced
+	}
+	if err := write(tmp, data); err != nil {
 		return fmt.Errorf("file_store: write %s: %w", wf.ID, err)
 	}
 	if err := os.Rename(tmp, path); err != nil {
@@ -171,6 +186,41 @@ func (s *WorkflowFileStore) SaveWorkflow(ctx context.Context, wf *Workflow) erro
 		return fmt.Errorf("file_store: rename %s: %w", wf.ID, err)
 	}
 	s.invalidate(path)
+	if durable {
+		if err := syncDir(filepath.Dir(path)); err != nil {
+			return fmt.Errorf("file_store: sync %s: %w", wf.ID, err)
+		}
+	}
+	return nil
+}
+
+// writeFileSynced is statedir.WriteFile that fsyncs the file before closing it.
+func writeFileSynced(path string, data []byte) error {
+	if err := statedir.WriteFile(path, data); err != nil {
+		return err
+	}
+	f, err := os.OpenFile(path, os.O_RDWR, 0)
+	if err != nil {
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		f.Close()
+		return err
+	}
+	return f.Close()
+}
+
+// syncDir flushes a directory's entries (the rename) to disk. Platforms that cannot open a
+// directory for this (Windows) keep the rename as it is.
+func syncDir(dir string) error {
+	d, err := os.Open(dir)
+	if err != nil {
+		return nil
+	}
+	defer d.Close()
+	if err := d.Sync(); err != nil && !errors.Is(err, os.ErrInvalid) {
+		return err
+	}
 	return nil
 }
 
