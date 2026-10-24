@@ -69,6 +69,18 @@ type Service struct {
 	// Admit, when set, reserves the task's spend cap at start and returns the
 	// cap its turn runs under; its refusal keeps the task queued (budget).
 	Admit func(context.Context, Task) (float64, error)
+	// Remote says the caller is the daemon API acting for a task's session
+	// rather than that session's own process: Complete and Fail check the task
+	// token's hash but not the process tree (Store.CheckTokenRemote).
+	Remote bool
+}
+
+// holds says whether token is task id's token for this service's caller.
+func (s *Service) holds(id, token string) bool {
+	if s.Remote {
+		return s.Store.CheckTokenRemote(id, token)
+	}
+	return s.Store.CheckToken(id, token)
 }
 
 // SubmitInput is `aitask submit`.
@@ -266,7 +278,7 @@ func (s *Service) Complete(id, token string, result []byte) (Task, error) {
 	if err != nil {
 		return Task{}, err
 	}
-	if !s.Store.CheckToken(id, token) {
+	if !s.holds(id, token) {
 		return Task{}, errf(CodeBadToken, "this process does not hold task %s's token: only the task's own session may complete it", id)
 	}
 	if t.Status != StatusRunning && t.Status != StatusNeedsUser {
@@ -318,7 +330,7 @@ func (s *Service) Fail(id, token, reason string) (Task, error) {
 	if err != nil {
 		return Task{}, err
 	}
-	if !s.Store.CheckToken(id, token) {
+	if !s.holds(id, token) {
 		return Task{}, errf(CodeBadToken, "this process does not hold task %s's token: only the task's own session may fail it", id)
 	}
 	if strings.TrimSpace(reason) == "" {

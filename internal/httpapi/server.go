@@ -183,6 +183,10 @@ func (s *Server) routes() *http.ServeMux {
 	mux.Handle("GET /nodes/{type}/schema", s.anyProfileAuth(agenttokens.ScopeRead, s.handleNodeSchema))
 	mux.Handle("GET /profiles/{profile}/hil", s.profileAuth(agenttokens.ScopeRead, s.handleHilList))
 
+	// The AI task routes change nothing a token bound to a task could not: they are not behind the
+	// mutation opt-in, which governs running workflows and approvals.
+	s.registerAitaskRoutes(mux)
+
 	if s.opts.AllowMutations {
 		mux.Handle("POST /profiles/{profile}/workflows/{id}/run", s.profileAuth(agenttokens.ScopeRun, s.handleWorkflowRun))
 		mux.Handle("POST /profiles/{profile}/workflows/{id}/activate", s.profileAuth(agenttokens.ScopeRun, s.handleWorkflowActivate))
