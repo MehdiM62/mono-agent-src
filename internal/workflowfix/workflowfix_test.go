@@ -508,3 +508,82 @@ func TestKeysPathsAndDepthAreBounded(t *testing.T) {
 		t.Errorf("depth 5000: %v", err)
 	}
 }
+
+// Secret checks look inside every added or replaced container, lists and nesting included.
+func TestSecretChecksAreRecursive(t *testing.T) {
+	rig(t, false)
+	token := "ghp_" + strings.Repeat("a1B2c3D4e5", 4)
+	if aitask.RedactText(token) == token {
+		t.Skip("the redactor does not treat the sample as a token")
+	}
+	for name, cfg := range map[string]map[string]any{
+		"a key in a list element":                          {"items": []any{map[string]any{"api_key": "x"}}},
+		"a key in a nested list":                           {"items": []any{[]any{map[string]any{"password": "x"}}}},
+		"a scalar replaced by an object with a secret key": {"assignments": map[string]any{"password": "x"}},
+		"a token-shaped string in a nested list":           {"items": []any{[]any{token}}},
+		"a token-shaped string in a nested object":         {"a": map[string]any{"b": map[string]any{"c": token}}},
+		"an invisible character hiding the key":            {"a": map[string]any{"api​_key": "x"}},
+	} {
+		_, err := Plan(bg(), "p1", result(KindWorkflowEdit, edit("set", cfg)))
+		if !IsCode(err, CodeSecretKey) && !IsCode(err, CodeInvalidKey) {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+	// A reference to a saved connection is not a secret, in a list or an object.
+	for _, cfg := range []map[string]any{
+		{"credential_id": "cred-1"},
+		{"items": []any{map[string]any{"credential_id": "cred-1"}}},
+	} {
+		if _, err := Plan(bg(), "p1", result(KindWorkflowEdit, edit("http", cfg))); err != nil {
+			t.Errorf("credential_id refused in %v: %v", cfg, err)
+		}
+	}
+	if !looksSecretKey("api​_key") || looksSecretKey("credential_id") || looksSecretKey("url") {
+		t.Error("looksSecretKey")
+	}
+}
+
+func TestKeyHygiene(t *testing.T) {
+	rig(t, false)
+	for name, cfg := range map[string]map[string]any{
+		"a zero-width character":                     {"a​b": 1},
+		"a bidi override":                            {"ab‮": 1},
+		"a control character":                        {"a\x01b": 1},
+		"a decomposed key":                           {"é": 1},
+		"a case-only collision with an existing key": {"ASSIGNMENTS": "x"},
+		"a spacing collision with an existing key":   {" assignments ": "x"},
+		"two keys of the patch that fold alike":      {"Foo": 1, "foo": 2},
+		"a bad key inside an added object":           {"a": map[string]any{"b​c": 1}},
+		"a bad key inside a list element":            {"a": []any{map[string]any{"b‮c": 1}}},
+		"a collision inside an existing object":      {"headers": map[string]any{"X": 1, "x": 2}},
+	} {
+		if _, err := Plan(bg(), "p1", result(KindWorkflowEdit, edit("set", cfg))); !IsCode(err, CodeInvalidKey) {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+	// A composed key and the existing key itself are fine.
+	if _, err := Plan(bg(), "p1", result(KindWorkflowEdit, edit("set", map[string]any{"é": 1, "assignments": "a=2"}))); err != nil {
+		t.Errorf("a normal edit: %v", err)
+	}
+}
+
+// A dot or a backslash inside a key is escaped in the label, so two different paths never render alike.
+func TestPathLabelsAreUnambiguous(t *testing.T) {
+	rig(t, false)
+	p, err := Plan(bg(), "p1", result(KindWorkflowEdit, edit("set", map[string]any{"a.b": 1, "a": map[string]any{"b": 2}, `c\d`: 3})))
+	if err != nil {
+		t.Fatal(err)
+	}
+	paths := map[string]bool{}
+	for _, e := range p.Edits {
+		if paths[e.Path] {
+			t.Errorf("two edits render as %q", e.Path)
+		}
+		paths[e.Path] = true
+	}
+	for _, want := range []string{`a\.b`, `a.b`, `c\\d`} {
+		if !paths[want] {
+			t.Errorf("no edit labelled %q: %v", want, paths)
+		}
+	}
+}
