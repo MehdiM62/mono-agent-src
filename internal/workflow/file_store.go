@@ -98,6 +98,8 @@ func (s *WorkflowFileStore) filePath(id string) (string, error) {
 // Assigns a new UUID if wf.ID is empty.
 // Embeds default schema for any node missing its Schema field.
 func (s *WorkflowFileStore) SaveWorkflow(ctx context.Context, wf *Workflow) error {
+	fileWriteMu.Lock()
+	defer fileWriteMu.Unlock()
 	return s.saveWorkflow(ctx, wf)
 }
 
@@ -259,7 +261,7 @@ func (s *WorkflowFileStore) restoreRaw(id string, data []byte, existed bool) err
 		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("file_store: remove %s: %w", id, err)
 		}
-		return nil
+		return syncDir(filepath.Dir(path))
 	}
 	if err := writeFileAtomic(path, data); err != nil {
 		return fmt.Errorf("file_store: write %s: %w", id, err)

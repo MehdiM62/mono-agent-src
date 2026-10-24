@@ -2,8 +2,11 @@ package workflow
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -176,5 +179,91 @@ func TestGuardedSaveAndAnOperatorSaveNeverMix(t *testing.T) {
 		if fh != sh {
 			t.Fatalf("run %d: the file and the rows disagree after an apply (%v) racing a save", i, applyErr)
 		}
+	}
+}
+
+func claimsRig(t *testing.T, s *SQLiteWorkflowStore) func(ctx context.Context) context.Context {
+	t.Helper()
+	if _, err := s.db.Exec(`CREATE TABLE claims (id TEXT PRIMARY KEY)`); err != nil {
+		t.Fatal(err)
+	}
+	return func(ctx context.Context) context.Context {
+		return WithTxHook(ctx, func(ctx context.Context, tx *sql.Tx) error {
+			_, err := tx.ExecContext(ctx, `INSERT INTO claims (id) VALUES ('task-1')`)
+			return err
+		})
+	}
+}
+
+func claimCount(t *testing.T, s *SQLiteWorkflowStore) int {
+	t.Helper()
+	var n int
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM claims`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n
+}
+
+// The claim of an apply commits with the write it guards, or not at all.
+func TestATxHookRowCommitsWithTheGuardedSaveOrNotAtAll(t *testing.T) {
+	ctx := context.Background()
+	h, s, hash, nodes := guardedRig(t)
+	withClaim := claimsRig(t, s)
+	guard := SaveGuard{ExpectHash: hash, RevokeApprovals: true}
+
+	// A failure after the claim insert (the file step): no row, nothing changed, and a retry works.
+	guardedFileFault = func() error { return errors.New("disk full") }
+	if err := h.SaveNodesGuarded(withClaim(ctx), "wf-g", nodes, guard); !errors.Is(err, ErrFileSyncFailed) {
+		t.Fatalf("%v", err)
+	}
+	if claimCount(t, s) != 0 || sqlConfig(t, s, "wf-g", "g-set") != "v" {
+		t.Fatal("a failed save left its claim or its rows")
+	}
+	guardedFileFault = nil
+	// A commit failure after the file was published: no row either.
+	guardedCommitFault = func() error { return errors.New("commit failed") }
+	if err := h.SaveNodesGuarded(withClaim(ctx), "wf-g", nodes, guard); err == nil || claimCount(t, s) != 0 {
+		t.Fatalf("a failed commit: err=%v claims=%d", err, claimCount(t, s))
+	}
+	guardedCommitFault = nil
+	if err := h.SaveNodesGuarded(withClaim(ctx), "wf-g", nodes, guard); err != nil {
+		t.Fatalf("the retry: %v", err)
+	}
+	if claimCount(t, s) != 1 {
+		t.Fatalf("claims = %d after the successful apply", claimCount(t, s))
+	}
+	// The same claim again is a conflict that aborts the save as a hook error.
+	cur, _ := h.GetWorkflow(ctx, "wf-g")
+	h2, _ := ReviewHash(cur)
+	var he *TxHookError
+	if err := h.SaveNodesGuarded(withClaim(ctx), "wf-g", nodes, SaveGuard{ExpectHash: h2}); !errors.As(err, &he) {
+		t.Fatalf("a second claim: %v", err)
+	}
+	// A refused guard never reaches the hook.
+	if err := h.SaveNodesGuarded(withClaim(ctx), "wf-g", nodes, SaveGuard{ExpectHash: "stale"}); !errors.Is(err, ErrChangedSincePreview) {
+		t.Fatalf("%v", err)
+	}
+}
+
+// When the previous file cannot be put back, the error says the file and the database may disagree.
+func TestARestoreThatFailsIsReportedAsAnInconsistentFile(t *testing.T) {
+	ctx := context.Background()
+	h, _, hash, nodes := guardedRig(t)
+	t.Cleanup(func() { guardedRestoreFault = nil })
+	guardedCommitFault = func() error { return errors.New("commit failed") }
+	guardedRestoreFault = func() error { return errors.New("disk gone") }
+	err := h.SaveNodesGuarded(ctx, "wf-g", nodes, SaveGuard{ExpectHash: hash})
+	if !errors.Is(err, ErrFileInconsistent) || !strings.Contains(err.Error(), "wf-g") {
+		t.Fatalf("commit failure, restore failure: %v", err)
+	}
+	guardedCommitFault = nil
+	// The publish fails after it already replaced the file.
+	guardedFileFault = func() error {
+		_ = os.WriteFile(filepath.Join(h.files.dir, "wf-g.json"), []byte("{}"), 0o600)
+		return errors.New("write failed")
+	}
+	err = h.SaveNodesGuarded(ctx, "wf-g", nodes, SaveGuard{ExpectHash: hash})
+	if !errors.Is(err, ErrFileInconsistent) || !errors.Is(err, ErrFileSyncFailed) {
+		t.Fatalf("file failure, restore failure: %v", err)
 	}
 }

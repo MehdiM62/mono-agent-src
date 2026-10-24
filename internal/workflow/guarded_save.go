@@ -1,12 +1,15 @@
 package workflow
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 )
 
 // ErrChangedSincePreview: the workflow is not the one the caller reviewed.
@@ -42,9 +45,54 @@ type SaveGuard struct {
 // ErrFileSyncFailed: the canonical workflow file could not be published, so nothing was changed.
 var ErrFileSyncFailed = errors.New("the workflow file could not be written")
 
+// ErrFileInconsistent: the workflow file could not be put back after a failed save, so the file
+// and the database may disagree about this workflow.
+var ErrFileInconsistent = errors.New("the workflow file and the database may disagree")
+
+// fileWriteMu orders the writes of workflow files in this process: a guarded save holds it from
+// publishing its file to its commit, and the unguarded paths (the file sync after a node edit, a
+// plain file save) take it around theirs.
+var fileWriteMu sync.Mutex
+
 // Test seams, nil in production: a failure injected where the canonical file is published,
-// and where the transaction commits.
-var guardedFileFault, guardedCommitFault func() error
+// where the transaction commits, and where a previous file is put back.
+var guardedFileFault, guardedCommitFault, guardedRestoreFault func() error
+
+type txHookKey struct{}
+
+// WithTxHook makes the next definition save made with ctx call fn inside its database
+// transaction, after the rows are written and before the file is published and the transaction
+// commits. An error from fn aborts the save as a *TxHookError. The apply-once claim of an AI
+// task proposal uses it, so the claim commits or rolls back with the write it guards.
+func WithTxHook(ctx context.Context, fn func(ctx context.Context, tx *sql.Tx) error) context.Context {
+	return context.WithValue(ctx, txHookKey{}, fn)
+}
+
+func txHookFrom(ctx context.Context) func(context.Context, *sql.Tx) error {
+	fn, _ := ctx.Value(txHookKey{}).(func(context.Context, *sql.Tx) error)
+	return fn
+}
+
+// TxHookError wraps what a WithTxHook function returned.
+type TxHookError struct{ Err error }
+
+func (e *TxHookError) Error() string { return e.Err.Error() }
+func (e *TxHookError) Unwrap() error { return e.Err }
+
+// restoreFile puts previous file bytes back, durably, naming the workflow when it cannot.
+func (h *HybridWorkflowStore) restorePrevious(id string, prev []byte) error {
+	var err error
+	if guardedRestoreFault != nil {
+		err = guardedRestoreFault()
+	}
+	if err == nil {
+		err = h.files.restoreRaw(id, prev, true)
+	}
+	if err != nil {
+		return fmt.Errorf("%w: workflow %s: %v", ErrFileInconsistent, id, err)
+	}
+	return nil
+}
 
 // SaveNodesGuarded is SaveWorkflowNodes as ONE critical section under the database's write lock
 // (the lock every definition save takes, the operator's own included): it first takes the lock,
@@ -98,8 +146,15 @@ func (h *HybridWorkflowStore) SaveNodesGuarded(ctx context.Context, workflowID s
 	if err != nil {
 		return err
 	}
+	if hook := txHookFrom(ctx); hook != nil {
+		if err := hook(ctx, tx); err != nil {
+			return &TxHookError{Err: err}
+		}
+	}
+	fileWriteMu.Lock()
 	restore, err := h.publishNodesFile(ctx, workflowID, nodes, cur.Connections, version)
 	if err != nil {
+		fileWriteMu.Unlock()
 		return err
 	}
 	if guardedCommitFault != nil {
@@ -112,11 +167,13 @@ func (h *HybridWorkflowStore) SaveNodesGuarded(ctx context.Context, workflowID s
 		err = fmt.Errorf("committing guarded save: %w", err)
 		if restore != nil {
 			if rerr := restore(); rerr != nil {
-				err = errors.Join(err, fmt.Errorf("restoring the previous workflow file: %w", rerr))
+				err = errors.Join(err, rerr)
 			}
 		}
+		fileWriteMu.Unlock()
 		return err
 	}
+	fileWriteMu.Unlock()
 	return h.saved(ctx, workflowID, nil)
 }
 
@@ -143,7 +200,7 @@ func (h *HybridWorkflowStore) publishNodesFile(ctx context.Context, id string, n
 		return nil, nil
 	}
 	fw.Nodes, fw.Connections, fw.Version = nodes, conns, version
-	restore := func() error { return h.files.restoreRaw(id, prev, true) }
+	restore := func() error { return h.restorePrevious(id, prev) }
 	err = nil
 	if guardedFileFault != nil {
 		err = guardedFileFault()
@@ -152,9 +209,13 @@ func (h *HybridWorkflowStore) publishNodesFile(ctx context.Context, id string, n
 		err = h.files.saveWorkflowDurable(ctx, fw)
 	}
 	if err != nil {
-		// The rename may have happened before the failure: put the old bytes back either way.
+		// The rename may have happened before the failure (the folder flush that follows it can
+		// fail): put the old bytes back unless the file is untouched.
+		if now, there, rerr := h.files.readRaw(id); rerr == nil && there && bytes.Equal(now, prev) {
+			return fail(err)
+		}
 		if rerr := restore(); rerr != nil {
-			err = errors.Join(err, fmt.Errorf("restoring the previous workflow file: %w", rerr))
+			return nil, errors.Join(fmt.Errorf("%w: %v", ErrFileSyncFailed, err), rerr)
 		}
 		return fail(err)
 	}
