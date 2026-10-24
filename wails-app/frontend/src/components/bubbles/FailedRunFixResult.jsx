@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { aitaskApplyApi } from '../SendToCoderApi.js'
 import { confirm } from '../ConfirmDialog.jsx'
@@ -26,6 +26,7 @@ export function errParts(e) {
 // per value; a preview beyond that cannot be reviewed, so it cannot be applied.
 const MAX_LEAVES = 50
 const MAX_VALUE = 2000
+const MAX_PATH = 512
 
 const show = (v) => { try { return typeof v === 'string' ? v : JSON.stringify(v) ?? '' } catch { return '' } }
 
@@ -49,7 +50,7 @@ function Edits({ edits }) {
     <ul data-testid="fix-diff" style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 4, width: '100%' }}>
       {edits.map((e, i) => (
         <li key={i} style={{ overflowWrap: 'anywhere' }}>
-          <strong>{text(e.nodeName || e.node, 80)}</strong> · <code>{text(e.path, 120)}</code>
+          <strong>{text(e.nodeName || e.node, 80)}</strong> · <code style={{ overflowWrap: 'anywhere', wordBreak: 'break-all' }}>{typeof e.path === 'string' ? e.path : show(e.path)}</code>
           <div><span style={{ color: 'var(--red)' }}>- <Value v={e.before} /></span></div>
           <div><span style={{ color: 'var(--green-neon, #10b981)' }}>+ <Value v={e.after} /></span></div>
         </li>
@@ -65,9 +66,15 @@ export default function FailedRunFixResult({ taskId, result, onNavigate }) {
   const { t } = useTranslation()
   const fix = isObj(result.fix) ? result.fix : {}
   const editable = fix.kind === 'workflow-edit'
-  const [preview, setPreview] = useState(null) // { ok, edits, warnings, ... }
-  const [previewErr, setPreviewErr] = useState('')
+  // The preview and its error are kept with the task id they were asked for;
+  // only the current task's are ever used.
+  const [previewState, setPreviewState] = useState(null) // { taskId, data }
+  const [errState, setErrState] = useState(null) // { taskId, message }
+  const preview = previewState?.taskId === taskId ? previewState.data : null
+  const previewErr = errState?.taskId === taskId ? errState.message : ''
   const [busy, setBusy] = useState(false)
+  const currentTask = useRef(taskId) // the task on screen, for replies that come back late
+  currentTask.current = taskId
   const [applied, setApplied] = useState(null)
   const [applyErr, setApplyErr] = useState(null) // { code, message }
   const [done, setDone] = useState(false) // already applied
@@ -76,17 +83,20 @@ export default function FailedRunFixResult({ taskId, result, onNavigate }) {
   useEffect(() => {
     if (!editable || !taskId) return undefined
     let live = true
-    aitaskApplyApi.preview(taskId).then(p => { if (live) setPreview(isObj(p) ? p : { ok: false, edits: [] }) }).catch(e => { if (live) setPreviewErr(String(e?.message || e)) })
+    const asked = taskId
+    // A new task starts from nothing: no edits, hash or error of another task.
+    setPreviewState(null); setErrState(null); setApplied(null); setApplyErr(null); setDone(false); setBusy(false)
+    aitaskApplyApi.preview(asked).then(p => { if (live) setPreviewState({ taskId: asked, data: isObj(p) ? p : { ok: false, edits: [] } }) }).catch(e => { if (live) setErrState({ taskId: asked, message: String(e?.message || e) }) })
     return () => { live = false }
   }, [editable, taskId, reload])
 
   // reviewAgain drops what was shown and loads the preview anew.
-  const reviewAgain = () => { setPreview(null); setPreviewErr(''); setApplyErr(null); setReload(n => n + 1) }
+  const reviewAgain = () => { setPreviewState(null); setErrState(null); setApplyErr(null); setReload(n => n + 1) }
 
   const edits = Array.isArray(preview?.edits) ? preview.edits.filter(isObj) : []
   const warnings = Array.isArray(preview?.warnings) ? preview.warnings.filter(isObj).slice(0, 10) : []
   const workflowId = text(preview?.workflowId || result.workflowId, 200)
-  const tooBig = edits.length > MAX_LEAVES || edits.some(e => show(e.before).length > MAX_VALUE || show(e.after).length > MAX_VALUE)
+  const tooBig = edits.length > MAX_LEAVES || edits.some(e => show(e.path).length > MAX_PATH || show(e.before).length > MAX_VALUE || show(e.after).length > MAX_VALUE)
   const hash = typeof preview?.definitionHash === 'string' ? preview.definitionHash : ''
   const previewOk = !!preview && preview.ok !== false && !preview.error && edits.length > 0 && !tooBig && hash !== ''
   const canApply = previewOk && !applied && !done && !busy
@@ -99,6 +109,8 @@ export default function FailedRunFixResult({ taskId, result, onNavigate }) {
   const apply = async () => {
     if (!canApply) return
     const reviewed = hash // the hash of the preview the user is looking at
+    const asked = taskId
+    if (previewState?.taskId !== asked) return
     setBusy(true); setApplyErr(null)
     try {
       const nodes = new Set(edits.map(e => e.node)).size
@@ -108,6 +120,7 @@ export default function FailedRunFixResult({ taskId, result, onNavigate }) {
         if (!(await confirmActive())) return
         allow = true
       }
+      if (currentTask.current !== asked) return // the user moved to another task meanwhile
       let r
       try {
         r = await aitaskApplyApi.apply(taskId, allow, reviewed)
@@ -117,8 +130,10 @@ export default function FailedRunFixResult({ taskId, result, onNavigate }) {
         if (!allow && p.code === ACTIVE_REFUSAL && (await confirmActive())) r = await aitaskApplyApi.apply(taskId, true, reviewed)
         else throw e
       }
+      if (currentTask.current !== asked) return
       setApplied({ count: Number.isFinite(r?.applied) ? r.applied : edits.length, workflowId: text(r?.workflowId || workflowId, 200) })
     } catch (e) {
+      if (currentTask.current !== asked) return
       const p = errParts(e)
       if (p.code === 'already_applied') setDone(true)
       else setApplyErr(p)

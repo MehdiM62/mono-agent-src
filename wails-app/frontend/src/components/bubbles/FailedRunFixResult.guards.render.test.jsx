@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import '@testing-library/jest-dom/vitest'
-import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, cleanup, act } from '@testing-library/react'
 import '../../i18n.js'
 
 const { aitaskApplyApi, aitaskApi, confirm } = vi.hoisted(() => ({
@@ -15,6 +15,7 @@ vi.mock('../ConfirmDialog.jsx', () => ({ confirm }))
 
 import { TaskHeaderCard } from './TaskHeaderCard.jsx'
 import { TaskResultLine } from './TaskResultLine.jsx'
+import FailedRunFixResult from './FailedRunFixResult.jsx'
 import { CoderBubbleContext } from './CoderBubbleContext.jsx'
 
 const result = { diagnosis: 'd', workflowId: 'w1', executionId: 'e1', fix: { kind: 'workflow-edit', description: 'x', edits: [{ node: 'n1', config: {} }] } }
@@ -175,6 +176,99 @@ describe('the reviewed hash and size limits', () => {
     expect(applyBtn()).toBeDisabled()
     fireEvent.click(applyBtn())
     expect(aitaskApplyApi.apply).not.toHaveBeenCalled()
+  })
+})
+
+const withTask = (id, extra = {}) => <CoderBubbleContext.Provider value={{ openDraft: vi.fn(), navigate: vi.fn() }}><FailedRunFixResult taskId={id} result={result} {...extra} /></CoderBubbleContext.Provider>
+
+describe('a preview is bound to its task', () => {
+  it('switching A to B while B is pending: A is not shown, Apply is disabled, nothing is called', async () => {
+    aitaskApplyApi.preview.mockResolvedValueOnce(preview({ definitionHash: 'sha256:hashAAAA' })).mockReturnValueOnce(new Promise(() => {}))
+    const { rerender } = render(withTask('tA'))
+    await screen.findByTestId('fix-diff')
+    expect(applyBtn()).toBeEnabled()
+    rerender(withTask('tB'))
+    expect(screen.queryByTestId('fix-diff')).toBeNull()
+    expect(applyBtn()).toBeDisabled()
+    fireEvent.click(applyBtn())
+    expect(confirm).not.toHaveBeenCalled()
+    expect(aitaskApplyApi.apply).not.toHaveBeenCalled()
+  })
+
+  it("B's preview fails after the switch: Apply stays disabled", async () => {
+    aitaskApplyApi.preview.mockResolvedValueOnce(preview()).mockRejectedValueOnce(new Error('boom'))
+    const { rerender } = render(withTask('tA'))
+    await screen.findByTestId('fix-diff')
+    rerender(withTask('tB'))
+    await screen.findByText(/Could not check the proposed change: boom/)
+    expect(screen.queryByTestId('fix-diff')).toBeNull()
+    expect(applyBtn()).toBeDisabled()
+  })
+
+  it("A's late reply after the switch is ignored", async () => {
+    let lateA
+    aitaskApplyApi.preview.mockReturnValueOnce(new Promise(r => { lateA = r })).mockReturnValueOnce(new Promise(() => {}))
+    const { rerender } = render(withTask('tA'))
+    rerender(withTask('tB'))
+    await act(async () => { lateA(preview({ definitionHash: 'sha256:hashAAAA' })) })
+    expect(screen.queryByTestId('fix-diff')).toBeNull()
+    expect(applyBtn()).toBeDisabled()
+  })
+
+  it('two proposals on the same workflow never cross hashes', async () => {
+    aitaskApplyApi.preview.mockResolvedValueOnce(preview({ definitionHash: 'sha256:hashAAAA' })).mockResolvedValueOnce(preview({ definitionHash: 'sha256:hashBBBB', edits: [{ node: 'n2', nodeName: 'Other', path: 'x', before: '1', after: '2' }] }))
+    aitaskApplyApi.apply.mockResolvedValue({ ok: true, applied: 1, workflowId: 'w1' })
+    const { rerender } = render(withTask('tA'))
+    await screen.findByTestId('fix-diff')
+    rerender(withTask('tB'))
+    await screen.findByText('Other')
+    fireEvent.click(applyBtn())
+    await screen.findByText(/Applied 1 edits/)
+    expect(aitaskApplyApi.apply).toHaveBeenCalledTimes(1)
+    expect(aitaskApplyApi.apply).toHaveBeenCalledWith('tB', false, 'sha256:hashBBBB')
+  })
+
+  it('an apply of A that answers after the switch to B does not mark B applied', async () => {
+    aitaskApplyApi.preview.mockResolvedValueOnce(preview()).mockReturnValueOnce(new Promise(() => {}))
+    let finish
+    aitaskApplyApi.apply.mockReturnValue(new Promise(r => { finish = r }))
+    const { rerender } = render(withTask('tA'))
+    await screen.findByTestId('fix-diff')
+    fireEvent.click(applyBtn())
+    await waitFor(() => expect(aitaskApplyApi.apply).toHaveBeenCalled())
+    rerender(withTask('tB'))
+    await act(async () => { finish({ ok: true, applied: 1, workflowId: 'w1' }) })
+    expect(screen.queryByText(/Applied 1 edits/)).toBeNull()
+  })
+
+  it('TaskResultLine keys the result by task, so the state resets', async () => {
+    aitaskApplyApi.preview.mockResolvedValueOnce(preview()).mockReturnValueOnce(new Promise(() => {}))
+    const wrap = (id) => <CoderBubbleContext.Provider value={{ openDraft: vi.fn(), navigate: vi.fn() }}><TaskResultLine kind="failed-run-fix" taskId={id} result={result} /></CoderBubbleContext.Provider>
+    const { rerender } = render(wrap('tA'))
+    await screen.findByTestId('fix-diff')
+    rerender(wrap('tB'))
+    expect(screen.queryByTestId('fix-diff')).toBeNull()
+    expect(applyBtn()).toBeDisabled()
+  })
+})
+
+describe('full paths', () => {
+  it('shows a long path in full, without an ellipsis', async () => {
+    const path = 'parameters.' + 'segment.'.repeat(60) + 'leaf'
+    aitaskApplyApi.preview.mockResolvedValue(preview({ edits: [{ node: 'n', nodeName: 'N', path, before: 'a', after: 'b' }] }))
+    mount()
+    const diff = await screen.findByTestId('fix-diff')
+    expect(diff.textContent).toContain(path)
+    expect(diff.textContent).not.toContain('…')
+    expect(applyBtn()).toBeEnabled()
+  })
+
+  it('a path over 512 characters disables Apply and says the review cannot show it', async () => {
+    aitaskApplyApi.preview.mockResolvedValue(preview({ edits: [{ node: 'n', nodeName: 'N', path: 'p'.repeat(513), before: 'a', after: 'b' }] }))
+    mount()
+    await screen.findByTestId('fix-diff')
+    expect(screen.getByRole('alert')).toHaveTextContent('bigger than the review can show')
+    expect(applyBtn()).toBeDisabled()
   })
 })
 

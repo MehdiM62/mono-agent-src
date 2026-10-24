@@ -71,6 +71,6 @@ export function TaskResultLine({ kind, taskId, result, onNavigate }) {
   if (!isObj(result)) return null
   if (kind === 'workflow-generate') return <GeneratedWorkflow taskId={taskId} result={result} onNavigate={onNavigate} />
   if (kind === 'recording-analyze') return <RecordingResult result={result} />
-  if (kind === 'failed-run-fix') return <FailedRunFixResult taskId={taskId} result={result} onNavigate={onNavigate} />
+  if (kind === 'failed-run-fix') return <FailedRunFixResult key={taskId} taskId={taskId} result={result} onNavigate={onNavigate} />
   return null
 }
