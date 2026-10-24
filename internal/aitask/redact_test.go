@@ -106,7 +106,9 @@ func TestRedactResultWorkIsBounded(t *testing.T) {
 	big += " " + fakeSK
 	start := time.Now()
 	out, _ := RedactResult(map[string]any{"a": big}).(map[string]any)["a"].(string)
-	if d := time.Since(start); d > 5*time.Second {
+	// A quadratic version takes about half an hour on this input; the limit only has to
+	// stay clear of a loaded -race machine.
+	if d := time.Since(start); d > 60*time.Second {
 		t.Fatalf("redacting %d bytes took %v", len(big), d)
 	}
 	if strings.Contains(out, "abcdefghijklmnop0123") {

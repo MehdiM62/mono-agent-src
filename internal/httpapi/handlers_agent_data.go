@@ -155,6 +155,10 @@ func dataFail(w http.ResponseWriter, what string, err error) {
 		writeError(w, http.StatusBadRequest, what+": "+err.Error())
 	case errors.Is(err, tasks.ErrOperatorOnly):
 		writeError(w, http.StatusForbidden, what+": only the operator can do that")
+	case strings.Contains(err.Error(), "database is locked") || strings.Contains(err.Error(), "SQLITE_BUSY"):
+		// Another writer held the lock past the busy timeout: the caller can retry.
+		w.Header().Set("Retry-After", "1")
+		writeError(w, http.StatusServiceUnavailable, what+": the database is busy, retry")
 	default:
 		lg := logging.Zerolog()
 		lg.Warn().Err(err).Str("route", what).Msg("httpapi: a data route failed")
