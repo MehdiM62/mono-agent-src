@@ -70,6 +70,7 @@ const (
 	CodeWrongTarget    = "wrong_target"
 	CodeTooLarge       = "too_large"
 	CodeExpectHash     = "expect_hash_required"
+	CodeFileSync       = "file_sync_failed"
 	CodeNoBackend      = "no_backend"
 )
 
@@ -301,6 +302,9 @@ func Apply(ctx context.Context, profile string, result []byte, opts Options) (in
 	err = Store.SaveNodesGuarded(ctx, profile, plan.WorkflowID, plan.nodes, workflow.SaveGuard{ExpectHash: opts.ExpectHash, RevokeApprovals: true})
 	if errors.Is(err, workflow.ErrChangedSincePreview) {
 		return 0, fail(CodeChanged, "the workflow changed while the edit was being applied: preview it again")
+	}
+	if errors.Is(err, workflow.ErrFileSyncFailed) {
+		return 0, fail(CodeFileSync, "the workflow file could not be written, so nothing was changed: %v", err)
 	}
 	if err != nil {
 		return 0, fmt.Errorf("save nodes: %w", err)
