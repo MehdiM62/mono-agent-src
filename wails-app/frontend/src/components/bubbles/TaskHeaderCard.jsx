@@ -76,7 +76,7 @@ export function TaskHeaderCard({ task, onNavigate }) {
       {!taskIsDone(status) && (
         <button type="button" className="btn btn-ghost btn-sm" onClick={cancel} disabled={cancelling}>Cancel</button>
       )}
-      {result && <TaskResultLine kind={result.kind} result={result.data} onNavigate={onNavigate} />}
+      {result && <TaskResultLine kind={result.kind} taskId={task.taskId} result={result.data} onNavigate={onNavigate} />}
       {error && <span role="alert" style={{ color: 'var(--red)', width: '100%' }}>{error}</span>}
     </section>
   )
