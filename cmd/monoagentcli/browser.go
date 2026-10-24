@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/monoes/mono-agent/internal/aitask"
 	"github.com/monoes/mono-agent/internal/browserctl"
 	"github.com/monoes/mono-agent/internal/extension"
 	"github.com/monoes/mono-agent/internal/storage"
@@ -120,7 +121,7 @@ func openBrowser(cmd *cobra.Command, cfg *globalConfig, noTab bool) (*browserRun
 	}
 	s, err := browserctl.Open(browserctl.Options{
 		Browser: b, Profile: cfg.ProfileID, Tab: tab, NoTab: noTab, Permissions: &perms, DB: db.DB, Sender: sender,
-		HoldLocalSubmits: tgt != nil,
+		HoldLocalSubmits: tgt != nil, PinOrigin: pinOriginOf(tgt),
 	})
 	if err != nil {
 		db.Close()
@@ -133,6 +134,14 @@ func openBrowser(cmd *cobra.Command, cfg *globalConfig, noTab bool) (*browserRun
 		}
 	}
 	return &browserRun{cfg: cfg, cmd: cmd, s: s, db: db}, nil
+}
+
+// pinOriginOf is the origin an extension session is pinned to, "" for none.
+func pinOriginOf(tgt *aitask.ExtensionTarget) string {
+	if tgt == nil {
+		return ""
+	}
+	return tgt.Origin
 }
 
 func (r *browserRun) Close() { r.db.Close() }
@@ -198,6 +207,7 @@ func browserErr(cmd *cobra.Command, cfg *globalConfig, err error) error {
 	var se *browserctl.SubmitStateError
 	var changed *browserctl.SubmitChangedError
 	var blankTab *browserctl.BlankTabError
+	var pinned *browserctl.PinnedOriginError
 	var off *browserctl.BrowserOffError
 	var blocked *browserctl.SiteBlockedError
 	var pending *browserctl.SiteApprovalPendingError
@@ -239,6 +249,8 @@ func browserErr(cmd *cobra.Command, cfg *globalConfig, err error) error {
 		return browserCLIError{error: errInvalidInput("%s", changed.Error()), code: "submit_changed"}
 	case errors.Is(err, browserctl.ErrSubmitUnbound):
 		return browserCLIError{error: errInvalidInput("%v", err), code: "submit_unbound"}
+	case errors.As(err, &pinned):
+		return browserCLIError{error: errInvalidInput("%s", pinned.Error()), code: "tab_moved"}
 	case errors.As(err, &blankTab):
 		return browserCLIError{error: errInvalidInput("%s", blankTab.Error()), code: "tab_blank"}
 	case errors.Is(err, browserctl.ErrNoBridge), errors.Is(err, extension.ErrNoExtension), errors.Is(err, extension.ErrBrowserGone),
