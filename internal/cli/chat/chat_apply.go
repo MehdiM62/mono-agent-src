@@ -153,11 +153,6 @@ func checkPrefixes(prefixes []string) error {
 	return nil
 }
 
-// confineApplyTurn prepares the confinement of an application-apply task's turn.
-func confineApplyTurn(cfg *Deps, taskID string) (*confinement, error) {
-	return confineTurn(cfg, applyfill.Kind, taskID)
-}
-
 // confineTurn prepares the confinement of task id's turn.
 func confineTurn(cfg *Deps, kind, taskID string) (*confinement, error) {
 	prefixes := bashPrefixesFor(kind, cfg.ProfileID())
