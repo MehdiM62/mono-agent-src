@@ -63,7 +63,7 @@ describe('failed-run-fix result', () => {
     await screen.findByTestId('fix-diff')
     fireEvent.click(screen.getByRole('button', { name: 'Apply fix' }))
     await waitFor(() => expect(confirm).toHaveBeenCalled())
-    expect(confirm.mock.calls[0][0]).toMatch(/changes 1 field\(s\) in 1 node\(s\) of the workflow "Daily digest".*approval again before it runs/)
+    expect(confirm.mock.calls[0][0]).toMatch(/changes 1 field in 1 node of the workflow "Daily digest".*approval again before it runs/)
     expect(aitaskApplyApi.apply).not.toHaveBeenCalled()
   })
 

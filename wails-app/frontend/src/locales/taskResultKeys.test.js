@@ -11,6 +11,7 @@ const dir = join(__dirname, '..', 'components', 'bubbles')
 const source = ['FailedRunFixResult.jsx', 'TaskResultLine.jsx'].map(f => readFileSync(join(dir, f), 'utf8')).join('\n')
 const literal = [...new Set([...source.matchAll(/['"`](taskResult\.[a-zA-Z0-9_.]+)['"`]/g)].map(m => m[1]))]
 // t(`taskResult.warn.${key}`)
+const has = (keys, k) => keys.includes(k) || (keys.includes(`${k}_one`) && keys.includes(`${k}_other`))
 const used = [...literal, ...['sends', 'credential', 'expression', 'active'].map(k => `taskResult.warn.${k}`)]
 
 describe('taskResult i18n', () => {
@@ -18,8 +19,8 @@ describe('taskResult i18n', () => {
   const esKeys = flat(es)
   it('finds the keys the result lines use', () => { expect(literal.length).toBeGreaterThan(15) })
   it('has every used key in English and Spanish', () => {
-    expect(used.filter(k => !enKeys.includes(k))).toEqual([])
-    expect(used.filter(k => !esKeys.includes(k))).toEqual([])
+    expect(used.filter(k => !has(enKeys, k))).toEqual([])
+    expect(used.filter(k => !has(esKeys, k))).toEqual([])
   })
   it('carries the same taskResult keys in both locales', () => {
     const b = keys => keys.filter(k => k.startsWith('taskResult.')).sort()

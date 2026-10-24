@@ -326,6 +326,72 @@ describe('every apply call re-verifies', () => {
   })
 })
 
+describe('visual QA fixes', () => {
+  it('D3: after changed_since_preview Apply stays disabled until Review again loads a fresh preview', async () => {
+    aitaskApplyApi.preview.mockResolvedValueOnce(preview({ definitionHash: 'sha256:old00001' })).mockResolvedValueOnce(preview({ definitionHash: 'sha256:new00002' }))
+    aitaskApplyApi.apply.mockRejectedValueOnce(new Error('changed_since_preview: x'))
+    mount()
+    await screen.findByTestId('fix-diff')
+    fireEvent.click(applyBtn())
+    await screen.findByRole('button', { name: 'Review again' })
+    expect(applyBtn()).toBeDisabled()
+    fireEvent.click(applyBtn())
+    expect(aitaskApplyApi.apply).toHaveBeenCalledTimes(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Review again' }))
+    await waitFor(() => expect(applyBtn()).toBeEnabled())
+  })
+
+  it('D4: the apply confirm uses proper plurals', async () => {
+    aitaskApplyApi.preview.mockResolvedValue(preview())
+    mount()
+    await screen.findByTestId('fix-diff')
+    fireEvent.click(applyBtn())
+    await waitFor(() => expect(confirm).toHaveBeenCalled())
+    expect(confirm.mock.calls[0][0]).toContain('changes 1 field in 1 node of the workflow')
+    cleanup(); confirm.mockClear()
+    aitaskApplyApi.preview.mockResolvedValue(preview({ edits: [
+      { node: 'a', nodeName: 'A', path: 'p1', before: '1', after: '2' }, { node: 'a', nodeName: 'A', path: 'p2', before: '1', after: '2' }, { node: 'b', nodeName: 'B', path: 'p3', before: '1', after: '2' }] }))
+    mount()
+    await screen.findByTestId('fix-diff')
+    fireEvent.click(applyBtn())
+    await waitFor(() => expect(confirm).toHaveBeenCalled())
+    expect(confirm.mock.calls[0][0]).toContain('changes 3 fields in 2 nodes of the workflow')
+  })
+
+  it('D5: Apply has its own row, away from the warning chips, and the confirm is not styled as destructive', async () => {
+    aitaskApplyApi.preview.mockResolvedValue(preview({ warnings: [{ code: 'new_outbound', text: 'x' }] }))
+    mount()
+    await screen.findByTestId('fix-diff')
+    const row = screen.getByTestId('apply-row')
+    expect(row).toContainElement(applyBtn())
+    expect(row).not.toHaveTextContent('Sends, publishes or runs something')
+    fireEvent.click(applyBtn())
+    await waitFor(() => expect(confirm).toHaveBeenCalled())
+    expect(confirm.mock.calls[0][1].danger).toBe(false)
+  })
+
+  it('D6: credential-looking keys are masked, and Show more cannot reveal them', async () => {
+    aitaskApplyApi.preview.mockResolvedValue(preview({ edits: [
+      { node: 'n', nodeName: 'HTTP', path: 'credentials.apiKey', before: 'old-key-VALUE-1', after: 'new-key-VALUE-2' + 'x'.repeat(300) },
+      { node: 'n', nodeName: 'HTTP', path: 'auth.token', before: 'tok-OLD', after: 'tok-NEW' },
+      { node: 'n', nodeName: 'HTTP', path: 'credential_id', before: 'cred-1', after: 'cred-2' }] }))
+    mount()
+    const diff = await screen.findByTestId('fix-diff')
+    expect(diff.textContent).not.toMatch(/VALUE|tok-OLD|tok-NEW/)
+    expect(diff.textContent.match(/••••••/g)).toHaveLength(4)
+    expect(screen.getAllByText(/hidden: looks like a credential/).length).toBeGreaterThanOrEqual(2)
+    expect(screen.queryByRole('button', { name: 'Show more' })).toBeNull()
+    expect(diff.textContent).toContain('cred-1') // credential_id is not a secret
+  })
+})
+
+describe('looksLikeCredential', () => {
+  it.each([['credentials.apiKey', true], ['auth.token', true], ['headers.Authorization', true], ['x.password', true], ['a.client_secret', true], ['Cookie', true], ['otp', true], ['card.cvv', true], ['private_key', true], ['access-key', true], ['api_key', true], ['credential_id', false], ['url', false], ['parameters.footprint', false], ['hotpath.x', false]])('%s -> %s', async (path, want) => {
+    const { looksLikeCredential } = await import('./FailedRunFixResult.jsx')
+    expect(looksLikeCredential(path)).toBe(want)
+  })
+})
+
 describe('full paths', () => {
   it('shows a long path in full, without an ellipsis', async () => {
     const path = 'parameters.' + 'segment.'.repeat(60) + 'leaf'
