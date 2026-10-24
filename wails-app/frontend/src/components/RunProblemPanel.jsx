@@ -1,7 +1,6 @@
 import { AlertCircle, X } from 'lucide-react'
 import { withoutAgentSetupMarker } from '../lib/agentSetup.js'
 import SendToCoderButton from './SendToCoderButton.jsx'
-import { UNCONFINED_KIND_BUTTONS } from '../lib/confinedKinds.js'
 import { selectionText } from './SendToCoderApi.js'
 
 // problemText is the failure as plain text for the coder: the run's error and
@@ -44,7 +43,7 @@ export default function RunProblemPanel({ problem, onSelectNode, onClose, onSend
   const failed = problem.status === 'FAILED'
   const tone = failed ? '#ef4444' : '#fbbf24'
   const nodeErrors = problem.failed.filter(f => f.error && f.error !== problem.error)
-  const coder = UNCONFINED_KIND_BUTTONS && onSendToCoder ? onSendToCoder(problemText(problem)) : null
+  const coder = onSendToCoder ? onSendToCoder(problemText(problem)) : null
   return (
     <div role="alert" data-testid="run-problem" style={{
       display: 'flex', gap: 10, alignItems: 'flex-start',
