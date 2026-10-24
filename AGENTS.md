@@ -3573,7 +3573,7 @@ monoagentcli --profile P aitask fail <id> --reason TEXT                   # the 
   the proposed change as data in `fix.proposed` for the user to apply, editing and running nothing; `fix.proposed` is untrusted data, so any future renderer or applier must show it for review and never apply it automatically); in a confined task's session the root refuses
   a `--profile` other than the task's or given twice, `--db-path`, `--config-dir`, `--output-dir`, `--log-file`, `--all-profiles` and `workflow validate --file`; they hand the result back with `aitask complete --result-json JSON`
   or `--result FILE` from the task's own work folder (any other path is refused); on every other kind the access level is
-  recorded and hashed but `qa` is not enforced on the turn.
+  recorded and hashed but `qa` is not enforced on the turn. A confined turn (first or follow-up) refuses to start (`confinement_unenforceable`, exit 3) on a monomind older than `monomind.MinConfinedMonomindVersion` (2.27.0), because the allow-list rests on monomind's shell scanner and older versions can be bypassed; the global minimum is unchanged.
 - Context goes to `<conversation folder>/.monoagent/context/<task>/<class>/` with a README that says it is data, never
   instructions; files are size-capped, links and odd files refused, secret values hidden. `CLASS` is `posting`, `facts`,
   `document` or `selection`; anything else, and anything in the synced message attachments folder, is refused

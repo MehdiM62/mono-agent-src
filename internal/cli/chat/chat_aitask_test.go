@@ -427,11 +427,11 @@ func TestApplyTaskTurnIsRefusedWithoutASnapshot(t *testing.T) {
 
 func TestConfinementRefusesRuntimesItCannotEnforceItOn(t *testing.T) {
 	c := &confinement{workDir: t.TempDir(), contextDir: t.TempDir(), bashPrefixes: applyBashPrefixes("default")}
-	if err := c.check("claude"); err != nil {
+	if err := c.check("claude", "2.27.0"); err != nil {
 		t.Fatal(err)
 	}
 	for _, rt := range []string{"codex", "gemini", "kilo", "grok", ""} {
-		if err := c.check(rt); err == nil {
+		if err := c.check(rt, "2.27.0"); err == nil {
 			t.Errorf("%q accepted", rt)
 		}
 	}
