@@ -1,6 +1,8 @@
 package chat
 
 import (
+	"errors"
+	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -86,5 +88,35 @@ func TestExtensionSessionInstructions(t *testing.T) {
 		if strings.Contains(p, "no command that") || strings.Contains(p, "job application form") {
 			t.Errorf("%s prompt claims what is not true: %.300s", kind, p)
 		}
+	}
+}
+
+// A confined turn whose browser-kind record could not be written (the env has
+// the declared kind but no token) does not run: the browser verbs would read it
+// as kind "other" and scope neither its tab nor its files.
+func TestConfinedTurnIsRefusedWithoutAVouchedKind(t *testing.T) {
+	kindOnly := func(kind string) func() ([]string, func(int), func()) {
+		return func() ([]string, func(int), func()) {
+			return []string{"MONOAGENT_AGENT_KIND=" + kind}, func(int) {}, func() {}
+		}
+	}
+	for _, kind := range []string{"application-apply", aitask.KindExtensionFill, aitask.KindExtensionAsk, "draft-reply", "failed-run-fix"} {
+		withMonomindVersion(t, "2.27.0")
+		oldA, oldK := issueApplyKind, issueAgentKind
+		issueApplyKind = func(string) ([]string, func(int), func()) { return kindOnly("apply")() }
+		issueAgentKind = func(k string) ([]string, func(int), func()) { return kindOnly(k)() }
+		t.Cleanup(func() { issueApplyKind, issueAgentKind = oldA, oldK })
+		r := newTaskRig(t)
+		r.taskOfKind(t, "default", aitask.StatusNeedsUser, kind)
+		stubSnapshot(t)
+		err := r.turnErr(t, "t1", nil)
+		var ce *coderError
+		if !errors.As(err, &ce) || ce.code != "confinement_unenforceable" {
+			t.Errorf("%s: err = %v", kind, err)
+		}
+		if b, _ := os.ReadFile(r.argsLog); strings.Contains(string(b), "agent exec") {
+			t.Errorf("%s: the agent ran without a vouched kind", kind)
+		}
+		issueApplyKind, issueAgentKind = oldA, oldK
 	}
 }
