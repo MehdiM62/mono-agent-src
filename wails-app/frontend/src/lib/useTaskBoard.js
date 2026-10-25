@@ -52,20 +52,29 @@ export function useTaskBoard(active = true, sessionId = null) {
 
   useEffect(() => {
     if (!active) return undefined
-    load()
     if (sessionId) {
+      // The revision is read BEFORE the first board read, so a change landing
+      // between the two is seen by the first tick instead of becoming the baseline.
       let rev = null
+      let stopped = false
       const tick = async () => {
         const p = await sessionsApi.pulse(sessionId)
-        if (typeof p?.rev !== 'number') return
+        if (stopped || typeof p?.rev !== 'number') return
         const moved = rev !== null && p.rev !== rev
         rev = p.rev
         if (moved) { if (shownRef.current) load(); else missed.current = true }
       }
-      tick()
-      const timer = setInterval(() => { if (shownRef.current) tick() }, SESSION_POLL_MS)
-      return () => { seq.current++; clearInterval(timer) }
+      const start = (async () => {
+        try {
+          const p = await sessionsApi.pulse(sessionId)
+          if (typeof p?.rev === 'number') rev = p.rev
+        } catch { /* the board read below still happens */ }
+        if (!stopped) load()
+      })()
+      const timer = setInterval(() => { if (shownRef.current) start.then(tick) }, SESSION_POLL_MS)
+      return () => { stopped = true; seq.current++; clearInterval(timer) }
     }
+    load()
     const off = onTasksChanged(() => { if (shownRef.current) load(); else missed.current = true })
     return () => { seq.current++; if (typeof off === 'function') off() }
   }, [active, load, sessionId])
