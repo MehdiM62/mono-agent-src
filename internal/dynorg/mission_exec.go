@@ -318,7 +318,7 @@ func (c *Conductor) recordSpend(ctx context.Context, mc *MissionRun, w *worker) 
 		return
 	}
 	note := fmt.Sprintf("%s on task #%d", w.id, w.task.task.ID)
-	if _, err := mc.Store.AddSessionSpend(ctx, mc.ProfileID, w.task.session, delta, note, tasks.Actor{Kind: tasks.Human}); err != nil {
+	if _, err := mc.Store.AddSessionSpend(ctx, mc.ProfileID, w.task.session, delta, note, operatorActor()); err != nil {
 		c.notice("mission.spend", fmt.Sprintf("The cost of %s ($%.4f) could not be added to the session: %v", w.id, delta, err), chatevents.SeverityWarning)
 	}
 }

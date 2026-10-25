@@ -25,7 +25,7 @@ func (c *Conductor) recordBranch(ctx context.Context, mc *MissionRun, w *worker)
 		return
 	}
 	art := tasks.ArtifactInput{Kind: tasks.ArtifactBranch, Ref: branch, Note: fmt.Sprintf("worker %s, worktree %s", w.id, tree)}
-	if _, err := mc.Store.AddArtifact(ctx, mc.ProfileID, b.session, b.task.ID, art, tasks.Actor{Kind: tasks.Human}); err != nil {
+	if _, err := mc.Store.AddArtifact(ctx, mc.ProfileID, b.session, b.task.ID, art, operatorActor()); err != nil {
 		c.notice("mission.artifact", fmt.Sprintf("Task #%d: the branch %s of %s could not be recorded: %v", b.task.ID, branch, w.id, err), chatevents.SeverityWarning)
 	}
 }
@@ -40,7 +40,7 @@ func (c *Conductor) recordMerge(ctx context.Context, w *worker) {
 	branch := w.branch
 	c.mu.Unlock()
 	art := tasks.ArtifactInput{Kind: tasks.ArtifactMerge, Ref: branch, Note: "merged by org_merge from " + w.id}
-	if _, err := mc.Store.AddArtifact(ctx, mc.ProfileID, w.task.session, w.task.task.ID, art, tasks.Actor{Kind: tasks.Human}); err != nil {
+	if _, err := mc.Store.AddArtifact(ctx, mc.ProfileID, w.task.session, w.task.task.ID, art, operatorActor()); err != nil {
 		c.notice("mission.artifact", fmt.Sprintf("Task #%d: the merge of %s could not be recorded: %v", w.task.task.ID, branch, err), chatevents.SeverityWarning)
 	}
 }

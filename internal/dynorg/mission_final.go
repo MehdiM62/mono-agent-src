@@ -233,11 +233,7 @@ func (c *Conductor) createIntegration(ctx context.Context, mc *MissionRun, sid i
 // closeMission writes the final report and closes the session as done.
 func (c *Conductor) closeMission(ctx context.Context, mc *MissionRun, se tasks.Session, plan tasks.SessionPlan, integration tasks.Task, v FinishView) (FinishView, error) {
 	rep, payload := c.finalReport(ctx, mc, se, plan)
-	art := tasks.ArtifactInput{Kind: "report", Ref: "final-report", Note: rep}
-	if _, err := mc.Store.AddArtifact(ctx, mc.ProfileID, se.ID, integration.ID, art, tasks.Actor{Kind: tasks.Human}); err != nil {
-		return v, fmt.Errorf("the final report could not be attached to task #%d: %w", integration.ID, err)
-	}
-	closed, err := mc.Store.CloseSession(ctx, mc.ProfileID, se.ID, tasks.SessionDone, "mission_finish: every task is done or verified and the checks passed", tasks.Actor{Kind: tasks.Human})
+	closed, err := c.operatorClose(ctx, mc, se.ID, rep, "mission_finish: every task is done or verified and the checks passed")
 	if err != nil {
 		return v, err
 	}
