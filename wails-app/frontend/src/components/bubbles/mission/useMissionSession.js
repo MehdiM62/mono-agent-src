@@ -16,19 +16,29 @@ export function useSessionLive(sessionId, { withBoard = false, enabled = true } 
   const [missing, setMissing] = useState(false)
   const rev = useRef(null)
   const alive = useRef(true)
+  const current = useRef(0) // request id: only the newest read of the current session may land
   useEffect(() => { alive.current = true; return () => { alive.current = false } }, [])
+  // Another session id starts clean: nothing read for the old one may show
+  // or land (the id bump drops reads still in flight).
+  useEffect(() => {
+    current.current++
+    rev.current = null
+    setSession(null); setBoard(null); setMissing(false)
+  }, [sessionId])
 
   const reload = useCallback(async () => {
     if (!sessionId) return null
+    const mine = ++current.current
+    const ok = () => alive.current && mine === current.current
     const doc = await sessionsApi.show(sessionId, 0)
-    if (!alive.current) return null
+    if (!ok()) return null
     if (doc?.error || !doc?.session) { setMissing(true); return null }
     setMissing(false)
     setSession(doc.session)
     rev.current = doc.session.rev
     if (withBoard && !isTerminal(doc.session)) {
       const b = await sessionsApi.board(sessionId)
-      if (alive.current && !b?.error) setBoard(b)
+      if (ok() && !b?.error) setBoard(b)
     }
     return doc.session
   }, [sessionId, withBoard])
@@ -48,7 +58,9 @@ export function useSessionLive(sessionId, { withBoard = false, enabled = true } 
 
   const sessionRef = useRef(null)
   sessionRef.current = session
-  return { session, board, missing, reload }
+  // Belt and braces for the render between an id change and its reset.
+  const mine = session && session.id === sessionId
+  return { session: mine ? session : null, board: mine ? board : null, missing, reload }
 }
 
 // useConversationSession finds the session a conversation opened
