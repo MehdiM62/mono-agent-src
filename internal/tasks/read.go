@@ -260,6 +260,9 @@ func (s *Store) List(ctx context.Context, profileID string, f Filter, actor Acto
 func (s *Store) Board(ctx context.Context, profileID string, doneLimit int, actor Actor) (Board, error) {
 	// Who is asking comes before what is asked, as in Edit.
 	if actor.Kind != Human {
+		if err := bound(actor, 0); err != nil {
+			return Board{}, err
+		}
 		if !s.agentMay(ctx, profileID, actor, func(a AgentAccess) bool { return a.View }) {
 			return Board{}, operatorOnly("show the board")
 		}

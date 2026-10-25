@@ -107,3 +107,59 @@ func TestVerifyRefusedWhilePaused(t *testing.T) {
 		t.Fatalf("resumed: %+v %v", got, err)
 	}
 }
+
+func allowDelegation(t *testing.T, s *Store) {
+	t.Helper()
+	if err := s.SetAgentAccess(bg, "default", AgentAccess{View: true, Approve: true}, human); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Finding 2: a delegated approval cannot move a task of a draft session to Ready.
+func TestDelegatedApproveRefusesSessionTasks(t *testing.T) {
+	s, _, _ := newTestStore(t)
+	allowDelegation(t, s)
+	se := mustSession(t, s, "default", "draft")
+	tk := mustTask(t, s, "default", se.ID, "planned by the operator")
+	before, _, _ := s.Get(bg, "default", tk.ID)
+	if _, err := s.Approve(bg, "default", []int64{tk.ID}, false, bot("deleg")); err == nil {
+		t.Fatal("a delegated agent approved a task of a draft session")
+	}
+	after, _, _ := s.Get(bg, "default", tk.ID)
+	if after.Status != before.Status || after.Status == StatusReady {
+		t.Fatalf("task moved: %s -> %s", before.Status, after.Status)
+	}
+	if got := mustSessionState(t, s, se.ID); got != SessionDraft {
+		t.Fatalf("session %s", got)
+	}
+}
+
+// Finding 2: a worker bound to a session or a task reaches neither the personal board's
+// Approve nor its Board, even when the operator delegated both.
+func TestBoundWorkerCannotReachPersonalBoard(t *testing.T) {
+	s, _, _ := newTestStore(t)
+	allowDelegation(t, s)
+	personal, _, err := s.Add(bg, "default", AddInput{Title: "mine"}, human)
+	if err != nil {
+		t.Fatal(err)
+	}
+	se, ts := runningWith(t, s, "a")
+	for _, w := range []Actor{
+		{Kind: Agent, Name: "w", Session: se.ID},
+		{Kind: Agent, Name: "w", Session: se.ID, Task: ts[0].ID},
+		{Kind: Agent, Name: "v", Session: se.ID, Task: ts[0].ID, Verifier: true},
+	} {
+		if _, err := s.Approve(bg, "default", []int64{personal.ID}, false, w); !errors.Is(err, ErrOperatorOnly) {
+			t.Fatalf("approve %+v: %v", w, err)
+		}
+		if _, err := s.Board(bg, "default", 10, w); !errors.Is(err, ErrOperatorOnly) {
+			t.Fatalf("board %+v: %v", w, err)
+		}
+	}
+	if got, _, _ := s.Get(bg, "default", personal.ID); got.Status != StatusInbox {
+		t.Fatalf("personal task moved: %s", got.Status)
+	}
+	if _, err := s.Board(bg, "default", 10, bot("deleg")); err != nil {
+		t.Fatalf("unbound delegate still views: %v", err)
+	}
+}

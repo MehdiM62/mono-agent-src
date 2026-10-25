@@ -333,6 +333,10 @@ func (s *Store) each(ctx context.Context, profileID string, ids []int64, reverse
 func (s *Store) Approve(ctx context.Context, profileID string, ids []int64, top bool, actor Actor) ([]Task, error) {
 	note := "approved"
 	if actor.Kind != Human {
+		// A worker bound to a session reaches the personal board through no delegation.
+		if err := bound(actor, 0); err != nil {
+			return nil, err
+		}
 		// A delegate approves only what it can see: approve needs view as well.
 		if !s.agentMay(ctx, profileID, actor, func(a AgentAccess) bool { return a.Approve && a.View }) {
 			return nil, operatorOnly("approve a task")
@@ -356,6 +360,10 @@ func (s *Store) Approve(ctx context.Context, profileID string, ids []int64, top 
 				return invalid("task #%d is %s, not inbox: only an inbox task is approved", cur.ID, cur.Status)
 			}
 			if actor.Kind != Human {
+				// A session's tasks are opened by `session approve`, the operator's.
+				if cur.SessionID != 0 {
+					return invalid("task #%d belongs to session #%d: only the operator opens a session's tasks (session approve)", cur.ID, cur.SessionID)
+				}
 				return s.refuseAgentCreated(ctx, cur)
 			}
 			return nil

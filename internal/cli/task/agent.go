@@ -325,14 +325,20 @@ monoagentcli --profile <id> task digest`,
 				fmt.Fprintf(cmd.ErrOrStderr(), "task digest: takes no arguments (got %q)\n", cutArg(args[0]))
 				return nil
 			}
+			// A worker bound to a session or a task reads nothing of the personal board: no counts, no title.
+			binding := d.callerFor(flagAs(cmd)).actor
+			look := tasks.Actor{Kind: tasks.Agent, Session: binding.Session, Task: binding.Task, Verifier: binding.Verifier}
 			err := d.withTasks(cmd, func(ctx context.Context, store *tasks.Store, p tasks.Profile) error {
-				c, err := store.Counts(ctx, p.ID)
-				if err != nil {
-					return err
+				var c tasks.Counts
+				var err error
+				if look.Session == 0 && look.Task == 0 {
+					if c, err = store.Counts(ctx, p.ID); err != nil {
+						return err
+					}
 				}
 				var next *tasks.Task
 				if c.Ready > 0 {
-					if next, err = store.Next(ctx, p.ID, tasks.Actor{Kind: tasks.Agent}, false, 0); err != nil {
+					if next, err = store.Next(ctx, p.ID, look, false, 0); err != nil {
 						return err
 					}
 				}
