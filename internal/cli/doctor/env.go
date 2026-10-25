@@ -156,6 +156,7 @@ func NewHealthEnv(d EnvDeps, projects []string) (*health.Env, func()) {
 			env.PendingMigrations = db.PendingMigrations
 			env.QuickCheck = db.QuickCheck
 			addDBSchemaHook(env, db)
+			addWorkflowPublicationHooks(env)
 			env.VaultState = func(ctx context.Context, id string) (string, error) {
 				st, err := secrets.CheckVault(ctx, db.DB, id)
 				return string(st), err

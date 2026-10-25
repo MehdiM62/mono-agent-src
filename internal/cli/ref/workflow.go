@@ -32,6 +32,12 @@ an existing template.
 FILE LOCATION
   ~/.monoagent/workflows/<workflow-id>.json
   The filename MUST match the workflow's "id" field exactly.
+  Editing or writing this file by hand is supported. The next command that opens the
+  workflows reads it, and when the definition differs from what is stored it records the
+  new content as a version noted "edited outside the app". The file itself is never
+  rewritten by that step, and a file that does not parse is left alone ('monoagentcli
+  doctor' lists it). The new definition counts as approved only if it equals one that was
+  approved before. A file is not read while a save of the same workflow is in progress.
 
 SCHEMA
   {
