@@ -788,6 +788,28 @@ export function TaskMove(arg1:number,arg2:string,arg3:string,arg4:number):Promis
 
 export function TaskPulse():Promise<Record<string, any>>;
 
+export function TaskSessionApprove(arg1:number):Promise<string>;
+
+export function TaskSessionArchive(arg1:number):Promise<string>;
+
+export function TaskSessionBoard(arg1:number,arg2:number):Promise<string>;
+
+export function TaskSessionBudget(arg1:number,arg2:string):Promise<string>;
+
+export function TaskSessionPause(arg1:number):Promise<string>;
+
+export function TaskSessionPlan(arg1:number):Promise<string>;
+
+export function TaskSessionPulse(arg1:number):Promise<Record<string, any>>;
+
+export function TaskSessionResume(arg1:number):Promise<string>;
+
+export function TaskSessionShow(arg1:number,arg2:number):Promise<string>;
+
+export function TaskSessionStop(arg1:number):Promise<string>;
+
+export function TaskSessions(arg1:boolean):Promise<string>;
+
 export function TaskShow(arg1:number):Promise<string>;
 
 export function TaskUnarchive(arg1:Array<number>):Promise<string>;

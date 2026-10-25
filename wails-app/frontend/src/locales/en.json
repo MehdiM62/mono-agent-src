@@ -1698,7 +1698,61 @@
     },
     "markDone": "Done",
     "backToReady": "Back to Ready",
-    "inProfile": "in {{name}}"
+    "inProfile": "in {{name}}",
+    "session": {
+      "switcher": "Task sessions",
+      "personal": "Personal",
+      "header": "Session {{title}}",
+      "state": {
+        "draft": "Draft",
+        "running": "Running",
+        "paused": "Paused",
+        "done": "Finished",
+        "stopped": "Stopped",
+        "failed": "Failed"
+      },
+      "archived": "Archived",
+      "progress": "{{done}} done",
+      "spendOf": "{{spent}} of {{budget}}",
+      "spendNoBudget": "{{spent}} spent, no budget",
+      "view": "View",
+      "view_board": "Board",
+      "view_plan": "Plan",
+      "action": {
+        "approve": "Approve plan",
+        "pause": "Pause",
+        "resume": "Resume",
+        "stop": "Stop",
+        "archive": "Archive",
+        "budget": "Edit budget",
+        "conversation": "Open conversation"
+      },
+      "confirmStop": "Stop this session for good? Every claim is released and its workers stop; the tasks stay where they are.",
+      "budgetLabel": "Budget (USD)",
+      "budgetHint": "0 for no budget",
+      "cancel": "Cancel",
+      "blocked": "Blocked",
+      "verified": "Verified",
+      "retries": "Retries: {{n}}",
+      "waitsFor": "Waits for {{ids}}",
+      "after": "after {{ids}}",
+      "kind": {
+        "epic": "Epic",
+        "check": "Check",
+        "task": "Task"
+      },
+      "acceptance": "Acceptance",
+      "noAcceptance": "No acceptance criteria",
+      "dependsOn": "Depends on",
+      "assignee": "Assignee",
+      "retriesLabel": "Retries",
+      "none": "None",
+      "artifacts": "Artifacts",
+      "noArtifacts": "No artifacts yet",
+      "events": "Session events",
+      "planError": "Could not read the plan",
+      "planEmpty": "No tasks in this plan yet"
+    }
   },
   "publication": {
     "title": "Publication",
