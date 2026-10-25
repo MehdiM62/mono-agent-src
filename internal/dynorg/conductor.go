@@ -47,6 +47,10 @@ type Config struct {
 	// worktrees and branches.
 	Writers string
 	TurnID  string
+
+	// Missions connects the conductor to a profile's task store for mission
+	// tasks (mission_sched.go); nil: org_spawn has no task_id.
+	Missions *MissionConfig
 }
 
 // Conductor runs one lead turn's workers.
@@ -85,6 +89,8 @@ type Conductor struct {
 	profileMu    sync.Mutex
 	profileText  string
 	profileFresh bool
+	// mission is the scheduler's state (mission_sched.go).
+	mission missionState
 }
 
 type worker struct {
@@ -153,6 +159,8 @@ type worker struct {
 	// merging is set while org_merge commits and merges its branch.
 	worktree, branch, workDir string
 	merging                   bool
+	// task is the mission task it works, if any (mission_exec.go).
+	task *missionBind
 }
 
 // MaxFollowups caps org_message runs per worker, so follow-ups can't stand
@@ -212,6 +220,7 @@ func New(ctx context.Context, cfg Config) *Conductor {
 func (c *Conductor) Close() {
 	c.cancel()
 	c.wg.Wait()
+	c.missionClose()
 	c.leadStopsEditing()
 	c.cleanupWorktrees()
 }
@@ -284,6 +293,13 @@ func (c *Conductor) spawn(ctx context.Context, req SpawnRequest, parent *worker)
 	}
 	c.mu.Unlock()
 
+	var task *missionBind
+	if req.TaskID != 0 {
+		var err error
+		if task, req, err = c.missionPrepare(ctx, req, parent); err != nil {
+			return WorkerInfo{}, err
+		}
+	}
 	st, err := c.cfg.Staffer.Staff(ctx, req)
 	if err != nil {
 		return WorkerInfo{}, err
@@ -293,9 +309,15 @@ func (c *Conductor) spawn(ctx context.Context, req SpawnRequest, parent *worker)
 			return WorkerInfo{}, err
 		}
 	}
+	if task != nil {
+		if err := c.missionClaim(ctx, task); err != nil {
+			return WorkerInfo{}, err
+		}
+	}
 	c.mu.Lock()
 	if c.spawned >= c.cfg.Limits.MaxAgents { // another spawn won the race
 		c.mu.Unlock()
+		c.missionUnclaim(task, "the turn's worker cap was reached first")
 		return WorkerInfo{}, fmt.Errorf("this turn already has its %d workers", c.cfg.Limits.MaxAgents)
 	}
 	c.spawned++
@@ -305,10 +327,14 @@ func (c *Conductor) spawn(ctx context.Context, req SpawnRequest, parent *worker)
 		model: st.Model, status: chatevents.AgentQueued, changed: map[string]bool{}, started: c.cfg.Now(),
 		parent: parent, allowSpawn: req.AllowSpawn && parent == nil, cwd: c.cfg.Cwd,
 		mustConfine: parent != nil && st.Access == ProfileResearch && parent.staff.Access == ProfileResearch,
+		task:        task,
 	}
 	c.workers[w.id] = w
 	c.order = append(c.order, w.id)
 	c.mu.Unlock()
+	if task != nil {
+		c.missionStarted(task, task.executor+":"+w.id)
+	}
 
 	c.addWorktree(w)
 	skills := make([]string, len(st.Skills))

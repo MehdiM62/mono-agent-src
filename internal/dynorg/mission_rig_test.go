@@ -1,0 +1,281 @@
+package dynorg
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"regexp"
+	"strconv"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/monoes/mono-agent/internal/monomind"
+	"github.com/monoes/mono-agent/internal/tasks"
+	"github.com/monoes/mono-agent/internal/testdb"
+)
+
+var (
+	tbg      = context.Background()
+	operator = tasks.Actor{Kind: tasks.Human}
+	taskRE   = regexp.MustCompile(`doing task #(\d+)`)
+)
+
+// missionClock is the task store's time, which a test moves to end leases.
+type missionClock struct {
+	mu sync.Mutex
+	t  time.Time
+}
+
+func (m *missionClock) now() time.Time { m.mu.Lock(); defer m.mu.Unlock(); return m.t }
+func (m *missionClock) advance(d time.Duration) {
+	m.mu.Lock()
+	m.t = m.t.Add(d)
+	m.mu.Unlock()
+}
+
+// gateExec is a fake agent exec for mission workers: a run waits at its task's gate (or
+// ends with the context), then answers with a report. fail[task] makes the next runs of that
+// task crash.
+type gateExec struct {
+	mu      sync.Mutex
+	gates   map[int64]chan struct{}
+	open    map[int64]bool // tasks whose gate is open for good
+	runs    map[int64]int
+	fail    map[int64]int // task -> crashes still to come
+	envs    map[int64]map[string]string
+	prompts map[int64]string
+	access  map[int64]string
+	running int32
+	maxRun  int32
+	cost    float64
+}
+
+func newGateExec() *gateExec {
+	return &gateExec{gates: map[int64]chan struct{}{}, open: map[int64]bool{}, runs: map[int64]int{}, fail: map[int64]int{},
+		envs: map[int64]map[string]string{}, prompts: map[int64]string{}, access: map[int64]string{}, cost: 0.01}
+}
+
+func (g *gateExec) gate(id int64) chan struct{} {
+	if g.gates[id] == nil {
+		g.gates[id] = make(chan struct{})
+	}
+	return g.gates[id]
+}
+
+// release lets the runs of a task end (now and later).
+func (g *gateExec) release(ids ...int64) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	for _, id := range ids {
+		if !g.open[id] {
+			g.open[id] = true
+			close(g.gate(id))
+		}
+	}
+}
+
+func (g *gateExec) runCount(id int64) int { g.mu.Lock(); defer g.mu.Unlock(); return g.runs[id] }
+
+func (g *gateExec) exec(ctx context.Context, o monomind.ExecOptions, on func(monomind.Event)) (*monomind.TurnResult, error) {
+	m := taskRE.FindStringSubmatch(o.Prompt + o.SystemPrompt)
+	var id int64
+	if m != nil {
+		id, _ = strconv.ParseInt(m[1], 10, 64)
+	}
+	g.mu.Lock()
+	g.runs[id]++
+	g.envs[id], g.prompts[id], g.access[id] = o.Env, o.Prompt, string(o.Access)
+	gate := g.gate(id)
+	crash := g.fail[id] > 0
+	if crash {
+		g.fail[id]--
+	}
+	g.mu.Unlock()
+	n := atomic.AddInt32(&g.running, 1)
+	for {
+		mx := atomic.LoadInt32(&g.maxRun)
+		if n <= mx || atomic.CompareAndSwapInt32(&g.maxRun, mx, n) {
+			break
+		}
+	}
+	defer atomic.AddInt32(&g.running, -1)
+	on(monomind.Event{Type: monomind.EventStart})
+	if crash {
+		return nil, fmt.Errorf("the runtime crashed")
+	}
+	select {
+	case <-gate:
+	case <-ctx.Done():
+		return &monomind.TurnResult{SawDone: true, StopReason: monomind.StopCancelled}, nil
+	}
+	return &monomind.TurnResult{SawDone: true, ResultText: fmt.Sprintf("report for task %d", id), StopReason: monomind.StopEndTurn, CostUSD: g.cost, HasCostUSD: true}, nil
+}
+
+// missionRig is a conductor over a real task store (a database of its own).
+type missionRig struct {
+	t     *testing.T
+	store *tasks.Store
+	clk   *missionClock
+	ex    *gateExec
+	em    *recEmitter
+	mc    *MissionConfig
+	c     *Conductor
+	sid   int64
+}
+
+type rigOpts struct {
+	lim     Limits
+	timeout time.Duration
+	lease   time.Duration
+	budget  float64
+}
+
+func newRig(t *testing.T, o rigOpts) *missionRig {
+	t.Helper()
+	db := testdb.Open(t).DB
+	r := &missionRig{t: t, store: tasks.NewStore(db), clk: &missionClock{t: time.Date(2026, 10, 25, 12, 0, 0, 0, time.UTC)}, ex: newGateExec(), em: &recEmitter{}}
+	r.store.SetClock(r.clk.now)
+	se, err := r.store.CreateSession(tbg, "default", tasks.SessionInput{Title: "mission", Goal: "ship the feature", BudgetUSD: o.budget}, operator)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.sid = se.ID
+	r.mc = &MissionConfig{Store: r.store, ProfileID: "default", Session: se.ID, Poll: 10 * time.Millisecond, Lease: orDur(o.lease, time.Minute), TaskTimeout: o.timeout}
+	if o.lim.MaxAgents == 0 {
+		o.lim = Limits{MaxAgents: 20, MaxConcurrent: 5}
+	}
+	r.c = r.conductor(o.lim)
+	return r
+}
+
+// conductor starts a conductor over the rig's store (a second one is a restarted turn).
+func (r *missionRig) conductor(lim Limits) *Conductor {
+	c := New(tbg, Config{Cwd: "/w", Limits: lim, Staffer: &Staffer{Roster: []Model{opus, haiku}, Lead: opus},
+		ReadAccess: true, Exec: r.ex.exec, Emit: r.em, Missions: r.mc})
+	r.t.Cleanup(c.Close)
+	return c
+}
+
+type spec struct {
+	title, files, exec string
+	deps               []int64
+}
+
+// add plans a task into the (draft) session.
+func (r *missionRig) add(s spec) tasks.Task {
+	r.t.Helper()
+	notes := "do it"
+	if s.files != "" {
+		notes += "\n\nFiles:\n- " + strings.ReplaceAll(s.files, ",", "\n- ")
+	}
+	exec := s.exec
+	if exec == "" {
+		exec = ExecWorker
+	}
+	tk, err := r.store.AddSessionTask(tbg, "default", r.sid, tasks.SessionTaskInput{Title: s.title, Notes: notes,
+		Acceptance: "criteria of " + s.title, DependsOn: s.deps, SuggestedExecutor: exec}, operator)
+	if err != nil {
+		r.t.Fatal(err)
+	}
+	return tk
+}
+
+func (r *missionRig) approve() {
+	r.t.Helper()
+	if _, err := r.store.ApproveSession(tbg, "default", r.sid, operator); err != nil {
+		r.t.Fatal(err)
+	}
+}
+
+func (r *missionRig) task(id int64) tasks.Task {
+	r.t.Helper()
+	tk, _, err := r.store.Get(tbg, "default", id)
+	if err != nil {
+		r.t.Fatal(err)
+	}
+	return tk
+}
+
+func (r *missionRig) session() tasks.Session {
+	r.t.Helper()
+	se, err := r.store.GetSession(tbg, "default", r.sid, operator)
+	if err != nil {
+		r.t.Fatal(err)
+	}
+	return se
+}
+
+func (r *missionRig) call(c *Conductor, tool string, args string) string {
+	r.t.Helper()
+	out, err := c.Handle(tbg, tool, json.RawMessage(args))
+	if err != nil {
+		r.t.Fatalf("%s: %v", tool, err)
+	}
+	return out
+}
+
+func (r *missionRig) next(c *Conductor) StepResult {
+	r.t.Helper()
+	var res StepResult
+	if err := json.Unmarshal([]byte(r.call(c, ToolMissionNext, `{}`)), &res); err != nil {
+		r.t.Fatal(err)
+	}
+	return res
+}
+
+func (r *missionRig) startedIDs(res StepResult) []int64 {
+	var out []int64
+	for _, s := range res.Started {
+		out = append(out, s.TaskID)
+	}
+	return out
+}
+
+func (r *missionRig) waitingReason(res StepResult, id int64) string {
+	for _, w := range res.Waiting {
+		if w.TaskID == id {
+			return w.Reason
+		}
+	}
+	return ""
+}
+
+// eventually polls cond for a few seconds.
+func eventually(t *testing.T, what string, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if cond() {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for %s", what)
+}
+
+func (r *missionRig) waitStatus(id int64, st tasks.Status) {
+	r.t.Helper()
+	eventually(r.t, fmt.Sprintf("task #%d to be %s", id, st), func() bool { return r.task(id).Status == st })
+}
+
+// done is what the operator (or a verifier with auto-close) does to a reviewed task.
+func (r *missionRig) done(id int64) {
+	r.t.Helper()
+	if _, err := r.store.Move(tbg, "default", id, tasks.StatusDone, tasks.Placement{}, operator); err != nil {
+		r.t.Fatal(err)
+	}
+}
+
+// countNotices counts the notice events of a code.
+func countNotices(em *recEmitter, code string) int {
+	n := 0
+	for _, p := range em.find("notice") {
+		if b, _ := json.Marshal(p); strings.Contains(string(b), `"`+code+`"`) {
+			n++
+		}
+	}
+	return n
+}

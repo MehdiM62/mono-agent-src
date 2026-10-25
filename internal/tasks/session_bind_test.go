@@ -3,6 +3,7 @@ package tasks
 import (
 	"errors"
 	"testing"
+	"time"
 )
 
 // A mission worker's token names its session and its task: it works that task and nothing
@@ -52,5 +53,66 @@ func TestActorBoundToATaskTouchesOnlyThatTask(t *testing.T) {
 	}
 	if tk, err := s.SessionFinish(bg, "default", se.ID, mine.ID, Outcome{Result: "done"}, worker); err != nil || tk.Status != StatusReview {
 		t.Fatalf("finish own: %+v %v", tk, err)
+	}
+}
+
+func TestSessionReadyListsWhatNextWouldHandOut(t *testing.T) {
+	s, _, clk := newTestStore(t)
+	se := mustSession(t, s, "default", "ready")
+	a := mustTask(t, s, "default", se.ID, "a")
+	b := mustTask(t, s, "default", se.ID, "b", a.ID)
+	c := mustTask(t, s, "default", se.ID, "c")
+	if got, _ := s.SessionReady(bg, "default", se.ID, bot("x")); len(got) != 0 {
+		t.Fatalf("a draft has nothing ready: %+v", got)
+	}
+	mustRun(t, s, "default", se)
+	ids := func() []int64 {
+		got, err := s.SessionReady(bg, "default", se.ID, bot("x"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out []int64
+		for _, tk := range got {
+			out = append(out, tk.ID)
+		}
+		return out
+	}
+	got := ids()
+	if len(got) != 2 || !(got[0] == a.ID && got[1] == c.ID || got[0] == c.ID && got[1] == a.ID) {
+		t.Fatalf("a and c are ready, b waits for a: %v (b=%d)", got, b.ID)
+	}
+	if next, _ := s.SessionNext(bg, "default", se.ID, bot("x"), false, 0); next == nil || next.ID != got[0] {
+		t.Fatalf("SessionNext offers the head of the list: %+v vs %v", next, got)
+	}
+	if _, err := s.SessionClaim(bg, "default", se.ID, a.ID, bot("w1"), time.Minute); err != nil {
+		t.Fatal(err)
+	}
+	if got := ids(); len(got) != 1 || got[0] != c.ID {
+		t.Fatalf("a is held: %v", got)
+	}
+	clk.advance(2 * time.Minute)
+	if got := ids(); len(got) != 2 || got[0] != c.ID || got[1] != a.ID {
+		t.Fatalf("a's lease ended: it is offered again, after the Ready ones: %v", got)
+	}
+	if _, err := s.PauseSession(bg, "default", se.ID, human); err != nil {
+		t.Fatal(err)
+	}
+	if got := ids(); len(got) != 0 {
+		t.Fatalf("a paused session hands out nothing: %v", got)
+	}
+}
+
+func TestSetAssigneeNeedsTheHolder(t *testing.T) {
+	s, _, _ := newTestStore(t)
+	se, ts := runningWith(t, s, "t")
+	if _, err := s.SetAssignee(bg, "default", se.ID, ts[0].ID, "worker:w1", bot("w1")); !errors.Is(err, ErrNotClaimant) {
+		t.Fatalf("an agent that does not hold it: %v", err)
+	}
+	if _, err := s.SessionClaim(bg, "default", se.ID, ts[0].ID, bot("w1"), 0); err != nil {
+		t.Fatal(err)
+	}
+	tk, err := s.SetAssignee(bg, "default", se.ID, ts[0].ID, "worker:w1", bot("w1"))
+	if err != nil || tk.Assignee != "worker:w1" {
+		t.Fatalf("%+v %v", tk, err)
 	}
 }
