@@ -1,6 +1,10 @@
 package tasks
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+	"strings"
+)
 
 // sessionError is a refusal in a session's words. It matches the same sentinel as the
 // personal board's refusal of the kind (errors.Is, so the exit codes and the codes of the
@@ -23,4 +27,14 @@ func sessionNotReady(format string, a ...any) error {
 // agent's token that forbids it, not the operator's role that is missing.
 func bindingRefused(format string, a ...any) error {
 	return &sessionError{ErrOperatorOnly, fmt.Sprintf(format, a...)}
+}
+
+// inSessionWords drops the personal board's sentinel text ("task cannot be claimed: ...")
+// from a refusal of a claim in a session; it still matches ErrNotReady.
+func inSessionWords(session int64, err error) error {
+	var se *sessionError
+	if session == 0 || err == nil || errors.As(err, &se) || !errors.Is(err, ErrNotReady) {
+		return err
+	}
+	return &sessionError{ErrNotReady, strings.TrimPrefix(err.Error(), ErrNotReady.Error()+": ")}
 }

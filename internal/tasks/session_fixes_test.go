@@ -235,3 +235,24 @@ func mustDetail2(t *testing.T, s *Store, sid int64) int {
 	}
 	return len(ts)
 }
+
+// A claim of a task that is not ready, in a session, is refused in the session's words
+// (still ErrNotReady); on the personal board the sentinel's text stays.
+func TestSessionClaimRefusalDropsThePersonalBoardWording(t *testing.T) {
+	s, _, _ := newTestStore(t)
+	se, ts := runningWith(t, s, "a", "b")
+	w := Actor{Kind: Agent, Name: "w1"}
+	if _, err := s.SessionClaim(bg, "default", se.ID, ts[0].ID, w, 0); err != nil {
+		t.Fatal(err)
+	}
+	finishTask(t, s, se.ID, ts[0].ID, "w1") // now in review
+	_, err := s.SessionClaim(bg, "default", se.ID, ts[0].ID, Actor{Kind: Agent, Name: "w2"}, 0)
+	if !errors.Is(err, ErrNotReady) || strings.Contains(err.Error(), "task cannot be claimed") || !strings.Contains(err.Error(), "#"+itoa(ts[0].ID)) {
+		t.Fatalf("claim of a task in review: %v", err)
+	}
+	mine := mustAdd(t, s, "default", "mine", false) // inbox
+	_, err = s.Claim(bg, "default", mine.ID, bot("w"), 0)
+	if !errors.Is(err, ErrNotReady) || !strings.Contains(err.Error(), "task cannot be claimed") {
+		t.Fatalf("personal board: %v", err)
+	}
+}

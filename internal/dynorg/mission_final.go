@@ -192,7 +192,7 @@ func (c *Conductor) missionFinishStep(ctx context.Context, mc *MissionRun, sid i
 		v.Next = "Every task is done or verified, but writer branches are not merged yet: " + mergeAdvice(v.MergesRemaining) + "then call mission_finish again (re-run the checks if a merge changed the tree)."
 		return v, nil
 	}
-	return c.closeMission(ctx, mc, se, plan, *integration, v)
+	return c.closeMission(ctx, mc, se, plan, v)
 }
 
 func mergeAdvice(merges []string) string {
@@ -231,7 +231,7 @@ func (c *Conductor) createIntegration(ctx context.Context, mc *MissionRun, sid i
 }
 
 // closeMission writes the final report and closes the session as done.
-func (c *Conductor) closeMission(ctx context.Context, mc *MissionRun, se tasks.Session, plan tasks.SessionPlan, integration tasks.Task, v FinishView) (FinishView, error) {
+func (c *Conductor) closeMission(ctx context.Context, mc *MissionRun, se tasks.Session, plan tasks.SessionPlan, v FinishView) (FinishView, error) {
 	rep, payload := c.finalReport(ctx, mc, se, plan)
 	closed, err := c.operatorClose(ctx, mc, se.ID, rep, "mission_finish: every task is done or verified and the checks passed")
 	if err != nil {

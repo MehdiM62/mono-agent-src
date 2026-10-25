@@ -192,7 +192,7 @@ func (s *Store) claimIn(ctx context.Context, profileID string, session, id int64
 		return nil
 	})
 	if err != nil {
-		return Task{}, err
+		return Task{}, inSessionWords(session, err)
 	}
 	return out, nil
 }
