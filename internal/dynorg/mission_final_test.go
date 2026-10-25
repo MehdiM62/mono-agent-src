@@ -220,7 +220,7 @@ func TestMissionFinishListsWriterBranchesNotMerged(t *testing.T) {
 	if r.session().State != tasks.SessionRunning {
 		t.Fatal("closed with an unmerged branch")
 	}
-	r.c.recordMerge(tbg, w) // what org_merge records
+	r.c.recordMerge(tbg, w, nil, w.id) // what org_merge records
 	if v := r.finish(); !v.Finished || r.session().State != tasks.SessionDone {
 		t.Fatalf("after the merge it closes: %+v", v)
 	}

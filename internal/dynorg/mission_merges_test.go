@@ -60,7 +60,7 @@ func TestMissionPendingMergesAreInTheStoreAndSurviveANewConductor(t *testing.T) 
 	}
 
 	// org_merge's record: the store says merged, for every Conductor
-	c2.recordMerge(tbg, w)
+	c2.recordMerge(tbg, w, nil, w.id)
 	if got := r.c.mergesRemaining(tbg, r.mc, r.sid, plan.Tasks); len(got) != 0 {
 		t.Fatalf("after the merge: %v", got)
 	}

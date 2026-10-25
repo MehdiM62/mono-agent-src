@@ -30,18 +30,33 @@ func (c *Conductor) recordBranch(ctx context.Context, mc *MissionRun, w *worker)
 	}
 }
 
-// recordMerge notes in the store that org_merge brought the worker's branch in.
-func (c *Conductor) recordMerge(ctx context.Context, w *worker) {
+// recordMerge notes in the store that org_merge brought a writer's branch in: of the worker
+// (w), or, for a Conductor that holds no worker, of the stored branch (stored).
+func (c *Conductor) recordMerge(ctx context.Context, w *worker, stored *pendingBranch, from string) {
 	mc, err := c.missions()
-	if err != nil || w.task == nil || w.task.verifier {
+	if err != nil {
 		return
 	}
-	c.mu.Lock()
-	branch := w.branch
-	c.mu.Unlock()
-	art := tasks.ArtifactInput{Kind: tasks.ArtifactMerge, Ref: branch, Note: "merged by org_merge from " + w.id}
-	if _, err := mc.Store.AddArtifact(ctx, mc.ProfileID, w.task.session, w.task.task.ID, art, operatorActor()); err != nil {
-		c.notice("mission.artifact", fmt.Sprintf("Task #%d: the merge of %s could not be recorded: %v", w.task.task.ID, branch, err), chatevents.SeverityWarning)
+	var session, task int64
+	var branch string
+	switch {
+	case stored != nil:
+		sid, err := c.sessionOf(ctx, mc, 0)
+		if err != nil {
+			return
+		}
+		session, task, branch = sid, stored.task, stored.branch
+	case w != nil && w.task != nil && !w.task.verifier:
+		c.mu.Lock()
+		branch = w.branch
+		c.mu.Unlock()
+		session, task = w.task.session, w.task.task.ID
+	default:
+		return
+	}
+	art := tasks.ArtifactInput{Kind: tasks.ArtifactMerge, Ref: branch, Note: "merged by org_merge from " + from}
+	if _, err := mc.Store.AddArtifact(ctx, mc.ProfileID, session, task, art, operatorActor()); err != nil {
+		c.notice("mission.artifact", fmt.Sprintf("Task #%d: the merge of %s could not be recorded: %v", task, branch, err), chatevents.SeverityWarning)
 	}
 }
 

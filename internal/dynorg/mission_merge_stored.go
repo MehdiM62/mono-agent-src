@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/monoes/mono-agent/internal/ai/chatevents"
 	"github.com/monoes/mono-agent/internal/tasks"
 )
 
@@ -85,22 +84,6 @@ func (c *Conductor) storedBranch(ctx context.Context, id string) (*pendingBranch
 		names = append(names, p.branch)
 	}
 	return nil, fmt.Errorf("%q matches several unmerged branches (%s): give the branch as agent_id", id, strings.Join(names, ", "))
-}
-
-// recordStoredMerge notes in the store that org_merge brought a stored branch in.
-func (c *Conductor) recordStoredMerge(ctx context.Context, p *pendingBranch, id string) {
-	mc, err := c.missions()
-	if err != nil {
-		return
-	}
-	sid, err := c.sessionOf(ctx, mc, 0)
-	if err != nil {
-		return
-	}
-	art := tasks.ArtifactInput{Kind: tasks.ArtifactMerge, Ref: p.branch, Note: "merged by org_merge from " + id}
-	if _, err := mc.Store.AddArtifact(ctx, mc.ProfileID, sid, p.task, art, operatorActor()); err != nil {
-		c.notice("mission.artifact", fmt.Sprintf("Task #%d: the merge of %s could not be recorded: %v", p.task, p.branch, err), chatevents.SeverityWarning)
-	}
 }
 
 // hasTaskWorkerLocked is taskWorker for a caller that holds c.mu.
