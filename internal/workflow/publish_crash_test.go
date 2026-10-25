@@ -130,15 +130,18 @@ func TestHelperPublish(t *testing.T) {
 	if err != nil || cur == nil {
 		t.Fatalf("%v", err)
 	}
-	nodes := append([]WorkflowNode(nil), cur.Nodes...)
-	nodes[1].Config = map[string]interface{}{"k": "from-helper"}
-	switch os.Getenv("WF_HELPER_ACTION") {
-	case "apply-fix":
-		err = h.SaveNodesGuarded(ctx, "wf-c", nodes, SaveGuard{ExpectHash: os.Getenv("WF_HELPER_HASH"), RevokeApprovals: true})
-	default:
+	if b := os.Getenv("WF_HELPER_BARRIER"); b != "" {
+		for deadline := time.Now().Add(30 * time.Second); time.Now().Before(deadline); time.Sleep(2 * time.Millisecond) {
+			if _, err := os.Stat(b); err == nil {
+				break
+			}
+		}
+	}
+	act, ok := helperActions[os.Getenv("WF_HELPER_ACTION")]
+	if !ok {
 		t.Fatalf("unknown action")
 	}
-	if err != nil {
+	if err := act(ctx, h, cur); err != nil {
 		os.Exit(3)
 	}
 }

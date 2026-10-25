@@ -3,6 +3,7 @@ package workflow
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"errors"
 	"os"
 	"testing"
@@ -90,5 +91,26 @@ func TestPublishLeavesNoIntentAfterAFailure(t *testing.T) {
 	}
 	if openIntentCount(t, s) != 0 {
 		t.Fatal("an intent was left behind")
+	}
+}
+
+// A save that revokes approvals does it in the commit that writes the rows: a hook that refuses
+// the commit keeps the approvals, and a commit that goes through removes them.
+func TestSaveWorkflowRevokingRemovesApprovalsInTheSameCommit(t *testing.T) {
+	ctx := context.Background()
+	h, s, _, _ := guardedRig(t)
+	cur, _ := h.GetWorkflow(ctx, "wf-g")
+	refuse := WithTxHook(ctx, func(context.Context, *sql.Tx) error { return errors.New("no") })
+	if err := h.SaveWorkflowRevoking(refuse, cur, ""); err == nil {
+		t.Fatal("the hook should have refused")
+	}
+	if approvals(t, s, "wf-g") != 1 {
+		t.Fatal("a refused save revoked approvals")
+	}
+	if err := h.SaveWorkflowRevoking(ctx, cur, ""); err != nil {
+		t.Fatal(err)
+	}
+	if approvals(t, s, "wf-g") != 0 {
+		t.Fatal("approvals survived")
 	}
 }

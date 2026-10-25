@@ -3,7 +3,6 @@ package workflow
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"time"
 )
@@ -97,22 +96,23 @@ func (s *SQLiteWorkflowStore) saveDefinition(ctx context.Context, w *Workflow, m
 	return nil
 }
 
-// saveDefinition saves w all-or-nothing across both backends. The SQLite
-// transaction (row, nodes, connections, version) is built first; the file —
-// the canonical copy — is written as its last step, and the transaction
-// commits only after the file is on disk. A failed file write rolls the
-// transaction back; a failed commit puts the previous file back. Either way
-// the stores keep the definition they had.
+// saveDefinition saves w all-or-nothing across both backends, through Publish: the intent, the
+// file, then the rows, the version and the intent's removal in one commit. A failed file write
+// or commit puts the previous file back; a process that dies in between is recovered by the next
+// process to read the workflow. On success w carries the version and times it was saved with.
 func (h *HybridWorkflowStore) saveDefinition(ctx context.Context, w *Workflow, note string) error {
+	return h.saveDefinitionAs(ctx, w, note, false)
+}
+
+// SaveWorkflowRevoking is SaveWorkflow that also removes every stored approval of the workflow
+// in the same commit, so the saved definition needs a fresh one.
+func (h *HybridWorkflowStore) SaveWorkflowRevoking(ctx context.Context, w *Workflow, note string) error {
+	return h.saveDefinitionAs(ctx, w, note, true)
+}
+
+func (h *HybridWorkflowStore) saveDefinitionAs(ctx context.Context, w *Workflow, note string, revoke bool) error {
 	if w.ID == "" {
 		w.ID = newID()
-	}
-	// Give connections their ids now, so the file, the SQLite rows and the
-	// version snapshot all name them the same.
-	for i := range w.Connections {
-		if w.Connections[i].ID == "" {
-			w.Connections[i].ID = newID()
-		}
 	}
 	// An unreadable previous copy does not block the save that replaces it.
 	stored := 0
@@ -125,36 +125,26 @@ func (h *HybridWorkflowStore) saveDefinition(ctx context.Context, w *Workflow, n
 	if w.CreatedAt.IsZero() {
 		w.CreatedAt = time.Now().UTC()
 	}
-	mirrorGraph := true
-	if err := h.sql.checkOwnIDs(ctx, w); err != nil {
-		if !errors.Is(err, ErrSharedIDs) {
-			return err
-		}
-		mirrorGraph = false
+	published, err := h.Publish(ctx, Publication{
+		WorkflowID:      w.ID,
+		Origin:          "save",
+		Note:            note,
+		StoredVersion:   stored,
+		RevokeApprovals: revoke,
+		Build: func(*Workflow) (*Workflow, error) {
+			c := *w
+			c.Connections = append([]WorkflowConnection(nil), w.Connections...)
+			return &c, nil
+		},
+	})
+	if err != nil {
+		return err
 	}
-
-	var restoreFile func() error
-	var writeFile func() error
-	if h.files != nil {
-		writeFile = func() error {
-			prevData, existed, err := h.files.readRaw(w.ID)
-			if err != nil {
-				return err
-			}
-			if err := h.files.SaveWorkflow(ctx, w); err != nil {
-				return err
-			}
-			restoreFile = func() error { return h.files.restoreRaw(w.ID, prevData, existed) }
-			return nil
-		}
+	w.Version, w.UpdatedAt = published.Version, published.UpdatedAt
+	for i := range w.Connections {
+		w.Connections[i].ID = published.Connections[i].ID
 	}
-	err := h.sql.saveDefinition(ctx, w, mirrorGraph, stored, note, writeFile)
-	if err != nil && restoreFile != nil {
-		if rerr := restoreFile(); rerr != nil {
-			err = errors.Join(err, fmt.Errorf("restoring the previous workflow file: %w", rerr))
-		}
-	}
-	return h.saved(ctx, w.ID, err)
+	return nil
 }
 
 // SaveWorkflowWithNote is SaveWorkflow with a note on the version it records
