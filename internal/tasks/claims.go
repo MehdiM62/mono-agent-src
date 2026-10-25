@@ -450,7 +450,9 @@ func (s *Store) releaseIn(ctx context.Context, profileID string, session, id int
 
 // handBack ends the agent's claim: the task goes to `to` (Review at the top, Ready at the bottom), both
 // claim columns are emptied, and the event says why. When only is set the claim must still be that
-// one (same holder, same lease end), checked in the same transaction: else errClaimMoved.
+// one (same holder, same lease end), checked in the same transaction: else errClaimMoved. A claim
+// retaken under the same name whose lease ends at the very same stored instant is not told apart:
+// a narrow edge, as the claim row holds no sequence number.
 func (s *Store) handBack(ctx context.Context, profileID string, session, id int64, actor Actor, to Status, kind, note string, only *Claim) (Task, error) {
 	if err := noVerifier(actor, "finish or release a task"); err != nil {
 		return Task{}, err
@@ -476,7 +478,7 @@ func (s *Store) handBack(ctx context.Context, profileID string, session, id int6
 		if err != nil {
 			return err
 		}
-		if only != nil && !cur.Claim.Until.Equal(only.Until) {
+		if only != nil && (cur.Claim.By != only.By || !cur.Claim.Until.Equal(only.Until)) {
 			return errClaimMoved
 		}
 		if session != 0 && kind == "result" {
