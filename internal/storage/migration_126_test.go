@@ -59,47 +59,12 @@ func TestMigration126TaskSessionsIsAdditiveAndIdempotent(t *testing.T) {
 	if _, err := db.DB.Exec(`UPDATE tasks SET kind = 'story'`); err == nil {
 		t.Error("tasks.kind accepted story")
 	}
-}
-
-// Migration 127 (a client id for task sessions) is additive: old sessions keep a NULL key, a
-// repeated key in one profile is refused by the index, the same key in another profile is not,
-// and running the migrations again is a no-op.
-func TestMigration127TaskSessionClientIDIsAdditiveAndIdempotent(t *testing.T) {
-	db, err := NewDatabase(filepath.Join(t.TempDir(), "monoagent.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { db.Close() })
-	applyMigrationsBelow(t, db, 127)
-	mustExec := func(q string, args ...any) error {
-		_, err := db.DB.Exec(q, args...)
-		return err
-	}
-	for _, id := range []string{"p1", "p2"} {
-		if err := mustExec(`INSERT INTO profiles (id, name) VALUES (?, ?)`, id, id); err != nil {
-			t.Fatal(err)
-		}
-	}
-	ins := `INSERT INTO task_sessions (profile_id, title, created_by, created_at, updated_at) VALUES ('p1', 'old', 'you', 't', 't')`
-	if err := mustExec(ins); err != nil {
-		t.Fatal(err)
-	}
-	for run := 1; run <= 2; run++ {
-		if err := db.ApplyMigrations(); err != nil {
-			t.Fatalf("apply migrations, run %d: %v", run, err)
-		}
-		var n int
-		if err := db.DB.QueryRow(`SELECT COUNT(*) FROM schema_migrations WHERE version = 127`).Scan(&n); err != nil || n != 1 {
-			t.Fatalf("run %d: migration 127 recorded %d times (%v)", run, n, err)
-		}
-	}
-	var title string
-	var cid any
-	if err := db.DB.QueryRow(`SELECT title, client_id FROM task_sessions WHERE profile_id = 'p1'`).Scan(&title, &cid); err != nil || title != "old" || cid != nil {
-		t.Fatalf("an old session changed: %q %v %v", title, cid, err)
-	}
+	// the session idempotency key: old sessions are unkeyed, a repeat in one profile is
+	// refused by the index, the same key in another profile is not
+	mustExec(`INSERT INTO profiles (id, name) VALUES ('p2', 'P2')`)
 	keyed := func(profile, key string) error {
-		return mustExec(`INSERT INTO task_sessions (profile_id, title, created_by, created_at, updated_at, client_id) VALUES (?, 'x', 'you', 't', 't', ?)`, profile, key)
+		_, err := db.DB.Exec(`INSERT INTO task_sessions (profile_id, title, created_by, created_at, updated_at, client_id) VALUES (?, 'x', 'you', 't', 't', ?)`, profile, key)
+		return err
 	}
 	if err := keyed("p1", "k"); err != nil {
 		t.Fatal(err)
@@ -110,7 +75,6 @@ func TestMigration127TaskSessionClientIDIsAdditiveAndIdempotent(t *testing.T) {
 	if err := keyed("p2", "k"); err != nil {
 		t.Errorf("the same client id in another profile: %v", err)
 	}
-	if err := mustExec(ins); err != nil {
-		t.Errorf("a second session without a key: %v", err)
-	}
+	mustExec(`INSERT INTO task_sessions (profile_id, title, created_by, created_at, updated_at) VALUES ('p1', 'a', 'you', 't', 't')`)
+	mustExec(`INSERT INTO task_sessions (profile_id, title, created_by, created_at, updated_at) VALUES ('p1', 'b', 'you', 't', 't')`)
 }

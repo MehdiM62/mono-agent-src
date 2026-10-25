@@ -110,4 +110,3 @@
 124_ai_task_apply_audit.sql
 125_vault_agent_access_levels.sql
 126_task_sessions.sql
-127_task_session_client_id.sql

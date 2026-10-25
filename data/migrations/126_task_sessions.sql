@@ -26,9 +26,11 @@ CREATE TABLE IF NOT EXISTS task_sessions (
     approved_at         TEXT NOT NULL DEFAULT '',
     archived_at         TEXT NOT NULL DEFAULT '',
     created_at          TEXT NOT NULL,
-    updated_at          TEXT NOT NULL
+    updated_at          TEXT NOT NULL,
+    client_id           TEXT -- an idempotency key per profile, as tasks.client_id (062)
 );
 CREATE INDEX IF NOT EXISTS idx_task_sessions_profile ON task_sessions(profile_id, state);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_task_sessions_client ON task_sessions(profile_id, client_id) WHERE client_id IS NOT NULL;
 
 ALTER TABLE tasks ADD COLUMN session_id INTEGER REFERENCES task_sessions(id) ON DELETE CASCADE;
 ALTER TABLE tasks ADD COLUMN kind TEXT NOT NULL DEFAULT 'task' CHECK (kind IN ('task','epic','check'));
