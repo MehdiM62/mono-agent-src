@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-
-	"github.com/monoes/mono-agent/internal/tasks"
 )
 
 // continueTaskSession runs only after the CLI accepted the operator's approve
@@ -13,11 +11,18 @@ import (
 // a different chat. Manual sessions without a conversation need no lead turn.
 func (a *App) continueTaskSession(raw string) string {
 	var doc struct {
-		Profile tasks.Profile `json:"profile"`
-		Session tasks.Session `json:"session"`
-		Error   string        `json:"error"`
+		Profile struct {
+			ID string `json:"id"`
+		} `json:"profile"`
+		Session struct {
+			ID             int64  `json:"id"`
+			ConversationID string `json:"conversation_id"`
+			State          string `json:"state"`
+			Rev            int64  `json:"rev"`
+		} `json:"session"`
+		Error string `json:"error"`
 	}
-	if json.Unmarshal([]byte(raw), &doc) != nil || doc.Error != "" || doc.Session.State != tasks.SessionRunning || doc.Session.ConversationID == "" || doc.Profile.ID == "" {
+	if json.Unmarshal([]byte(raw), &doc) != nil || doc.Error != "" || doc.Session.State != "running" || doc.Session.ConversationID == "" || doc.Profile.ID == "" {
 		return raw
 	}
 	var result map[string]any
