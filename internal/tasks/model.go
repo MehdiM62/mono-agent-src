@@ -84,10 +84,15 @@ const (
 // Session, when not 0, binds the actor to one task session (a worker's token
 // carries it): it may act on that session's tasks and on nothing else, not on
 // the personal board and not on another session.
+//
+// Task, when not 0, narrows that binding to one task of the session (a mission worker's
+// token carries it): the actor may claim, comment on, finish, release and attach evidence
+// to that task and to no other, and adds no task of its own.
 type Actor struct {
 	Kind    ActorKind
 	Name    string
 	Session int64
+	Task    int64
 }
 
 // Label is how the actor is written in an event and in a claim.

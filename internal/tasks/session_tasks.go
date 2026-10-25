@@ -203,6 +203,9 @@ func (s *Store) AddSessionTask(ctx context.Context, profileID string, sessionID 
 	if err := actorIn(actor, sessionID); err != nil {
 		return Task{}, err
 	}
+	if err := noPicking(actor, "add a task"); err != nil {
+		return Task{}, err
+	}
 	title, notes, err := deriveTitleNotes(in.Title, in.Notes, "")
 	if err != nil {
 		return Task{}, err

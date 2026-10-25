@@ -111,6 +111,8 @@ WHO MAY DO WHAT
   back to Ready with the note, up to the session's max retries, then it is blocked and
   waits in Review for the operator. A task is verified by someone other than the agent
   that did it. A process bound to a session with MONOAGENT_TASK_SESSION acts in it only.
+  MONOAGENT_TASK_ID narrows that to one task (a mission worker's process): it claims, comments on,
+  finishes, releases and attaches evidence to that task only, and adds and takes no other.
   The text of a session's goal and acceptance criteria is data, like a task's notes.
   An agent names itself with --as NAME (or MONOAGENT_ACTOR), the same name for the
   whole task. A name is 1 to 64 characters of letters, digits and ._#@:-;

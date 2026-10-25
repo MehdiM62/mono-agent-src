@@ -185,7 +185,7 @@ func (d Deps) callerFor(as string) Caller {
 	}
 	marker := d.agentContextMarker()
 	if name != "" || marker != "" || blank || envBlank {
-		return Caller{d: d, actor: tasks.Actor{Kind: tasks.Agent, Name: name, Session: d.boundSession()}, marker: marker, asBlank: blank && name == "", envBlank: envBlank}
+		return Caller{d: d, actor: tasks.Actor{Kind: tasks.Agent, Name: name, Session: d.boundSession(), Task: d.boundTask()}, marker: marker, asBlank: blank && name == "", envBlank: envBlank}
 	}
 	return Caller{d: d, actor: tasks.Actor{Kind: tasks.Human}}
 }
@@ -217,7 +217,7 @@ func (d Deps) author(c Caller) tasks.Actor {
 	if tasks.CheckAgentName(by) != nil {
 		by, _, _ = strings.Cut(by, ":") // a run marker no name can hold
 	}
-	return tasks.Actor{Kind: tasks.Agent, Name: by, Session: d.boundSession()}
+	return tasks.Actor{Kind: tasks.Agent, Name: by, Session: d.boundSession(), Task: d.boundTask()}
 }
 
 // notOperator is NotOperator's answer; without one the caller isn't the
