@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strings"
 	"time"
 )
 
@@ -203,16 +204,35 @@ func lastHandBack(ctx context.Context, x dbx, id int64) (actor, kind string, err
 	return actor, kind, err
 }
 
+// identityRE is the "#<4 hex>" the MCP server appends to an agent's name, one per connection.
+var identityRE = regexp.MustCompile(`#[0-9a-fA-F]{4}$`)
+
+// identityOf is the agent behind a name: the name without the connection suffix, in lower case,
+// so that agent:claude#ab12 and agent:claude#cd34 (two connections of one client) are one agent.
+func identityOf(name string) string {
+	return strings.ToLower(identityRE.ReplaceAllString(name, ""))
+}
+
+// sameIdentity says whether two labels are one agent. It is a name check on top of the
+// binding: an agent that picks a name that is not its client's gets past it, which is why a
+// worker bound to a task cannot verify at all.
+func sameIdentity(a, b string) bool { return identityOf(a) == identityOf(b) }
+
 // VerifySessionTask records a verifier's verdict on a task in Review. A pass marks the task
 // verified and nothing more: closing it to Done is the operator's, or the verifier's only
 // when the session's auto_close_verified is on (D1). A fail returns the task to Ready with
 // the note, up to the session's max_retries failures; one more and the task is blocked (it
 // stays in Review, flagged, for the operator). The verifier is the operator or a named agent
-// of the session other than the one that did the work, and a task that holds a question is
+// of the session: never one bound to the task as its worker (only a verifier binding passes),
+// never the same agent identity as the last hand-back (sameIdentity), and an agent only while
+// the session runs (the operator may act while it is paused). A task that holds a question is
 // not verified: the operator answers it.
 func (s *Store) VerifySessionTask(ctx context.Context, profileID string, sessionID, id int64, pass bool, note string, actor Actor) (Task, error) {
 	if err := actorIn(actor, sessionID); err != nil {
 		return Task{}, err
+	}
+	if actor.Task != 0 && !actor.Verifier {
+		return Task{}, bindingRefused("this agent is bound to task #%d as its worker: it cannot record a verdict on it", actor.Task)
 	}
 	note = cutBytes(cleanText(note), MaxCommentBytes)
 	if !pass && note == "" {
@@ -229,6 +249,9 @@ func (s *Store) VerifySessionTask(ctx context.Context, profileID string, session
 		}
 		if (se.State != SessionRunning && se.State != SessionPaused) || se.Archived {
 			return sessionNotReady("session #%d is %s: tasks are verified in a session that runs", sessionID, closedWord(se))
+		}
+		if err := writableBy(se, actor, "verify a task"); err != nil {
+			return err
 		}
 		if err := s.checkScope(ctx, x, profileID, id, sessionID, actor); err != nil {
 			return err
@@ -250,7 +273,7 @@ func (s *Store) VerifySessionTask(ctx context.Context, profileID string, session
 		if kind == "question" {
 			return invalid("task #%d holds a question: the operator answers it before it is verified", id)
 		}
-		if actor.Kind == Agent && worker == actor.Label() {
+		if actor.Kind == Agent && worker != "" && sameIdentity(worker, actor.Label()) {
 			return invalid("task #%d was done by %s: another agent verifies it", id, worker)
 		}
 		stamp := s.stamp()
