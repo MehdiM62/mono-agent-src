@@ -161,7 +161,13 @@ func (h *HybridWorkflowStore) SaveNodesGuarded(ctx context.Context, workflowID s
 		err = guardedCommitFault()
 	}
 	if err == nil {
+		err = failpoint("after-rename")
+	}
+	if err == nil {
 		err = tx.Commit()
+	}
+	if err == nil {
+		_ = failpoint("after-commit")
 	}
 	if err != nil {
 		err = fmt.Errorf("committing guarded save: %w", err)
