@@ -123,7 +123,7 @@ func newCoderSetCmd(cfg *Deps) *cobra.Command {
 			if writers != dynorg.WritersShared && writers != dynorg.WritersIsolated {
 				return clicore.InvalidInput("--org-writers must be %q or %q", dynorg.WritersShared, dynorg.WritersIsolated)
 			}
-			s.OrgWriters = writers
+			s.OrgWriters, s.orgWritersDefaulted = writers, false
 		}
 		if f.Changed("default-access") {
 			if !ai.ValidAccess(defAcc) {

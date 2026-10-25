@@ -72,6 +72,8 @@ type Session struct {
 	UpdatedAt         time.Time     `json:"updated_at"`
 	Rev               int64         `json:"rev"`
 	Counts            SessionCounts `json:"counts"`
+	ClientID          string        `json:"client_id,omitempty"`
+	Deduped           bool          `json:"deduped,omitempty"` // set by CreateSession when the client id matched an existing session
 }
 
 // SessionCounts are a session's tasks per column, without the archived ones.
@@ -101,6 +103,7 @@ type SessionInput struct {
 	BudgetUSD      float64
 	MaxTasks       int
 	MaxDepth       int
+	ClientID       string // an idempotency key per profile: a repeat returns the existing session
 }
 
 // SessionUpdate changes what only the operator may. A nil field stays as it is.

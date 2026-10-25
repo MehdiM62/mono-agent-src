@@ -3,6 +3,7 @@ package chat
 import (
 	"context"
 	"database/sql"
+	"os/exec"
 
 	"github.com/monoes/mono-agent/internal/dynorg"
 	"github.com/monoes/mono-agent/internal/tasks"
@@ -48,4 +49,30 @@ func missionMaxAgents(settings coderSettings, m *dynorg.MissionConfig) int {
 		return dynorg.MissionMaxAgents
 	}
 	return settings.OrgMaxAgents
+}
+
+// missionWriters is the writers mode of a turn: a confirmed mission whose operator never set
+// --org-writers gets isolated writers (a worktree each, so independent tasks run in parallel)
+// when the conversation folder is inside a git work tree with a commit to branch from; an
+// operator's value, shared or isolated, stays authoritative, and without a repository the
+// default stays shared. Only the operator sets the flag (operatorOrgFlags); an agent cannot.
+func missionWriters(ctx context.Context, settings coderSettings, m *dynorg.MissionConfig, cwd string) string {
+	if m.Planning() && settings.orgWritersDefaulted && cwdIsGitWorkTree(ctx, cwd) {
+		return dynorg.WritersIsolated
+	}
+	return settings.OrgWriters
+}
+
+func cwdIsGitWorkTree(ctx context.Context, cwd string) bool {
+	if cwd == "" {
+		return false
+	}
+	git, err := exec.LookPath("git")
+	if err != nil {
+		return false
+	}
+	if exec.CommandContext(ctx, git, "-C", cwd, "rev-parse", "--is-inside-work-tree").Run() != nil {
+		return false
+	}
+	return exec.CommandContext(ctx, git, "-C", cwd, "rev-parse", "--verify", "--quiet", "HEAD^{commit}").Run() == nil
 }

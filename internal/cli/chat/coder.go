@@ -35,9 +35,13 @@ type coderSettings struct {
 	// orgMaxAgentsDefaulted: OrgMaxAgents was unset (the operator never set it), so a
 	// mission turn may use a larger default (missionMaxAgents).
 	orgMaxAgentsDefaulted bool
-	OrgMaxConcurrent      int     `json:"orgMaxConcurrent"`
-	OrgBudgetUSD          float64 `json:"orgBudgetUsd"`
-	OrgModelPicker        string  `json:"orgModelPicker"`
+	// orgWritersDefaulted: OrgWriters was unset (the operator never set it), so a
+	// mission turn in a git work tree may default to isolated writers (missionWriters).
+	// It is never saved as an operator's choice (saveCoderSettings).
+	orgWritersDefaulted bool
+	OrgMaxConcurrent    int     `json:"orgMaxConcurrent"`
+	OrgBudgetUSD        float64 `json:"orgBudgetUsd"`
+	OrgModelPicker      string  `json:"orgModelPicker"`
 	// OrgRouter (coder.router) is who picks a worker's role and skills when
 	// the lead names none: "auto" (default), "jev" or "model".
 	OrgRouter string `json:"orgRouter"`
@@ -95,6 +99,9 @@ func (s coderSettings) withDefaults() coderSettings {
 		s.OrgModelPicker = dynorg.PickerLeadThenJev
 	}
 	s.OrgRouter = dynorg.NormalizeRouter(s.OrgRouter)
+	if s.OrgWriters == "" {
+		s.orgWritersDefaulted = true
+	}
 	if s.OrgWriters != dynorg.WritersIsolated {
 		s.OrgWriters = dynorg.WritersShared
 	}
@@ -153,6 +160,9 @@ func loadCoderSettings(db *sql.DB) (coderSettings, error) {
 }
 
 func saveCoderSettings(db *sql.DB, s coderSettings) error {
+	if s.orgWritersDefaulted { // the default is not the operator's choice: keep it unset
+		s.OrgWriters = ""
+	}
 	b, err := json.Marshal(s)
 	if err != nil {
 		return err

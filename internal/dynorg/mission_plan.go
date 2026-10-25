@@ -2,6 +2,8 @@ package dynorg
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -77,6 +79,37 @@ func (m *MissionConfig) active(ctx context.Context) (*tasks.Session, error) {
 		}
 	}
 	return nil, nil
+}
+
+// planKey is the idempotency key of this conversation's next mission_plan: the
+// conversation, the plan round (how many earlier sessions of the conversation have
+// been closed) and the plan itself, so a retried call (same arguments, same round)
+// names the same session, while a different plan is still refused as a second open
+// session and a new plan after the operator closed one gets a new key.
+func (m *MissionConfig) planKey(ctx context.Context, plan any) (string, error) {
+	list, err := m.Store.ListSessions(ctx, m.ProfileID, tasks.SessionFilter{IncludeArchived: true}, m.actor(0))
+	if err != nil {
+		return "", err
+	}
+	round := 0
+	for _, se := range list {
+		if se.ConversationID != m.ConversationID {
+			continue
+		}
+		switch se.State {
+		case tasks.SessionDraft, tasks.SessionRunning, tasks.SessionPaused:
+			if !se.Archived {
+				continue
+			}
+		}
+		round++
+	}
+	body, err := json.Marshal(plan)
+	if err != nil {
+		return "", err
+	}
+	conv, content := sha256.Sum256([]byte(m.ConversationID)), sha256.Sum256(body)
+	return fmt.Sprintf("mp-%x-%d-%x", conv[:8], round, content[:8]), nil
 }
 
 // latest is the newest session of this conversation in any state, or nil.

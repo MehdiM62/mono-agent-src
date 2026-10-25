@@ -132,7 +132,9 @@ func TestMissionOneActiveSessionPerConversation(t *testing.T) {
 	if _, err := call(t, c, ToolMissionPlan, goodPlan()); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := call(t, c, ToolMissionPlan, goodPlan()); err == nil || !strings.Contains(err.Error(), "already has an open mission session") {
+	different := goodPlan()
+	different["title"] = "Another goal"
+	if _, err := call(t, c, ToolMissionPlan, different); err == nil || !strings.Contains(err.Error(), "already has an open mission session") {
 		t.Fatalf("second plan: %v", err)
 	}
 	list, _ := st.ListSessions(context.Background(), missionProfile, tasks.SessionFilter{}, missionHuman)
@@ -251,7 +253,9 @@ func TestMissionPlanSurvivesNewConductor(t *testing.T) {
 		t.Errorf("next: %v", got["next"])
 	}
 	// The new conductor continues the session instead of starting another.
-	if _, err := call(t, c2, ToolMissionPlan, goodPlan()); err == nil {
+	another := goodPlan()
+	another["title"] = "Another goal"
+	if _, err := call(t, c2, ToolMissionPlan, another); err == nil {
 		t.Error("second plan after restart")
 	}
 	// A conversation without a session sees none.

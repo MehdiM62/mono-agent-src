@@ -108,7 +108,9 @@ WHO MAY DO WHAT
   session plan, session pause and session stop (stop releases every claim; only the operator resumes). It may not set
   the budget, the limits, the access level or auto-close: that is session budget ID --usd N
   --max-tasks N --max-depth N --max-retries N --access LEVEL --auto-close on|off --spend N --note TEXT
-  (session new takes --budget-usd), the operator's. A worker or verifier bound to a task may not
+  (session new takes --budget-usd), the operator's. session new takes an optional --client-id KEY
+  (idempotency, per profile, up to 64 letters, digits, - or _): a repeated key returns the existing session
+  (exit 0, deduped true) and creates none; a longer or garbled key is invalid_input. A worker or verifier bound to a task may not
   pause or stop the session. finish and artifact by an agent are refused while the session is
   paused or stopped (a comment is not). Progress n/m (counts.done, counts.total) leaves epics out:
   an epic only groups, counts.epics holds their number, and the plan view still shows them. A session
@@ -139,8 +141,10 @@ WHO MAY DO WHAT
   operator turned that on. The lead never closes a task. mission_finish closes the SESSION only
   through the one guarded operator close: every task done or verified, none blocked, no writer
   branch left to merge, and the integration check done or verified. Two writers work in parallel
-  only when the operator set orgWriters to isolated (a worktree and branch each, merged one at a
-  time with org_merge); with shared they take turns.
+  when orgWriters is isolated (a worktree and branch each, merged one at a
+  time with org_merge); with shared they take turns. A confirmed mission in a git work tree with a
+  commit defaults to isolated while the operator never set orgWriters; an operator's shared (or
+  isolated) is kept, and mission_plan and mission_status writers show the mode in effect.
   An agent names itself with --as NAME (or MONOAGENT_ACTOR), the same name for the
   whole task. A name is 1 to 64 characters of letters, digits and ._#@:-;
   the labels you, agent, capture, chrome and os are reserved (in any case). A name
@@ -267,7 +271,7 @@ JSON
   code not_found (exit 2), or invalid_input, operator_only, not_ready, claimed (with
   claimed_by and claimed_until), not_claimant or limit (exit 3). Any other failure is
   exit 1 with {"error"} alone; an unknown flag, or a number or duration that does not
-  parse, is the command parser's exit 1 with no JSON at all.
+  parse, is the command parser's exit 1 with {"error"} and no code (as in every command group).
 
 FROM MCP
   The MCP server (monoagentcli mcp) serves task_list, task_get, task_next, task_session_list and task_session_get in every server (they only

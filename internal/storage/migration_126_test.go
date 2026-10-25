@@ -59,4 +59,22 @@ func TestMigration126TaskSessionsIsAdditiveAndIdempotent(t *testing.T) {
 	if _, err := db.DB.Exec(`UPDATE tasks SET kind = 'story'`); err == nil {
 		t.Error("tasks.kind accepted story")
 	}
+	// the session idempotency key: old sessions are unkeyed, a repeat in one profile is
+	// refused by the index, the same key in another profile is not
+	mustExec(`INSERT INTO profiles (id, name) VALUES ('p2', 'P2')`)
+	keyed := func(profile, key string) error {
+		_, err := db.DB.Exec(`INSERT INTO task_sessions (profile_id, title, created_by, created_at, updated_at, client_id) VALUES (?, 'x', 'you', 't', 't', ?)`, profile, key)
+		return err
+	}
+	if err := keyed("p1", "k"); err != nil {
+		t.Fatal(err)
+	}
+	if err := keyed("p1", "k"); err == nil {
+		t.Error("a repeated client id in one profile was accepted")
+	}
+	if err := keyed("p2", "k"); err != nil {
+		t.Errorf("the same client id in another profile: %v", err)
+	}
+	mustExec(`INSERT INTO task_sessions (profile_id, title, created_by, created_at, updated_at) VALUES ('p1', 'a', 'you', 't', 't')`)
+	mustExec(`INSERT INTO task_sessions (profile_id, title, created_by, created_at, updated_at) VALUES ('p1', 'b', 'you', 't', 't')`)
 }
