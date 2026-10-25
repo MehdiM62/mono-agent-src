@@ -109,3 +109,4 @@
 123_ai_task_applies.sql
 124_ai_task_apply_audit.sql
 125_vault_agent_access_levels.sql
+129_coder_sessions.sql

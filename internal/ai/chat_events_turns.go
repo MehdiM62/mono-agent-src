@@ -369,6 +369,16 @@ func (s *AIStore) FinalizeTurnCode(profileID, conversationID, turnID string, sta
 // marks interrupted.
 const ReconciledReason = "interrupted at backend startup (previous app instance)"
 
+// hostHoldsTurn reports whether the coder host (coder_sessions) has this turn
+// as its session's current one: the host outlives the app and settles its own
+// turns when it starts, so an app starting up must not interrupt them.
+func (s *AIStore) hostHoldsTurn(t Turn) bool {
+	var n int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM coder_sessions WHERE profile_id = ? AND conversation_id = ? AND turn_id = ? AND turn_pid > 0`,
+		t.ProfileID, t.ConversationID, t.ID).Scan(&n)
+	return err == nil && n > 0
+}
+
 // ReconcileActiveTurns marks every turn still "active", across every
 // profile, as interrupted — the sweep a starting app runs over turns a
 // previous instance left unfinished. A turn owned by exceptOwner (the
@@ -384,6 +394,9 @@ func (s *AIStore) ReconcileActiveTurns(exceptOwner string) (reconciled []Turn, e
 	reconciled = []Turn{}
 	for _, row := range rows {
 		if exceptOwner != "" && row.OwnerInstanceID == exceptOwner {
+			continue
+		}
+		if s.hostHoldsTurn(row) {
 			continue
 		}
 		_, already, err := s.FinalizeTurn(row.ProfileID, row.ConversationID, row.ID, chatevents.StatusInterrupted, ReconciledReason, nil, true)
