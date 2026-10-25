@@ -1685,6 +1685,9 @@
     "close": "Close",
     "drawer": {
       "title": "Title",
+      "metaFiles": "Files",
+      "metaSize": "Size",
+      "metaRisk": "Risk",
       "notes": "Notes",
       "save": "Save",
       "history": "History",

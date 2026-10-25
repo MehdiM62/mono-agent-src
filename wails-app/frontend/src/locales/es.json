@@ -1643,6 +1643,9 @@
     "close": "Cerrar",
     "drawer": {
       "title": "Título",
+      "metaFiles": "Archivos",
+      "metaSize": "Tamaño",
+      "metaRisk": "Riesgo",
       "notes": "Notas",
       "save": "Guardar",
       "history": "Historial",
