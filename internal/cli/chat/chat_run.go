@@ -27,6 +27,12 @@ import (
 // conversation's runtime, model or session changes only its own run.
 func runChat(cfg *Deps, cmd *cobra.Command, args []string, f *chatFlags) (retErr error) {
 	runtime, model, effort, resume, canvasID, historyID, timeoutS, budget, tools, noHistory, promptStdin, conversationID, turnID, instanceID, mode, coderCwd, newWorkspace, coderRoot, profileFold, attach := f.runtime, f.model, f.effort, f.resume, f.canvasID, f.historyID, f.timeoutS, f.budget, f.tools, f.noHistory, f.promptStdin, f.conversationID, f.turnID, f.instanceID, f.mode, f.coderCwd, f.newWorkspace, f.coderRoot, f.profileFold, f.attach
+	if f.mission {
+		// the flag confirms a mission for the user: an agent cannot confirm its own
+		if err := clicore.RequireOperator(cfg.RequireOperator, "confirm a mission (--mission)"); err != nil {
+			return err
+		}
+	}
 	prompt := strings.Join(args, " ")
 	if promptStdin {
 		p, perr := readPromptStdin(cmd.InOrStdin())
