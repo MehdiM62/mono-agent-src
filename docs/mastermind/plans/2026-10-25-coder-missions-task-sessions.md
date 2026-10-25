@@ -35,7 +35,7 @@
 5. **Everything existing still applies:** send gate (HIL), operator-only config, confined paths, `_untrusted` fields. Web or captured text inside a task is data. A session task's `notes` written by a worker that read the web is marked untrusted the same way.
 6. **Kill switch:** Pause and Stop on the session. Stop releases every claim, stops workers, leaves tasks in place.
 
-## 4. Data model (migration 125, next free is 125)
+## 4. Data model (migration 126, follows vault access levels 125)
 
 ```
 task_sessions(
@@ -145,7 +145,7 @@ Order is chosen so each phase ships value and is testable alone. Each phase is o
 - Write the spec `docs/mastermind/specs/2026-10-25-task-sessions-design.md` from sections 2 to 4 and the answers to D1 to D5. Security review of section 3 before code.
 
 **Phase 1 – Sessions in the store and CLI**
-1. Migration 125, models, `internal/tasks/sessions.go`, dependency DAG with cycle check, session caps.
+1. Migration 126, models, `internal/tasks/sessions.go`, dependency DAG with cycle check, session caps.
 2. `task session ...` and `--session` flags; operator-only gates; `ref tasks`; JSON shapes.
 3. Tests: session isolation (a task from session A never appears in B or Personal), operator-only refusal matrix, cap enforcement, cascade delete, board_rev bump, draft invisibility to `task next`, dependency ordering in `next`, migration idempotence.
 

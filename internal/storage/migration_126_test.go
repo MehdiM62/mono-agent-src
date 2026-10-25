@@ -5,16 +5,16 @@ import (
 	"testing"
 )
 
-// Migration 125 (task sessions) on a database that has a personal board: it adds
+// Migration 126 (task sessions) on a database that has a personal board: it adds
 // columns and tables, changes no row, and running the migrations again is a no-op.
-// The database is built here from the migrations before 125 with synthetic rows.
-func TestMigration125TaskSessionsIsAdditiveAndIdempotent(t *testing.T) {
+// The database is built here from the migrations before 126 with synthetic rows.
+func TestMigration126TaskSessionsIsAdditiveAndIdempotent(t *testing.T) {
 	db, err := NewDatabase(filepath.Join(t.TempDir(), "monoagent.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { db.Close() })
-	applyMigrationsBelow(t, db, 125)
+	applyMigrationsBelow(t, db, 126)
 	mustExec := func(q string, args ...any) {
 		t.Helper()
 		if _, err := db.DB.Exec(q, args...); err != nil {
@@ -29,8 +29,8 @@ func TestMigration125TaskSessionsIsAdditiveAndIdempotent(t *testing.T) {
 			t.Fatalf("apply migrations, run %d: %v", run, err)
 		}
 		var n int
-		if err := db.DB.QueryRow(`SELECT COUNT(*) FROM schema_migrations WHERE version = 125`).Scan(&n); err != nil || n != 1 {
-			t.Fatalf("run %d: migration 125 recorded %d times (%v)", run, n, err)
+		if err := db.DB.QueryRow(`SELECT COUNT(*) FROM schema_migrations WHERE version = 126`).Scan(&n); err != nil || n != 1 {
+			t.Fatalf("run %d: migration 126 recorded %d times (%v)", run, n, err)
 		}
 	}
 	var session, parent any
