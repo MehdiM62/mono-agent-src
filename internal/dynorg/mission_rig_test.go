@@ -58,6 +58,9 @@ type gateExec struct {
 	vruns  map[int64][]monomind.ExecOptions
 	// budgets records the --budget-usd every run got.
 	budgets []float64
+	// onRun, when set, runs inside each task worker's exec after its start event, with the
+	// event sink: a worker that streams usage while it works.
+	onRun func(ctx context.Context, task int64, on func(monomind.Event))
 	// models records the runtime/model the last run of each task's worker got.
 	models map[int64]string
 }
@@ -130,6 +133,9 @@ func (g *gateExec) exec(ctx context.Context, o monomind.ExecOptions, on func(mon
 	}
 	defer atomic.AddInt32(&g.running, -1)
 	on(monomind.Event{Type: monomind.EventStart})
+	if g.onRun != nil {
+		g.onRun(ctx, id, on)
+	}
 	if crash {
 		return nil, fmt.Errorf("the runtime crashed")
 	}

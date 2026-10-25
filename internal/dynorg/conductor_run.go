@@ -336,6 +336,9 @@ func (c *Conductor) execOnce(ctx context.Context, w *worker, m Model, prompt, re
 			}
 		}
 		monomind.ApplyEventToResult(&run, ev)
+		if w.task != nil {
+			c.liveSpend(w, m, &run)
+		}
 		if overEstimate(m, &run, opts.BudgetUSD) && overBudget.CompareAndSwap(false, true) {
 			ecancel()
 		}
@@ -356,6 +359,7 @@ func (c *Conductor) execOnce(ctx context.Context, w *worker, m Model, prompt, re
 		w.hasTok = true
 	}
 	c.addRunCostLocked(w, m, &run)
+	w.liveCost = 0 // it is in cost now
 	c.mu.Unlock()
 	// A run that completed anyway stays done; budgetErrLocked refuses
 	// what comes next.

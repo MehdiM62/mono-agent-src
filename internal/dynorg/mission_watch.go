@@ -52,6 +52,9 @@ func (c *Conductor) missionTick(mc *MissionRun) {
 	}
 	c.msched.mu.Unlock()
 	for _, sid := range sids {
+		for _, w := range c.sessionWorkers(sid) {
+			c.chargeSession(w) // what a worker has cost so far, even between its events
+		}
 		se, err := mc.Store.GetSession(c.ctx, mc.ProfileID, sid, missionActor())
 		if err != nil {
 			continue
@@ -62,6 +65,7 @@ func (c *Conductor) missionTick(mc *MissionRun) {
 		case se.BudgetUSD > 0 && se.SpentUSD >= se.BudgetUSD*budgetHaltAt:
 			c.missionHalt(c.ctx, se)
 		case se.State == tasks.SessionRunning:
+			c.missionBudget(c.ctx, se) // the 90 percent warning
 			c.renewLeases(c.ctx, mc, sid)
 			c.cutOverlong(mc, sid)
 		}

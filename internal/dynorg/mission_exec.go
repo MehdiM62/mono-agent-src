@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/monoes/mono-agent/internal/ai/chatevents"
+	"github.com/monoes/mono-agent/internal/monomind"
 	"github.com/monoes/mono-agent/internal/tasks"
 )
 
@@ -302,11 +303,48 @@ func (c *Conductor) recordFailure(ctx context.Context, mc *MissionRun, w *worker
 	}
 }
 
-// recordSpend adds what the worker cost since the last time to the session. Only this
-// process records spend: a worker could otherwise hide its cost.
-func (c *Conductor) recordSpend(ctx context.Context, mc *MissionRun, w *worker) {
+// liveSpend is called on every event of a running mission worker: it notes what the exec
+// has cost so far and adds the growth to the session, so a long worker cannot overrun the
+// session's budget between finishes. The 90 percent warning and the 100 percent halt are
+// applied at once.
+func (c *Conductor) liveSpend(w *worker, m Model, run *monomind.TurnResult) {
+	cost, _, ok := liveCost(m, run)
+	if !ok {
+		return
+	}
 	c.mu.Lock()
-	cost := w.cost
+	grew := cost > w.liveCost
+	if grew {
+		w.liveCost = cost
+	}
+	c.mu.Unlock()
+	if grew {
+		c.chargeSession(w)
+	}
+}
+
+// chargeSession records the worker's unrecorded cost and applies the session's budget.
+func (c *Conductor) chargeSession(w *worker) {
+	mc, err := c.missions()
+	if err != nil || w.task == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(c.ctx), 10*time.Second)
+	defer cancel()
+	if !c.recordSpend(ctx, mc, w) {
+		return
+	}
+	if se, err := mc.Store.GetSession(ctx, mc.ProfileID, w.task.session, missionActor()); err == nil && se.State == tasks.SessionRunning {
+		c.missionBudget(ctx, se)
+	}
+}
+
+// recordSpend adds what the worker cost since the last time to the session, and says
+// whether it added anything. Only this process records spend: a worker could otherwise hide
+// its cost.
+func (c *Conductor) recordSpend(ctx context.Context, mc *MissionRun, w *worker) bool {
+	c.mu.Lock()
+	cost := w.cost + w.liveCost
 	c.mu.Unlock()
 	c.msched.mu.Lock()
 	delta := cost - w.task.spent
@@ -315,12 +353,14 @@ func (c *Conductor) recordSpend(ctx context.Context, mc *MissionRun, w *worker) 
 	}
 	c.msched.mu.Unlock()
 	if delta <= 0 {
-		return
+		return false
 	}
 	note := fmt.Sprintf("%s on task #%d", w.id, w.task.task.ID)
 	if _, err := mc.Store.AddSessionSpend(ctx, mc.ProfileID, w.task.session, delta, note, operatorActor()); err != nil {
 		c.notice("mission.spend", fmt.Sprintf("The cost of %s ($%.4f) could not be added to the session: %v", w.id, delta, err), chatevents.SeverityWarning)
+		return false
 	}
+	return true
 }
 
 // missionClose gives back what this Conductor still holds: its turn is over.

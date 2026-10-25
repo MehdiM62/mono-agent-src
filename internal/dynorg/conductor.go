@@ -114,6 +114,9 @@ type worker struct {
 	hasTok  bool
 	cost    float64
 	hasCost bool
+	// liveCost is what the running exec has cost so far (not yet in cost); a mission's
+	// session is charged for it as it grows (recordSpend).
+	liveCost float64
 	// costEstimated: some of cost is estimated from tokens (estimate.go).
 	costEstimated bool
 	started       time.Time
