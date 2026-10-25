@@ -66,6 +66,9 @@ func (s *Store) Edit(ctx context.Context, profileID string, id int64, e Edit, ac
 		if err := s.bump(ctx, x, profileID); err != nil {
 			return err
 		}
+		if err := s.bumpSessionsOf(ctx, x, id); err != nil {
+			return err
+		}
 		out, err = s.getTx(ctx, x, profileID, id)
 		return err
 	})
@@ -79,8 +82,9 @@ func (s *Store) Edit(ctx context.Context, profileID string, id int64, e Edit, ac
 // ids and their positions. The card except (0 for none) is left out.
 func (s *Store) columnOf(ctx context.Context, x dbx, profileID string, st Status, except int64) ([]int64, []int64, error) {
 	rows, err := x.QueryContext(ctx,
-		`SELECT id, position FROM tasks WHERE profile_id = ? AND status = ? AND id <> ? ORDER BY position, id`,
-		profileID, string(st), except)
+		`SELECT id, position FROM tasks WHERE profile_id = ? AND status = ? AND id <> ?
+		   AND session_id IS (SELECT session_id FROM tasks WHERE id = ?) ORDER BY position, id`,
+		profileID, string(st), except, except)
 	if err != nil {
 		return nil, nil, fmt.Errorf("tasks: reading a column: %w", err)
 	}
@@ -202,8 +206,12 @@ func (s *Store) moveTx(ctx context.Context, x dbx, profileID string, cur Task, t
 		}
 	}
 	if _, err := x.ExecContext(ctx,
-		`UPDATE tasks SET status = ?, position = ?, claimed_by = ?, claim_until = ?, updated_at = ? WHERE id = ? AND profile_id = ?`,
-		string(to), pos, claimedBy, until, stamp, cur.ID, profileID); err != nil {
+		`UPDATE tasks SET status = ?, position = ?, claimed_by = ?, claim_until = ?, updated_at = ?,
+		        retries = CASE WHEN ? = 'ready' AND blocked = 1 THEN 0 ELSE retries END,
+		        blocked = CASE WHEN ? = 'review' THEN blocked ELSE 0 END,
+		        verified = CASE WHEN ? IN ('review', 'done') THEN verified ELSE 0 END
+		 WHERE id = ? AND profile_id = ?`,
+		string(to), pos, claimedBy, until, stamp, string(to), string(to), string(to), cur.ID, profileID); err != nil {
 		return fmt.Errorf("tasks: moving #%d: %w", cur.ID, err)
 	}
 	return s.event(ctx, x, cur.ID, stamp, actor.Label(), kind, string(cur.Status), string(to), note)
@@ -237,6 +245,9 @@ func (s *Store) Move(ctx context.Context, profileID string, id int64, to Status,
 			return err
 		}
 		if err := s.bump(ctx, x, profileID); err != nil {
+			return err
+		}
+		if err := s.bumpSessionsOf(ctx, x, id); err != nil {
 			return err
 		}
 		out, err = s.getTx(ctx, x, profileID, id)
@@ -291,6 +302,9 @@ func (s *Store) each(ctx context.Context, profileID string, ids []int64, reverse
 			}
 		}
 		if err := s.bump(ctx, x, profileID); err != nil {
+			return err
+		}
+		if err := s.bumpSessionsOf(ctx, x, ids...); err != nil {
 			return err
 		}
 		out = make([]Task, 0, len(ids))

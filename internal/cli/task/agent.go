@@ -74,6 +74,7 @@ func printClaimed(w io.Writer, p tasks.Profile, t tasks.Task, name string) {
 		fmt.Fprintf(w, "Link: %s\n", t.Source.URL)
 	}
 	printNotes(w, t.Notes) // Task 9's helper: the notice, the notes indented, an end line
+	printAcceptance(w, t)
 	continueHelp(w, p, t, name)
 }
 
@@ -85,6 +86,7 @@ func printNext(w io.Writer, p tasks.Profile, t tasks.Task, as string) {
 		fmt.Fprintf(w, "Link: %s\n", t.Source.URL)
 	}
 	printNotes(w, t.Notes) // Task 9's helper: the notice, the notes indented, an end line
+	printAcceptance(w, t)
 	fmt.Fprintf(w, "\nTake it:\n  %s\n  %s\n", takeCommand(p, as, "next --claim"), takeCommand(p, as, fmt.Sprintf("claim %d", t.ID)))
 }
 
@@ -101,6 +103,7 @@ func (d Deps) checkLease(cmd *cobra.Command, lease time.Duration) error {
 func (d Deps) newTaskNextCmd() *cobra.Command {
 	var claim bool
 	var lease time.Duration
+	var session string
 	cmd := &cobra.Command{
 		Use:   "next [--claim --as NAME [--lease 30m]]",
 		Short: "Show the task an AI agent should work next, or claim it",
@@ -129,6 +132,11 @@ a null task.`,
 			if !claim && cmd.Flags().Changed("lease") {
 				return d.InvalidInput("--lease only applies with --claim: a look at the next task takes no lease")
 			}
+			if sid, ok, err := d.sessionFlag(cmd, session); err != nil {
+				return err
+			} else if ok {
+				return d.runSessionNext(cmd, caller, actor, sid, claim, lease)
+			}
 			return d.withTasks(cmd, func(ctx context.Context, store *tasks.Store, p tasks.Profile) error {
 				t, err := store.Next(ctx, p.ID, actor, claim, lease)
 				if err != nil {
@@ -151,6 +159,7 @@ a null task.`,
 			})
 		},
 	}
+	cmd.Flags().StringVar(&session, "session", "", "Work this session's tasks instead of the personal board: a Ready task whose dependencies are done, of a running session")
 	cmd.Flags().BoolVar(&claim, "claim", false, "Take the task for yourself (needs --as NAME)")
 	cmd.Flags().DurationVar(&lease, "lease", 0, "How long you hold it (default 30m, at most 24h); a comment extends it to 30 minutes from the comment, if that is later")
 	return cmd
@@ -177,7 +186,7 @@ func (d Deps) newTaskClaimCmd() *cobra.Command {
 				return err
 			}
 			return d.withTasks(cmd, func(ctx context.Context, store *tasks.Store, p tasks.Profile) error {
-				t, err := store.Claim(ctx, p.ID, taskID, actor, lease)
+				t, err := store.ClaimAny(ctx, p.ID, taskID, actor, lease)
 				if err != nil {
 					return d.taskErr(err)
 				}
@@ -218,7 +227,7 @@ func (d Deps) newTaskCommentCmd() *cobra.Command {
 			}
 			text := strings.Join(args[1:], " ")
 			return d.withTasks(cmd, func(ctx context.Context, store *tasks.Store, p tasks.Profile) error {
-				t, err := store.Comment(ctx, p.ID, taskID, text, actor)
+				t, err := store.CommentAny(ctx, p.ID, taskID, text, actor)
 				if err != nil {
 					return d.taskErr(err)
 				}
@@ -253,7 +262,7 @@ func (d Deps) newTaskFinishCmd() *cobra.Command {
 				return d.InvalidInput("give exactly one of --result TEXT (what you did) and --question TEXT (what you need to know before you can go on)")
 			}
 			return d.withTasks(cmd, func(ctx context.Context, store *tasks.Store, p tasks.Profile) error {
-				t, err := store.Finish(ctx, p.ID, taskID, tasks.Outcome{Result: result, Question: question}, actor)
+				t, err := store.FinishAny(ctx, p.ID, taskID, tasks.Outcome{Result: result, Question: question}, actor)
 				if err != nil {
 					return d.taskErr(err)
 				}
@@ -284,7 +293,7 @@ func (d Deps) newTaskReleaseCmd() *cobra.Command {
 				return err
 			}
 			return d.withTasks(cmd, func(ctx context.Context, store *tasks.Store, p tasks.Profile) error {
-				t, err := store.Release(ctx, p.ID, taskID, note, actor)
+				t, err := store.ReleaseAny(ctx, p.ID, taskID, note, actor)
 				if err != nil {
 					return d.taskErr(err)
 				}
