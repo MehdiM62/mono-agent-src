@@ -14,7 +14,6 @@ import (
 	"github.com/monoes/mono-agent/internal/ai/chatevents"
 	"github.com/monoes/mono-agent/internal/monomind"
 	"github.com/monoes/mono-agent/internal/tasks"
-	"github.com/monoes/mono-agent/internal/testdb"
 )
 
 // End to end: a whole mission run with fakes only (a fake agent exec, a scratch database):
@@ -102,7 +101,7 @@ func newE2E(t *testing.T) *e2eRig {
 	// run goes through the fake exec (counted by the tests)
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("MONOES_BASE_URL", "http://127.0.0.1:9")
-	store := tasks.NewStore(testdb.Open(t).DB)
+	store := tasks.NewStore(openMissionDB(t))
 	r := &missionRig{t: t, store: store, clk: &missionClock{t: time.Date(2026, 10, 25, 12, 0, 0, 0, time.UTC)}, ex: newGateExec(), em: &recEmitter{}}
 	store.SetClock(r.clk.now)
 	r.mc = &MissionRun{Store: store, ProfileID: "default", Poll: 10 * time.Millisecond, Lease: time.Minute}

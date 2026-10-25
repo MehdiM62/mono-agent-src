@@ -2,6 +2,7 @@ package dynorg
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -15,9 +16,22 @@ const missionProfile = "default"
 
 var missionHuman = tasks.Actor{Kind: tasks.Human}
 
+// openMissionDB is a migrated database holding the chats the mission tests plan in: the store
+// links an agent's session only to a conversation of the profile that exists.
+func openMissionDB(t *testing.T) *sql.DB {
+	t.Helper()
+	db := testdb.Open(t).DB
+	for _, id := range []string{"conv", "conv-1", "conv-2", "conv-9", "conv-e2e", "conv-i", "conv-p", "conv-s", "conv-other", "c1", "c2", "other"} {
+		if _, err := db.Exec(`INSERT INTO ai_chat_conversations (id, profile_id, backend, created_at, updated_at) VALUES (?, ?, 'test', '', '')`, id, missionProfile); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return db
+}
+
 func missionStore(t *testing.T) *tasks.Store {
 	t.Helper()
-	return tasks.NewStore(testdb.Open(t).DB)
+	return tasks.NewStore(openMissionDB(t))
 }
 
 func missionConductor(t *testing.T, st *tasks.Store, conv string, confirmed bool, staffer *Staffer) (*Conductor, *recEmitter, *MissionConfig) {

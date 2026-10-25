@@ -163,3 +163,46 @@ func TestBoundWorkerCannotReachPersonalBoard(t *testing.T) {
 		t.Fatalf("unbound delegate still views: %v", err)
 	}
 }
+
+// Finding 4: an agent names only a conversation of the profile that exists; the operator is free.
+func TestAgentSessionConversationMustExist(t *testing.T) {
+	s, db, _ := newTestStore(t)
+	other := addProfile(t, db, "other")
+	for id, prof := range map[string]string{"conv-mine": "default", "conv-theirs": other} {
+		if _, err := db.Exec(`INSERT INTO ai_chat_conversations (id, profile_id, backend, created_at, updated_at) VALUES (?, ?, 'x', '', '')`, id, prof); err != nil {
+			t.Fatal(err)
+		}
+	}
+	lead := Actor{Kind: Agent, Name: "lead"}
+	for _, conv := range []string{"conv-nope", "conv-theirs"} {
+		if _, err := s.CreateSession(bg, "default", SessionInput{Title: "t", ConversationID: conv}, lead); !errors.Is(err, ErrInvalid) {
+			t.Fatalf("%s: %v", conv, err)
+		}
+	}
+	if got, _ := s.ListSessions(bg, "default", SessionFilter{}, human); len(got) != 0 {
+		t.Fatalf("a refused call created %d sessions", len(got))
+	}
+	if _, err := s.CreateSession(bg, "default", SessionInput{Title: "t", ConversationID: "conv-mine"}, lead); err != nil {
+		t.Fatalf("own conversation: %v", err)
+	}
+	if _, err := s.CreateSession(bg, "default", SessionInput{Title: "t2", ConversationID: "whatever"}, human); err != nil {
+		t.Fatalf("operator: %v", err)
+	}
+}
+
+// Finding 5: a task-bound or verifier actor starts no session, even with no session binding.
+func TestTaskBoundActorCannotCreateSession(t *testing.T) {
+	s, _, _ := newTestStore(t)
+	for _, a := range []Actor{
+		{Kind: Agent, Name: "w", Task: 3},
+		{Kind: Agent, Name: "v", Task: 3, Verifier: true},
+		{Kind: Agent, Name: "v", Verifier: true},
+	} {
+		if _, err := s.CreateSession(bg, "default", SessionInput{Title: "t"}, a); !errors.Is(err, ErrOperatorOnly) {
+			t.Fatalf("%+v: %v", a, err)
+		}
+	}
+	if got, _ := s.ListSessions(bg, "default", SessionFilter{}, human); len(got) != 0 {
+		t.Fatalf("%d sessions created", len(got))
+	}
+}

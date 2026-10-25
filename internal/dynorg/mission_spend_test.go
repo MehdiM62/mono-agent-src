@@ -8,7 +8,6 @@ import (
 
 	"github.com/monoes/mono-agent/internal/monomind"
 	"github.com/monoes/mono-agent/internal/tasks"
-	"github.com/monoes/mono-agent/internal/testdb"
 )
 
 func usageCost(usd float64) monomind.Event {
@@ -90,7 +89,7 @@ func TestMissionTickWarnsAtNinetyPercentWhileAWorkerRuns(t *testing.T) {
 // A failed persistence attempt must remain uncharged in memory so the next
 // report can retry it. Concurrent reports must not charge that retry twice.
 func TestMissionSpendRetriesFailedPersistenceWithoutDoubleCharging(t *testing.T) {
-	db := testdb.Open(t).DB
+	db := openMissionDB(t)
 	store := tasks.NewStore(db)
 	se, err := store.CreateSession(tbg, "default", tasks.SessionInput{Title: "spend retry", BudgetUSD: 10}, operator)
 	if err != nil {

@@ -198,6 +198,9 @@ func (s *Store) CreateSession(ctx context.Context, profileID string, in SessionI
 		if actor.Session != 0 {
 			return Session{}, operatorOnly("start a session: this agent is bound to session #" + fmt.Sprint(actor.Session))
 		}
+		if actor.Task != 0 || actor.Verifier {
+			return Session{}, operatorOnly("start a session: this agent is bound to a task")
+		}
 		if in.AccessLevel != "" || in.BudgetUSD != 0 || in.MaxTasks != 0 || in.MaxDepth != 0 {
 			return Session{}, operatorOnly("set a session's access level, budget or caps")
 		}
@@ -241,6 +244,15 @@ func (s *Store) CreateSession(ctx context.Context, profileID string, in SessionI
 	err := s.tx(ctx, func(x dbx) error {
 		if _, err := s.profileOf(ctx, x, profileID); err != nil {
 			return err
+		}
+		if c, ok := conv.(string); ok && actor.Kind == Agent {
+			var n int
+			if err := x.QueryRowContext(ctx, `SELECT COUNT(*) FROM ai_chat_conversations WHERE id = ? AND profile_id = ?`, c, profileID).Scan(&n); err != nil {
+				return fmt.Errorf("tasks: looking up the conversation: %w", err)
+			}
+			if n == 0 {
+				return invalid("conversation %q is not a chat of this profile: an agent links a session only to its own chat", echo(c))
+			}
 		}
 		if clientID != "" {
 			var existing int64

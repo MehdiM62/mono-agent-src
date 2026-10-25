@@ -14,7 +14,6 @@ import (
 
 	"github.com/monoes/mono-agent/internal/monomind"
 	"github.com/monoes/mono-agent/internal/tasks"
-	"github.com/monoes/mono-agent/internal/testdb"
 )
 
 var (
@@ -170,7 +169,7 @@ type rigOpts struct {
 
 func newRig(t *testing.T, o rigOpts) *missionRig {
 	t.Helper()
-	db := testdb.Open(t).DB
+	db := openMissionDB(t)
 	r := &missionRig{t: t, store: tasks.NewStore(db), clk: &missionClock{t: time.Date(2026, 10, 25, 12, 0, 0, 0, time.UTC)}, ex: newGateExec(), em: &recEmitter{}}
 	r.store.SetClock(r.clk.now)
 	se, err := r.store.CreateSession(tbg, "default", tasks.SessionInput{Title: "mission", Goal: "ship the feature", BudgetUSD: o.budget, ConversationID: o.conv}, operator)
