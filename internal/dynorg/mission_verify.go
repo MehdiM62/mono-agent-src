@@ -199,7 +199,7 @@ func buildVerifierBrief(se tasks.Session, d tasks.SessionTaskDetail, name, execu
 
 // verifierFinished ends a verifier's run. A verdict is the store's: nothing is written for
 // the verifier. When the run ended with the task still unjudged, a comment on the task says
-// so (the lead may start another verifier), and a crash counts toward nothing.
+// so; the scheduler (mission_verify_retry.go) starts another or blocks the task.
 func (c *Conductor) verifierFinished(ctx context.Context, mc *MissionRun, w *worker, outcome, errText string) {
 	b := w.task
 	cur, _, err := mc.Store.Get(ctx, mc.ProfileID, b.task.ID)
@@ -210,7 +210,7 @@ func (c *Conductor) verifierFinished(ctx context.Context, mc *MissionRun, w *wor
 	if e := strings.TrimSpace(errText); e != "" {
 		why += ": " + boundText(e, 400)
 	}
-	_, _ = mc.Store.SessionComment(ctx, mc.ProfileID, b.session, b.task.ID, why+": start another with mission_verify", b.actor)
+	_, _ = mc.Store.SessionComment(ctx, mc.ProfileID, b.session, b.task.ID, why+": the scheduler starts another or blocks the task", b.actor)
 	c.notice("mission.verify", fmt.Sprintf("Task #%d: %s.", b.task.ID, why), chatevents.SeverityWarning)
 }
 

@@ -138,6 +138,7 @@ func (c *Conductor) missionFinishStep(ctx context.Context, mc *MissionRun, sid i
 	if se.State != tasks.SessionRunning || se.Archived {
 		return v, fmt.Errorf("session #%d is %s: only a running mission is finished", sid, se.State)
 	}
+	retried := c.verifyRetries(ctx, mc, sid, true)
 	plan, err := mc.Store.PlanOfSession(ctx, mc.ProfileID, sid, missionActor())
 	if err != nil {
 		return v, err
@@ -165,6 +166,9 @@ func (c *Conductor) missionFinishStep(ctx context.Context, mc *MissionRun, sid i
 	}
 	if len(v.Unfinished) > 0 {
 		v.Next = "Not every task is done or verified. Run mission_next for what is ready, mission_verify for what waits in review, and look at the blocked tasks' failure notes: a blocked task needs the operator (or mission_replan to add the missing work). Then call mission_finish again."
+		if len(retried) > 0 {
+			v.Next = strings.Join(retried, "; ") + ". " + v.Next
+		}
 		return v, nil
 	}
 	if integration == nil {

@@ -42,6 +42,9 @@ type MissionRun struct {
 	// MaxAttempts is how many times a task's worker may crash or time out in this turn
 	// before the scheduler leaves the task to the lead (default 3).
 	MaxAttempts int
+	// MaxVerifyAttempts is how many verifier runs of one task may end without a verdict
+	// before the task is blocked for the operator (default 2).
+	MaxVerifyAttempts int
 }
 
 func (m *MissionRun) poll() time.Duration { return orDur(m.Poll, 2*time.Second) }
@@ -274,6 +277,9 @@ func (c *Conductor) missionStep(ctx context.Context, sid int64, start bool) (Ste
 	if note := c.missionBudget(ctx, se); note != "" {
 		res.Note = note
 		return res, nil
+	}
+	if notes := c.verifyRetries(ctx, mc, sid, start); len(notes) > 0 {
+		res.Note = strings.Join(notes, "; ")
 	}
 	ready, err := mc.Store.SessionReady(ctx, mc.ProfileID, sid, missionActor())
 	if err != nil {
