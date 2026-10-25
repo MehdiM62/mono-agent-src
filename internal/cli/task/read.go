@@ -419,6 +419,9 @@ func (d Deps) newTaskShowCmd() *cobra.Command {
 				if err != nil {
 					return d.taskErr(err)
 				}
+				if caller.actor.Session != 0 && t.SessionID == 0 {
+					return d.taskErr(tasks.ErrNotFound)
+				}
 				var artifacts []tasks.Artifact
 				if t.SessionID != 0 {
 					// A task of a session is read through its session, as the actor may.

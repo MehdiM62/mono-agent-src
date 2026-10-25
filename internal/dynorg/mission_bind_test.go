@@ -39,6 +39,7 @@ func TestMissionLeadCannotReachAnotherSession(t *testing.T) {
 	}
 
 	// 1. the conversation has no session yet: the other's tasks are out of reach, whatever is named
+	refuse("no session", ToolSpawn, `{"task_id":`+itoa(a.ID)+`}`)
 	refuse("no session", ToolMissionNext, `{}`)
 	refuse("no session", ToolMissionNext, `{"session":`+other+`}`)
 	refuse("no session", ToolMissionReport, `{"session":`+other+`}`)
@@ -59,6 +60,7 @@ func TestMissionLeadCannotReachAnotherSession(t *testing.T) {
 	if _, err := r.store.ApproveSession(tbg, "default", own, operator); err != nil {
 		t.Fatal(err)
 	}
+	refuse("own session", ToolSpawn, `{"task_id":`+itoa(a.ID)+`}`)
 	refuse("own session", ToolMissionNext, `{"session":`+other+`}`)
 	refuse("own session", ToolMissionReport, `{"session":`+other+`}`)
 	refuse("own session", ToolMissionAssign, `{"task_id":`+itoa(a.ID)+`,"executor":"worker"}`)

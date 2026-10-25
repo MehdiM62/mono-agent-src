@@ -40,3 +40,27 @@ func TestSessionGarbledBindingEnvironmentFailsClosed(t *testing.T) {
 		setenv(t, env[0], "")
 	}
 }
+
+// A task binding requires a session even if its value is a valid number. A
+// missing companion label must not reveal Personal tasks or become an operator.
+func TestTaskBindingWithoutSessionFailsClosed(t *testing.T) {
+	t.Parallel()
+	db := newTaskTestDB(t)
+	personal := opsAdd(t, db, "personal", "--ready")
+	for _, raw := range []string{id(personal), "garbled", "-1"} {
+		setenv(t, boundSessionEnv, "")
+		setenv(t, boundTaskEnv, raw)
+		for _, args := range [][]string{{"show", id(personal)}, {"list"}, {"next"}, {"claim", id(personal), "--as", "w"}, {"add", "forbidden"}, {"move", id(personal), "done"}} {
+			if _, _, err := runTask(t, db, "default", true, "", args...); err == nil {
+				t.Errorf("task binding %q without session allowed %v", raw, args)
+			}
+		}
+	}
+	setenv(t, boundTaskEnv, "")
+	if _, _, err := runTask(t, db, "default", true, "", "show", id(personal)); err != nil {
+		t.Fatalf("unbound operator show: %v", err)
+	}
+	if _, _, err := runTask(t, db, "default", true, "", "list"); err != nil {
+		t.Fatalf("unbound operator list: %v", err)
+	}
+}

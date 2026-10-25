@@ -83,12 +83,13 @@ func (a *App) sessionVerb(verb string, id int64) string {
 	return a.taskCLI("", "session", verb, sid)
 }
 
-// TaskSessionApprove is `task session approve ID`: the draft's tasks become Ready.
+// TaskSessionApprove approves the draft and starts its bound lead when it has
+// a conversation. A manual session without a conversation keeps its CLI behavior.
 func (a *App) TaskSessionApprove(id int64) string {
 	if err := a.signedOut(); err != nil {
 		return loginRequiredJSON(err)
 	}
-	return a.sessionVerb("approve", id)
+	return a.continueTaskSession(a.sessionVerb("approve", id))
 }
 
 // TaskSessionPause is `task session pause ID`.
@@ -99,12 +100,12 @@ func (a *App) TaskSessionPause(id int64) string {
 	return a.sessionVerb("pause", id)
 }
 
-// TaskSessionResume is `task session resume ID`.
+// TaskSessionResume resumes the session and its bound lead, if any.
 func (a *App) TaskSessionResume(id int64) string {
 	if err := a.signedOut(); err != nil {
 		return loginRequiredJSON(err)
 	}
-	return a.sessionVerb("resume", id)
+	return a.continueTaskSession(a.sessionVerb("resume", id))
 }
 
 // TaskSessionStop is `task session stop ID`: for good, every claim released.

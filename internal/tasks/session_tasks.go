@@ -333,6 +333,9 @@ func (s *Store) AddDependencies(ctx context.Context, profileID string, sessionID
 	if err := actorIn(actor, sessionID); err != nil {
 		return Task{}, err
 	}
+	if err := noPicking(actor, "add dependencies"); err != nil {
+		return Task{}, err
+	}
 	on, err := uniq(on)
 	if err == nil && len(on) == 0 {
 		err = invalid("name at least one task to depend on")

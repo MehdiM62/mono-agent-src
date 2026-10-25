@@ -221,8 +221,22 @@ func TestMissionFinishListsWriterBranchesNotMerged(t *testing.T) {
 		t.Fatal("closed with an unmerged branch")
 	}
 	r.c.recordMerge(tbg, w, nil, w.id) // what org_merge records
+	if got := r.task(it.ID); got.Status != tasks.StatusReady || got.Verified {
+		t.Fatalf("the merge must invalidate checks of the old tree: %+v", got)
+	}
+	if v := r.finish(); v.Finished || r.session().State != tasks.SessionRunning {
+		t.Fatalf("closed without checking the merged tree: %+v", v)
+	}
+	r.next(r.c)
+	if _, err := r.store.SessionFinish(tbg, "default", r.sid, it.ID, tasks.Outcome{Result: "merged-tree checks pass"}, lead); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.verify(it.ID); err != nil {
+		t.Fatal(err)
+	}
+	r.waitStatus(it.ID, tasks.StatusDone)
 	if v := r.finish(); !v.Finished || r.session().State != tasks.SessionDone {
-		t.Fatalf("after the merge it closes: %+v", v)
+		t.Fatalf("after merged-tree checks it closes: %+v", v)
 	}
 }
 

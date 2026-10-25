@@ -64,8 +64,22 @@ func TestMissionPendingMergesAreInTheStoreAndSurviveANewConductor(t *testing.T) 
 	if got := r.c.mergesRemaining(tbg, r.mc, r.sid, plan.Tasks); len(got) != 0 {
 		t.Fatalf("after the merge: %v", got)
 	}
+	if got := r.task(it.ID); got.Status != tasks.StatusReady || got.Verified {
+		t.Fatalf("the restarted conductor must invalidate the old integration verdict: %+v", got)
+	}
+	if v := r.finish(); v.Finished {
+		t.Fatalf("it closed without merged-tree checks: %+v", v)
+	}
+	r.next(r.c)
+	if _, err := r.store.SessionFinish(tbg, "default", r.sid, it.ID, tasks.Outcome{Result: "merged-tree checks pass"}, lead); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.verify(it.ID); err != nil {
+		t.Fatal(err)
+	}
+	r.waitStatus(it.ID, tasks.StatusDone)
 	if v := r.finish(); !v.Finished || r.session().State != tasks.SessionDone {
-		t.Fatalf("it closes after the merge: %+v", v)
+		t.Fatalf("it closes after merged-tree checks: %+v", v)
 	}
 }
 

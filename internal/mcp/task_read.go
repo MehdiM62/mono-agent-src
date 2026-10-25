@@ -123,6 +123,9 @@ func toolTaskGet(ctx context.Context, s *Server, args json.RawMessage) (interfac
 	if err != nil {
 		return nil, taskToolErr(err)
 	}
+	if actor.Session != 0 && t.SessionID == 0 {
+		return nil, taskToolErr(tasks.ErrNotFound)
+	}
 	// A task of a session is read through its session, as the caller may; one that is not of the
 	// session asked for is not found.
 	if t.SessionID != 0 || a.Session > 0 {

@@ -235,3 +235,34 @@ func mustDetail2(t *testing.T, s *Store, sid int64) int {
 	}
 	return len(ts)
 }
+
+// CLI and MCP route task_finish through FinishAny. Its transaction must enforce
+// the same pause as SessionFinish, for both results and questions.
+func TestFinishAnyCannotFinishPausedSession(t *testing.T) {
+	for _, outcome := range []Outcome{{Result: "done"}, {Question: "what next?"}} {
+		t.Run(outcome.Result+outcome.Question, func(t *testing.T) {
+			s, _, _ := newTestStore(t)
+			se, ts := runningWith(t, s, "held")
+			worker := bot("worker")
+			if _, err := s.SessionClaim(bg, "default", se.ID, ts[0].ID, worker, 0); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.PauseSession(bg, "default", se.ID, human); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.FinishAny(bg, "default", ts[0].ID, outcome, worker); !errors.Is(err, ErrNotReady) {
+				t.Fatalf("finished a paused session: %v", err)
+			}
+			tk, _, err := s.Get(bg, "default", ts[0].ID)
+			if err != nil || tk.Status != StatusInProgress || tk.Claim == nil {
+				t.Fatalf("refusal changed task: %+v %v", tk, err)
+			}
+			if _, err := s.ResumeSession(bg, "default", se.ID, human); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.FinishAny(bg, "default", ts[0].ID, outcome, worker); err != nil {
+				t.Fatalf("finish after resume: %v", err)
+			}
+		})
+	}
+}

@@ -116,3 +116,29 @@ func TestSetAssigneeNeedsTheHolder(t *testing.T) {
 		t.Fatalf("%+v %v", tk, err)
 	}
 }
+
+func TestBoundWorkerAndVerifierCannotChangeDependencies(t *testing.T) {
+	s, _, _ := newTestStore(t)
+	se, ts := runningWith(t, s, "mine", "another")
+	for _, verifier := range []bool{false, true} {
+		actor := Actor{Kind: Agent, Name: "bound", Session: se.ID, Task: ts[0].ID, Verifier: verifier}
+		for _, id := range []int64{ts[0].ID, ts[1].ID} {
+			on := ts[0].ID
+			if id == on {
+				on = ts[1].ID
+			}
+			if _, err := s.AddDependencies(bg, "default", se.ID, id, []int64{on}, actor); !errors.Is(err, ErrOperatorOnly) {
+				t.Fatalf("verifier=%t changed dependencies of %d: %v", verifier, id, err)
+			}
+		}
+	}
+	for _, tk := range ts {
+		detail, err := s.SessionTask(bg, "default", se.ID, tk.ID, human)
+		if err != nil || len(detail.Task.DependsOn) != 0 {
+			t.Fatalf("refusal changed dependencies: %+v %v", detail, err)
+		}
+	}
+	if _, err := s.AddDependencies(bg, "default", se.ID, ts[1].ID, []int64{ts[0].ID}, bot("lead")); err != nil {
+		t.Fatalf("unbound lead cannot add dependencies: %v", err)
+	}
+}

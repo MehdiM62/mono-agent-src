@@ -54,6 +54,24 @@ func (c *Conductor) recordMerge(ctx context.Context, w *worker, stored *pendingB
 	default:
 		return
 	}
+	// A settled integration task checked the tree before this merge. Requeue it
+	// before marking the branch merged, so mission_finish cannot close on a
+	// verdict about an older tree. Failure leaves the pending merge intact.
+	plan, err := mc.Store.PlanOfSession(ctx, mc.ProfileID, session, missionActor())
+	if err != nil {
+		c.notice("mission.integration", fmt.Sprintf("The merge of %s could not invalidate the integration checks: %v", branch, err), chatevents.SeverityWarning)
+		return
+	}
+	for _, t := range plan.Tasks {
+		if !isIntegration(t) || (t.Status != tasks.StatusInProgress && t.Status != tasks.StatusReview && t.Status != tasks.StatusDone) {
+			continue
+		}
+		if _, err := mc.Store.Move(ctx, mc.ProfileID, t.ID, tasks.StatusReady, tasks.Placement{}, operatorActor()); err != nil {
+			c.notice("mission.integration", fmt.Sprintf("Task #%d must check the merged tree, but could not be requeued: %v", t.ID, err), chatevents.SeverityWarning)
+			return
+		}
+		_, _ = mc.Store.SessionComment(ctx, mc.ProfileID, session, t.ID, "A writer branch was merged after this integration check started: run and verify the checks again on the merged tree.", missionActor())
+	}
 	art := tasks.ArtifactInput{Kind: tasks.ArtifactMerge, Ref: branch, Note: "merged by org_merge from " + from}
 	if _, err := mc.Store.AddArtifact(ctx, mc.ProfileID, session, task, art, operatorActor()); err != nil {
 		c.notice("mission.artifact", fmt.Sprintf("Task #%d: the merge of %s could not be recorded: %v", task, branch, err), chatevents.SeverityWarning)
