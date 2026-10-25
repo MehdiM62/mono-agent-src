@@ -51,6 +51,10 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('Tasks with sessions', () => {
+  it('opens the session a chat card asked for (navData.sessionId)', async () => {
+    render(<Tasks navData={{ sessionId: 2 }} />)
+    expect(await screen.findByRole('region', { name: 'Session Mission 2' })).toBeInTheDocument()
+  })
   it('keeps Personal as the board it was, with the sessions as tabs beside it', async () => {
     mount()
     expect(await screen.findByText('Task 1')).toBeInTheDocument()

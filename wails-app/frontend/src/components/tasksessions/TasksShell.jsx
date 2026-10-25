@@ -11,11 +11,13 @@ import PlanView from './PlanView.jsx'
 // session. The page is keyed by its session, so switching remounts it and no
 // card of one board is ever shown on another. Personal passes nothing extra:
 // it is the board the tab always was.
-export default function TasksShell({ isActive = true, Board }) {
-  const [selectedId, setSelectedId] = useState(null)
+export default function TasksShell({ isActive = true, Board, sessionHint = null }) {
+  // sessionHint: a session another page (a chat's plan card) asks to show.
+  const [selectedId, setSelectedId] = useState(sessionHint)
   const [view, setView] = useState('board')
   const s = useTaskSessions(isActive, selectedId)
   const { openDraft } = useSendToCoder() || {}
+  useEffect(() => { if (sessionHint) { setSelectedId(sessionHint); setView('board') } }, [sessionHint])
   // A session that is archived or gone leaves the list: fall back to Personal.
   useEffect(() => {
     if (selectedId && s.sessions.length && selectionAfter(selectedId, s.sessions) === null) setSelectedId(null)

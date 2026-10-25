@@ -290,6 +290,10 @@ export function CoderStopBackground(arg1, arg2) {
   return window['go']['main']['App']['CoderStopBackground'](arg1, arg2);
 }
 
+export function CoderConfirmMission(arg1, arg2, arg3) {
+  return window['go']['main']['App']['CoderConfirmMission'](arg1, arg2, arg3);
+}
+
 export function CoderWorkspaceDefault(arg1) {
   return window['go']['main']['App']['CoderWorkspaceDefault'](arg1);
 }

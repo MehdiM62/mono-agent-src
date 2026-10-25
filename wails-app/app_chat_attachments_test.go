@@ -160,3 +160,25 @@ func TestApp_StartChatTurn_PassesAttachments(t *testing.T) {
 		t.Errorf("argv = %q", got)
 	}
 }
+
+// CoderConfirmMission starts a normal turn with --mission before the "--".
+func TestApp_CoderConfirmMission_PassesMissionFlag(t *testing.T) {
+	bin, argsLog := chatFakeCLI(t, fakeChatReply{match: "chat --conversation", stdout: lines(
+		admissionLine("coder-1", "turn-1", "active", false),
+		eventLine("coder-1", "turn-1", 1, chatevents.EventTurnFinished, chatevents.TurnFinishedPayload{Status: chatevents.StatusCompleted, HistorySaved: true}),
+	)})
+	a, emitter := newCLIChatApp(t, bin)
+	a.selectForTest("default")
+	r := decodeStart(t, a.CoderConfirmMission("coder-1", "turn-1", "-yes, start"))
+	if !r.OK {
+		t.Fatalf("Start = %+v", r)
+	}
+	waitForType(t, emitter, chatevents.EventTurnFinished, 5*time.Second)
+	got := readArgsLog(t, argsLog)
+	if len(got) == 0 || !strings.HasSuffix(got[0], "--instance "+a.chatSup.instanceID+" --mission -- -yes, start") {
+		t.Errorf("argv = %q", got)
+	}
+	if strings.Contains(got[0], "--tools") {
+		t.Errorf("a mission turn must not take tools: %q", got)
+	}
+}

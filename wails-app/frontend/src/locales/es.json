@@ -1242,6 +1242,36 @@
       "retryAccess": "Reintentar",
       "accessChanged": "Su acceso ya había cambiado a {{level}}. No se cambió nada.",
       "accessRefused": "Se rechazó el cambio. No se cambió nada."
+    },
+    "mission": {
+      "proposeLabel": "Propuesta de misión: {{title}}",
+      "planLabel": "Plan de misión: {{title}}",
+      "reportLabel": "Informe de misión",
+      "stripLabel": "Misión {{title}}",
+      "start": "Iniciar misión",
+      "notNow": "Ahora no",
+      "started": "Misión iniciada.",
+      "declined": "Ahora no. Aún puedes pedir una misión en tu próximo mensaje.",
+      "confirmMessage": "Sí, inicia la misión: {{title}}",
+      "approve": "Aprobar plan",
+      "edit": "Editar en Tareas",
+      "reject": "Rechazar",
+      "tasks_one": "{{count}} tarea",
+      "tasks_other": "{{count}} tareas",
+      "estimate": "unos ${{usd}}",
+      "round": "ronda de revisión {{round}}",
+      "sessionGone": "Esta misión ya no está en Tareas.",
+      "report": "Informe de misión",
+      "openReport": "Abrir en Tareas",
+      "templates": "Plantillas de misión",
+      "templateHint": "Parece una misión: ¿usar una plantilla?",
+      "template": {
+        "feature": "Función",
+        "bugfix": "Corrección de error",
+        "refactor": "Refactorización",
+        "research": "Investigación",
+        "migration": "Migración"
+      }
     }
   },
   "agentRow": {
@@ -2088,6 +2118,7 @@
     "stillActive_one": "Se conservo {{count}} chat: sigue en curso. Detén su turno primero.",
     "stillActive_other": "Se conservaron {{count}} chats: siguen en curso. Detén sus turnos primero.",
     "deleteFailed": "No se pudieron eliminar {{count}}: {{message}}",
-    "dismiss": "Descartar"
+    "dismiss": "Descartar",
+    "mission": "Misión: {{state}}"
   }
 }

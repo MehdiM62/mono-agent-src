@@ -1284,6 +1284,36 @@
       "retryAccess": "Try again",
       "accessChanged": "Its access had already changed to {{level}}. Nothing was changed.",
       "accessRefused": "The change was refused. Nothing was changed."
+    },
+    "mission": {
+      "proposeLabel": "Mission proposal: {{title}}",
+      "planLabel": "Mission plan: {{title}}",
+      "reportLabel": "Mission report",
+      "stripLabel": "Mission {{title}}",
+      "start": "Start mission",
+      "notNow": "Not now",
+      "started": "Mission started.",
+      "declined": "Not now. You can still ask for a mission in your next message.",
+      "confirmMessage": "Yes, start the mission: {{title}}",
+      "approve": "Approve plan",
+      "edit": "Edit in Tasks",
+      "reject": "Reject",
+      "tasks_one": "{{count}} task",
+      "tasks_other": "{{count}} tasks",
+      "estimate": "about ${{usd}}",
+      "round": "review round {{round}}",
+      "sessionGone": "This mission is no longer in Tasks.",
+      "report": "Mission report",
+      "openReport": "Open in Tasks",
+      "templates": "Mission templates",
+      "templateHint": "Looks like a mission: use a template?",
+      "template": {
+        "feature": "Feature",
+        "bugfix": "Bug fix",
+        "refactor": "Refactor",
+        "research": "Research",
+        "migration": "Migration"
+      }
     }
   },
   "agentRow": {
@@ -2130,6 +2160,7 @@
     "stillActive_one": "{{count}} chat was kept: it is still running. Stop its turn first.",
     "stillActive_other": "{{count}} chats were kept: they are still running. Stop their turns first.",
     "deleteFailed": "Could not delete {{count}}: {{message}}",
-    "dismiss": "Dismiss"
+    "dismiss": "Dismiss",
+    "mission": "Mission: {{state}}"
   }
 }

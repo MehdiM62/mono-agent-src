@@ -72,6 +72,19 @@ func (a *App) CreateChatConversation(workflowID, runtimeID, model, effort string
 // coder turn (SaveChatAttachment's paths, or any file the user picked),
 // passed to the CLI as --attach.
 func (a *App) StartChatTurn(conversationID, turnID, message string, tools, allowRuns bool, attachments []string) string {
+	return a.startChatTurn(conversationID, turnID, message, tools, allowRuns, attachments, false)
+}
+
+// CoderConfirmMission is the follow-up turn that confirms a mission
+// proposal (docs/mastermind/plans/2026-10-25-coder-missions-task-sessions.md
+// section 9): StartChatTurn with `chat --mission`, which marks the
+// conversation's mission as user-confirmed. The CLI decides what that
+// allows; this only passes the flag. Coder turns never take tools.
+func (a *App) CoderConfirmMission(conversationID, turnID, message string) string {
+	return a.startChatTurn(conversationID, turnID, message, false, false, nil, true)
+}
+
+func (a *App) startChatTurn(conversationID, turnID, message string, tools, allowRuns bool, attachments []string, mission bool) string {
 	if err := a.signedOut(); err != nil {
 		return loginRequiredJSON(err)
 	}
@@ -90,6 +103,7 @@ func (a *App) StartChatTurn(conversationID, turnID, message string, tools, allow
 		return fmt.Sprintf(`{"ok":true,"turnId":%q,"status":"active"}`, turnID)
 	}
 	h.profileID = pid
+	h.mission = mission
 	resp, err := a.chatSup.startTurn(h, message, tools, allowRuns, attachments)
 	if err != nil {
 		a.chatSup.release(conversationID, turnID)

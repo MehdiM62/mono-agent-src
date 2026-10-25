@@ -21,6 +21,10 @@ import { AskCard } from './AskCard.jsx'
 import { useHilAsks } from './useHilAsks.js'
 import { isAgentNotSetup } from '../../lib/agentSetup.js'
 import AgentSetupLink from '../AgentSetupLink.jsx'
+import MissionCards from './mission/MissionCards.jsx'
+import MissionStrip from './mission/MissionStrip.jsx'
+import MissionTemplates from './mission/MissionTemplates.jsx'
+import { missionItems } from '../../lib/missionModel.js'
 import '../chat/chat.css'
 
 const mono = 'var(--font-mono)'
@@ -53,6 +57,23 @@ export function CoderChatView({ conv, isDraft, access, accessState = 'ready', on
     const artifact = resolvedArtifacts[`${turnId}:${call.callId}`]
     return artifact ? <ChatArtifactCard key={call.callId} artifact={artifact} onOpenArtifact={() => openArtifact(call, artifact)} /> : null
   })
+  // Mission cards (propose, plan, report) from the events of every turn; the
+  // latest plan or report of a session shows once, in the turn that sent it.
+  const turnList = conv.messages.filter(m => m.role === 'turn').map(m => ({ key: m.turnId, state: m.state }))
+  if (conv.streaming) turnList.push({ key: conv.activeTurnId, state: conv.liveTurn })
+  const missionByTurn = missionItems(turnList)
+  const allMission = Object.values(missionByTurn).flat()
+  const reported = allMission.some(i => i.type === 'report')
+  const planned = allMission.some(i => i.type === 'plan')
+  const [confirmed, setConfirmed] = useState(() => new Set())
+  const confirmMission = useCallback(async (id, p) => {
+    const ok = await conv.send(t('bubbles.mission.confirmMessage', { title: p.title }), [], { mission: true })
+    if (ok) setConfirmed(set => new Set(set).add(id))
+  }, [conv, t])
+  const missionCards = (turnId) => missionByTurn[turnId] && (
+    <MissionCards items={missionByTurn[turnId]} conversationId={conv.conversationId} busy={conv.streaming}
+      started={planned || confirmed.size > 0} onConfirm={(id, p) => confirmMission(id, p)} onNavigate={onNavigate} />
+  )
   const streamsIncrementally = useStreamsIncrementally(runtime, access === 'scoped')
   const scroll = useChatScroll(`${conv.messages.length}:${conv.liveTurn.lastSeq}:${hil.asks.length}`)
 
@@ -141,6 +162,7 @@ export function CoderChatView({ conv, isDraft, access, accessState = 'ready', on
                   <div key={i} className="chat-assistant-turn">
                     <ChatTimeline state={msg.state} turnId={msg.turnId} isLive={false} agentFilter={msg.turnId === agentFilterTurnId ? agentFilter : null} onNavigate={onNavigate} />
                     {artifactCards(msg.turnId, msg.state)}
+                    {missionCards(msg.turnId)}
                     <TurnStatus state={msg.state} stopRequested={false} ownedByThisInstance={msg.ownedByThisInstance} />
                     {isAgentNotSetup(msg.state.terminal?.code) && <AgentSetupLink onNavigate={onNavigate} />}
                   </div>
@@ -155,6 +177,7 @@ export function CoderChatView({ conv, isDraft, access, accessState = 'ready', on
               <div className="chat-assistant-turn">
                 <ChatTimeline state={conv.liveTurn} turnId={conv.activeTurnId} isLive agentFilter={conv.activeTurnId === agentFilterTurnId ? agentFilter : null} onNavigate={onNavigate} />
                 {artifactCards(conv.activeTurnId, conv.liveTurn)}
+                {missionCards(conv.activeTurnId)}
                 <TurnStatus state={conv.liveTurn} stopRequested={conv.stopRequested} streamsIncrementally={streamsIncrementally} />
               </div>
             )}
@@ -174,6 +197,12 @@ export function CoderChatView({ conv, isDraft, access, accessState = 'ready', on
           </button>
         )}
       </div>
+      {isCoderAccess(level) && !!conv.conversationId && (
+        <MissionStrip conversationId={conv.conversationId} bump={allMission.length} reported={reported} />
+      )}
+      {isCoderAccess(level) && !conv.streaming && (
+        <MissionTemplates draft={draft} onDraftChange={onDraftChange} hintable={empty} />
+      )}
       <ChatComposer value={draft} onChange={onDraftChange} onSend={send} onStop={conv.stop}
         streaming={conv.streaming} disabled={blocked || conv.loading}
         disabledReason={reason}

@@ -100,6 +100,7 @@ type chatTurnHandle struct {
 	profileID      string // captured at admission, immutable for the turn's life
 	conversationID string
 	turnID         string
+	mission        bool // the user confirmed a mission proposal: the turn gets chat --mission
 
 	cancel context.CancelFunc
 

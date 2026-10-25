@@ -101,7 +101,7 @@ export function useCoderConversation({ conversationId, create, access = 'full' }
   // a turn is already starting or running. attachments are the composer's
   // (chatAttachments.js readAttachment): each is saved to the chat spool and
   // the turn gets their paths.
-  const send = useCallback(async (text, attachments = []) => {
+  const send = useCallback(async (text, attachments = [], opts = {}) => {
     const prompt = String(text || '').trim()
     if (!prompt || activeRef.current || sending.current) return null
     sending.current = true
@@ -129,9 +129,11 @@ export function useCoderConversation({ conversationId, create, access = 'full' }
       const scoped = accessRef.current === 'scoped'
       const tools = scoped && getAssistantTools()
       const allowRuns = scoped && getAssistantAllowRuns()
-      const res = await (paths.length
-        ? api.startChatTurn(id, turnId, prompt, tools, allowRuns, paths)
-        : api.startChatTurn(id, turnId, prompt, tools, allowRuns))
+      const res = await (opts.mission
+        ? api.confirmMission(id, turnId, prompt)
+        : paths.length
+          ? api.startChatTurn(id, turnId, prompt, tools, allowRuns, paths)
+          : api.startChatTurn(id, turnId, prompt, tools, allowRuns))
       if (res?.ok === false) {
         setMessages(msgs => [...msgs, { role: 'error', content: t('bubbles.couldNotStart', { status: res.status }) }])
         return false

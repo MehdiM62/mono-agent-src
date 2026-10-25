@@ -346,6 +346,6 @@ export function TaskBoard({ isActive = true, switcher = null, session = null, se
 }
 
 // The Tasks tab: the board of Personal, with the task sessions beside it.
-export default function Tasks({ isActive = true }) {
-  return <TasksShell isActive={isActive} Board={TaskBoard} />
+export default function Tasks({ isActive = true, navData = null }) {
+  return <TasksShell isActive={isActive} Board={TaskBoard} sessionHint={navData?.sessionId || null} />
 }
