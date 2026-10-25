@@ -19,17 +19,18 @@ import (
 // access level, auto-close, archive, closing a task) stays hers.
 
 const sessionCols = `id, profile_id, conversation_id, title, goal, state, access_level, budget_usd, spent_usd, max_tasks, max_depth,
-	max_retries, auto_close_verified, created_by, approved_by, approved_at, archived_at, created_at, updated_at`
+	max_retries, auto_close_verified, created_by, approved_by, approved_at, archived_at, created_at, updated_at, client_id`
 
 func (s *Store) scanSession(row rowScanner) (Session, error) {
 	var se Session
-	var conv sql.NullString
+	var conv, cid sql.NullString
 	var state, approvedAt, archivedAt, created, updated string
 	var auto int
 	if err := row.Scan(&se.ID, &se.ProfileID, &conv, &se.Title, &se.Goal, &state, &se.AccessLevel, &se.BudgetUSD, &se.SpentUSD,
-		&se.MaxTasks, &se.MaxDepth, &se.MaxRetries, &auto, &se.CreatedBy, &se.ApprovedBy, &approvedAt, &archivedAt, &created, &updated); err != nil {
+		&se.MaxTasks, &se.MaxDepth, &se.MaxRetries, &auto, &se.CreatedBy, &se.ApprovedBy, &approvedAt, &archivedAt, &created, &updated, &cid); err != nil {
 		return Session{}, err
 	}
+	se.ClientID = cid.String
 	se.ConversationID, se.State, se.AutoCloseVerified, se.Archived = conv.String, SessionState(state), auto == 1, archivedAt != ""
 	var err error
 	if approvedAt != "" {
@@ -232,10 +233,26 @@ func (s *Store) CreateSession(ctx context.Context, profileID string, in SessionI
 	if c := strings.TrimSpace(in.ConversationID); c != "" {
 		conv = cutRunes(c, MaxNameLen*2)
 	}
+	clientID := strings.TrimSpace(in.ClientID)
+	if clientID != "" && !clientIDRE.MatchString(clientID) {
+		return Session{}, invalid("client id must be 1 to %d letters, digits, - or _", MaxClientIDLen)
+	}
 	var out Session
 	err := s.tx(ctx, func(x dbx) error {
 		if _, err := s.profileOf(ctx, x, profileID); err != nil {
 			return err
+		}
+		if clientID != "" {
+			var existing int64
+			err := x.QueryRowContext(ctx, `SELECT id FROM task_sessions WHERE profile_id = ? AND client_id = ?`, profileID, clientID).Scan(&existing)
+			if err == nil {
+				out, err = s.sessionTx(ctx, x, profileID, existing)
+				out.Deduped = true
+				return err
+			}
+			if !errors.Is(err, sql.ErrNoRows) {
+				return fmt.Errorf("tasks: looking up a session by client id: %w", err)
+			}
 		}
 		var open int
 		if err := x.QueryRowContext(ctx, `SELECT COUNT(*) FROM task_sessions WHERE profile_id = ? AND archived_at = ''`, profileID).Scan(&open); err != nil {
@@ -245,10 +262,14 @@ func (s *Store) CreateSession(ctx context.Context, profileID string, in SessionI
 			return limit("this profile already has %d sessions that are not archived: archive some first", MaxOpenSessions)
 		}
 		stamp := s.stamp()
+		var cid any
+		if clientID != "" {
+			cid = clientID
+		}
 		res, err := x.ExecContext(ctx,
-			`INSERT INTO task_sessions (profile_id, conversation_id, title, goal, access_level, budget_usd, max_tasks, max_depth, max_retries, created_by, created_at, updated_at)
-			 VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
-			profileID, conv, title, goal, level, in.BudgetUSD, maxTasks, maxDepth, DefaultSessionMaxRetries, actor.Label(), stamp, stamp)
+			`INSERT INTO task_sessions (profile_id, conversation_id, title, goal, access_level, budget_usd, max_tasks, max_depth, max_retries, created_by, created_at, updated_at, client_id)
+			 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+			profileID, conv, title, goal, level, in.BudgetUSD, maxTasks, maxDepth, DefaultSessionMaxRetries, actor.Label(), stamp, stamp, cid)
 		if err != nil {
 			return fmt.Errorf("tasks: adding a session: %w", err)
 		}

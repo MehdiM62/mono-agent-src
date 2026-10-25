@@ -171,8 +171,15 @@ func (c *Conductor) missionPlan(ctx context.Context, m *MissionConfig, args json
 	if err := json.Unmarshal(orEmpty(args), &a); err != nil {
 		return "", fmt.Errorf("bad arguments: %v", err)
 	}
+	key, err := m.planKey(ctx, a)
+	if err != nil {
+		return "", err
+	}
 	if open, err := m.active(ctx); err != nil {
 		return "", err
+	} else if open != nil && open.ClientID == key {
+		// A retried mission_plan of this round: the same draft, not an error.
+		return c.missionResult(ctx, m, open.ID, map[string]any{"session_id": open.ID, "deduped": true})
 	} else if open != nil {
 		return "", fmt.Errorf("this conversation already has an open mission session #%d (%s): continue it with mission_status, mission_add_tasks or mission_replan; a new one starts when the operator stops or finishes it", open.ID, open.State)
 	}
@@ -180,7 +187,7 @@ func (c *Conductor) missionPlan(ctx context.Context, m *MissionConfig, args json
 	if rej := ValidatePlan(a.Tasks, map[int64]bool{}, 0, MaxPlanTasks); len(rej) > 0 {
 		return "", &RejectedError{rej}
 	}
-	se, err := m.Store.CreateSession(ctx, m.ProfileID, tasks.SessionInput{Title: a.Title, Goal: a.Goal, ConversationID: m.ConversationID}, m.actor(0))
+	se, err := m.Store.CreateSession(ctx, m.ProfileID, tasks.SessionInput{Title: a.Title, Goal: a.Goal, ConversationID: m.ConversationID, ClientID: key}, m.actor(0))
 	if err != nil {
 		return "", err
 	}

@@ -25,9 +25,10 @@ var taskSessionCommandDocs = []cmdDoc{
 	{
 		Name:  "task session new",
 		Short: "Start a session, as a draft: its tasks cannot be taken until the operator approves the plan (an agent may start one; only the operator sets the budget, limits and access level)",
-		Usage: "monoagentcli [--profile P] task session new TITLE... [--goal TEXT] [--conversation ID] [--budget-usd N] [--max-tasks N] [--max-depth N] [--access LEVEL] [--as NAME]",
+		Usage: "monoagentcli [--profile P] task session new TITLE... [--goal TEXT] [--conversation ID] [--client-id KEY] [--budget-usd N] [--max-tasks N] [--max-depth N] [--access LEVEL] [--as NAME]",
 		Flags: `  --goal string          What the session is for
   --conversation string  The chat conversation it belongs to
+  --client-id string     An idempotency key (up to 64 letters, digits, - or _): a repeat in the profile returns the same session with deduped true, and creates no second one
   --budget-usd float     Budget in dollars (the operator only; 0 for none)
   --max-tasks int        Most tasks it holds (the operator only; default 200)
   --max-depth int        Deepest nesting of tasks (the operator only; default 3)

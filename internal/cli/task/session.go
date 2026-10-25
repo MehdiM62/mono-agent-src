@@ -231,11 +231,11 @@ every claim. Add tasks with task add --session N --acceptance TEXT. See: monoage
 }
 
 func (d Deps) newSessionNewCmd() *cobra.Command {
-	var goal, access, conversation string
+	var goal, access, conversation, clientID string
 	var budget float64
 	var maxTasks, maxDepth int
 	cmd := &cobra.Command{
-		Use:   "new TITLE... [--goal TEXT] [--conversation ID] [--budget-usd N --max-tasks N --max-depth N --access LEVEL]",
+		Use:   "new TITLE... [--goal TEXT] [--conversation ID] [--client-id KEY] [--budget-usd N --max-tasks N --max-depth N --access LEVEL]",
 		Short: "Start a session, as a draft (an agent plans; the budget, limits and access are yours to set)",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			caller := d.callerFor(flagAs(cmd))
@@ -248,7 +248,7 @@ func (d Deps) newSessionNewCmd() *cobra.Command {
 			}
 			in := tasks.SessionInput{
 				Title: strings.Join(args, " "), Goal: goal, ConversationID: conversation,
-				AccessLevel: access, BudgetUSD: budget, MaxTasks: maxTasks, MaxDepth: maxDepth,
+				AccessLevel: access, BudgetUSD: budget, MaxTasks: maxTasks, MaxDepth: maxDepth, ClientID: clientID,
 			}
 			return d.withTasks(cmd, func(ctx context.Context, store *tasks.Store, p tasks.Profile) error {
 				se, err := store.CreateSession(ctx, p.ID, in, actor)
@@ -261,6 +261,7 @@ func (d Deps) newSessionNewCmd() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&goal, "goal", "", "What the session is for (the plan card shows it)")
 	cmd.Flags().StringVar(&conversation, "conversation", "", "The chat conversation the session belongs to")
+	cmd.Flags().StringVar(&clientID, "client-id", "", "An idempotency key (up to 64 letters, digits, - or _): a repeat in the profile returns the same session, with deduped true")
 	cmd.Flags().Float64Var(&budget, "budget-usd", 0, "Budget in dollars (you only; 0 for none)")
 	cmd.Flags().IntVar(&maxTasks, "max-tasks", 0, "Most tasks the session holds (you only; default 200)")
 	cmd.Flags().IntVar(&maxDepth, "max-depth", 0, "Deepest nesting of tasks (you only; default 3)")

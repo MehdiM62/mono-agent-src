@@ -108,7 +108,9 @@ WHO MAY DO WHAT
   session plan, session pause and session stop (stop releases every claim; only the operator resumes). It may not set
   the budget, the limits, the access level or auto-close: that is session budget ID --usd N
   --max-tasks N --max-depth N --max-retries N --access LEVEL --auto-close on|off --spend N --note TEXT
-  (session new takes --budget-usd), the operator's. A worker or verifier bound to a task may not
+  (session new takes --budget-usd), the operator's. session new takes an optional --client-id KEY
+  (idempotency, per profile, up to 64 letters, digits, - or _): a repeated key returns the existing session
+  (exit 0, deduped true) and creates none; a longer or garbled key is invalid_input. A worker or verifier bound to a task may not
   pause or stop the session. finish and artifact by an agent are refused while the session is
   paused or stopped (a comment is not). Progress n/m (counts.done, counts.total) leaves epics out:
   an epic only groups, counts.epics holds their number, and the plan view still shows them. A session
@@ -267,7 +269,7 @@ JSON
   code not_found (exit 2), or invalid_input, operator_only, not_ready, claimed (with
   claimed_by and claimed_until), not_claimant or limit (exit 3). Any other failure is
   exit 1 with {"error"} alone; an unknown flag, or a number or duration that does not
-  parse, is the command parser's exit 1 with no JSON at all.
+  parse, is the command parser's exit 1 with {"error"} and no code (as in every command group).
 
 FROM MCP
   The MCP server (monoagentcli mcp) serves task_list, task_get, task_next, task_session_list and task_session_get in every server (they only

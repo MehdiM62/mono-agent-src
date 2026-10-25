@@ -21,3 +21,14 @@ func TestRefTasksDescribesTheTaskToolsAndTheHook(t *testing.T) {
 		}
 	}
 }
+
+// `ref tasks` documents the session idempotency key and the flag-error convention.
+func TestRefTasksDescribesClientIDAndFlagErrors(t *testing.T) {
+	t.Parallel()
+	text := strings.Join(strings.Fields(TasksText), " ")
+	for _, want := range []string{"session new takes an optional --client-id KEY", "deduped true", `exit 1 with {"error"} and no code`} {
+		if !strings.Contains(text, want) {
+			t.Errorf("`ref tasks` does not say %q", want)
+		}
+	}
+}
