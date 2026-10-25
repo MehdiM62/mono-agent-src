@@ -9,7 +9,7 @@ import SessionTaskFields from './tasksessions/SessionTaskFields.jsx'
 // the card's notes before it leaves Inbox (plan ruling F6); moveTo: the column
 // other than Ready it was moved to, offered once read. Every change goes
 // through the board hook, which shells out to the CLI.
-export default function TaskDrawer({ task, status, readFirst = false, moveTo = null, readOnly, onClose, onEdit, onComment, onApprove, onMoveTo, onArchive, archiving = false, archiveError = '', sessionEvents = [] }) {
+export default function TaskDrawer({ task, status, readFirst = false, moveTo = null, readOnly, onClose, onEdit, onComment, onApprove, onMoveTo, onArchive, archiving = false, archiveError = '', sessionEvents = [], focusArtifacts = false }) {
   const { t } = useTranslation()
   const [events, setEvents] = useState([])
   const [detail, setDetail] = useState(null) // the show document: a session task's artifacts come with it
@@ -71,7 +71,7 @@ export default function TaskDrawer({ task, status, readFirst = false, moveTo = n
       {!readOnly && onArchive && <button className="btn btn-secondary btn-sm" type="button" disabled={archiving} onClick={onArchive}>{archiving ? t('tasks.archiving') : t('tasks.archive')}</button>}</div>
       {archiveError && <div role="alert">{t('tasks.archiveFailed')}: {archiveError}</div>}
 
-      {task.session_id > 0 && <SessionTaskFields task={{ ...task, ...(detail?.task?.id === task.id ? detail.task : {}) }} artifacts={detail?.task?.id === task.id ? detail.artifacts || [] : []} sessionEvents={sessionEvents} />}
+      {task.session_id > 0 && <SessionTaskFields task={{ ...task, ...(detail?.task?.id === task.id ? detail.task : {}) }} artifacts={detail?.task?.id === task.id ? detail.artifacts || [] : []} focusArtifacts={focusArtifacts} sessionEvents={sessionEvents} />}
 
       <h3 className="tb-drawer-h">{t('tasks.drawer.history')}</h3>
       {loadError && <div role="alert">{t('tasks.drawer.loadError')}: {loadError}</div>}

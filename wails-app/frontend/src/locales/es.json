@@ -1695,7 +1695,7 @@
         "draft": "Borrador",
         "running": "En curso",
         "paused": "En pausa",
-        "done": "Terminada",
+        "done": "Hecho",
         "stopped": "Detenida",
         "failed": "Fallida"
       },

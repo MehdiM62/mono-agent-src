@@ -69,3 +69,22 @@ export function stripActions(session) {
   if (session.state === 'paused') return ['resume', 'stop']
   return ['stop'] // draft
 }
+
+// The final report is attached by the backend as an artifact (ref
+// final-report) on the session's Integration check task (kind check, title
+// starting with Integration). The artifact fields may come as ref or as
+// ref_untrusted (the CLI's view of worker text).
+export const integrationTasks = (tasks) => (tasks || []).filter(t => t.kind === 'check' && /^integration/i.test(t.title || ''))
+
+export const hasFinalReport = (artifacts) => (artifacts || []).some(a => a.kind === 'final-report' || (a.ref ?? a.ref_untrusted) === 'final-report')
+
+// pickReportTask chooses the task whose drawer shows the report:
+// the task with a final-report artifact (artifactsByTask: {taskId: [artifact]}),
+// else the first Integration check task, else null (open the session only).
+export function pickReportTask(tasks, artifactsByTask) {
+  const by = artifactsByTask || {}
+  const withReport = (tasks || []).find(t => hasFinalReport(by[t.id]))
+  if (withReport) return { taskId: withReport.id, hasReport: true }
+  const integ = integrationTasks(tasks)[0]
+  return integ ? { taskId: integ.id, hasReport: false } : null
+}

@@ -129,7 +129,7 @@ describe('Tasks with sessions', () => {
         mount()
         await choose(/Mission 1/)
         await screen.findByTestId('ts-head-progress')
-        expect(screen.getAllByTestId('ts-state').at(-1)).toHaveTextContent({ draft: 'Draft', running: 'Running', paused: 'Paused', done: 'Finished', stopped: 'Stopped', failed: 'Failed' }[state])
+        expect(screen.getAllByTestId('ts-state').at(-1)).toHaveTextContent({ draft: 'Draft', running: 'Running', paused: 'Paused', done: 'Done', stopped: 'Stopped', failed: 'Failed' }[state])
         for (const a of ['approve', 'pause', 'resume', 'stop', 'archive']) {
           if (want.includes(a)) expect(screen.getByTestId(`ts-${a}`)).toBeInTheDocument()
           else expect(screen.queryByTestId(`ts-${a}`)).not.toBeInTheDocument()

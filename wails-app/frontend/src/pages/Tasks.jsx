@@ -123,7 +123,7 @@ function Card({ task, status, readOnly, selected, dragging, pulse, now, badges, 
 // The board page of Personal (no session) or of one task session: session is
 // the CLI's session document, and the rest are what TasksShell puts around it
 // (the switcher, the session header, the plan view in place of the columns).
-export function TaskBoard({ isActive = true, switcher = null, session = null, sessionEvents = [], sessionHeader = null, renderPlan = null }) {
+export function TaskBoard({ isActive = true, switcher = null, session = null, sessionEvents = [], sessionHeader = null, renderPlan = null, openTaskId = null }) {
   const { t } = useTranslation()
   const b = useTaskBoard(isActive, session?.id ?? null)
   const [query, setQuery] = useState('')
@@ -215,6 +215,12 @@ export function TaskBoard({ isActive = true, switcher = null, session = null, se
   // on any column open its drawer, where the person approves or moves it
   // with the notes in front of them.
   const openCard = (id) => { setReadFor(null); setOpenId(id) }
+  // A task another page asks for (the report link of a chat) opens once its board has loaded.
+  const askedFor = useRef(null)
+  useEffect(() => {
+    if (!openTaskId || !b.board || askedFor.current === openTaskId) return
+    if (findTask(b.board, openTaskId)) { askedFor.current = openTaskId; setReadFor(null); setOpenId(openTaskId) }
+  }, [openTaskId, b.board])
   const openToRead = (id, to = 'ready', place = { where: '' }) => { setOpenId(id); setReadFor({ id, to, place }) }
   const guarded = (task, from, to) => from === 'inbox' && to !== 'inbox' && readFirst(task)
   const approveCard = (task) => {
@@ -330,7 +336,7 @@ export function TaskBoard({ isActive = true, switcher = null, session = null, se
             )
           })}
         </div>}
-        {open && <TaskDrawer task={open} sessionEvents={sessionEvents} status={findTask(b.board, open.id)?.status} readFirst={readFor?.id === open.id} readOnly={readOnly}
+        {open && <TaskDrawer task={open} focusArtifacts={open.id === openTaskId} sessionEvents={sessionEvents} status={findTask(b.board, open.id)?.status} readFirst={readFor?.id === open.id} readOnly={readOnly}
           moveTo={readFor?.id === open.id && readFor.to !== 'ready' ? readFor.to : null} onMoveTo={() => moveCard(open.id, readFor.to, readFor.place)}
           onClose={() => setOpenId(null)} onEdit={b.edit} onComment={b.comment} onApprove={() => approveNow(open.id)} onArchive={() => archiveRes(open.id)} archiving={archiving === open.id} archiveError={archiveError} />}
       </div>
@@ -347,5 +353,5 @@ export function TaskBoard({ isActive = true, switcher = null, session = null, se
 
 // The Tasks tab: the board of Personal, with the task sessions beside it.
 export default function Tasks({ isActive = true, navData = null }) {
-  return <TasksShell isActive={isActive} Board={TaskBoard} sessionHint={navData?.sessionId || null} />
+  return <TasksShell isActive={isActive} Board={TaskBoard} sessionHint={navData?.sessionId || null} reportHint={!!navData?.report} />
 }
