@@ -360,3 +360,39 @@ func TestSessionTaskBoundAgentEnvironment(t *testing.T) {
 		t.Fatalf("the session was touched beyond the bound task: %+v", st.Session.Counts)
 	}
 }
+
+func TestSessionTaskVerifierEnvironment(t *testing.T) {
+	t.Parallel()
+	db := newTaskTestDB(t)
+	one := sessionNew(t, db)
+	mine := sessionAdd(t, db, one, "mine")
+	other := sessionAdd(t, db, one, "other")
+	var d sessionDoc
+	mustTaskJSON(t, db, "default", &d, "", "session", "approve", id(one))
+	var got sessionTaskDoc
+	mustTaskJSON(t, db, "default", &got, "", "claim", id(mine), "--as", "worker")
+	mustTaskJSON(t, db, "default", &got, "", "finish", id(mine), "--result", "done", "--as", "worker")
+	setenv(t, "MONOAGENT_TASK_SESSION", id(one))
+	setenv(t, "MONOAGENT_TASK_ID", id(mine))
+	setenv(t, "MONOAGENT_TASK_ROLE", "verifier")
+	for _, args := range [][]string{
+		{"claim", id(other), "--as", "v"},
+		{"claim", id(mine), "--as", "v"},
+		{"finish", id(mine), "--result", "mine now", "--as", "v"},
+		{"verify", id(other), "--pass", "--as", "v"},
+		{"comment", id(other), "hello", "--as", "v"},
+	} {
+		if _, _, err := runTask(t, db, "default", true, "", args...); err == nil {
+			t.Errorf("task %s: a verifier did what only the executor does", strings.Join(args, " "))
+		}
+	}
+	mustTaskJSON(t, db, "default", &got, "", "comment", id(mine), "ran the tests", "--as", "v")
+	mustTaskJSON(t, db, "default", &got, "", "verify", id(mine), "--pass", "--note", "ok", "--as", "v")
+	setenv(t, "MONOAGENT_TASK_ROLE", "")
+	setenv(t, "MONOAGENT_TASK_ID", "")
+	setenv(t, "MONOAGENT_TASK_SESSION", "")
+	st := sessionState(t, db, one)
+	if st.Session.Counts.Verified != 1 || st.Session.Counts.Ready != 1 || st.Session.Counts.InProgress != 0 {
+		t.Fatalf("a verifier's binding did more or less than verify its task: %+v", st.Session.Counts)
+	}
+}

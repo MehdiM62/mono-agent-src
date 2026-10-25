@@ -286,6 +286,9 @@ type taskView struct {
 	Files      []string `json:"files,omitempty"`
 	Size       string   `json:"size,omitempty"`
 	Risk       string   `json:"risk,omitempty"`
+	Retries    int      `json:"retries,omitempty"`
+	// FailureNotes are what verification said about a task it sent back or blocked.
+	FailureNotes []string `json:"failure_notes,omitempty"`
 }
 
 func taskViews(ts []tasks.Task) []taskView {
@@ -318,7 +321,16 @@ func (c *Conductor) missionStatus(ctx context.Context, m *MissionConfig) (string
 	if err != nil {
 		return "", err
 	}
-	out := map[string]any{"session": plan.Session, "tasks": taskViews(plan.Tasks), "recent_events": events}
+	views := taskViews(plan.Tasks)
+	for i, t := range plan.Tasks {
+		views[i].Retries = t.Retries
+		if t.Retries > 0 || t.Blocked {
+			if d, err := m.Store.SessionTask(ctx, m.ProfileID, se.ID, t.ID, m.actor(se.ID)); err == nil {
+				views[i].FailureNotes = failureNotes(d)
+			}
+		}
+	}
+	out := map[string]any{"session": plan.Session, "tasks": views, "recent_events": events}
 	switch plan.Session.State {
 	case tasks.SessionDraft:
 		out["review_rounds_left"] = max(0, MaxReviewRounds-m.round(ctx, se.ID))

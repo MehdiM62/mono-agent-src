@@ -23,6 +23,9 @@ func (s *Store) AddSessionEvent(ctx context.Context, profileID string, sessionID
 	if err := actorIn(actor, sessionID); err != nil {
 		return err
 	}
+	if err := noPicking(actor, "write to a session's history"); err != nil {
+		return err
+	}
 	if !writableEventKinds[kind] {
 		return invalid("a session event of kind %q cannot be written: use plan_revised or note", echo(kind))
 	}

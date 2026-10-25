@@ -37,6 +37,14 @@ func (d Deps) boundTask() int64 {
 	return n
 }
 
+// boundRoleEnv narrows the task binding to a verifier's: "verifier" lets the process verify,
+// comment on and attach evidence to its one task and nothing else.
+const boundRoleEnv = "MONOAGENT_TASK_ROLE"
+
+func (d Deps) boundVerifier() bool {
+	return d.boundTask() != 0 && strings.TrimSpace(d.Getenv(boundRoleEnv)) == "verifier"
+}
+
 // parseSessionID reads 3 or #3.
 func (d Deps) parseSessionID(s string) (int64, error) {
 	n, err := strconv.ParseInt(strings.TrimPrefix(strings.TrimSpace(s), "#"), 10, 64)

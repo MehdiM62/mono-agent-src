@@ -380,6 +380,9 @@ func (c *Conductor) Merge(ctx context.Context, id string) (MergeResult, error) {
 	}
 	after, _ := gitRun(ctx, c.iso.cwd, "rev-parse", "HEAD")
 	res.Merged = true
+	c.mu.Lock()
+	w.merged = true
+	c.mu.Unlock()
 	if strings.TrimSpace(before) == strings.TrimSpace(after) {
 		res.Note = "already up to date: the branch has nothing your tree doesn't"
 		return res, nil

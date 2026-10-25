@@ -162,6 +162,7 @@ type worker struct {
 	// merging is set while org_merge commits and merges its branch.
 	worktree, branch, workDir string
 	merging                   bool
+	merged                    bool // org_merge brought its branch into the chat folder
 	// task is the mission task it works, if any (mission_exec.go).
 	task *missionBind
 }
@@ -299,7 +300,13 @@ func (c *Conductor) spawn(ctx context.Context, req SpawnRequest, parent *worker)
 	var task *missionBind
 	if req.TaskID != 0 {
 		var err error
-		if task, req, err = c.missionPrepare(ctx, req, parent); err != nil {
+		prepare := func(ctx context.Context, r SpawnRequest, p *worker) (*missionBind, SpawnRequest, error) {
+			return c.missionPrepare(ctx, r, p)
+		}
+		if req.verify {
+			prepare = c.verifyPrepare
+		}
+		if task, req, err = prepare(ctx, req, parent); err != nil {
 			return WorkerInfo{}, err
 		}
 	}
@@ -312,7 +319,7 @@ func (c *Conductor) spawn(ctx context.Context, req SpawnRequest, parent *worker)
 			return WorkerInfo{}, err
 		}
 	}
-	if task != nil {
+	if task != nil && !task.verifier { // a verifier holds no claim: it only checks
 		if err := c.missionClaim(ctx, task); err != nil {
 			return WorkerInfo{}, err
 		}
@@ -335,7 +342,7 @@ func (c *Conductor) spawn(ctx context.Context, req SpawnRequest, parent *worker)
 	c.workers[w.id] = w
 	c.order = append(c.order, w.id)
 	c.mu.Unlock()
-	if task != nil {
+	if task != nil && !task.verifier {
 		c.missionStarted(task, task.executor+":"+w.id)
 	}
 

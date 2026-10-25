@@ -21,6 +21,7 @@ var (
 	tbg      = context.Background()
 	operator = tasks.Actor{Kind: tasks.Human}
 	taskRE   = regexp.MustCompile(`doing task #(\d+)`)
+	verifyRE = regexp.MustCompile(`verifying task #(\d+)`)
 )
 
 // missionClock is the task store's time, which a test moves to end leases.
@@ -51,6 +52,14 @@ type gateExec struct {
 	running int32
 	maxRun  int32
 	cost    float64
+	// verify answers the runs of verifiers (a prompt that says "verifying task #N"); it
+	// sees the options the run got. vruns records them per task.
+	verify func(ctx context.Context, task int64, o monomind.ExecOptions) (*monomind.TurnResult, error)
+	vruns  map[int64][]monomind.ExecOptions
+	// budgets records the --budget-usd every run got.
+	budgets []float64
+	// models records the runtime/model the last run of each task's worker got.
+	models map[int64]string
 }
 
 func newGateExec() *gateExec {
@@ -80,6 +89,20 @@ func (g *gateExec) release(ids ...int64) {
 func (g *gateExec) runCount(id int64) int { g.mu.Lock(); defer g.mu.Unlock(); return g.runs[id] }
 
 func (g *gateExec) exec(ctx context.Context, o monomind.ExecOptions, on func(monomind.Event)) (*monomind.TurnResult, error) {
+	g.mu.Lock()
+	g.budgets = append(g.budgets, o.BudgetUSD)
+	g.mu.Unlock()
+	if vm := verifyRE.FindStringSubmatch(o.Prompt + o.SystemPrompt); vm != nil && g.verify != nil {
+		id, _ := strconv.ParseInt(vm[1], 10, 64)
+		g.mu.Lock()
+		if g.vruns == nil {
+			g.vruns = map[int64][]monomind.ExecOptions{}
+		}
+		g.vruns[id] = append(g.vruns[id], o)
+		g.mu.Unlock()
+		on(monomind.Event{Type: monomind.EventStart})
+		return g.verify(ctx, id, o)
+	}
 	m := taskRE.FindStringSubmatch(o.Prompt + o.SystemPrompt)
 	var id int64
 	if m != nil {
@@ -88,6 +111,10 @@ func (g *gateExec) exec(ctx context.Context, o monomind.ExecOptions, on func(mon
 	g.mu.Lock()
 	g.runs[id]++
 	g.envs[id], g.prompts[id], g.access[id] = o.Env, o.Prompt, string(o.Access)
+	if g.models == nil {
+		g.models = map[int64]string{}
+	}
+	g.models[id] = o.Runtime + "/" + o.Model
 	gate := g.gate(id)
 	crash := g.fail[id] > 0
 	if crash {

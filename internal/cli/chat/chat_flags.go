@@ -22,4 +22,5 @@ type chatFlags struct {
 	coderRoot      bool
 	profileFold    bool
 	attach         []string
+	mission        bool
 }

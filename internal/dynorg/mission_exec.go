@@ -184,12 +184,19 @@ func missionEnv(w *worker, env map[string]string) {
 	env["MONOAGENT_TASK_SESSION"] = fmt.Sprint(w.task.session)
 	env["MONOAGENT_TASK_ID"] = fmt.Sprint(w.task.task.ID)
 	env["MONOAGENT_ACTOR"] = w.task.name
+	if w.task.verifier {
+		env["MONOAGENT_TASK_ROLE"] = "verifier" // verify, comment and attach evidence to this task only
+	}
 }
 
 // missionRule is added to a task worker's system prompt.
 func missionRule(w *worker) string {
 	if w.task == nil {
 		return ""
+	}
+	if w.task.verifier {
+		return fmt.Sprintf("\n## Your task\n\nYou are verifying task #%d of a mission: you check it against its acceptance criteria and record one verdict. "+
+			"You read and run checks; you change nothing, and you do not claim, finish or release any task.\n", w.task.task.ID)
 	}
 	return fmt.Sprintf("\n## Your task\n\nYou are working on task #%d of a mission. The brief is the task, how it is judged and what earlier tasks produced; "+
 		"your last message is your report and is attached to the task. Do nothing outside the task.\n", w.task.task.ID)
@@ -212,6 +219,10 @@ func (c *Conductor) missionFinish(w *worker, outcome, report, errText string) {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(c.ctx), 15*time.Second)
 	defer cancel()
 	c.recordSpend(ctx, mc, w)
+	if b.verifier {
+		c.verifierFinished(ctx, mc, w, outcome, errText)
+		return
+	}
 	c.msched.mu.Lock()
 	stopped, timedOut := b.stopped, b.timedOut
 	c.msched.mu.Unlock()

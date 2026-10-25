@@ -22,6 +22,9 @@ func (s *Store) SplitTask(ctx context.Context, profileID string, sessionID, id i
 	if err := actorIn(actor, sessionID); err != nil {
 		return nil, err
 	}
+	if err := noVerifier(actor, "split a task"); err != nil {
+		return nil, err
+	}
 	if len(parts) < 2 || len(parts) > MaxSplitParts {
 		return nil, invalid("a split makes 2 to %d tasks (got %d)", MaxSplitParts, len(parts))
 	}

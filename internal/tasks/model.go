@@ -88,11 +88,16 @@ const (
 // Task, when not 0, narrows that binding to one task of the session (a mission worker's
 // token carries it): the actor may claim, comment on, finish, release and attach evidence
 // to that task and to no other, and adds no task of its own.
+//
+// Verifier, with Task, makes the binding a verifier's: the actor may record a verdict on that
+// one task (once it is in Review), comment on it there and attach evidence to it, and may
+// not claim, finish, release, split or assign anything. A Verifier without a Task is refused.
 type Actor struct {
-	Kind    ActorKind
-	Name    string
-	Session int64
-	Task    int64
+	Kind     ActorKind
+	Name     string
+	Session  int64
+	Task     int64
+	Verifier bool
 }
 
 // Label is how the actor is written in an event and in a claim.
