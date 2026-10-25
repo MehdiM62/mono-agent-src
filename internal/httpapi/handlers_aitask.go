@@ -124,6 +124,16 @@ func scrubValue(v any, redact func(string) string) any {
 	return v
 }
 
+// scrubTask hides both credentials in every text of a task that leaves the daemon, the decoded
+// result included: what a stored row holds is not trusted to be free of them.
+func scrubTask(t aitask.Task, redact func(string) string) aitask.Task {
+	t.Goal, t.Error, t.ApplicationID = redact(t.Goal), redact(t.Error), redact(t.ApplicationID)
+	if len(t.Result) > 0 {
+		t.Result = json.RawMessage(redact(string(t.Result)))
+	}
+	return t
+}
+
 // aitaskCaller is the agent token of a request, or a 403 already written.
 func aitaskCaller(w http.ResponseWriter, r *http.Request) (agenttokens.Token, bool) {
 	tok, ok := agentTokenOf(r)
@@ -184,12 +194,13 @@ func (s *Server) handleAitaskKinds(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleAitaskStatus(w http.ResponseWriter, r *http.Request) {
 	if _, t, ok := s.aitaskFor(w, r); ok {
-		writeJSON(w, http.StatusOK, t)
+		writeJSON(w, http.StatusOK, scrubTask(t, requestSecrets(r)))
 	}
 }
 
 func (s *Server) handleAitaskResult(w http.ResponseWriter, r *http.Request) {
 	if _, t, ok := s.aitaskFor(w, r); ok {
+		t = scrubTask(t, requestSecrets(r))
 		writeJSON(w, http.StatusOK, map[string]any{"taskId": t.ID, "status": t.Status, "result": t.Result, "error": t.Error})
 	}
 }
@@ -210,7 +221,7 @@ func (s *Server) handleAitaskComplete(w http.ResponseWriter, r *http.Request) {
 		writeAitaskError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, t)
+	writeJSON(w, http.StatusOK, scrubTask(t, requestSecrets(r)))
 }
 
 func (s *Server) handleAitaskFail(w http.ResponseWriter, r *http.Request) {
@@ -230,7 +241,7 @@ func (s *Server) handleAitaskFail(w http.ResponseWriter, r *http.Request) {
 		writeAitaskError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, t)
+	writeJSON(w, http.StatusOK, scrubTask(t, requestSecrets(r)))
 }
 
 func (s *Server) handleAitaskCancel(w http.ResponseWriter, r *http.Request) {
@@ -243,5 +254,5 @@ func (s *Server) handleAitaskCancel(w http.ResponseWriter, r *http.Request) {
 		writeAitaskError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, t)
+	writeJSON(w, http.StatusOK, scrubTask(t, requestSecrets(r)))
 }

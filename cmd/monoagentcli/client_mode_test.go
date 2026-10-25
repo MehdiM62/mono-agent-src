@@ -418,3 +418,33 @@ func TestClientModeBacksTheTableWithTheDatabaseOpeners(t *testing.T) {
 	}
 	assertNothingLocal(t, db, home)
 }
+
+// No log file is opened in client mode, and a locally generated error that repeats an argument
+// never prints either credential.
+func TestClientModeScrubsOutputAndOpensNoLogFile(t *testing.T) {
+	api := newFakeAPI(t)
+	db, home := clientEnv(t, api.srv.URL)
+	logFile := filepath.Join(home, "agent.log")
+	code, out, errOut := runMain(t, "aitask", "status", "at-1", "--profile", "p1", "--db-path", db, "--log-file", logFile)
+	if code != 3 || !strings.Contains(errOut, "not available in agent mode") {
+		t.Errorf("--log-file: exit %d %q", code, errOut)
+	}
+	if _, err := os.Stat(logFile); !os.IsNotExist(err) {
+		t.Errorf("a log file was opened: %v", err)
+	}
+	assertNoToken(t, out, errOut)
+	for _, v := range []string{cmTestToken, cmTestTaskToken} {
+		for _, asJSON := range []bool{false, true} {
+			args := []string{"aitask", "status", "at-1", "--profile", "p1", "--db-path", db, "--workers", v}
+			if asJSON {
+				args = append(args, "--json")
+			}
+			code, out, errOut = runMain(t, args...)
+			if code == 0 || out+errOut == "" {
+				t.Errorf("bad --workers: exit %d %q %q", code, out, errOut)
+			}
+			assertNoToken(t, out, errOut)
+		}
+	}
+	assertNothingLocal(t, db, home)
+}

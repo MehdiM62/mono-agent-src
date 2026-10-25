@@ -1,13 +1,18 @@
 package main
 
 import (
+	"bytes"
 	"io"
+	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/monoes/mono-agent/internal/agentclient"
+	"github.com/monoes/mono-agent/internal/aitask"
 	"github.com/monoes/mono-agent/internal/cli/clicore"
+	"github.com/monoes/mono-agent/internal/i18n"
+	"github.com/monoes/mono-agent/internal/logging"
 )
 
 // Client mode. With MONOAGENT_API_URL and MONOAGENT_API_TOKEN both set, this binary is an agent's
@@ -71,6 +76,55 @@ func clientModeClass(key string) (class string, ok bool) {
 			return "", false
 		}
 	}
+}
+
+// scrubbedOutput holds back everything a client-mode process prints and writes it at the end with
+// both credentials (the API bearer and the task token) replaced by value: a locally generated
+// error that repeats an argument (`--workers "$MONOAGENT_API_TOKEN"`) or a log line must not print one.
+type scrubbedOutput struct {
+	dst     io.Writer
+	buf     bytes.Buffer
+	secrets []string
+}
+
+func (o *scrubbedOutput) Write(b []byte) (int, error) { return o.buf.Write(b) }
+
+func (o *scrubbedOutput) scrub(s string) string {
+	for _, v := range o.secrets {
+		if len(v) >= 6 {
+			s = strings.ReplaceAll(s, v, "[token]")
+		}
+	}
+	return s
+}
+
+func (o *scrubbedOutput) flush() {
+	_, _ = io.WriteString(o.dst, o.scrub(o.buf.String()))
+	o.buf.Reset()
+}
+
+// runClientModeProcess is run in client mode: the logger, the locale and the command, with every
+// byte of output scrubbed and no log file (a file would keep what the scrubbing hides from the terminal).
+func runClientModeProcess(args []string, stdout, stderr io.Writer) int {
+	secrets := []string{os.Getenv(agentclient.EnvToken), os.Getenv(aitask.EnvToken)}
+	out := &scrubbedOutput{dst: stdout, secrets: secrets}
+	errw := &scrubbedOutput{dst: stderr, secrets: secrets}
+	defer out.flush()
+	defer errw.flush()
+
+	logArgs := args
+	if _, wantsFile := logging.FileFlag(args); wantsFile {
+		logArgs = nil // the level flag is not read either: nothing is opened
+	}
+	logging.SetLineFilter(func(s string) string { return errw.scrub(s) })
+	logging.Init(logArgs, os.Getenv, errw)
+	i18n.SetLocale(i18n.Detect(args))
+	if _, wantsFile := logging.FileFlag(args); wantsFile {
+		refusal := &notAvailableError{what: "--log-file", class: "client mode"}
+		reportCommandError(args, refusal, out, errw)
+		return exitCodeFor(refusal)
+	}
+	return runClientMode(args, out, errw, func() int { return runLocal(args, out, errw) })
 }
 
 // runClientMode runs one invocation in client mode and returns the exit code. api-mapped

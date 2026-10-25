@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -131,5 +132,45 @@ func TestTheWholeErrorDocumentIsScrubbed(t *testing.T) {
 	raw, _ := json.Marshal([]any{ae.Message, ae.Code, ae.Fields})
 	if strings.Contains(string(raw), tok) || strings.Contains(string(raw), task) || ae.Code != "schema_invalid" {
 		t.Fatalf("not scrubbed: %s", raw)
+	}
+}
+
+// A server that answers with garbage naming the task token cannot make the client print it.
+func TestTransportErrorsNeverCarryEitherCredential(t *testing.T) {
+	const task = "task-token-0123456789"
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			_, _ = c.Write([]byte("HTTP/1.1 " + task + " " + tok + " Broken\r\n\r\n"))
+			c.Close()
+		}
+	}()
+	_, err = New("http://"+ln.Addr().String()+"/profiles/p", tok).Complete(context.Background(), "at-1", task, []byte(`{}`))
+	if err == nil || strings.Contains(err.Error(), task) || strings.Contains(err.Error(), tok) {
+		t.Fatalf("error: %v", err)
+	}
+}
+
+// A successful answer is scrubbed too, whatever the stored task held.
+func TestSuccessfulAnswersAreScrubbed(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"taskId":"at-1","status":"complete","result":{"summary":"saw ` + tok + ` and task-token-0123456789"},"error":""}`))
+	}))
+	defer srv.Close()
+	task, err := New(srv.URL, tok).Task(context.Background(), "at-1")
+	if err != nil || strings.Contains(string(task.Result), tok) {
+		t.Fatalf("%s %v", task.Result, err)
+	}
+	r, err := New(srv.URL, tok).Complete(context.Background(), "at-1", "task-token-0123456789", []byte(`{}`))
+	if err != nil || strings.Contains(string(r.Result), "task-token-0123456789") || strings.Contains(string(r.Result), tok) {
+		t.Fatalf("%s %v", r.Result, err)
 	}
 }

@@ -98,6 +98,11 @@ func run(args []string, stdout, stderr io.Writer) int {
 	if args == nil {
 		args = []string{} // cobra reads os.Args for a nil slice
 	}
+	// Client mode (client_mode.go) comes first: before the logger can open a --log-file, a guard, a
+	// gate or a database exists.
+	if inClientMode() {
+		return runClientModeProcess(args, stdout, stderr)
+	}
 	// The root logger, before anything can log (see internal/logging).
 	logging.SetLineFilter(agentLogFilter())
 	logging.Init(args, os.Getenv, os.Stderr)
@@ -108,10 +113,6 @@ func run(args []string, stdout, stderr io.Writer) int {
 	// docs/i18n.md.
 	i18n.SetLocale(i18n.Detect(args))
 
-	// Client mode (client_mode.go) decides before a guard, a gate or a database exists.
-	if inClientMode() {
-		return runClientMode(args, stdout, stderr, func() int { return runLocal(args, stdout, stderr) })
-	}
 	return runLocal(args, stdout, stderr)
 }
 

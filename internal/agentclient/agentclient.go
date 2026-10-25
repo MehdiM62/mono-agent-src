@@ -45,7 +45,9 @@ const (
 type Client struct {
 	base  string
 	token string
-	http  *http.Client
+	// task is the task token of the call in progress, scrubbed like the bearer from every message.
+	task string
+	http *http.Client
 }
 
 // FromEnv is the client the environment asks for, or nil when it does not ask for one: both
@@ -125,7 +127,7 @@ func secureTarget(u *url.URL) bool {
 }
 
 func (c *Client) unavailable(format string, a ...any) error {
-	return &aitask.Error{Code: CodeAPIUnavailable, Message: c.scrub(fmt.Sprintf(format, a...))}
+	return &aitask.Error{Code: CodeAPIUnavailable, Message: c.scrub(fmt.Sprintf(format, a...), c.task)}
 }
 
 // do sends one request and returns the status and body.
@@ -191,6 +193,8 @@ func (c *Client) refusal(status int, b []byte, taskToken string) error {
 }
 
 func (c *Client) call(ctx context.Context, method, path, taskToken string, body []byte, out any) error {
+	c.task = taskToken
+	defer func() { c.task = "" }()
 	status, b, err := c.do(ctx, method, path, taskToken, body)
 	if err != nil {
 		return err
@@ -198,6 +202,8 @@ func (c *Client) call(ctx context.Context, method, path, taskToken string, body 
 	if status < 200 || status > 299 {
 		return c.refusal(status, b, taskToken)
 	}
+	// What the API says is data: it never carries either credential on to the caller.
+	b = []byte(c.scrub(string(b), taskToken))
 	if err := json.Unmarshal(b, out); err != nil {
 		return c.unavailable("the agent API's answer is not what this version expects")
 	}

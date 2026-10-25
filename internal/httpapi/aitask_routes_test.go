@@ -446,3 +446,21 @@ func TestAitaskNeverStoresOrEchoesEitherCredential(t *testing.T) {
 		t.Fatalf("check refusal: %d %s", rw.Code, rw.Body)
 	}
 }
+
+// What a stored row holds is not trusted: a task that already carries the bearer in its result,
+// goal or error is read back scrubbed.
+func TestAitaskReadsScrubTheBearerFromTheStoredRow(t *testing.T) {
+	s := newTestServer(t, false)
+	seedTask(t, s, "default", "at-1", "conv-1")
+	tok := boundToken(t, s, "default", "good", agenttokens.ScopeRead, "at-1", "conv-1")
+	if _, err := s.rt.db.DB.Exec(`UPDATE ai_tasks SET goal = ?, error = ?, result_json = ? WHERE id = 'at-1'`,
+		"goal "+tok, "err "+tok, `{"summary":"leaked `+tok+`"}`); err != nil {
+		t.Fatal(err)
+	}
+	for _, tail := range []string{"", "/result"} {
+		rw := aitaskReq(t, s, "GET", aitaskPath("at-1", tail), tok, "", "")
+		if rw.Code != 200 || strings.Contains(rw.Body.String(), tok) || !strings.Contains(rw.Body.String(), "leaked") {
+			t.Errorf("GET %q: %d %s", tail, rw.Code, rw.Body)
+		}
+	}
+}
