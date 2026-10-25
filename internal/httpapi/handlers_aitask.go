@@ -37,13 +37,26 @@ func agentTokenOf(r *http.Request) (agenttokens.Token, bool) {
 
 const aitaskBase = "/profiles/{profile}/agent/v1/aitask"
 
-func (s *Server) registerAitaskRoutes(mux *http.ServeMux) {
-	mux.Handle("GET "+aitaskBase+"/kinds", s.profileAuth(agenttokens.ScopeRead, s.handleAitaskKinds))
-	mux.Handle("GET "+aitaskBase+"/{id}", s.profileAuth(agenttokens.ScopeRead, s.handleAitaskStatus))
-	mux.Handle("GET "+aitaskBase+"/{id}/result", s.profileAuth(agenttokens.ScopeRead, s.handleAitaskResult))
-	mux.Handle("POST "+aitaskBase+"/{id}/complete", s.profileAuth(agenttokens.ScopeWrite, s.handleAitaskComplete))
-	mux.Handle("POST "+aitaskBase+"/{id}/fail", s.profileAuth(agenttokens.ScopeWrite, s.handleAitaskFail))
-	mux.Handle("POST "+aitaskBase+"/{id}/cancel", s.profileAuth(agenttokens.ScopeWrite, s.handleAitaskCancel))
+func (s *Server) registerAitaskRoutes(reg *registrar) {
+	reg.task("GET "+aitaskBase+"/kinds", agenttokens.ScopeRead, s.handleAitaskKinds)
+	reg.task("GET "+aitaskBase+"/{id}", agenttokens.ScopeRead, s.handleAitaskStatus)
+	reg.task("GET "+aitaskBase+"/{id}/result", agenttokens.ScopeRead, s.handleAitaskResult)
+	reg.task("POST "+aitaskBase+"/{id}/complete", agenttokens.ScopeWrite, s.handleAitaskComplete)
+	reg.task("POST "+aitaskBase+"/{id}/fail", agenttokens.ScopeWrite, s.handleAitaskFail)
+	reg.task("POST "+aitaskBase+"/{id}/cancel", agenttokens.ScopeWrite, s.handleAitaskCancel)
+}
+
+// refuseBoundToken wraps every route but the task routes: a token bound to one task reaches
+// that task and nothing else of the profile (workflows, executions, approvals, documents,
+// people, tasks), whatever its scope.
+func refuseBoundToken(h http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if tok, ok := agentTokenOf(r); ok && tok.Bound() {
+			writeError(w, http.StatusForbidden, "a token bound to a task reaches that task's routes only")
+			return
+		}
+		h(w, r)
+	}
 }
 
 // aitaskHTTPStatus maps a refusal code (Contract A) to a status.
@@ -63,7 +76,8 @@ func aitaskHTTPStatus(code string) int {
 
 // writeAitaskError answers with the refusal's code and fields, the same document the
 // commands print with --json.
-func writeAitaskError(w http.ResponseWriter, err error) {
+func writeAitaskError(w http.ResponseWriter, r *http.Request, err error) {
+	redact := requestSecrets(r)
 	var ae *aitask.Error
 	if !errors.As(err, &ae) {
 		writeError(w, http.StatusInternalServerError, "the AI task store failed: "+err.Error())
@@ -71,10 +85,43 @@ func writeAitaskError(w http.ResponseWriter, err error) {
 	}
 	body := map[string]any{}
 	for k, v := range ae.Fields {
-		body[k] = v
+		body[k] = scrubValue(v, redact)
 	}
-	body["error"], body["code"] = ae.Message, ae.Code
+	body["error"], body["code"] = redact(ae.Message), ae.Code
 	writeJSON(w, aitaskHTTPStatus(ae.Code), body)
+}
+
+// requestSecrets hides both credentials of a request, the bearer and the task's own token, by
+// value: in a stored result, a failure reason and anything an answer repeats.
+func requestSecrets(r *http.Request) func(string) string {
+	return aitask.RedactValues([]string{bearerCredential(r), r.Header.Get(aitaskTokenHeader)})
+}
+
+// scrubValue applies redact to every string inside v (maps, lists and the strings themselves).
+func scrubValue(v any, redact func(string) string) any {
+	switch t := v.(type) {
+	case string:
+		return redact(t)
+	case []string:
+		out := make([]string, len(t))
+		for i, e := range t {
+			out[i] = redact(e)
+		}
+		return out
+	case []any:
+		out := make([]any, len(t))
+		for i, e := range t {
+			out[i] = scrubValue(e, redact)
+		}
+		return out
+	case map[string]any:
+		out := make(map[string]any, len(t))
+		for k, e := range t {
+			out[redact(k)] = scrubValue(e, redact)
+		}
+		return out
+	}
+	return v
 }
 
 // aitaskCaller is the agent token of a request, or a 403 already written.
@@ -101,7 +148,7 @@ func (s *Server) aitaskFor(w http.ResponseWriter, r *http.Request) (*aitask.Serv
 	svc := &aitask.Service{Store: &aitask.Store{DB: s.rt.db.DB, Profile: profileOf(r)}, Remote: true}
 	t, err := svc.Store.Get(id)
 	if err != nil {
-		writeAitaskError(w, err)
+		writeAitaskError(w, r, err)
 		return nil, aitask.Task{}, false
 	}
 	if tok.BoundConversation != t.ConversationID {
@@ -118,9 +165,9 @@ func (s *Server) holderFor(w http.ResponseWriter, r *http.Request) (*aitask.Serv
 		return nil, "", false
 	}
 	token := r.Header.Get(aitaskTokenHeader)
-	svc.Redact = aitask.RedactValues([]string{token})
+	svc.Redact = requestSecrets(r)
 	if !svc.Store.CheckTokenRemote(t.ID, token) {
-		writeAitaskError(w, &aitask.Error{Code: aitask.CodeBadToken,
+		writeAitaskError(w, r, &aitask.Error{Code: aitask.CodeBadToken,
 			Message: "this request does not carry task " + t.ID + "'s token (" + aitaskTokenHeader + "): only the task's own session may change it"})
 		return nil, "", false
 	}
@@ -155,12 +202,12 @@ func (s *Server) handleAitaskComplete(w http.ResponseWriter, r *http.Request) {
 	}
 	b, err := io.ReadAll(io.LimitReader(r.Body, aitask.MaxResultBytes+1))
 	if err != nil {
-		writeAitaskError(w, &aitask.Error{Code: aitask.CodeInvalidInput, Message: "reading the result: " + err.Error()})
+		writeAitaskError(w, r, &aitask.Error{Code: aitask.CodeInvalidInput, Message: "reading the result: " + err.Error()})
 		return
 	}
 	t, err := svc.Complete(r.PathValue("id"), token, b)
 	if err != nil {
-		writeAitaskError(w, err)
+		writeAitaskError(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, t)
@@ -175,12 +222,12 @@ func (s *Server) handleAitaskFail(w http.ResponseWriter, r *http.Request) {
 		Reason string `json:"reason"`
 	}
 	if err := json.NewDecoder(io.LimitReader(r.Body, maxFailBody)).Decode(&in); err != nil {
-		writeAitaskError(w, &aitask.Error{Code: aitask.CodeInvalidInput, Message: "the body must be {\"reason\": TEXT}"})
+		writeAitaskError(w, r, &aitask.Error{Code: aitask.CodeInvalidInput, Message: "the body must be {\"reason\": TEXT}"})
 		return
 	}
 	t, err := svc.Fail(r.PathValue("id"), token, in.Reason)
 	if err != nil {
-		writeAitaskError(w, err)
+		writeAitaskError(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, t)
@@ -193,7 +240,7 @@ func (s *Server) handleAitaskCancel(w http.ResponseWriter, r *http.Request) {
 	}
 	t, err := svc.Cancel(r.PathValue("id"))
 	if err != nil {
-		writeAitaskError(w, err)
+		writeAitaskError(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, t)

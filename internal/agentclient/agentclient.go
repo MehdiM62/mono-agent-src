@@ -75,11 +75,53 @@ func New(base, token string) *Client {
 // HTTPClient lets a test point the client at its own transport.
 func (c *Client) HTTPClient() *http.Client { return c.http }
 
-func (c *Client) scrub(s string) string {
-	if c.token == "" {
-		return s
+// scrub hides the bearer, and the task token when there is one, wherever they appear in s.
+func (c *Client) scrub(s string, taskToken ...string) string {
+	for _, t := range append([]string{c.token}, taskToken...) {
+		if len(t) >= 6 {
+			s = strings.ReplaceAll(s, t, "[token]")
+		}
 	}
-	return strings.ReplaceAll(s, c.token, "[token]")
+	return s
+}
+
+// scrubAny scrubs every string inside v, keys included.
+func (c *Client) scrubAny(v any, taskToken string) any {
+	switch t := v.(type) {
+	case string:
+		return c.scrub(t, taskToken)
+	case []any:
+		out := make([]any, len(t))
+		for i, e := range t {
+			out[i] = c.scrubAny(e, taskToken)
+		}
+		return out
+	case map[string]any:
+		out := make(map[string]any, len(t))
+		for k, e := range t {
+			out[c.scrub(k, taskToken)] = c.scrubAny(e, taskToken)
+		}
+		return out
+	}
+	return v
+}
+
+// secureTarget says whether credentials may be sent to u: https anywhere, plain http to this
+// machine only.
+func secureTarget(u *url.URL) bool {
+	if u.User != nil || u.Host == "" {
+		return false
+	}
+	switch u.Scheme {
+	case "https":
+		return true
+	case "http":
+		switch strings.ToLower(u.Hostname()) {
+		case "127.0.0.1", "::1", "localhost":
+			return true
+		}
+	}
+	return false
 }
 
 func (c *Client) unavailable(format string, a ...any) error {
@@ -89,8 +131,8 @@ func (c *Client) unavailable(format string, a ...any) error {
 // do sends one request and returns the status and body.
 func (c *Client) do(ctx context.Context, method, path, taskToken string, body []byte) (int, []byte, error) {
 	u, err := url.Parse(c.base + path)
-	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-		return 0, nil, c.unavailable("%s is not an http(s) URL of the agent API", EnvURL)
+	if err != nil || !secureTarget(u) {
+		return 0, nil, c.unavailable("%s must be an https URL, or http to 127.0.0.1, [::1] or localhost: the bearer and the task token are not sent anywhere else", EnvURL)
 	}
 	req, err := http.NewRequestWithContext(ctx, method, u.String(), bytes.NewReader(body))
 	if err != nil {
@@ -109,7 +151,7 @@ func (c *Client) do(ctx context.Context, method, path, taskToken string, body []
 		if errors.As(err, &ue) {
 			err = ue.Err // the URL is the caller's own and not worth repeating
 		}
-		return 0, nil, c.unavailable("the agent API at %s cannot be reached: %v", c.scrub(c.base), err)
+		return 0, nil, c.unavailable("the agent API at %s cannot be reached: %v", c.base, err)
 	}
 	defer resp.Body.Close()
 	b, err := io.ReadAll(io.LimitReader(resp.Body, maxResponse))
@@ -120,9 +162,13 @@ func (c *Client) do(ctx context.Context, method, path, taskToken string, body []
 }
 
 // refusal turns a non-2xx answer into the *aitask.Error the commands print.
-func (c *Client) refusal(status int, b []byte) error {
+func (c *Client) refusal(status int, b []byte, taskToken string) error {
+	if status >= 300 && status < 400 {
+		return c.unavailable("the agent API answered with a redirect (HTTP %d), which is not followed", status)
+	}
 	var doc map[string]any
 	if json.Unmarshal(b, &doc) == nil {
+		doc, _ = c.scrubAny(doc, taskToken).(map[string]any) // the whole document, before anything is copied out of it
 		if code, _ := doc["code"].(string); code != "" {
 			msg, _ := doc["error"].(string)
 			fields := map[string]any{}
@@ -131,10 +177,10 @@ func (c *Client) refusal(status int, b []byte) error {
 					fields[k] = v
 				}
 			}
-			return &aitask.Error{Code: code, Message: c.scrub(msg), Fields: fields}
+			return &aitask.Error{Code: code, Message: msg, Fields: fields}
 		}
 		if msg, _ := doc["error"].(string); msg != "" && status != http.StatusUnauthorized && status != http.StatusForbidden {
-			return &aitask.Error{Code: aitask.CodeInvalidInput, Message: c.scrub(msg)}
+			return &aitask.Error{Code: aitask.CodeInvalidInput, Message: msg}
 		}
 	}
 	if status == http.StatusUnauthorized || status == http.StatusForbidden {
@@ -150,7 +196,7 @@ func (c *Client) call(ctx context.Context, method, path, taskToken string, body 
 		return err
 	}
 	if status < 200 || status > 299 {
-		return c.refusal(status, b)
+		return c.refusal(status, b, taskToken)
 	}
 	if err := json.Unmarshal(b, out); err != nil {
 		return c.unavailable("the agent API's answer is not what this version expects")

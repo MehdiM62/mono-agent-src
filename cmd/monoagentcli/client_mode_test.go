@@ -186,6 +186,11 @@ func TestClientModeMappedCommandsGoToTheAPIAndNeverOpenTheDatabase(t *testing.T)
 	if err := os.WriteFile(result, []byte(`{"summary":"done"}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	// A result file is refused (the task cannot be looked up to tell whether it is confined); nothing is sent.
+	if code, out, _ := runMain(t, "aitask", "complete", "at-1", "--result", result, "--db-path", db, "--profile", "p1", "--json"); code != 3 ||
+		!strings.Contains(out, "--result-json") || len(api.requests()) != 0 {
+		t.Errorf("a result file in client mode: exit %d %q, %d requests", code, out, len(api.requests()))
+	}
 	g := []string{"--db-path", db, "--profile", "p1", "--json"}
 	cases := []struct {
 		args         []string
@@ -195,7 +200,7 @@ func TestClientModeMappedCommandsGoToTheAPIAndNeverOpenTheDatabase(t *testing.T)
 	}{
 		{[]string{"aitask", "status", "at-1"}, "GET", "/profiles/p1/agent/v1/aitask/at-1", "", ""},
 		{[]string{"aitask", "result", "at-1"}, "GET", "/profiles/p1/agent/v1/aitask/at-1/result", "", ""},
-		{[]string{"aitask", "complete", "at-1", "--result", result}, "POST", "/profiles/p1/agent/v1/aitask/at-1/complete", cmTestTaskToken, `{"summary":"done"}`},
+		{[]string{"aitask", "complete", "at-1", "--result-json", `{"summary":"done"}`}, "POST", "/profiles/p1/agent/v1/aitask/at-1/complete", cmTestTaskToken, `{"summary":"done"}`},
 		{[]string{"aitask", "fail", "at-1", "--reason", "cannot"}, "POST", "/profiles/p1/agent/v1/aitask/at-1/fail", cmTestTaskToken, `{"reason":"cannot"}`},
 		{[]string{"aitask", "cancel", "at-1"}, "POST", "/profiles/p1/agent/v1/aitask/at-1/cancel", cmTestTaskToken, ""},
 		{[]string{"aitask", "kinds"}, "GET", "/profiles/p1/agent/v1/aitask/kinds", "", ""},
@@ -235,11 +240,9 @@ func TestClientModeRefusalsKeepTheirCodes(t *testing.T) {
 		return 404, `{"error":"no AI task at-9","code":"not_found"}`
 	}
 	db, home := clientEnv(t, api.srv.URL)
-	result := filepath.Join(t.TempDir(), "r.json")
-	_ = os.WriteFile(result, []byte(`{}`), 0o600)
 	g := []string{"--db-path", db, "--profile", "p1", "--json"}
 
-	code, out, errOut := runMain(t, append([]string{"aitask", "complete", "at-1", "--result", result}, g...)...)
+	code, out, errOut := runMain(t, append([]string{"aitask", "complete", "at-1", "--result-json", `{}`}, g...)...)
 	var doc map[string]any
 	if code != 3 || json.Unmarshal([]byte(strings.TrimSpace(out)), &doc) != nil || doc["code"] != "schema_invalid" || doc["reason"] != "summary is required" {
 		t.Errorf("complete: exit %d %q", code, out)
@@ -380,19 +383,15 @@ func TestClientModeCompleteAgainstTheRealAPI(t *testing.T) {
 	t.Setenv("MONOAGENT_API_URL", ts.URL+"/profiles/default")
 	t.Setenv("MONOAGENT_API_TOKEN", secret)
 	g := []string{"--db-path", agentDB, "--profile", "default", "--json"}
-	bad := filepath.Join(t.TempDir(), "bad.json")
-	_ = os.WriteFile(bad, []byte(`{"nope":1}`), 0o600)
-	good := filepath.Join(t.TempDir(), "good.json")
-	_ = os.WriteFile(good, []byte(`{"summary":"all done"}`), 0o600)
 
-	if code, out, _ := runMain(t, append([]string{"aitask", "complete", "at-1", "--result", bad}, g...)...); code != 3 || !strings.Contains(out, "schema_invalid") {
+	if code, out, _ := runMain(t, append([]string{"aitask", "complete", "at-1", "--result-json", `{"nope":1}`}, g...)...); code != 3 || !strings.Contains(out, "schema_invalid") {
 		t.Fatalf("a bad result: exit %d %q", code, out)
 	}
-	code, out, errOut := runMain(t, append([]string{"aitask", "complete", "at-1", "--result", good}, g...)...)
+	code, out, errOut := runMain(t, append([]string{"aitask", "complete", "at-1", "--result-json", `{"summary":"all done"}`}, g...)...)
 	if code != 0 || !strings.Contains(out, `"complete"`) {
 		t.Fatalf("complete: exit %d %q %q", code, out, errOut)
 	}
-	if code, out, _ = runMain(t, append([]string{"aitask", "complete", "at-1", "--result", good}, g...)...); code != 3 || !strings.Contains(out, "task_closed") {
+	if code, out, _ = runMain(t, append([]string{"aitask", "complete", "at-1", "--result-json", `{"summary":"all done"}`}, g...)...); code != 3 || !strings.Contains(out, "task_closed") {
 		t.Fatalf("second complete: exit %d %q", code, out)
 	}
 	if code, out, _ = runMain(t, append([]string{"aitask", "result", "at-1"}, g...)...); code != 0 || !strings.Contains(out, "all done") {

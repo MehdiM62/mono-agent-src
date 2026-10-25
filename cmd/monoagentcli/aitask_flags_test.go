@@ -20,7 +20,6 @@ import (
 //
 //	operator: an agent, the chat or a workflow is refused (exit 3, operator_only), even with a task's token
 //	either:   the operator, or the task's own session for its own task
-//	open:     anyone: it reads the kind registry and nothing of the user's
 //	holder:   only the holder of the task's token (bad_token otherwise), the operator included
 var aitaskPolicy = map[string]struct {
 	who   string
@@ -30,18 +29,21 @@ var aitaskPolicy = map[string]struct {
 	"submit": {"operator", map[string]string{
 		"kind": "routing", "goal": "input", "context": "input", "application": "input",
 		"access": "routing", "runtime": "routing", "unattended": "routing", "queue-only": "routing", "budget-usd": "routing"}, []string{"--goal", "x"}},
+	"submit-page": {"operator", map[string]string{
+		"kind": "routing", "browser": "input", "tab": "input", "stdin-json": "input"}, []string{"--kind", "extension-fill", "--tab", "7", "--stdin-json"}},
 	"start":     {"operator", map[string]string{}, []string{"{other}"}},
 	"wait":      {"operator", map[string]string{"timeout": "input"}, []string{"{other}", "--timeout", "1s"}},
 	"supervise": {"operator", map[string]string{}, []string{"{other}"}},
 	"status":    {"either", map[string]string{}, []string{"{id}"}},
 	"result":    {"either", map[string]string{}, []string{"{id}"}},
 	"cancel":    {"either", map[string]string{}, []string{"{id}"}},
-	"kinds":     {"open", map[string]string{}, nil},
 	"list":      {"either", map[string]string{"kind": "filter", "application": "filter"}, nil},
-	"complete":  {"holder", map[string]string{"result": "input"}, []string{"{id}", "--result", "{file}"}},
+	"complete":  {"holder", map[string]string{"result": "input", "result-json": "input"}, []string{"{id}", "--result", "{file}"}},
 	// "nested": has subcommands of its own, classified in aitask_budget_flags_test.go.
 	"budget": {"nested", map[string]string{}, nil},
-	"fail":   {"holder", map[string]string{"reason": "input"}, []string{"{id}", "--reason", "cannot"}},
+	// "anyone": read-only, opens nothing and asks for no operator (it lists what can be asked for).
+	"kinds": {"anyone", map[string]string{}, nil},
+	"fail":  {"holder", map[string]string{"reason": "input"}, []string{"{id}", "--reason", "cannot"}},
 }
 
 func TestEveryAitaskFlagIsClassified(t *testing.T) {
@@ -259,10 +261,25 @@ func TestAitaskSubmitUnattendedFullAccessIsRefused(t *testing.T) {
 	}
 }
 
-func TestAitaskKindsIsOpenToAnAgent(t *testing.T) {
+// An agent may list the kinds; nothing is written (no task rows appear).
+func TestAitaskKindsIsOpenToAnAgentAndWritesNothing(t *testing.T) {
 	r := newAitaskRig(t)
 	asPlainAgent(t)
-	if out, err := r.run(t, "kinds"); err != nil || !strings.Contains(out, "generic") {
-		t.Fatalf("an agent listing the kinds: %v %s", err, out)
+	out, err := r.run(t, "kinds")
+	if err != nil || !strings.Contains(out, `"workflow-generate"`) || !strings.Contains(out, `"application-apply"`) {
+		t.Fatalf("%v %s", err, out)
+	}
+	var v struct{ Kinds []map[string]any }
+	if err := json.Unmarshal([]byte(out), &v); err != nil || len(v.Kinds) < 5 {
+		t.Fatalf("%v %s", err, out)
+	}
+	db, err := initDB(r.cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	var n int
+	if err := db.DB.QueryRow(`SELECT COUNT(*) FROM ai_tasks`).Scan(&n); err != nil || n != 2 {
+		t.Fatalf("tasks = %d (%v), want the 2 the rig made", n, err)
 	}
 }

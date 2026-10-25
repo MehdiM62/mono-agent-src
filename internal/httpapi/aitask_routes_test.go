@@ -18,6 +18,13 @@ import (
 
 func init() {
 	aitask.Register(aitask.Kind{
+		Name:   "api-echo",
+		Schema: map[string]any{"type": "object"},
+		Check: func(_ context.Context, _ string, raw json.RawMessage) error {
+			return errors.New("refused, saw " + string(raw))
+		},
+	})
+	aitask.Register(aitask.Kind{
 		Name: "api-check",
 		Schema: map[string]any{"type": "object", "required": []any{"summary"},
 			"properties": map[string]any{"summary": map[string]any{"type": "string"}}},
@@ -362,5 +369,80 @@ func TestAitaskCallsAreAudited(t *testing.T) {
 		if strings.Contains(u.Path, secret) || strings.Contains(u.Path, aitaskTestToken) {
 			t.Fatalf("audit holds a token: %+v", u)
 		}
+	}
+}
+
+// A token bound to one task reaches that task's routes and no other route of the profile, whatever
+// its scope: every route of the table but the task routes refuses it.
+func TestBoundTokenIsRefusedOnEveryNonTaskRoute(t *testing.T) {
+	s := newTestServer(t, true)
+	seedWorkflow(t, s, "wf1", "default")
+	seedTask(t, s, "default", "at-1", "conv-1")
+	var taskPatterns []string
+	for _, rc := range s.routeTable {
+		if rc.Task {
+			taskPatterns = append(taskPatterns, rc.Pattern)
+		}
+	}
+	if len(taskPatterns) != 6 {
+		t.Fatalf("task routes: %v", taskPatterns)
+	}
+	for _, p := range taskPatterns {
+		if !strings.Contains(p, "/agent/v1/aitask/") {
+			t.Errorf("%s is a task route outside /agent/v1/aitask/", p)
+		}
+	}
+	for _, scope := range []agenttokens.Scope{agenttokens.ScopeRead, agenttokens.ScopeWrite} {
+		tok := boundToken(t, s, "default", "b-"+string(scope), scope, "at-1", "conv-1")
+		for _, rc := range scopeRoutes {
+			rw := doReq(t, s, rc.method, rc.path, tok, []byte(`{}`))
+			if rw.Code != http.StatusForbidden {
+				t.Errorf("%s token bound to a task: %s %s = %d, want 403", scope, rc.method, rc.path, rw.Code)
+				continue
+			}
+			if scope.Allows(rc.need) && !strings.Contains(rw.Body.String(), "bound to a task") {
+				t.Errorf("%s %s was refused for its scope, not for the binding: %s", rc.method, rc.path, rw.Body)
+			}
+		}
+	}
+	// And the workflow, the approvals and the rest did not move.
+	wf, err := s.rt.store.GetWorkflow(context.Background(), "wf1")
+	if err != nil || !wf.IsActive || wf.Version != 1 {
+		t.Fatalf("workflow %+v %v", wf, err)
+	}
+}
+
+// The bearer and the task token are hidden by value wherever they could be stored or echoed.
+func TestAitaskNeverStoresOrEchoesEitherCredential(t *testing.T) {
+	s := newTestServer(t, false)
+	seedTask(t, s, "default", "at-1", "conv-1")
+	seedTask(t, s, "default", "at-2", "conv-2")
+	bearer1 := boundToken(t, s, "default", "one", agenttokens.ScopeWrite, "at-1", "conv-1")
+	bearer2 := boundToken(t, s, "default", "two", agenttokens.ScopeWrite, "at-2", "conv-2")
+	leaks := func(v string) bool {
+		return strings.Contains(v, bearer1) || strings.Contains(v, bearer2) || strings.Contains(v, aitaskTestToken)
+	}
+
+	body := `{"summary":"credential was ` + bearer1 + ` and ` + aitaskTestToken + `"}`
+	if rw := aitaskReq(t, s, "POST", aitaskPath("at-1", "/complete"), bearer1, aitaskTestToken, body); rw.Code != 200 || leaks(rw.Body.String()) {
+		t.Fatalf("complete: %d %s", rw.Code, rw.Body)
+	}
+	if got := taskNow(t, s, "at-1"); leaks(string(got.Result)) {
+		t.Fatalf("stored result: %s", got.Result)
+	}
+	rw := aitaskReq(t, s, "POST", aitaskPath("at-2", "/fail"), bearer2, aitaskTestToken, `{"reason":"saw `+bearer2+` and `+aitaskTestToken+`"}`)
+	if rw.Code != 200 || leaks(rw.Body.String()) || leaks(taskNow(t, s, "at-2").Error) {
+		t.Fatalf("fail: %d %s", rw.Code, rw.Body)
+	}
+	// A refusal that repeats the result (a kind's check does) is scrubbed in the answer.
+	st := &aitask.Store{DB: s.rt.db.DB, Profile: "default"}
+	if _, err := st.Insert(aitask.Task{ID: "at-3", Kind: "api-echo", ConversationID: "conv-3", Status: aitask.StatusRunning}); err != nil {
+		t.Fatal(err)
+	}
+	_ = st.SetToken("at-3", aitaskTestToken)
+	b3 := boundToken(t, s, "default", "three", agenttokens.ScopeWrite, "at-3", "conv-3")
+	rw = aitaskReq(t, s, "POST", aitaskPath("at-3", "/complete"), b3, aitaskTestToken, `{"x":"`+b3+` `+aitaskTestToken+`"}`)
+	if rw.Code != http.StatusUnprocessableEntity || leaks(rw.Body.String()) || strings.Contains(rw.Body.String(), b3) || !strings.Contains(rw.Body.String(), "refused, saw") {
+		t.Fatalf("check refusal: %d %s", rw.Code, rw.Body)
 	}
 }

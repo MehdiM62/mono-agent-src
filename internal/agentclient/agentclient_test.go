@@ -2,9 +2,11 @@ package agentclient
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -87,5 +89,47 @@ func TestRefusalsAreMappedAndScrubbed(t *testing.T) {
 	status, body = 422, `{"error":"x","code":"schema_invalid","reason":"summary is required"}`
 	if _, err := c.Task(context.Background(), "at-1"); !errors.As(err, &ae) || ae.Fields["reason"] != "summary is required" {
 		t.Errorf("fields were lost: %v", err)
+	}
+}
+
+func TestCredentialsGoOverHTTPSOrToThisMachineOnly(t *testing.T) {
+	for _, tc := range []struct {
+		base string
+		ok   bool
+	}{
+		{"https://example.com/profiles/p", true}, {"https://10.0.0.5:9322/profiles/p", true},
+		{"http://127.0.0.1:9322/profiles/p", true}, {"http://localhost:9322/profiles/p", true}, {"http://[::1]:9322/profiles/p", true},
+		{"http://example.com/profiles/p", false}, {"http://10.0.0.5:9322/profiles/p", false}, {"http://127.0.0.1.evil.test/p", false},
+		{"http://user:pw@127.0.0.1:1/p", false}, {"ftp://127.0.0.1/p", false}, {"//127.0.0.1/p", false},
+	} {
+		u, err := url.Parse(tc.base)
+		if err != nil || secureTarget(u) != tc.ok {
+			t.Errorf("%s: allowed %v, want %v", tc.base, err == nil && secureTarget(u), tc.ok)
+		}
+	}
+	// A refused target is never dialled: the call fails before any request.
+	_, err := New("http://example.com/profiles/p", tok).Task(context.Background(), "at-1")
+	if codeOf(err) != CodeAPIUnavailable || strings.Contains(err.Error(), tok) {
+		t.Errorf("plain http to a remote host: %v", err)
+	}
+}
+
+// Every string of an error document is scrubbed of both credentials, nested ones and keys too.
+func TestTheWholeErrorDocumentIsScrubbed(t *testing.T) {
+	const task = "task-token-0123456789"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(422)
+		_, _ = w.Write([]byte(`{"error":"a ` + tok + `","code":"schema_invalid","reason":"b ` + task + `",` +
+			`"deep":{"` + tok + `":["c ` + task + `",{"d":"` + tok + `"}]}}`))
+	}))
+	defer srv.Close()
+	_, err := New(srv.URL, tok).Complete(context.Background(), "at-1", task, []byte(`{}`))
+	var ae *aitask.Error
+	if !errors.As(err, &ae) {
+		t.Fatal(err)
+	}
+	raw, _ := json.Marshal([]any{ae.Message, ae.Code, ae.Fields})
+	if strings.Contains(string(raw), tok) || strings.Contains(string(raw), task) || ae.Code != "schema_invalid" {
+		t.Fatalf("not scrubbed: %s", raw)
 	}
 }
