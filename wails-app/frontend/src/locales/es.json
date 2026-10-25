@@ -1693,7 +1693,7 @@
       "header": "Sesión {{title}}",
       "state": {
         "draft": "Borrador",
-        "running": "En curso",
+        "running": "En ejecución",
         "paused": "En pausa",
         "done": "Completada",
         "stopped": "Detenida",
