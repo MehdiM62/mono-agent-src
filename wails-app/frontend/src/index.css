@@ -2067,7 +2067,7 @@ body.tb-dragging, body.tb-dragging * { cursor: grabbing !important; user-select:
 .tb-comment .form-textarea { min-height: 56px; }
 
 /* ── Task sessions (Tasks tab) ── */
-.ts-tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
+.ts-tabs { display: flex; gap: 6px; overflow-x: auto; padding: 4px 4px 6px; margin: -4px -4px 0; }
 .ts-tab { flex: 0 0 auto; display: flex; flex-direction: column; gap: 4px; align-items: flex-start; max-width: 240px; padding: 6px 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text); font: inherit; font-size: 12.5px; cursor: pointer; }
 .ts-tab:hover { border-color: var(--border-bright); }
 .ts-tab.is-selected { border-color: var(--cyan); box-shadow: 0 0 0 3px var(--cyan-glow); }
