@@ -25,6 +25,18 @@ func (d Deps) boundSession() int64 {
 	return n
 }
 
+// boundTaskEnv narrows boundSessionEnv to one task: what a mission worker's process holds.
+const boundTaskEnv = "MONOAGENT_TASK_ID"
+
+// boundTask reads boundTaskEnv: 0 when it is not set or not a task number.
+func (d Deps) boundTask() int64 {
+	n, err := strconv.ParseInt(strings.TrimPrefix(strings.TrimSpace(d.Getenv(boundTaskEnv)), "#"), 10, 64)
+	if err != nil || n <= 0 {
+		return 0
+	}
+	return n
+}
+
 // parseSessionID reads 3 or #3.
 func (d Deps) parseSessionID(s string) (int64, error) {
 	n, err := strconv.ParseInt(strings.TrimPrefix(strings.TrimSpace(s), "#"), 10, 64)

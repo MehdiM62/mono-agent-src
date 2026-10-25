@@ -21,6 +21,23 @@ func bound(actor Actor, session int64) error {
 	return operatorOnly(fmt.Sprintf("act on %s: this agent is bound to session #%d", where, actor.Session))
 }
 
+// boundTask refuses an actor that is bound to one task when it acts on another.
+func boundTask(actor Actor, id int64) error {
+	if actor.Task == 0 || actor.Task == id {
+		return nil
+	}
+	return operatorOnly(fmt.Sprintf("act on task #%d: this agent is bound to task #%d", id, actor.Task))
+}
+
+// noPicking refuses an actor bound to one task what has no task id: taking whatever is next,
+// and adding tasks. A worker does the task it was given.
+func noPicking(actor Actor, what string) error {
+	if actor.Task == 0 {
+		return nil
+	}
+	return operatorOnly(fmt.Sprintf("%s: this agent is bound to task #%d", what, actor.Task))
+}
+
 // sessionIDOf is the session a task belongs to (0 for a task of the personal
 // board) and whether the task exists in the profile.
 func sessionIDOf(ctx context.Context, x dbx, profileID string, id int64) (int64, bool, error) {
@@ -41,6 +58,9 @@ func sessionIDOf(ctx context.Context, x dbx, profileID string, id int64) (int64,
 // is refused with the session it belongs to, so that the caller learns where to work it.
 func (s *Store) checkScope(ctx context.Context, x dbx, profileID string, id, session int64, actor Actor) error {
 	if err := bound(actor, session); err != nil {
+		return err
+	}
+	if err := boundTask(actor, id); err != nil {
 		return err
 	}
 	have, ok, err := sessionIDOf(ctx, x, profileID, id)

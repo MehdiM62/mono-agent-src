@@ -329,3 +329,34 @@ func TestSessionBoundAgentEnvironment(t *testing.T) {
 		t.Fatalf("session two was touched: %+v", st.Session)
 	}
 }
+
+func TestSessionTaskBoundAgentEnvironment(t *testing.T) {
+	t.Parallel()
+	db := newTaskTestDB(t)
+	one := sessionNew(t, db)
+	mine := sessionAdd(t, db, one, "mine")
+	other := sessionAdd(t, db, one, "other")
+	var d sessionDoc
+	mustTaskJSON(t, db, "default", &d, "", "session", "approve", id(one))
+	setenv(t, "MONOAGENT_TASK_SESSION", id(one))
+	setenv(t, "MONOAGENT_TASK_ID", id(mine))
+	var got sessionTaskDoc
+	mustTaskJSON(t, db, "default", &got, "", "claim", id(mine), "--as", "w")
+	for _, args := range [][]string{
+		{"claim", id(other), "--as", "w"},
+		{"next", "--session", id(one), "--claim", "--as", "w"},
+		{"add", "x", "--session", id(one), "--acceptance", "y", "--as", "w"},
+		{"comment", id(other), "hello", "--as", "w"},
+		{"finish", id(other), "--result", "stolen", "--as", "w"},
+	} {
+		if _, _, err := runTask(t, db, "default", true, "", args...); err == nil {
+			t.Errorf("task %s: an agent bound to a task reached another", strings.Join(args, " "))
+		}
+	}
+	setenv(t, "MONOAGENT_TASK_ID", "")
+	setenv(t, "MONOAGENT_TASK_SESSION", "")
+	st := sessionState(t, db, one)
+	if st.Session.Counts.Total != 2 || st.Session.Counts.InProgress != 1 || st.Session.Counts.Ready != 1 {
+		t.Fatalf("the session was touched beyond the bound task: %+v", st.Session.Counts)
+	}
+}

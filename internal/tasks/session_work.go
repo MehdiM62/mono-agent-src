@@ -61,6 +61,9 @@ func (s *Store) SessionNext(ctx context.Context, profileID string, sessionID int
 		if err := needName(actor); err != nil {
 			return nil, err
 		}
+		if err := noPicking(actor, "take the next task"); err != nil {
+			return nil, err
+		}
 	} else if actor.Kind != Human && actor.Kind != Agent {
 		return nil, operatorOnly("read a session's tasks")
 	}
