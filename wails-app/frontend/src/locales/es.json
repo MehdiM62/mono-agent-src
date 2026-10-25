@@ -1656,7 +1656,61 @@
     },
     "markDone": "Hecho",
     "backToReady": "Volver a Listo",
-    "inProfile": "en {{name}}"
+    "inProfile": "en {{name}}",
+    "session": {
+      "switcher": "Sesiones de tareas",
+      "personal": "Personal",
+      "header": "Sesión {{title}}",
+      "state": {
+        "draft": "Borrador",
+        "running": "En curso",
+        "paused": "En pausa",
+        "done": "Terminada",
+        "stopped": "Detenida",
+        "failed": "Fallida"
+      },
+      "archived": "Archivada",
+      "progress": "{{done}} hechas",
+      "spendOf": "{{spent}} de {{budget}}",
+      "spendNoBudget": "{{spent}} gastados, sin presupuesto",
+      "view": "Vista",
+      "view_board": "Tablero",
+      "view_plan": "Plan",
+      "action": {
+        "approve": "Aprobar plan",
+        "pause": "Pausar",
+        "resume": "Reanudar",
+        "stop": "Detener",
+        "archive": "Archivar",
+        "budget": "Editar presupuesto",
+        "conversation": "Abrir conversación"
+      },
+      "confirmStop": "¿Detener esta sesión para siempre? Se liberan todas las reclamaciones y sus agentes paran; las tareas se quedan donde están.",
+      "budgetLabel": "Presupuesto (USD)",
+      "budgetHint": "0 para sin presupuesto",
+      "cancel": "Cancelar",
+      "blocked": "Bloqueada",
+      "verified": "Verificada",
+      "retries": "Reintentos: {{n}}",
+      "waitsFor": "Espera a {{ids}}",
+      "after": "después de {{ids}}",
+      "kind": {
+        "epic": "Épica",
+        "check": "Comprobación",
+        "task": "Tarea"
+      },
+      "acceptance": "Criterios de aceptación",
+      "noAcceptance": "Sin criterios de aceptación",
+      "dependsOn": "Depende de",
+      "assignee": "Asignada a",
+      "retriesLabel": "Reintentos",
+      "none": "Ninguna",
+      "artifacts": "Artefactos",
+      "noArtifacts": "Aún no hay artefactos",
+      "events": "Eventos de la sesión",
+      "planError": "No se pudo leer el plan",
+      "planEmpty": "Este plan aún no tiene tareas"
+    }
   },
   "publication": {
     "title": "Publicación",

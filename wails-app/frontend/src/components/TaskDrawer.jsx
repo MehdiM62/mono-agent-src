@@ -2,15 +2,17 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { X } from 'lucide-react'
 import { tasksApi } from '../services/tasks.js'
+import SessionTaskFields from './tasksessions/SessionTaskFields.jsx'
 
 // The detail drawer of one card: edit title and notes, read its history,
 // comment, and approve an Inbox card. readFirst: it opened so the person reads
 // the card's notes before it leaves Inbox (plan ruling F6); moveTo: the column
 // other than Ready it was moved to, offered once read. Every change goes
 // through the board hook, which shells out to the CLI.
-export default function TaskDrawer({ task, status, readFirst = false, moveTo = null, readOnly, onClose, onEdit, onComment, onApprove, onMoveTo, onArchive, archiving = false, archiveError = '' }) {
+export default function TaskDrawer({ task, status, readFirst = false, moveTo = null, readOnly, onClose, onEdit, onComment, onApprove, onMoveTo, onArchive, archiving = false, archiveError = '', sessionEvents = [] }) {
   const { t } = useTranslation()
   const [events, setEvents] = useState([])
+  const [detail, setDetail] = useState(null) // the show document: a session task's artifacts come with it
   const [loadError, setLoadError] = useState('')
   const [title, setTitle] = useState(task.title)
   const [notes, setNotes] = useState(task.notes || '')
@@ -32,7 +34,7 @@ export default function TaskDrawer({ task, status, readFirst = false, moveTo = n
     tasksApi.show(task.id).then(r => {
       if (!live) return
       if (r?.error) setLoadError(r.error)
-      else { setLoadError(''); setEvents(r?.events || []) }
+      else { setLoadError(''); setEvents(r?.events || []); setDetail(r) }
     })
     return () => { live = false }
   }, [task.id, task.updated_at, task.last_event?.at])
@@ -68,6 +70,8 @@ export default function TaskDrawer({ task, status, readFirst = false, moveTo = n
       {!readOnly && status === 'inbox' && moveTo && onMoveTo && <button className="btn btn-secondary btn-sm" type="button" disabled={dirty} title={dirty ? t('tasks.drawer.saveFirst') : undefined} onClick={onMoveTo}>{t('tasks.drawer.moveTo', { column: t(`tasks.column.${moveTo}`) })}</button>}
       {!readOnly && onArchive && <button className="btn btn-secondary btn-sm" type="button" disabled={archiving} onClick={onArchive}>{archiving ? t('tasks.archiving') : t('tasks.archive')}</button>}</div>
       {archiveError && <div role="alert">{t('tasks.archiveFailed')}: {archiveError}</div>}
+
+      {task.session_id > 0 && <SessionTaskFields task={{ ...task, ...(detail?.task?.id === task.id ? detail.task : {}) }} artifacts={detail?.task?.id === task.id ? detail.artifacts || [] : []} sessionEvents={sessionEvents} />}
 
       <h3 className="tb-drawer-h">{t('tasks.drawer.history')}</h3>
       {loadError && <div role="alert">{t('tasks.drawer.loadError')}: {loadError}</div>}

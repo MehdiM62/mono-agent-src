@@ -4,10 +4,17 @@
 // slides back, and is reported in `notice`.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { tasksApi, onTasksChanged } from '../services/tasks.js'
+import { sessionsApi } from '../services/taskSessions.js'
 import { normalizeBoard, applyOps } from './taskModel.js'
 import { usePageVisible } from './usePageVisible.js'
 
-export function useTaskBoard(active = true) {
+// sessionId: read that task session's board instead of the personal one. A
+// session has no push event: its revision is asked every SESSION_POLL_MS and
+// the board is read when it moves. The page remounts per session (a key), so
+// no read of one board is ever shown for another.
+const SESSION_POLL_MS = 2000
+
+export function useTaskBoard(active = true, sessionId = null) {
   const [base, setBase] = useState(null)
   const [ops, setOps] = useState([])
   const [error, setError] = useState('')
@@ -27,7 +34,7 @@ export function useTaskBoard(active = true) {
 
   const load = useCallback(async () => {
     const mine = ++seq.current
-    const doc = await tasksApi.board()
+    const doc = sessionId ? await sessionsApi.board(sessionId) : await tasksApi.board()
     if (mine !== seq.current) return // a newer read answers for this one
     // A failed read keeps every op laid over the last board: the card stays where
     // the person put it until a read succeeds.
@@ -35,7 +42,7 @@ export function useTaskBoard(active = true) {
     setError('')
     setBase(normalizeBoard(doc))
     release(mine)
-  }, [release])
+  }, [release, sessionId])
 
   // A hidden window does not read; the first change it missed is read when it is shown again.
   const shown = usePageVisible()
@@ -46,9 +53,22 @@ export function useTaskBoard(active = true) {
   useEffect(() => {
     if (!active) return undefined
     load()
+    if (sessionId) {
+      let rev = null
+      const tick = async () => {
+        const p = await sessionsApi.pulse(sessionId)
+        if (typeof p?.rev !== 'number') return
+        const moved = rev !== null && p.rev !== rev
+        rev = p.rev
+        if (moved) { if (shownRef.current) load(); else missed.current = true }
+      }
+      tick()
+      const timer = setInterval(() => { if (shownRef.current) tick() }, SESSION_POLL_MS)
+      return () => { seq.current++; clearInterval(timer) }
+    }
     const off = onTasksChanged(() => { if (shownRef.current) load(); else missed.current = true })
     return () => { seq.current++; if (typeof off === 'function') off() }
-  }, [active, load])
+  }, [active, load, sessionId])
 
   useEffect(() => {
     if (active && shown && missed.current) { missed.current = false; load() }

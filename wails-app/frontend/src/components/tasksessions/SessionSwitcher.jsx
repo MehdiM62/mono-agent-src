@@ -1,0 +1,42 @@
+import { useTranslation } from 'react-i18next'
+import StateChip from './StateChip.jsx'
+import { progress, spendParts } from '../../lib/taskSessionModel.js'
+
+// Personal (today's board) and each session as a tab: state chip, progress,
+// spend against the budget. Left and Right move between tabs (roving focus).
+export default function SessionSwitcher({ sessions, selectedId, onSelect }) {
+  const { t } = useTranslation()
+  if (!sessions.length) return null
+  const ids = [null, ...sessions.map(s => s.id)]
+  const onKey = (e, id) => {
+    const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0
+    if (!step) return
+    e.preventDefault()
+    const next = ids[(ids.indexOf(id) + step + ids.length) % ids.length]
+    onSelect(next)
+    requestAnimationFrame(() => document.querySelector('[data-ts-tab][aria-selected="true"]')?.focus())
+  }
+  const tab = (id, label, extra) => (
+    <button
+      key={id ?? 'personal'} type="button" role="tab" data-ts-tab
+      aria-selected={selectedId === id} tabIndex={selectedId === id ? 0 : -1}
+      className={`ts-tab${selectedId === id ? ' is-selected' : ''}`}
+      onClick={() => onSelect(id)} onKeyDown={e => onKey(e, id)}
+    >{label}{extra}</button>
+  )
+  return (
+    <div role="tablist" aria-label={t('tasks.session.switcher')} className="ts-tabs">
+      {tab(null, <span className="ts-tab-title">{t('tasks.session.personal')}</span>, null)}
+      {sessions.map(s => {
+        const { spent, budget } = spendParts(s)
+        return tab(s.id, <span className="ts-tab-title" title={s.title}>{s.title}</span>, (
+          <span className="ts-tab-meta">
+            <StateChip session={s} />
+            <span data-testid="ts-progress">{progress(s)}</span>
+            <span data-testid="ts-spend">{budget ? t('tasks.session.spendOf', { spent, budget }) : spent}</span>
+          </span>
+        ))
+      })}
+    </div>
+  )
+}
