@@ -171,6 +171,8 @@ func mustJSON(v any) json.RawMessage { b, _ := json.Marshal(v); return b }
 // runToVerdict runs one scheduler step and the worker's hand-back, then verifies it.
 func (e *e2eRig) runToVerdict(c *Conductor, id int64) {
 	e.t.Helper()
+	// a verifier's run ends a moment after its verdict: mission_next skips a task with a worker
+	eventually(e.t, "no worker on the task", func() bool { return c.taskWorker(id) == nil })
 	res := e.next(c)
 	if got := e.startedIDs(res); len(got) != 1 || got[0] != id {
 		e.t.Fatalf("mission_next started %v, want only #%d: %+v", got, id, res)

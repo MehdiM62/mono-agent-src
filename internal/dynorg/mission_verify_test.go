@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/monoes/mono-agent/internal/monomind"
@@ -42,6 +43,12 @@ func (r *missionRig) verdicts(pass func(task int64) (bool, string)) {
 // reviewed runs the rig's task a to Review through a worker.
 func (r *missionRig) toReview(ids ...int64) {
 	r.t.Helper()
+	// mission_next skips a task that still has a worker, and a verifier's run ends a moment
+	// after its verdict sent the task back to Ready: wait for it, or the step may start nothing
+	for _, id := range ids {
+		id := id
+		eventually(r.t, "no worker on the task", func() bool { return r.c.taskWorker(id) == nil })
+	}
 	r.next(r.c)
 	r.ex.release(ids...)
 	for _, id := range ids {
@@ -144,6 +151,7 @@ func TestMissionVerifierBindingCannotTouchOtherTasks(t *testing.T) {
 	a := r.add(spec{title: "a", files: "a.go"})
 	other := r.add(spec{title: "other", files: "o.go", exec: ExecLead})
 	r.approve()
+	var errsMu sync.Mutex
 	var errs []error
 	r.ex.verify = func(ctx context.Context, id int64, o monomind.ExecOptions) (*monomind.TurnResult, error) {
 		act := verifierActorOf(t, o.Env)
@@ -151,7 +159,9 @@ func TestMissionVerifierBindingCannotTouchOtherTasks(t *testing.T) {
 		_, e2 := r.store.SessionFinish(tbg, "default", act.Session, id, tasks.Outcome{Result: "x"}, act)
 		_, e3 := r.store.VerifySessionTask(tbg, "default", act.Session, other.ID, true, "", act)
 		_, e4 := r.store.SessionClaim(tbg, "default", act.Session, id, act, 0)
+		errsMu.Lock()
 		errs = []error{e1, e2, e3, e4}
+		errsMu.Unlock()
 		return &monomind.TurnResult{SawDone: true, ResultText: "tried", StopReason: monomind.StopEndTurn}, nil
 	}
 	r.next(r.c)
@@ -161,8 +171,11 @@ func TestMissionVerifierBindingCannotTouchOtherTasks(t *testing.T) {
 	if _, err := r.verify(a.ID); err != nil {
 		t.Fatal(err)
 	}
-	eventually(t, "the verifier", func() bool { return len(errs) == 4 })
-	for i, e := range errs {
+	eventually(t, "the verifier", func() bool { errsMu.Lock(); defer errsMu.Unlock(); return len(errs) == 4 })
+	errsMu.Lock()
+	got := errs
+	errsMu.Unlock()
+	for i, e := range got {
 		if e == nil {
 			t.Errorf("verifier action %d was allowed", i)
 		}

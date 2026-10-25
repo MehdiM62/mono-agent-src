@@ -311,7 +311,25 @@ func eventually(t *testing.T, what string, cond func() bool) {
 
 func (r *missionRig) waitStatus(id int64, st tasks.Status) {
 	r.t.Helper()
-	eventually(r.t, fmt.Sprintf("task #%d to be %s", id, st), func() bool { return r.task(id).Status == st })
+	deadline := time.Now().Add(5 * time.Second)
+	for r.task(id).Status != st {
+		if time.Now().After(deadline) {
+			d, _ := r.store.SessionTask(tbg, "default", r.sid, id, operator)
+			var ev []string
+			for _, e := range d.Events {
+				ev = append(ev, e.Kind+" by "+e.Actor+": "+e.Note)
+			}
+			r.c.mu.Lock()
+			var ws []string
+			for _, wid := range r.c.order {
+				w := r.c.workers[wid]
+				ws = append(ws, fmt.Sprintf("%s=%s err=%q", wid, w.status, w.errText))
+			}
+			r.c.mu.Unlock()
+			r.t.Fatalf("timed out waiting for task #%d to be %s: task %+v\nevents:\n%s\nworkers: %v", id, st, d.Task, strings.Join(ev, "\n"), ws)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
 }
 
 // done is what the operator (or a verifier with auto-close) does to a reviewed task.

@@ -165,6 +165,8 @@ func TestMissionFinishDoesNotCloseOverABlockedTask(t *testing.T) {
 		}
 		if i < 2 {
 			r.waitStatus(a.ID, tasks.StatusReady)
+			// the verifier's run ends a moment after its verdict: the next one may not start before
+			eventually(t, "the verifier to end", func() bool { return !r.c.verifierLive(a.ID) })
 			r.toReview(a.ID)
 		}
 	}

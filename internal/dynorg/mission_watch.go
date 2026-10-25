@@ -194,7 +194,20 @@ func (c *Conductor) missionReconcile(ctx context.Context, sid int64) {
 		case ours:
 			c.releaseClaim(sid, t.ID, t.Claim.By, "no worker holds this task any more: given back to the scheduler")
 		case t.Claim.Stale:
-			c.releaseClaim(sid, t.ID, t.Claim.By, "the claim's lease ended and nobody renewed it: given back to the scheduler")
+			// The list above may be older than a release and a new claim by the same name
+			// (a restarted turn's worker): read the claim again, and look at the workers
+			// again, so a fresh claim is not given back on the strength of a stale one.
+			cur, _, err := mc.Store.Get(ctx, mc.ProfileID, t.ID)
+			if err != nil || cur.Status != tasks.StatusInProgress || cur.Claim == nil || !cur.Claim.Stale || c.taskWorker(t.ID) != nil {
+				continue
+			}
+			c.msched.mu.Lock()
+			pending = c.msched.pending[t.ID]
+			c.msched.mu.Unlock()
+			if pending {
+				continue
+			}
+			c.releaseClaim(sid, t.ID, cur.Claim.By, "the claim's lease ended and nobody renewed it: given back to the scheduler")
 		}
 	}
 }
