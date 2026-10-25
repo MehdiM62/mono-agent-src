@@ -1303,6 +1303,8 @@
       "estimate": "about ${{usd}}",
       "round": "review round {{round}}",
       "sessionGone": "This mission is no longer in Tasks.",
+      "planUnavailable": "Plan not available.",
+      "planUnavailableLabel": "Mission plan",
       "report": "Mission report",
       "openReport": "Open in Tasks",
       "templates": "Mission templates",

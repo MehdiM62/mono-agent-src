@@ -1261,6 +1261,8 @@
       "estimate": "unos ${{usd}}",
       "round": "ronda de revisión {{round}}",
       "sessionGone": "Esta misión ya no está en Tareas.",
+      "planUnavailable": "Plan no disponible.",
+      "planUnavailableLabel": "Plan de la misión",
       "report": "Informe de misión",
       "openReport": "Abrir en Tareas",
       "templates": "Plantillas de misión",

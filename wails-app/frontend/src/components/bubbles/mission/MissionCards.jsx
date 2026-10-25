@@ -42,40 +42,52 @@ export function ProposalCard({ item, conversationId, busy, started, onConfirm })
   )
 }
 
-export function PlanCard({ item, onNavigate }) {
+// PlanCard treats the mission.plan payload only as a pointer to a session:
+// everything shown (title, goal, task count, budget) and every action comes
+// from the live session the CLI stored, and only when that session belongs to
+// this conversation (an agent could point the event at someone else's).
+export function PlanCard({ item, conversationId, onNavigate }) {
   const { t } = useTranslation()
   const p = item.payload
   const { session, missing, reload } = useSessionLive(p.sessionId)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const foreign = !!session && session.conversation_id !== conversationId
+  if (foreign || missing) {
+    return (
+      <section className="ms-card" data-testid="mission-plan" aria-label={t('bubbles.mission.planUnavailableLabel')}>
+        <p className="ms-muted" data-testid="mission-plan-unavailable" role="alert">{t('bubbles.mission.planUnavailable')}</p>
+      </section>
+    )
+  }
+  if (!session) return null
   const act = async (verb) => {
     if (verb === 'stop' && !(await confirm(t('tasks.session.confirmStop')))) return
     setBusy(true)
     try {
-      const res = await sessionsApi[verb](p.sessionId)
+      const res = await sessionsApi[verb](session.id)
       setError(res?.error || '')
       await reload()
     } finally { setBusy(false) }
   }
-  const state = session?.state
+  const state = session.state
   const draft = state === 'draft'
-  const budget = Number(p.estimatedBudgetUsd) || 0
+  const budget = Number(session.budget_usd) || 0
   return (
-    <section className="ms-card" data-testid="mission-plan" aria-label={t('bubbles.mission.planLabel', { title: p.title })}>
-      <div className="ms-card-head"><ListChecks size={12} aria-hidden="true" /> <strong>{p.title}</strong>
+    <section className="ms-card" data-testid="mission-plan" aria-label={t('bubbles.mission.planLabel', { title: session.title })}>
+      <div className="ms-card-head"><ListChecks size={12} aria-hidden="true" /> <strong>{session.title}</strong>
         {state && <span className={`ts-chip ts-chip--${state}`} data-testid="mission-plan-state">{t(`tasks.session.state.${state}`, { defaultValue: state })}</span>}
       </div>
-      {p.goal && <p className="ms-text">{p.goal}</p>}
+      {session.goal && <p className="ms-text">{session.goal}</p>}
       <p className="ms-muted" data-testid="mission-plan-facts">
-        {t('bubbles.mission.tasks', { count: p.taskCount || 0 })} · {t('bubbles.mission.estimate', { usd: budget.toFixed(2) })} · {t('bubbles.mission.round', { round: p.round || 0 })}
+        {t('bubbles.mission.tasks', { count: session.counts?.total || 0 })} · {t('bubbles.mission.estimate', { usd: budget.toFixed(2) })} · {t('bubbles.mission.round', { round: p.round || 0 })}
       </p>
-      {missing && <p className="ms-muted" role="alert">{t('bubbles.mission.sessionGone')}</p>}
       {error && <p className="ms-error" role="alert">{error}</p>}
       <div className="ms-actions">
         {draft && <button type="button" className="btn btn-primary btn-sm" data-testid="mission-approve" disabled={busy} onClick={() => act('approve')}><Check size={12} aria-hidden="true" /> {t('bubbles.mission.approve')}</button>}
-        {!missing && <button type="button" className="btn btn-secondary btn-sm" data-testid="mission-edit" onClick={() => onNavigate?.('tasks', { sessionId: p.sessionId })}><ExternalLink size={12} aria-hidden="true" /> {t('bubbles.mission.edit')}</button>}
+        <button type="button" className="btn btn-secondary btn-sm" data-testid="mission-edit" onClick={() => onNavigate?.('tasks', { sessionId: session.id })}><ExternalLink size={12} aria-hidden="true" /> {t('bubbles.mission.edit')}</button>
         {draft && <button type="button" className="btn btn-ghost btn-sm" data-testid="mission-reject" disabled={busy} onClick={() => act('stop')}><Square size={12} aria-hidden="true" /> {t('bubbles.mission.reject')}</button>}
-        {session && isTerminal(session) && <span className="ms-muted">{t(`tasks.session.state.${state}`, { defaultValue: state })}</span>}
+        {isTerminal(session) && <span className="ms-muted">{t(`tasks.session.state.${state}`, { defaultValue: state })}</span>}
       </div>
     </section>
   )
@@ -103,7 +115,7 @@ export default function MissionCards({ items, conversationId, busy, started, onC
   return (
     <div className="ms-cards" data-testid="mission-cards">
       {items.map(it => it.type === 'propose' ? <ProposalCard key={it.id} item={it} conversationId={conversationId} busy={busy} started={started} onConfirm={(p) => onConfirm(it.id, p)} />
-        : it.type === 'plan' ? <PlanCard key={it.id} item={it} onNavigate={onNavigate} />
+        : it.type === 'plan' ? <PlanCard key={it.id} item={it} conversationId={conversationId} onNavigate={onNavigate} />
           : <ReportCard key={it.id} item={it} onNavigate={onNavigate} />)}
     </div>
   )
