@@ -16,7 +16,7 @@ func (s *Store) ApproveSession(ctx context.Context, profileID string, id int64, 
 	}
 	return s.sessionWrite(ctx, profileID, id, func(x dbx, se Session) error {
 		if se.State != SessionDraft || se.Archived {
-			return notReady("session #%d is %s: only a draft is approved", id, se.State)
+			return sessionNotReady("session #%d is %s: only a draft is approved", id, se.State)
 		}
 		ids, _, err := s.sessionColumn(ctx, x, id, StatusInbox)
 		if err != nil {
@@ -75,10 +75,15 @@ func (s *Store) transition(ctx context.Context, profileID string, id int64, acto
 		if actor.Session != 0 && actor.Session != id {
 			return Session{}, sessionNotFound(id)
 		}
+		if actor.Task != 0 || actor.Verifier {
+			// A worker or a verifier does its one task; stopping or pausing the whole session is
+			// for the operator and for the agent that runs the session (the lead, bound to none).
+			return Session{}, bindingRefused("this agent is bound to task #%d: it cannot %s the session", actor.Task, kind)
+		}
 	}
 	return s.sessionWrite(ctx, profileID, id, func(x dbx, se Session) error {
 		if !slices.Contains(from, se.State) || se.Archived {
-			return notReady("session #%d is %s: it cannot %s now", id, se.State, kind)
+			return sessionNotReady("session #%d is %s: it cannot %s now", id, se.State, kind)
 		}
 		if to == SessionStopped {
 			if err := s.releaseClaims(ctx, x, profileID, id, actor); err != nil {
@@ -166,7 +171,7 @@ func (s *Store) ArchiveSession(ctx context.Context, profileID string, id int64, 
 			return invalid("session #%d is already archived", id)
 		}
 		if se.State == SessionRunning || se.State == SessionPaused {
-			return notReady("session #%d is %s: stop it before archiving", id, se.State)
+			return sessionNotReady("session #%d is %s: stop it before archiving", id, se.State)
 		}
 		if _, err := x.ExecContext(ctx, `UPDATE task_sessions SET archived_at = ? WHERE id = ?`, s.stamp(), id); err != nil {
 			return fmt.Errorf("tasks: archiving session #%d: %w", id, err)

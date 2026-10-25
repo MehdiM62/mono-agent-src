@@ -75,14 +75,20 @@ type Session struct {
 }
 
 // SessionCounts are a session's tasks per column, without the archived ones.
-// Blocked and Verified are flags of tasks that sit in Review; Total is what
-// the session's max_tasks counts.
+// Blocked and Verified are flags of tasks that sit in Review. Epics only group their
+// children and never reach Done, so the columns, Done and Total leave them out (progress is
+// done/total of real work); Epics counts them, and Stored (Total plus Epics) is what the
+// session's max_tasks counts.
 type SessionCounts struct {
 	Counts
 	Blocked  int `json:"blocked"`
 	Verified int `json:"verified"`
 	Total    int `json:"total"`
+	Epics    int `json:"epics"`
 }
+
+// Stored is every live task of the session, epics included: what max_tasks bounds.
+func (c SessionCounts) Stored() int { return c.Total + c.Epics }
 
 // SessionInput is a new session. Only the operator may set AccessLevel,
 // BudgetUSD, MaxTasks and MaxDepth: an agent that plans gets the defaults and

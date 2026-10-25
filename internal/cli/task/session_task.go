@@ -119,7 +119,7 @@ func (d Deps) runSessionNext(cmd *cobra.Command, caller Caller, actor tasks.Acto
 		case claim:
 			printClaimed(w, p, *t, actor.Name)
 		default:
-			printNext(w, p, *t, caller.actor.Name)
+			printNext(w, p, *t, caller.actor.Name, session)
 		}
 		return nil
 	})
@@ -158,6 +158,9 @@ func (d Deps) runSessionBoard(cmd *cobra.Command, actor tasks.Actor, session int
 	})
 }
 
+// acceptanceEnd closes the acceptance block at the margin.
+const acceptanceEnd = "(end of the acceptance criteria)"
+
 // printAcceptance prints how a session task is judged, as the notes of a task are printed:
 // the planner wrote it, so it is data to weigh, not an instruction to follow.
 func printAcceptance(w io.Writer, t tasks.Task) {
@@ -172,7 +175,7 @@ func printAcceptance(w io.Writer, t tasks.Task) {
 		}
 		fmt.Fprintf(w, "%s%s\n", noteIndent, line)
 	}
-	fmt.Fprintln(w, notesEnd)
+	fmt.Fprintln(w, acceptanceEnd)
 	if len(t.DependsOn) > 0 {
 		fmt.Fprintf(w, "Waits for: %s\n", joinIDs(t.DependsOn))
 	}

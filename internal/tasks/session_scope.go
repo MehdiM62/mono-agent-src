@@ -18,18 +18,18 @@ func bound(actor Actor, session int64) error {
 	if session != 0 {
 		where = fmt.Sprintf("session #%d", session)
 	}
-	return operatorOnly(fmt.Sprintf("act on %s: this agent is bound to session #%d", where, actor.Session))
+	return bindingRefused("this agent is bound to session #%d: it cannot act on %s", actor.Session, where)
 }
 
 // boundTask refuses an actor that is bound to one task when it acts on another.
 func boundTask(actor Actor, id int64) error {
 	if actor.Verifier && actor.Task == 0 {
-		return operatorOnly("act as a verifier: it is bound to no task")
+		return bindingRefused("this agent is a verifier bound to no task: it acts on none")
 	}
 	if actor.Task == 0 || actor.Task == id {
 		return nil
 	}
-	return operatorOnly(fmt.Sprintf("act on task #%d: this agent is bound to task #%d", id, actor.Task))
+	return bindingRefused("this agent is bound to task #%d: it cannot act on task #%d", actor.Task, id)
 }
 
 // noPicking refuses an actor bound to one task what has no task id: taking whatever is next,
@@ -38,7 +38,7 @@ func noPicking(actor Actor, what string) error {
 	if actor.Task == 0 {
 		return nil
 	}
-	return operatorOnly(fmt.Sprintf("%s: this agent is bound to task #%d", what, actor.Task))
+	return bindingRefused("this agent is bound to task #%d: it cannot %s", actor.Task, what)
 }
 
 // noVerifier refuses a verifier's binding what only the executor of a task does: taking it,
@@ -47,7 +47,7 @@ func noVerifier(actor Actor, what string) error {
 	if !actor.Verifier {
 		return nil
 	}
-	return operatorOnly(fmt.Sprintf("%s: this agent is bound to verify task #%d", what, actor.Task))
+	return bindingRefused("this agent is bound to verify task #%d: it cannot %s", actor.Task, what)
 }
 
 // sessionIDOf is the session a task belongs to (0 for a task of the personal

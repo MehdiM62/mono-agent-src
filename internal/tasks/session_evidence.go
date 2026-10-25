@@ -59,22 +59,35 @@ func (s *Store) needsEvidence(ctx context.Context, x dbx, profileID string, id i
 	if (t.Kind != "" && t.Kind != KindTask) || !declaresFiles(t.Notes) {
 		return nil
 	}
-	rows, err := x.QueryContext(ctx, `SELECT kind FROM task_artifacts WHERE task_id = ?`, id)
+	// After a failed verification only evidence attached since counts: the commit that failed
+	// the check must not carry the retry through. An artifact is told by its event (the ids of
+	// one table are ordered, and the clock may not tick between two writes).
+	var lastFail int64
+	if err := x.QueryRowContext(ctx, `SELECT COALESCE(MAX(id), 0) FROM task_events WHERE task_id = ? AND kind = 'verify_failed'`, id).Scan(&lastFail); err != nil {
+		return fmt.Errorf("tasks: reading the verifications of #%d: %w", id, err)
+	}
+	rows, err := x.QueryContext(ctx, `SELECT note FROM task_events WHERE task_id = ? AND kind = 'artifact' AND id > ?`, id, lastFail)
 	if err != nil {
 		return fmt.Errorf("tasks: reading the evidence of #%d: %w", id, err)
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var k string
-		if err := rows.Scan(&k); err != nil {
+		var note string
+		if err := rows.Scan(&note); err != nil {
 			return fmt.Errorf("tasks: reading the evidence of #%d: %w", id, err)
 		}
-		if evidenceKinds[k] {
+		kind, _, _ := strings.Cut(note, " ")
+		if evidenceKinds[kind] {
 			return nil
 		}
 	}
 	if err := rows.Err(); err != nil {
 		return err
+	}
+	if lastFail != 0 {
+		return fmt.Errorf("%w: task #%d failed verification: the evidence from before is the work that failed, so finishing it again needs "+
+			"new evidence (commit, diff, test, file or log) attached after the failure: `task artifact %d --kind commit|diff|test --ref REF`, then finish again: %w",
+			ErrInvalid, id, id, ErrNoEvidence)
 	}
 	return fmt.Errorf("%w: task #%d declares files, so finishing it needs at least one artifact "+
 		"(commit, diff, test, file or log): attach it with `task artifact %d --kind commit|diff|test --ref REF`, then finish again: %w",

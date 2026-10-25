@@ -149,7 +149,7 @@ func (m *MissionConfig) writeTasks(ctx context.Context, se tasks.Session, batch 
 	for _, t := range plan.Tasks {
 		existing[t.ID] = true
 	}
-	if rej := ValidatePlan(batch, existing, se.Counts.Total, planLimit(se)); len(rej) > 0 {
+	if rej := ValidatePlan(batch, existing, se.Counts.Stored(), planLimit(se)); len(rej) > 0 {
 		return nil, &RejectedError{rej}
 	}
 	ids := map[string]int64{}

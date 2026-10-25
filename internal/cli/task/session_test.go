@@ -113,11 +113,13 @@ func TestSessionLifecycleEndToEnd(t *testing.T) {
 		if !got.Task.Verified || got.Task.Status != "review" {
 			t.Fatalf("a pass marks verified and leaves it in review: %+v", got.Task)
 		}
-		// nothing is offered until the operator closes it
-		var none sessionTaskDoc
-		mustTaskJSON(t, db, "default", &none, "", "next", "--session", id(s))
-		if none.Task != nil && want != c {
-			t.Fatalf("a verified task is not done: next offered %+v", none.Task)
+		// a verified task in Review settles its dependents: the next one is offered before the
+		// operator closes it (auto-close is off), and nothing after the last
+		var nextDoc sessionTaskDoc
+		mustTaskJSON(t, db, "default", &nextDoc, "", "next", "--session", id(s))
+		wantNext := map[int64]int64{a: b, b: c, c: 0}[want]
+		if (nextDoc.Task == nil) != (wantNext == 0) || (nextDoc.Task != nil && nextDoc.Task.ID != wantNext) {
+			t.Fatalf("after #%d is verified next offered %+v, want #%d", want, nextDoc.Task, wantNext)
 		}
 		mustTaskJSON(t, db, "default", &got, "", "move", id(want), "done")
 	}

@@ -3,6 +3,7 @@ package tasks
 import (
 	"errors"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 )
@@ -356,24 +357,36 @@ func TestSessionStopReleasesAllClaims(t *testing.T) {
 	if tk, _ := s.SessionNext(bg, "default", se.ID, bot("w1"), true, 0); tk != nil {
 		t.Fatal("a stopped session hands out tasks")
 	}
-	// the released holder can no longer finish
-	if _, err := s.SessionFinish(bg, "default", se.ID, ts[0].ID, Outcome{Result: "x"}, bot("w1")); !errors.Is(err, ErrNotClaimant) {
+	// the released holder can no longer finish: the session is stopped
+	if _, err := s.SessionFinish(bg, "default", se.ID, ts[0].ID, Outcome{Result: "x"}, bot("w1")); !errors.Is(err, ErrNotReady) {
 		t.Fatalf("finish after stop: %v", err)
 	}
 }
 
-func TestSessionPausedKeepsClaimsAndLetsHoldersFinish(t *testing.T) {
+func TestSessionPausedKeepsClaimsAndHoldersCommentButDoNotFinish(t *testing.T) {
 	s, _, _ := newTestStore(t)
 	se, ts := runningWith(t, s, "a")
 	claimNext(t, s, se.ID, "w")
 	if _, err := s.PauseSession(bg, "default", se.ID, human); err != nil {
 		t.Fatal(err)
 	}
-	if tk, err := s.SessionFinish(bg, "default", se.ID, ts[0].ID, Outcome{Result: "done"}, bot("w")); err != nil || tk.Status != StatusReview {
-		t.Fatalf("the holder finishes in a paused session: %+v %v", tk, err)
+	if _, err := s.SessionFinish(bg, "default", se.ID, ts[0].ID, Outcome{Result: "done"}, bot("w")); !errors.Is(err, ErrNotReady) || !strings.Contains(err.Error(), "paused") {
+		t.Fatalf("the holder finishes in a paused session: %v", err)
+	}
+	if tk, _, _ := s.Get(bg, "default", ts[0].ID); tk.Status != StatusInProgress || tk.Claim == nil {
+		t.Fatalf("the refused finish changed the task: %+v", tk)
+	}
+	if _, err := s.SessionComment(bg, "default", se.ID, ts[0].ID, "still on it", bot("w")); err != nil {
+		t.Fatalf("a comment stays allowed: %v", err)
 	}
 	if _, err := s.SessionClaim(bg, "default", se.ID, ts[0].ID, bot("w2"), 0); !errors.Is(err, ErrNotReady) {
 		t.Fatalf("claim in a paused session: %v", err)
+	}
+	if _, err := s.ResumeSession(bg, "default", se.ID, human); err != nil {
+		t.Fatal(err)
+	}
+	if tk, err := s.SessionFinish(bg, "default", se.ID, ts[0].ID, Outcome{Result: "done"}, bot("w")); err != nil || tk.Status != StatusReview {
+		t.Fatalf("after the resume: %+v %v", tk, err)
 	}
 }
 

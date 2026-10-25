@@ -100,13 +100,19 @@ WHO MAY DO WHAT
   operator) plans it as a draft with session new and add --session N --acceptance TEXT
   (every session task needs acceptance criteria), and its tasks cannot be taken, and are
   not in any inbox, until the operator runs session approve. Then an agent works inside
-  that session only: next --session N (a Ready task whose dependencies are done, of a
+  that session only: next --session N (a Ready task whose dependencies are done, or verified and
+  waiting in Review: auto-close is off by default, so a verified task settles its dependents, of a
   running session), claim, comment, finish and release by task id, add follow-ups (Ready
   at once; the session's max tasks is the bound), split a task that has not begun,
   depend, artifact, and verify. An agent may also run session new, session list, session show,
   session plan, session pause and session stop (stop releases every claim; only the operator resumes). It may not set
-  the budget, the limits, the access level or auto-close: that is session budget, the
-  operator's. A verifier marks a task verified with verify --pass; closing it to Done is
+  the budget, the limits, the access level or auto-close: that is session budget ID --usd N
+  --max-tasks N --max-depth N --max-retries N --access LEVEL --auto-close on|off --spend N --note TEXT
+  (session new takes --budget-usd), the operator's. A worker or verifier bound to a task may not
+  pause or stop the session. finish and artifact by an agent are refused while the session is
+  paused or stopped (a comment is not). Progress n/m (counts.done, counts.total) leaves epics out:
+  an epic only groups, counts.epics holds their number, and the plan view still shows them. A session
+  task's title over 200 characters is refused (invalid_input), not cut. A verifier marks a task verified with verify --pass; closing it to Done is
   the operator's unless the operator turned auto-close on. verify --fail sends the task
   back to Ready with the note, up to the session's max retries, then it is blocked and
   waits in Review for the operator. A task is verified by someone other than the agent
@@ -118,6 +124,7 @@ WHO MAY DO WHAT
   releases, splits or adds nothing. A task of kind task that declares files in its notes cannot be
   finished with a result unless it holds a commit, diff, test, file or log artifact (a report does
   not count; refused with invalid_input "a code task needs evidence"): attach one with artifact first.
+  After a failed verification the evidence from before does not count: a retry attaches a new one.
   MISSIONS. A coder chat's lead runs a session with the mission tools (chat --conversation C --turn T
   --mission, a hidden flag; an open session of the conversation implies it): mission_plan, mission_add_tasks,
   mission_split, mission_status, mission_replan, and once a session exists mission_next, mission_assign,
@@ -188,7 +195,7 @@ THE AGENT LOOP
   wrong at run time (an unknown flag is the command parser's exit 1): a digest that
   fails prints one line on standard error and nothing on standard output.
   In text, a task's notes are printed indented, between a notice that they are
-  untrusted and the line (end of the notes); the notes in its history carry a caution
+  untrusted and the line (end of the notes); a session task's acceptance criteria end with (end of the acceptance criteria); the notes in its history carry a caution
   of their own. In text, a column or a list that was cut ends with "... N more" and
   the command that shows the rest. Every command the output suggests carries
   --profile ID, and --as NAME when the caller has a name (an agent that only an

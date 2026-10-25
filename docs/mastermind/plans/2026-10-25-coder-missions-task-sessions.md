@@ -70,7 +70,8 @@ Rules: `session_id NULL` is today's personal board and behaves exactly as now. T
 
 ```
 monoagentcli task session new --title --goal [--budget-usd --max-tasks --access]
-task session list|show|plan|approve|pause|resume|stop|archive|budget
+task session list|show|plan|approve|pause|resume|stop|archive
+task session budget ID [--usd N --max-tasks N --max-depth N --max-retries N --access LEVEL --auto-close on|off --spend N --note TEXT]   # operator; session new takes --budget-usd, budget takes --usd
 task add --session N --title --acceptance --depends-on 3,4 --parent 2 [--kind epic|task|check]
 task next --session N [--claim --as NAME]      # respects dependencies
 task split ID --into "title|acceptance" ...

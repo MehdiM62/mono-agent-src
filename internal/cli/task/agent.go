@@ -79,15 +79,19 @@ func printClaimed(w io.Writer, p tasks.Profile, t tasks.Task, name string) {
 }
 
 // printNext prints the task an agent would take, and how to take it. as is the name of the agent that
-// looks, "" for a caller that has none (see takeCommand).
-func printNext(w io.Writer, p tasks.Profile, t tasks.Task, as string) {
+// looks, "" for a caller that has none (see takeCommand); session is the session it is asked of (0: the personal board).
+func printNext(w io.Writer, p tasks.Profile, t tasks.Task, as string, session int64) {
 	fmt.Fprintf(w, "Next task: #%d %s   [%s, from %s]\n", t.ID, t.Title, t.Status, t.Source.Kind)
 	if t.Source.URL != "" {
 		fmt.Fprintf(w, "Link: %s\n", t.Source.URL)
 	}
 	printNotes(w, t.Notes) // Task 9's helper: the notice, the notes indented, an end line
 	printAcceptance(w, t)
-	fmt.Fprintf(w, "\nTake it:\n  %s\n  %s\n", takeCommand(p, as, "next --claim"), takeCommand(p, as, fmt.Sprintf("claim %d", t.ID)))
+	next := "next --claim"
+	if session != 0 { // a session's next is asked of that session
+		next = fmt.Sprintf("next --session %d --claim", session)
+	}
+	fmt.Fprintf(w, "\nTake it:\n  %s\n  %s\n", takeCommand(p, as, next), takeCommand(p, as, fmt.Sprintf("claim %d", t.ID)))
 }
 
 // checkLease refuses a --lease that was given and is not a positive time. The store reads zero and
@@ -153,7 +157,7 @@ a null task.`,
 				case claim:
 					printClaimed(w, p, *t, actor.Name)
 				default:
-					printNext(w, p, *t, caller.actor.Name)
+					printNext(w, p, *t, caller.actor.Name, 0)
 				}
 				return nil
 			})

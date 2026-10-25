@@ -72,20 +72,25 @@ func (s *Store) fillSession(ctx context.Context, x dbx, se Session) (Session, er
 	return se, nil
 }
 
-// sessionCounts counts a session's tasks per column; archived ones are not counted.
+// sessionCounts counts a session's tasks per column; archived ones and epics are not counted
+// (epics are counted apart in Epics).
 func (s *Store) sessionCounts(ctx context.Context, x dbx, id int64) (SessionCounts, error) {
 	var c SessionCounts
 	rows, err := x.QueryContext(ctx,
-		`SELECT status, blocked, verified, COUNT(*) FROM tasks WHERE session_id = ? AND status <> 'archived' GROUP BY status, blocked, verified`, id)
+		`SELECT status, blocked, verified, kind = 'epic', COUNT(*) FROM tasks WHERE session_id = ? AND status <> 'archived' GROUP BY status, blocked, verified, kind = 'epic'`, id)
 	if err != nil {
 		return c, fmt.Errorf("tasks: counting a session: %w", err)
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var st string
-		var blocked, verified, n int
-		if err := rows.Scan(&st, &blocked, &verified, &n); err != nil {
+		var blocked, verified, epic, n int
+		if err := rows.Scan(&st, &blocked, &verified, &epic, &n); err != nil {
 			return c, fmt.Errorf("tasks: counting a session: %w", err)
+		}
+		if epic == 1 { // an epic only groups: it is never done, so it is not progress
+			c.Epics += n
+			continue
 		}
 		switch Status(st) {
 		case StatusInbox:

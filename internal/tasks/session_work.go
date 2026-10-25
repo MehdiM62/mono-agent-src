@@ -55,7 +55,7 @@ func (s *Store) pickSessionNext(ctx context.Context, x dbx, session int64, now t
 // runnable refuses work on a session that does not run, or has spent its budget.
 func runnable(se Session) error {
 	if se.State != SessionRunning || se.Archived {
-		return notReady("session #%d is %s: only a running session hands out tasks", se.ID, closedWord(se))
+		return sessionNotReady("session #%d is %s: only a running session hands out tasks", se.ID, closedWord(se))
 	}
 	return overBudget(se)
 }
@@ -146,7 +146,7 @@ func (s *Store) SessionClaim(ctx context.Context, profileID string, sessionID, i
 			return fmt.Errorf("tasks: reading #%d: %w", id, err)
 		}
 		if n > 0 {
-			return notReady("task #%d is an epic or is blocked: it is not taken", id)
+			return sessionNotReady("task #%d is an epic or is blocked: it is not taken", id)
 		}
 		var waiting int
 		err = x.QueryRowContext(ctx,
@@ -156,7 +156,7 @@ func (s *Store) SessionClaim(ctx context.Context, profileID string, sessionID, i
 			return fmt.Errorf("tasks: reading the dependencies of #%d: %w", id, err)
 		}
 		if waiting > 0 {
-			return notReady("task #%d waits for %d tasks that are neither done nor verified", id, waiting)
+			return sessionNotReady("task #%d waits for %d tasks that are neither done nor verified", id, waiting)
 		}
 		return nil
 	})
@@ -182,6 +182,9 @@ func (s *Store) SessionComment(ctx context.Context, profileID string, sessionID,
 // only when it holds evidence: a commit, diff, test, file or log artifact (ErrNoEvidence).
 // A report does not count, and a question needs none.
 func (s *Store) SessionFinish(ctx context.Context, profileID string, sessionID, id int64, o Outcome, actor Actor) (Task, error) {
+	if err := s.agentWritable(ctx, profileID, sessionID, actor, "finish a task"); err != nil {
+		return Task{}, err
+	}
 	return s.finishIn(ctx, profileID, sessionID, id, o, actor)
 }
 
@@ -225,7 +228,7 @@ func (s *Store) VerifySessionTask(ctx context.Context, profileID string, session
 			return err
 		}
 		if (se.State != SessionRunning && se.State != SessionPaused) || se.Archived {
-			return notReady("session #%d is %s: tasks are verified in a session that runs", sessionID, closedWord(se))
+			return sessionNotReady("session #%d is %s: tasks are verified in a session that runs", sessionID, closedWord(se))
 		}
 		if err := s.checkScope(ctx, x, profileID, id, sessionID, actor); err != nil {
 			return err
@@ -349,7 +352,11 @@ func (s *Store) AddArtifact(ctx context.Context, profileID string, sessionID, id
 		if _, err := s.profileOf(ctx, x, profileID); err != nil {
 			return err
 		}
-		if _, err := s.sessionTx(ctx, x, profileID, sessionID); err != nil {
+		se, err := s.sessionTx(ctx, x, profileID, sessionID)
+		if err != nil {
+			return err
+		}
+		if err := writableBy(se, actor, "attach an artifact"); err != nil {
 			return err
 		}
 		if err := s.checkScope(ctx, x, profileID, id, sessionID, actor); err != nil {

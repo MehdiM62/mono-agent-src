@@ -67,7 +67,7 @@ func (s *Store) SplitTask(ctx context.Context, profileID string, sessionID, id i
 		if kids > 0 {
 			return invalid("task #%d has sub-tasks: add tasks under it instead of splitting it", id)
 		}
-		if se.Counts.Total-1+len(clean) > se.MaxTasks {
+		if se.Counts.Stored()-1+len(clean) > se.MaxTasks {
 			return limit("session #%d would pass its %d tasks: the operator raises its max tasks", sessionID, se.MaxTasks)
 		}
 		dependents, err := dependentsOf(ctx, x, id)

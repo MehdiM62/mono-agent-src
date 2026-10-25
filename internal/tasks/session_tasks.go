@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"slices"
+	"unicode/utf8"
 )
 
 // actorIn judges who writes to a session's plan: the operator, or a named agent that is
@@ -33,7 +34,7 @@ func (s *Store) openSession(ctx context.Context, x dbx, profileID string, id int
 		return Session{}, err
 	}
 	if se.Archived || se.State.closed() {
-		return Session{}, notReady("session #%d is %s: nothing more is added to it", id, closedWord(se))
+		return Session{}, sessionNotReady("session #%d is %s: nothing more is added to it", id, closedWord(se))
 	}
 	return se, nil
 }
@@ -209,6 +210,9 @@ func (s *Store) AddSessionTask(ctx context.Context, profileID string, sessionID 
 	if err := noPicking(actor, "add a task"); err != nil {
 		return Task{}, err
 	}
+	if n := utf8.RuneCountInString(oneLine(dropZeroWidthSpaces(in.Title))); n > MaxTitleRunes {
+		return Task{}, invalid("the title is %d characters: a title is at most %d (put the detail in notes or the acceptance criteria)", n, MaxTitleRunes)
+	}
 	title, notes, err := deriveTitleNotes(in.Title, in.Notes, "")
 	if err != nil {
 		return Task{}, err
@@ -241,7 +245,7 @@ func (s *Store) AddSessionTask(ctx context.Context, profileID string, sessionID 
 		if err != nil {
 			return err
 		}
-		if se.Counts.Total >= se.MaxTasks {
+		if se.Counts.Stored() >= se.MaxTasks {
 			return limit("session #%d already has %d tasks: the operator raises its max tasks", sessionID, se.MaxTasks)
 		}
 		if err := s.inSession(ctx, x, sessionID, in.DependsOn); err != nil {

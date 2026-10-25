@@ -36,6 +36,11 @@ func (r *missionRig) verdicts(pass func(task int64) (bool, string)) {
 		if _, err := r.store.VerifySessionTask(tbg, "default", actor.Session, id, ok, note, actor); err != nil {
 			return nil, err
 		}
+		if !ok {
+			// the retry's worker attaches its new commit: evidence from before the failure does not count
+			art := tasks.ArtifactInput{Kind: "commit", Ref: "retry-commit-of-" + strconv.FormatInt(id, 10)}
+			_, _ = r.store.AddArtifact(tbg, "default", actor.Session, id, art, operator)
+		}
 		return &monomind.TurnResult{SawDone: true, ResultText: "verdict recorded", StopReason: monomind.StopEndTurn, CostUSD: 0.01, HasCostUSD: true}, nil
 	}
 }
