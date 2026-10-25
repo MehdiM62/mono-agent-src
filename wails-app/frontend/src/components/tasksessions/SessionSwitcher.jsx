@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import StateChip from './StateChip.jsx'
 import { progress, spendParts } from '../../lib/taskSessionModel.js'
@@ -6,6 +7,10 @@ import { progress, spendParts } from '../../lib/taskSessionModel.js'
 // spend against the budget. Left and Right move between tabs (roving focus).
 export default function SessionSwitcher({ sessions, selectedId, onSelect }) {
   const { t } = useTranslation()
+  // A session chosen from elsewhere (a chat's plan card) may sit past the strip's edge: show it.
+  useEffect(() => {
+    document.querySelector('[data-ts-tab][aria-selected="true"]')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
+  }, [selectedId, sessions.length])
   if (!sessions.length) return null
   const ids = [null, ...sessions.map(s => s.id)]
   const onKey = (e, id) => {
