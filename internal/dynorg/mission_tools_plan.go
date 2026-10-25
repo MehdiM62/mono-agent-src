@@ -253,6 +253,7 @@ func (c *Conductor) missionResult(ctx context.Context, m *MissionConfig, id int6
 	extra["state"] = se.State
 	extra["task_count"] = card.TaskCount
 	extra["estimated_budget_usd"] = card.EstimatedBudgetUSD
+	c.addParallel(ctx, m, id, extra)
 	if se.State != tasks.SessionDraft {
 		return marshal(extra)
 	}
@@ -331,6 +332,11 @@ func (c *Conductor) missionStatus(ctx context.Context, m *MissionConfig) (string
 		}
 	}
 	out := map[string]any{"session": plan.Session, "tasks": views, "recent_events": events}
+	pv := c.parallelView(plan.Tasks)
+	out["parallelism"], out["writers"] = pv.Parallelism, pv.Writers
+	if pv.Hint != "" {
+		out["parallel_hint"] = pv.Hint
+	}
 	switch plan.Session.State {
 	case tasks.SessionDraft:
 		out["review_rounds_left"] = max(0, MaxReviewRounds-m.round(ctx, se.ID))
