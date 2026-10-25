@@ -4,6 +4,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
@@ -134,5 +135,35 @@ func TestSessionContinuationCannotStartAfterShutdown(t *testing.T) {
 	defer q.mu.Unlock()
 	if len(q.argvs) != 0 {
 		t.Fatal("an extracted continuation started after shutdown")
+	}
+}
+
+func TestQueuedContinuationFailureReachesTheConversation(t *testing.T) {
+	sup, emitter, q := newTestSupervisor(t)
+	t.Cleanup(sup.stopAll)
+	a := &App{chatSup: sup}
+	if _, _, err := sup.admit("stored-conversation", "planning"); err != nil {
+		t.Fatal(err)
+	}
+	proc := newFakeChatProcess("")
+	q.push(proc)
+	if raw := a.continueTaskSession(missionSessionDoc); !strings.Contains(raw, `"status":"queued"`) {
+		t.Fatalf("not queued: %s", raw)
+	}
+	go proc.endStream(errors.New("boom")) // the process dies before admitting the turn
+	sup.release("stored-conversation", "planning")
+	var got *chatevents.Event
+	for _, ev := range emitter.snapshot() {
+		if ev.Type == chatevents.EventNotice {
+			ev := ev
+			got = &ev
+		}
+	}
+	if got == nil || got.ConversationID != "stored-conversation" {
+		t.Fatalf("no notice for the conversation: %+v", emitter.snapshot())
+	}
+	var p chatevents.NoticePayload
+	if err := json.Unmarshal(got.Payload, &p); err != nil || p.Code != "mission.continue_failed" || p.Severity != chatevents.SeverityError || !strings.Contains(p.Message, "#7") {
+		t.Fatalf("notice payload: %+v %v", p, err)
 	}
 }

@@ -12,6 +12,8 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
+	"math"
 	"strconv"
 )
 
@@ -124,6 +126,9 @@ func (a *App) TaskSessionArchive(id int64) string {
 	return a.sessionVerb("archive", id)
 }
 
+// maxSessionBudgetUSD bounds a budget the page may set.
+const maxSessionBudgetUSD = 1e6
+
 // sessionBudgetSpec is TaskSessionBudget's argument: the dollar budget (0 for
 // none); a field left out stays as it is.
 type sessionBudgetSpec struct {
@@ -146,8 +151,8 @@ func (a *App) TaskSessionBudget(id int64, spec string) string {
 	if s.USD == nil {
 		return taskRefusal("nothing to change: give usd")
 	}
-	if *s.USD < 0 {
-		return taskRefusal("a budget is not negative (0 for none)")
+	if math.IsNaN(*s.USD) || math.IsInf(*s.USD, 0) || *s.USD < 0 || *s.USD > maxSessionBudgetUSD {
+		return taskRefusal(fmt.Sprintf("a budget is a number from 0 (none) to %d dollars", int(maxSessionBudgetUSD)))
 	}
 	return a.taskCLI("", "session", "budget", sid, "--usd="+strconv.FormatFloat(*s.USD, 'f', -1, 64))
 }

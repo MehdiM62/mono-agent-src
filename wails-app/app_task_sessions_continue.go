@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"time"
+
+	"github.com/monoes/mono-agent/internal/ai/chatevents"
 )
 
 // continueTaskSession runs only after the CLI accepted the operator's approve
@@ -50,6 +53,8 @@ func (a *App) continueTaskSession(raw string) string {
 		queued := sup.afterCurrent(se.ConversationID, func() {
 			if _, err := launch(); err != nil {
 				log.Printf("task session %d: continuing its lead failed: %v", se.ID, err)
+				// The UI was told "queued"; a failure now must reach the chat too.
+				sup.reportContinuationFailure(doc.Profile.ID, se.ConversationID, turnID, se.ID, err)
 			}
 		})
 		if queued {
@@ -65,4 +70,21 @@ func (a *App) continueTaskSession(raw string) string {
 	}
 	out, _ := json.Marshal(result)
 	return string(out)
+}
+
+// reportContinuationFailure tells the conversation that a queued lead start
+// did not happen: a live-only error notice on the chat event channel (not
+// journaled, seq MaxSafeSeq so the frontend never drops it as stale).
+func (sup *chatSupervisor) reportContinuationFailure(profileID, conversationID, turnID string, sessionID int64, cause error) {
+	if sup.emit == nil {
+		return
+	}
+	ev, err := chatevents.New(profileID, conversationID, turnID, chatevents.MaxSafeSeq, time.Now(), chatevents.EventNotice, chatevents.NoticePayload{
+		Code:     "mission.continue_failed",
+		Message:  fmt.Sprintf("Mission session #%d is approved, but its lead could not start: %v. Open this conversation and continue it.", sessionID, cause),
+		Severity: chatevents.SeverityError,
+	})
+	if err == nil {
+		sup.emit(ev)
+	}
 }

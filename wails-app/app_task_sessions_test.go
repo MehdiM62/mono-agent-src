@@ -67,6 +67,9 @@ func TestTaskSessionBindingsRefuseBadInput(t *testing.T) {
 		"budget no usd":   a.TaskSessionBudget(2, `{}`),
 		"budget negative": a.TaskSessionBudget(2, `{"usd":-1}`),
 		"budget not json": a.TaskSessionBudget(2, `nope`),
+		"budget absurd":   a.TaskSessionBudget(2, `{"usd":1000001}`),
+		"budget overflow": a.TaskSessionBudget(2, `{"usd":1e999}`),
+		"budget NaN":      a.TaskSessionBudget(2, `{"usd":NaN}`),
 	} {
 		var r struct{ Error, Code string }
 		if json.Unmarshal([]byte(got), &r) != nil || r.Error == "" || r.Code != "invalid_input" {
