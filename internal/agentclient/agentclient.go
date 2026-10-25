@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/monoes/mono-agent/internal/aitask"
+	"github.com/monoes/mono-agent/internal/credhttp"
 )
 
 // The environment pair that switches the CLI to client mode.
@@ -66,11 +67,12 @@ func New(base, token string) *Client {
 	return &Client{
 		base:  strings.TrimRight(base, "/"),
 		token: token,
-		http: &http.Client{
-			Timeout: 60 * time.Second,
-			// The token goes to the URL it was given for, never to wherever that points on.
+		// credhttp.Client adds the credential policy to ours, which runs first and follows no redirect
+		// at all: the token goes to the URL it was given for, never to wherever that points on.
+		http: credhttp.Client(&http.Client{
+			Timeout:       60 * time.Second,
 			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
-		},
+		}),
 	}
 }
 
