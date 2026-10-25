@@ -9,10 +9,22 @@ import (
 	"time"
 )
 
+// depSettledSQL is, for a dependency row aliased p, the one condition under which a session
+// task's dependency no longer holds its dependents back: done, or verified and waiting in
+// Review for the operator to close (not blocked). With auto_close_verified off (the
+// default) a verified task stays in Review, so waiting for Done would stall the mission.
+// SessionNext, SessionReady, SessionClaim and DepSettled all use it; they cannot differ.
+const depSettledSQL = `(p.status = 'done' OR (p.status = 'review' AND p.verified = 1 AND p.blocked = 0))`
+
+// DepSettled says whether a task counts as finished for the tasks that depend on it.
+func DepSettled(t Task) bool {
+	return t.Status == StatusDone || (t.Status == StatusReview && t.Verified && !t.Blocked)
+}
+
 // readyInSession is the condition of a task that SessionNext may hand out: Ready, not an
 // epic, not blocked, with every dependency done and room left in its history.
 const readyInSession = `session_id = ? AND kind <> 'epic' AND blocked = 0 AND status = 'ready'
-	AND NOT EXISTS (SELECT 1 FROM task_deps d JOIN tasks p ON p.id = d.depends_on_task_id WHERE d.task_id = tasks.id AND p.status <> 'done')
+	AND NOT EXISTS (SELECT 1 FROM task_deps d JOIN tasks p ON p.id = d.depends_on_task_id WHERE d.task_id = tasks.id AND NOT ` + depSettledSQL + `)
 	AND (SELECT COUNT(*) FROM task_events WHERE task_id = tasks.id) < ?`
 
 // pickSessionNext is the id of the task SessionNext would take at now: the top of the
@@ -139,12 +151,12 @@ func (s *Store) SessionClaim(ctx context.Context, profileID string, sessionID, i
 		var waiting int
 		err = x.QueryRowContext(ctx,
 			`SELECT COUNT(*) FROM task_deps d JOIN tasks p ON p.id = d.depends_on_task_id
-			 WHERE d.task_id = ? AND p.status <> 'done' AND (SELECT status FROM tasks WHERE id = ?) = 'ready'`, id, id).Scan(&waiting)
+			 WHERE d.task_id = ? AND NOT `+depSettledSQL+` AND (SELECT status FROM tasks WHERE id = ?) = 'ready'`, id, id).Scan(&waiting)
 		if err != nil {
 			return fmt.Errorf("tasks: reading the dependencies of #%d: %w", id, err)
 		}
 		if waiting > 0 {
-			return notReady("task #%d waits for %d tasks that are not done", id, waiting)
+			return notReady("task #%d waits for %d tasks that are neither done nor verified", id, waiting)
 		}
 		return nil
 	})

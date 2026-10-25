@@ -90,7 +90,7 @@ func (c *Conductor) missionPrepare(ctx context.Context, req SpawnRequest, parent
 		if err != nil {
 			return nil, req, err
 		}
-		if d.Task.Status != tasks.StatusDone {
+		if !tasks.DepSettled(d.Task) {
 			return nil, req, fmt.Errorf("task #%d waits for #%d, which is %s", t.ID, id, d.Task.Status)
 		}
 		deps = append(deps, d)

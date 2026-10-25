@@ -212,6 +212,7 @@ type RunningTask struct {
 	TaskID  int64  `json:"task_id"`
 	AgentID string `json:"agent_id"`
 	Status  string `json:"status"`
+	Role    string `json:"role,omitempty"` // "worker" or "verifier"
 }
 
 func sessionView(se tasks.Session) SessionView {
@@ -290,8 +291,10 @@ func (c *Conductor) missionStep(ctx context.Context, sid int64, start bool) (Ste
 		return res, err
 	}
 	for _, t := range ready {
-		if c.taskWorker(t.ID) != nil {
-			continue // its worker lives; a lapsed lease does not make it free
+		if w := c.taskWorker(t.ID); w != nil {
+			// its worker lives (an ending verifier too); a lapsed lease does not make it free
+			res.Waiting = append(res.Waiting, WaitingTask{TaskID: t.ID, Title: t.Title, Reason: fmt.Sprintf("worker %s is still running for it: wait for it (org_wait)", w.id)})
+			continue
 		}
 		exec, access := c.chooseExecutor(ctx, t)
 		why := c.cannotStart(mc, t, exec, access, writers)
@@ -313,6 +316,11 @@ func (c *Conductor) missionStep(ctx context.Context, sid int64, start bool) (Ste
 		}
 	}
 	res.Running = c.runningTasks(sid)
+	if len(res.Started) == 0 {
+		if why := c.stallNote(ctx, mc, sid, res); why != "" {
+			res.Note = joinNotes(res.Note, why)
+		}
+	}
 	return res, nil
 }
 
@@ -418,7 +426,11 @@ func (c *Conductor) runningTasks(sid int64) []RunningTask {
 	out := []RunningTask{}
 	for _, id := range c.order {
 		if w := c.workers[id]; w != nil && w.task != nil && w.task.session == sid && running(w.status) {
-			out = append(out, RunningTask{TaskID: w.task.task.ID, AgentID: w.id, Status: w.status})
+			role := "worker"
+			if w.task.verifier {
+				role = "verifier"
+			}
+			out = append(out, RunningTask{TaskID: w.task.task.ID, AgentID: w.id, Status: w.status, Role: role})
 		}
 	}
 	return out
