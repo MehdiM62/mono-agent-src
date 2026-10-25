@@ -73,8 +73,8 @@ type Conductor struct {
 	// taskRuns: tasks that already had a worker this turn; a retry of one does not count
 	// against Limits.MaxAgents in a mission turn (mission_cap.go).
 	taskRuns map[int64]bool
-	seq     int // the highest worker number so far, veterans included
-	cost    float64
+	seq      int // the highest worker number so far, veterans included
+	cost     float64
 	// costEstimated: some of cost is estimated from tokens (estimate.go).
 	costEstimated bool
 	// The lead's own file edits (#260): the call ids of its edit tool
