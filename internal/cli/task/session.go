@@ -16,26 +16,29 @@ import (
 // session a worker's token will hold. An agent that sets it may act only in that session.
 const boundSessionEnv = "MONOAGENT_TASK_SESSION"
 
-// boundSession reads boundSessionEnv: 0 when it is not set or not a session number.
-func (d Deps) boundSession() int64 {
-	n, err := strconv.ParseInt(strings.TrimPrefix(strings.TrimSpace(d.Getenv(boundSessionEnv)), "#"), 10, 64)
-	if err != nil || n <= 0 {
+// boundNumber reads a binding variable: 0 when it is blank, the number when it is one, and -1
+// (a binding to nothing that exists, which refuses every act) when it is set to anything else:
+// a garbled worker environment is not an unbound process.
+func boundNumber(raw string) int64 {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
 		return 0
+	}
+	n, err := strconv.ParseInt(strings.TrimPrefix(raw, "#"), 10, 64)
+	if err != nil || n <= 0 {
+		return -1
 	}
 	return n
 }
+
+// boundSession reads boundSessionEnv: 0 when it is not set.
+func (d Deps) boundSession() int64 { return boundNumber(d.Getenv(boundSessionEnv)) }
 
 // boundTaskEnv narrows boundSessionEnv to one task: what a mission worker's process holds.
 const boundTaskEnv = "MONOAGENT_TASK_ID"
 
-// boundTask reads boundTaskEnv: 0 when it is not set or not a task number.
-func (d Deps) boundTask() int64 {
-	n, err := strconv.ParseInt(strings.TrimPrefix(strings.TrimSpace(d.Getenv(boundTaskEnv)), "#"), 10, 64)
-	if err != nil || n <= 0 {
-		return 0
-	}
-	return n
-}
+// boundTask reads boundTaskEnv: 0 when it is not set.
+func (d Deps) boundTask() int64 { return boundNumber(d.Getenv(boundTaskEnv)) }
 
 // boundRoleEnv narrows the task binding to a verifier's: "verifier" lets the process verify,
 // comment on and attach evidence to its one task and nothing else.
