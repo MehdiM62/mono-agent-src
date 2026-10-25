@@ -37,3 +37,23 @@ func TestDigestOfABoundWorkerShowsNothingOfThePersonalBoard(t *testing.T) {
 		t.Fatalf("unbound digest: %q %v", out, err)
 	}
 }
+
+// A refused spend does not leave the budget it came with changed: `session budget` is one write.
+func TestSessionBudgetWithABadSpendChangesNothing(t *testing.T) {
+	db := newTaskTestDB(t)
+	n := sessionNew(t, db)
+	for _, spend := range []string{"0", "-2", "NaN"} {
+		if _, _, err := runTask(t, db, "default", true, "", "session", "budget", id(n), "--usd", "5", "--spend", spend); err == nil {
+			t.Fatalf("--spend %s was accepted", spend)
+		}
+		if got := sessionState(t, db, n); got.Session.BudgetUSD != 0 || got.Session.SpentUSD != 0 {
+			t.Fatalf("--spend %s: %+v", spend, got.Session)
+		}
+	}
+	if _, _, err := runTask(t, db, "default", true, "", "session", "budget", id(n), "--usd", "5", "--spend", "1.5"); err != nil {
+		t.Fatal(err)
+	}
+	if got := sessionState(t, db, n); got.Session.BudgetUSD != 5 || got.Session.SpentUSD != 1.5 {
+		t.Fatalf("%+v", got.Session)
+	}
+}

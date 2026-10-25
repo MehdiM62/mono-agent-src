@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"strconv"
 	"strings"
 
@@ -466,17 +467,16 @@ func (d Deps) newSessionBudgetCmd() *cobra.Command {
 			if u == (tasks.SessionUpdate{}) && !f.Changed("spend") {
 				return d.InvalidInput("nothing to change: give --usd, --max-tasks, --max-depth, --max-retries, --access, --auto-close or --spend")
 			}
-			var se tasks.Session
-			var err error
-			if u != (tasks.SessionUpdate{}) {
-				if se, err = store.UpdateSession(cmd.Context(), p.ID, id, u, actor); err != nil {
-					return d.taskErr(err)
-				}
+			if f.Changed("spend") && (spend <= 0 || math.IsNaN(spend) || math.IsInf(spend, 0)) {
+				return d.InvalidInput("--spend is an amount in dollars above 0")
 			}
-			if f.Changed("spend") {
-				if se, err = store.AddSessionSpend(cmd.Context(), p.ID, id, spend, note, actor); err != nil {
-					return d.taskErr(err)
-				}
+			if !f.Changed("spend") {
+				spend = 0
+			}
+			// The limits and the spend are one write: a refusal of either changes neither.
+			se, err := store.ChangeSession(cmd.Context(), p.ID, id, u, spend, note, actor)
+			if err != nil {
+				return d.taskErr(err)
 			}
 			return d.writeSession(cmd, p, se, "Updated")
 		})

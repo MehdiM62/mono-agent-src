@@ -183,11 +183,22 @@ func (s *Store) ArchiveSession(ctx context.Context, profileID string, id int64, 
 // UpdateSession changes a session's budget, caps, access level or auto-close setting.
 // Only the operator may: this is where a cap is raised.
 func (s *Store) UpdateSession(ctx context.Context, profileID string, id int64, u SessionUpdate, actor Actor) (Session, error) {
+	return s.ChangeSession(ctx, profileID, id, u, 0, "", actor)
+}
+
+// ChangeSession is UpdateSession and AddSessionSpend in one write: the limits in u (when it
+// holds any) and spend (when above 0) are applied together or not at all, so that a refused
+// spend never leaves the limits changed.
+func (s *Store) ChangeSession(ctx context.Context, profileID string, id int64, u SessionUpdate, spend float64, note string, actor Actor) (Session, error) {
 	if actor.Kind != Human {
 		return Session{}, operatorOnly("change a session's budget, caps, access level or auto-close setting")
 	}
-	if u == (SessionUpdate{}) {
+	update := u != (SessionUpdate{})
+	if !update && spend == 0 {
 		return Session{}, invalid("nothing to change")
+	}
+	if spend != 0 && (!finite(spend) || spend < 0) {
+		return Session{}, invalid("spend is an amount in dollars above 0")
 	}
 	if u.AccessLevel != nil && !validAccess(*u.AccessLevel) {
 		return Session{}, invalid("unknown access level %q (use %s)", echo(*u.AccessLevel), strings.Join(AccessLevels, ", "))
@@ -196,46 +207,59 @@ func (s *Store) UpdateSession(ctx context.Context, profileID string, id int64, u
 		return Session{}, invalid("the budget is an amount in dollars, 0 or more")
 	}
 	return s.sessionWrite(ctx, profileID, id, func(x dbx, se Session) error {
-		maxTasks, maxDepth, maxRetries, budget, level, auto := se.MaxTasks, se.MaxDepth, se.MaxRetries, se.BudgetUSD, se.AccessLevel, se.AutoCloseVerified
-		var changed []string
-		if u.MaxTasks != nil {
-			maxTasks = *u.MaxTasks
-			changed = append(changed, fmt.Sprintf("max_tasks %d", maxTasks))
+		if update {
+			if err := s.applyUpdate(ctx, x, se, u, actor); err != nil {
+				return err
+			}
 		}
-		if u.MaxDepth != nil {
-			maxDepth = *u.MaxDepth
-			changed = append(changed, fmt.Sprintf("max_depth %d", maxDepth))
+		if spend > 0 {
+			return s.applySpend(ctx, x, id, spend, note, actor)
 		}
-		if u.MaxRetries != nil {
-			maxRetries = *u.MaxRetries
-			changed = append(changed, fmt.Sprintf("max_retries %d", maxRetries))
-		}
-		if err := checkCaps(maxTasks, maxDepth, maxRetries); err != nil {
-			return err
-		}
-		if u.BudgetUSD != nil {
-			budget = *u.BudgetUSD
-			changed = append(changed, fmt.Sprintf("budget_usd %.2f", budget))
-		}
-		if u.AccessLevel != nil {
-			level = *u.AccessLevel
-			changed = append(changed, "access_level "+level)
-		}
-		if u.AutoCloseVerified != nil {
-			auto = *u.AutoCloseVerified
-			changed = append(changed, fmt.Sprintf("auto_close_verified %t", auto))
-		}
-		on := 0
-		if auto {
-			on = 1
-		}
-		if _, err := x.ExecContext(ctx,
-			`UPDATE task_sessions SET max_tasks = ?, max_depth = ?, max_retries = ?, budget_usd = ?, access_level = ?, auto_close_verified = ? WHERE id = ?`,
-			maxTasks, maxDepth, maxRetries, budget, level, on, id); err != nil {
-			return fmt.Errorf("tasks: updating session #%d: %w", id, err)
-		}
-		return s.sessionEvent(ctx, x, id, actor, "limits", strings.Join(changed, ", "))
+		return nil
 	})
+}
+
+func (s *Store) applyUpdate(ctx context.Context, x dbx, se Session, u SessionUpdate, actor Actor) error {
+	id := se.ID
+	maxTasks, maxDepth, maxRetries, budget, level, auto := se.MaxTasks, se.MaxDepth, se.MaxRetries, se.BudgetUSD, se.AccessLevel, se.AutoCloseVerified
+	var changed []string
+	if u.MaxTasks != nil {
+		maxTasks = *u.MaxTasks
+		changed = append(changed, fmt.Sprintf("max_tasks %d", maxTasks))
+	}
+	if u.MaxDepth != nil {
+		maxDepth = *u.MaxDepth
+		changed = append(changed, fmt.Sprintf("max_depth %d", maxDepth))
+	}
+	if u.MaxRetries != nil {
+		maxRetries = *u.MaxRetries
+		changed = append(changed, fmt.Sprintf("max_retries %d", maxRetries))
+	}
+	if err := checkCaps(maxTasks, maxDepth, maxRetries); err != nil {
+		return err
+	}
+	if u.BudgetUSD != nil {
+		budget = *u.BudgetUSD
+		changed = append(changed, fmt.Sprintf("budget_usd %.2f", budget))
+	}
+	if u.AccessLevel != nil {
+		level = *u.AccessLevel
+		changed = append(changed, "access_level "+level)
+	}
+	if u.AutoCloseVerified != nil {
+		auto = *u.AutoCloseVerified
+		changed = append(changed, fmt.Sprintf("auto_close_verified %t", auto))
+	}
+	on := 0
+	if auto {
+		on = 1
+	}
+	if _, err := x.ExecContext(ctx,
+		`UPDATE task_sessions SET max_tasks = ?, max_depth = ?, max_retries = ?, budget_usd = ?, access_level = ?, auto_close_verified = ? WHERE id = ?`,
+		maxTasks, maxDepth, maxRetries, budget, level, on, id); err != nil {
+		return fmt.Errorf("tasks: updating session #%d: %w", id, err)
+	}
+	return s.sessionEvent(ctx, x, id, actor, "limits", strings.Join(changed, ", "))
 }
 
 // AddSessionSpend adds usd to what the session has spent. Only the operator's process
@@ -248,11 +272,15 @@ func (s *Store) AddSessionSpend(ctx context.Context, profileID string, id int64,
 		return Session{}, invalid("spend is an amount in dollars above 0")
 	}
 	return s.sessionWrite(ctx, profileID, id, func(x dbx, se Session) error {
-		if _, err := x.ExecContext(ctx, `UPDATE task_sessions SET spent_usd = spent_usd + ? WHERE id = ?`, usd, id); err != nil {
-			return fmt.Errorf("tasks: recording spend of session #%d: %w", id, err)
-		}
-		return s.sessionEvent(ctx, x, id, actor, "spend", fmt.Sprintf("$%.4f %s", usd, note))
+		return s.applySpend(ctx, x, id, usd, note, actor)
 	})
+}
+
+func (s *Store) applySpend(ctx context.Context, x dbx, id int64, usd float64, note string, actor Actor) error {
+	if _, err := x.ExecContext(ctx, `UPDATE task_sessions SET spent_usd = spent_usd + ? WHERE id = ?`, usd, id); err != nil {
+		return fmt.Errorf("tasks: recording spend of session #%d: %w", id, err)
+	}
+	return s.sessionEvent(ctx, x, id, actor, "spend", fmt.Sprintf("$%.4f %s", usd, note))
 }
 
 // overBudget refuses work on a session that has spent its budget (0: none set).
