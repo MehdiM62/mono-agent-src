@@ -24,6 +24,9 @@ export function spendParts(s) {
 // overBudget: 90 percent of a set budget spent (the engine stops there too).
 export const nearBudget = (s) => s?.budget_usd > 0 && s.spent_usd >= 0.9 * s.budget_usd
 
+// budgetLevel: 'over' once a set budget is spent, 'near' from 90 percent, else ''.
+export const budgetLevel = (s) => (!(s?.budget_usd > 0) ? '' : s.spent_usd >= s.budget_usd ? 'over' : nearBudget(s) ? 'near' : '')
+
 // actionsFor lists the header actions a session offers in its state. The CLI
 // refuses what the state does not allow; the button is just not shown.
 export function actionsFor(s) {

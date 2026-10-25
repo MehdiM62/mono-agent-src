@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Check, MessageSquare, Pause, Play, Square, Archive } from 'lucide-react'
 import { confirm } from '../ConfirmDialog.jsx'
+import BudgetFlag from './BudgetFlag.jsx'
 import StateChip from './StateChip.jsx'
 import { actionsFor, nearBudget, progress, spendParts } from '../../lib/taskSessionModel.js'
 
@@ -42,6 +43,7 @@ export default function SessionHeader({ session, view, onView, onAct, onBudget, 
         <span data-testid="ts-head-spend" className={nearBudget(session) ? 'ts-near' : undefined}>
           {budget ? t('tasks.session.spendOf', { spent, budget }) : t('tasks.session.spendNoBudget', { spent })}
         </span>
+        <BudgetFlag session={session} />
         <span className="ts-spacer" />
         <div role="group" aria-label={t('tasks.session.view')} className="ts-seg">
           {['board', 'plan'].map(v => (

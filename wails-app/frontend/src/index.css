@@ -2023,7 +2023,7 @@ button.dash-row:hover { background: var(--elevated); }
 .tb-chip { display: inline-flex; gap: 3px; align-items: center; min-width: 0; max-width: 100%; }
 .tb-chip svg { flex-shrink: 0; }
 .tb-chip-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tb-empty { font-size: 12px; color: var(--text-dim); padding: 6px 2px; }
+.tb-empty { font-size: 12px; color: var(--text-muted); padding: 6px 2px; }
 .tb-card { padding: 10px 12px; margin-bottom: 8px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--elevated); cursor: pointer; transition: border-color var(--transition), box-shadow var(--transition); }
 .tb-card:hover { border-color: var(--border-bright); }
 .tb-card.is-selected { border-color: var(--cyan); box-shadow: 0 0 0 3px var(--cyan-glow); }
@@ -2112,3 +2112,8 @@ body.tb-dragging, body.tb-dragging * { cursor: grabbing !important; user-select:
 /* ── Publication: pager pinned to the bottom ── */
 .pub-body { display: flex; flex-direction: column; }
 .pub-pager { display: flex; gap: 12px; align-items: center; justify-content: center; margin-top: auto; padding-top: 16px; border-top: 1px solid var(--border-dim); font-size: 12px; color: var(--text-secondary); }
+.ts-switcher { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.ts-switcher .ts-tabs { min-width: 0; }
+.ts-list-error { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; font-size: 12px; color: var(--orange); }
+.ts-budget-flag { display: inline-flex; align-items: center; gap: 3px; color: var(--orange); font-weight: 600; white-space: nowrap; }
+.ts-facts dd .ts-badge { display: inline-block; margin: 0 4px 4px 0; overflow-wrap: anywhere; }

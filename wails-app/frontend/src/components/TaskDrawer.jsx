@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { X } from 'lucide-react'
 import { tasksApi } from '../services/tasks.js'
+import { joinNotes, metaFacts, splitNotes } from '../lib/taskNotes.js'
 import SessionTaskFields from './tasksessions/SessionTaskFields.jsx'
 
 // The detail drawer of one card: edit title and notes, read its history,
@@ -15,15 +16,17 @@ export default function TaskDrawer({ task, status, readFirst = false, moveTo = n
   const [detail, setDetail] = useState(null) // the show document: a session task's artifacts come with it
   const [loadError, setLoadError] = useState('')
   const [title, setTitle] = useState(task.title)
-  const [notes, setNotes] = useState(task.notes || '')
+  // The planner's closing [mission-meta] line is not editable text: it is shown as chips and written back as it was.
+  const split = splitNotes(task.notes)
+  const [notes, setNotes] = useState(split.text)
   const [text, setText] = useState('')
 
   // A remote change replaces a field only while that field is untouched, so
   // typing in progress is never overwritten; a different card resets both.
-  const seen = useRef({ id: task.id, title: task.title, notes: task.notes || '' })
+  const seen = useRef({ id: task.id, title: task.title, notes: split.text })
   useEffect(() => {
     const prev = seen.current
-    const next = { id: task.id, title: task.title, notes: task.notes || '' }
+    const next = { id: task.id, title: task.title, notes: splitNotes(task.notes).text }
     seen.current = next
     if (prev.id !== next.id) { setTitle(next.title); setNotes(next.notes); return }
     setTitle(cur => (cur === prev.title ? next.title : cur))
@@ -39,11 +42,12 @@ export default function TaskDrawer({ task, status, readFirst = false, moveTo = n
     return () => { live = false }
   }, [task.id, task.updated_at, task.last_event?.at])
 
-  const dirty = title !== task.title || notes !== (task.notes || '')
+  const facts = metaFacts(split.meta)
+  const dirty = title !== task.title || notes !== split.text
   const save = () => {
     const change = {}
     if (title !== task.title) change.title = title
-    if (notes !== (task.notes || '')) change.notes = notes
+    if (notes !== split.text) change.notes = joinNotes(notes, split.line)
     onEdit(task.id, change)
   }
   const send = () => {
@@ -65,6 +69,13 @@ export default function TaskDrawer({ task, status, readFirst = false, moveTo = n
         <div>{t('tasks.drawer.notes')}</div>
         <textarea className="form-textarea" value={notes} disabled={readOnly} rows={5} onChange={e => setNotes(e.target.value)} />
       </label>
+      {(facts.files.length > 0 || facts.size || facts.risk) && (
+        <dl className="ts-facts" data-testid="task-meta">
+          {facts.files.length > 0 && <><dt>{t('tasks.drawer.metaFiles')}</dt><dd>{facts.files.map(f => <code key={f} className="ts-badge">{f}</code>)}</dd></>}
+          {facts.size && <><dt>{t('tasks.drawer.metaSize')}</dt><dd><span className="ts-badge">{facts.size}</span></dd></>}
+          {facts.risk && <><dt>{t('tasks.drawer.metaRisk')}</dt><dd><span className="ts-badge">{facts.risk}</span></dd></>}
+        </dl>
+      )}
       <div className="tb-drawer-actions">{!readOnly && <button className="btn btn-primary btn-sm" type="button" disabled={!dirty || !title.trim()} onClick={save}>{t('tasks.drawer.save')}</button>}
       {!readOnly && status === 'inbox' && onApprove && <button className="btn btn-secondary btn-sm" type="button" disabled={dirty} title={dirty ? t('tasks.drawer.saveFirst') : undefined} onClick={onApprove}>{t('tasks.approve')}</button>}
       {!readOnly && status === 'inbox' && moveTo && onMoveTo && <button className="btn btn-secondary btn-sm" type="button" disabled={dirty} title={dirty ? t('tasks.drawer.saveFirst') : undefined} onClick={onMoveTo}>{t('tasks.drawer.moveTo', { column: t(`tasks.column.${moveTo}`) })}</button>}

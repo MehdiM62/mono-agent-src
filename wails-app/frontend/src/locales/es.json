@@ -1643,6 +1643,9 @@
     "close": "Cerrar",
     "drawer": {
       "title": "Título",
+      "metaFiles": "Archivos",
+      "metaSize": "Tamaño",
+      "metaRisk": "Riesgo",
       "notes": "Notas",
       "save": "Guardar",
       "history": "Historial",
@@ -1693,12 +1696,14 @@
       "header": "Sesión {{title}}",
       "state": {
         "draft": "Borrador",
-        "running": "En curso",
+        "running": "En ejecución",
         "paused": "En pausa",
-        "done": "Hecho",
+        "done": "Completada",
         "stopped": "Detenida",
         "failed": "Fallida"
       },
+      "budget_near": "Cerca del presupuesto",
+      "budget_over": "Presupuesto alcanzado",
       "archived": "Archivada",
       "progress": "{{done}} hechas",
       "spendOf": "{{spent}} de {{budget}}",
@@ -1738,6 +1743,8 @@
       "artifacts": "Artefactos",
       "noArtifacts": "Aún no hay artefactos",
       "events": "Eventos de la sesión",
+      "listError": "No se pudieron leer las sesiones",
+      "retry": "Reintentar",
       "planError": "No se pudo leer el plan",
       "planEmpty": "Este plan aún no tiene tareas"
     }

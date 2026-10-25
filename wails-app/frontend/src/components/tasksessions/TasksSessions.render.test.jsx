@@ -65,11 +65,29 @@ describe('Tasks with sessions', () => {
     expect(sess.board).not.toHaveBeenCalled()
   })
 
-  it('shows no switcher when there are no sessions, and survives a failed list', async () => {
-    sess.list.mockResolvedValue({ error: 'boom' })
+  it('shows no switcher when there are no sessions', async () => {
+    listed = []
     mount()
     expect(await screen.findByText('Task 1')).toBeInTheDocument()
     expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('keeps Personal and says so when the session list cannot be read, then Retry brings the tabs', async () => {
+    let fail = true
+    sess.list.mockImplementation(async () => (fail ? { error: 'boom' } : { sessions: listed }))
+    mount()
+    expect(await screen.findByText('Task 1')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Personal' })).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent('Could not read sessions')
+    expect(screen.queryByRole('tab', { name: /Mission 1/ })).not.toBeInTheDocument()
+    // Personal keeps working while the list is unreadable.
+    expect(screen.getAllByLabelText('New task title').length).toBeGreaterThan(0)
+    fail = false
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(await screen.findByRole('tab', { name: /Mission 1/ })).toBeInTheDocument()
+    expect(screen.queryByText('Could not read sessions')).not.toBeInTheDocument()
+    expect(screen.getByText('Task 1')).toBeInTheDocument()
   })
 
   it('shows state chip, progress and spend on every tab', async () => {
