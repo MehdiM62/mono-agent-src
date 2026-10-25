@@ -50,32 +50,8 @@ func (c *Conductor) recordMerge(ctx context.Context, w *worker) {
 // latest) counts: an earlier run's branch was sent back with its failure and is not merged.
 func (c *Conductor) mergesRemaining(ctx context.Context, mc *MissionRun, sid int64, all []tasks.Task) []string {
 	var out []string
-	for _, t := range all {
-		if t.Kind == tasks.KindEpic || !settled(t) {
-			continue
-		}
-		d, err := mc.Store.SessionTask(ctx, mc.ProfileID, sid, t.ID, missionActor())
-		if err != nil {
-			continue
-		}
-		var branch *tasks.Artifact
-		for i := len(d.Artifacts) - 1; i >= 0 && branch == nil; i-- {
-			if d.Artifacts[i].Kind == tasks.ArtifactBranch {
-				branch = &d.Artifacts[i]
-			}
-		}
-		if branch == nil {
-			continue
-		}
-		merged := false
-		for _, a := range d.Artifacts {
-			if a.Kind == tasks.ArtifactMerge && a.Ref == branch.Ref && a.ID > branch.ID {
-				merged = true
-			}
-		}
-		if !merged {
-			out = append(out, fmt.Sprintf("%s (%s, task #%d)", branchWorker(branch.Note), branch.Ref, t.ID))
-		}
+	for _, p := range c.pendingBranches(ctx, mc, sid, all, true) {
+		out = append(out, fmt.Sprintf("%s (%s, task #%d)", p.worker, p.branch, p.task))
 	}
 	return out
 }

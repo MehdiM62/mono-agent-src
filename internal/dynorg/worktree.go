@@ -323,7 +323,24 @@ func (c *Conductor) Merge(ctx context.Context, id string) (MergeResult, error) {
 	defer c.mergeMu.Unlock()
 	c.mu.Lock()
 	w := c.workers[id]
+	var stored *pendingBranch
+	if w == nil {
+		// A new Conductor (a later turn) has no worker in memory: the mission's store
+		// still knows the branch the writer handed in.
+		c.mu.Unlock()
+		p, err := c.storedBranch(ctx, id)
+		if err != nil {
+			return MergeResult{}, err
+		}
+		stored = p
+		c.mu.Lock()
+	}
 	switch {
+	case stored != nil:
+		if c.hasTaskWorkerLocked(stored.task) {
+			c.mu.Unlock()
+			return MergeResult{}, fmt.Errorf("%s is still working; org_wait for it first", id)
+		}
 	case w == nil:
 		c.mu.Unlock()
 		return MergeResult{}, fmt.Errorf("no worker %q", id)
@@ -334,16 +351,23 @@ func (c *Conductor) Merge(ctx context.Context, id string) (MergeResult, error) {
 		c.mu.Unlock()
 		return MergeResult{}, fmt.Errorf("%s is still working; org_wait for it first", id)
 	}
-	branch := w.branch
-	w.merging = true // claimed with the running check: no follow-up starts now
+	var branch string
+	if stored != nil {
+		branch = stored.branch
+	} else {
+		branch = w.branch
+		w.merging = true // claimed with the running check: no follow-up starts now
+	}
 	// The merge writes the chat folder, so it takes the write lease like any
 	// edit there (the lead's own edits, an unconfined researcher).
 	holds := c.leadHolds
 	c.mu.Unlock()
 	defer func() {
-		c.mu.Lock()
-		w.merging = false
-		c.mu.Unlock()
+		if w != nil {
+			c.mu.Lock()
+			w.merging = false
+			c.mu.Unlock()
+		}
 	}()
 	if !holds {
 		if !c.write.tryAcquire() {
@@ -359,7 +383,11 @@ func (c *Conductor) Merge(ctx context.Context, id string) (MergeResult, error) {
 	// .git/index.lock and a half-updated tree that `merge --abort` can't fix.
 	ctx = context.WithoutCancel(ctx)
 	res := MergeResult{AgentID: id, Branch: branch}
-	if err := c.commitWorktree(w); err != nil {
+	if stored != nil {
+		if _, err := gitRun(ctx, c.iso.cwd, "rev-parse", "--verify", "--quiet", "refs/heads/"+branch); err != nil {
+			return res, fmt.Errorf("the branch %s of %s no longer exists in the repository, so nothing was merged", branch, id)
+		}
+	} else if err := c.commitWorktree(w); err != nil {
 		return res, fmt.Errorf("%s's latest changes could not be committed on %s, so nothing was merged: %v", id, branch, err)
 	}
 	before, _ := gitRun(ctx, c.iso.cwd, "rev-parse", "HEAD")
@@ -380,10 +408,14 @@ func (c *Conductor) Merge(ctx context.Context, id string) (MergeResult, error) {
 	}
 	after, _ := gitRun(ctx, c.iso.cwd, "rev-parse", "HEAD")
 	res.Merged = true
-	c.mu.Lock()
-	w.merged = true
-	c.mu.Unlock()
-	c.recordMerge(ctx, w)
+	if stored != nil {
+		c.recordStoredMerge(ctx, stored, id)
+	} else {
+		c.mu.Lock()
+		w.merged = true
+		c.mu.Unlock()
+		c.recordMerge(ctx, w)
+	}
 	if strings.TrimSpace(before) == strings.TrimSpace(after) {
 		res.Note = "already up to date: the branch has nothing your tree doesn't"
 		return res, nil
