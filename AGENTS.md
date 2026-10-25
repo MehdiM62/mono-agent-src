@@ -3674,7 +3674,7 @@ An agent that has no access to the user's database finishes and reads its own AI
 `…/{id}/result` (scope read), `POST …/{id}/complete|fail|cancel` (scope write). They call the same `internal/aitask`
 service as the commands, so validation, the kind's schema and check, and the single terminal state are the same. They take
 scoped agent tokens only (never the profile's own bearer), and act on a task only for a token bound to it:
-`agent-mode token create --name N --scope write --task ID --conversation ID` (operator-only; migration 126). A bound token reaches those routes and no other route of the API (every other route refuses it), and both credentials (the bearer and the task token) are hidden by value in stored results, failure reasons and error answers. `complete`,
+`agent-mode token create --name N --scope write --task ID --conversation ID` (operator-only; migration 127). A bound token reaches those routes and no other route of the API (every other route refuses it), and both credentials (the bearer and the task token) are hidden by value in stored results, failure reasons and error answers. `complete`,
 `fail` and `cancel` also need the task's own token in the `X-Aitask-Token` header, as the commands need
 `MONOAGENT_AITASK_TOKEN`; the API checks its hash but not the holder's process tree (`Service.Remote`). The result of
 `complete` is the request body, the bytes `--result FILE` reads. Every call is audited under the token's name.
