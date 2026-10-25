@@ -59,6 +59,9 @@ func (d Deps) authorActor(caller Caller) (tasks.Actor, error) {
 
 // runSessionAdd is task add --session.
 func (d Deps) runSessionAdd(cmd *cobra.Command, args []string, session int64, f *sessionTaskFlags, notes string, ready, stdin bool) error {
+	if cmd.Flags().Changed("client-id") {
+		return d.InvalidInput("--client-id is for the personal board: a session task cannot be added idempotently")
+	}
 	if ready || stdin {
 		return d.InvalidInput("a session task is added with a title (and --acceptance): --ready and --stdin are for the personal board")
 	}
