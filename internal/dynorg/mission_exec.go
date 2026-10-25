@@ -107,6 +107,10 @@ func (c *Conductor) missionPrepare(ctx context.Context, req SpawnRequest, parent
 			exec = ExecSubagent
 		}
 	}
+	if exec == ExecWorker && req.NeedsWrite == nil {
+		write := true // a task worker carries the task out: it edits, whatever words its brief has
+		req.NeedsWrite = &write
+	}
 	req.Brief = buildTaskBrief(se, t, deps, name, req.Brief)
 	if len(req.Files) == 0 {
 		req.Files = TaskFiles(t.Notes)

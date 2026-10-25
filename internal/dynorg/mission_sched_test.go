@@ -203,8 +203,10 @@ func TestMissionPauseStopsNewStarts(t *testing.T) {
 
 func TestMissionStopReleasesClaimsAndStopsWorkers(t *testing.T) {
 	r := newRig(t, rigOpts{})
-	a := r.add(spec{title: "a", files: "a.go"})
-	b := r.add(spec{title: "b", files: "b.go"})
+	// read-only subagents run side by side here: editing workers wait for each other's
+	// write lease in a folder that is not a git checkout (no worktree to isolate them)
+	a := r.add(spec{title: "a", files: "a.go", exec: ExecSubagent})
+	b := r.add(spec{title: "b", files: "b.go", exec: ExecSubagent})
 	r.approve()
 	r.next(r.c)
 	eventually(t, "both running", func() bool { return r.ex.runCount(a.ID) == 1 && r.ex.runCount(b.ID) == 1 })
