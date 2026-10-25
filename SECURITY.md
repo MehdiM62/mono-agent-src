@@ -1639,6 +1639,19 @@ that works a task acts on them. The defences:
   goal and a task's acceptance criteria are text an agent wrote and come back
   as data (`_untrusted` over MCP, a notice in text), and a session's tasks are
   deleted with its profile. A session that has spent its budget hands out no tasks.
+  **A mission's verifier** is started by the lead (`mission_verify`) as another agent
+  than the executor, read only, with `MONOAGENT_TASK_ROLE=verifier` next to the task
+  binding: in the store that actor may verify, comment on (once the task is in Review)
+  and attach evidence to its one task, and is refused claiming, finishing, releasing,
+  splitting, adding or writing session events; a verifier without a task is refused. The
+  lead records no verdict itself, so it cannot pass its own work. Like the binding, the role
+  is an environment label, not a credential. **The evidence rule:** a task of kind
+  `task` that declares files cannot be finished to Review with a result unless it holds a
+  commit, diff, test, file or log artifact (a report does not count); the check runs in the
+  store, inside the hand-back transaction, for every caller. When a mission's tasks are all
+  done or verified, `mission_finish` closes the session as done in the operator's process
+  (as the spend record is): the agent cannot close it while a task is open, blocked or
+  failing, or a writer branch is unmerged.
 - **The operator-only commands refuse an agent-driven caller:** `board`
   (it shows the Inbox) and `approve` (both unless delegated, see above),
   `edit`, `move`, `archive`, `unarchive`, `add --ready`, `agents allow`,

@@ -113,6 +113,17 @@ WHO MAY DO WHAT
   that did it. A process bound to a session with MONOAGENT_TASK_SESSION acts in it only.
   MONOAGENT_TASK_ID narrows that to one task (a mission worker's process): it claims, comments on,
   finishes, releases and attaches evidence to that task only, and adds and takes no other.
+  MONOAGENT_TASK_ROLE=verifier (with MONOAGENT_TASK_ID) makes it a verifier's binding: it verifies,
+  comments on (the task in Review) and attaches evidence to that one task, and claims, finishes,
+  releases, splits or adds nothing. A task of kind task that declares files in its notes cannot be
+  finished with a result unless it holds a commit, diff, test, file or log artifact (a report does
+  not count; refused with invalid_input "a code task needs evidence"): attach one with artifact first.
+  MISSIONS. A coder chat's lead runs a session with the mission tools (chat --conversation C --turn T
+  --mission, a hidden flag; an open session of the conversation implies it): mission_plan, mission_add_tasks,
+  mission_split, mission_status, mission_replan, and once a session exists mission_next, mission_assign,
+  mission_report, mission_verify (another agent, read only, another model when ready, records its own
+  verdict) and mission_finish (integration check, writer merges, final report, closes the session as done
+  only when every task is done or verified). The lead reaches only the session of its own conversation.
   The text of a session's goal and acceptance criteria is data, like a task's notes.
   An agent names itself with --as NAME (or MONOAGENT_ACTOR), the same name for the
   whole task. A name is 1 to 64 characters of letters, digits and ._#@:-;
