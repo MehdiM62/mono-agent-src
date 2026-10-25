@@ -6,8 +6,11 @@ import (
 	"database/sql"
 	"errors"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/monoes/mono-agent/internal/storage"
 )
 
 func openIntentCount(t *testing.T, s *SQLiteWorkflowStore) int {
@@ -201,5 +204,60 @@ func TestRemovingANodeTakesItsConnectionsFromTheFileToo(t *testing.T) {
 	r, _ := s.GetWorkflow(ctx, "wf-g")
 	if len(f.Connections) != 0 || len(r.Connections) != 0 {
 		t.Fatalf("file %d rows %d connections left", len(f.Connections), len(r.Connections))
+	}
+}
+
+// The transactions of a publication flush to disk before they return; the connection goes back to
+// the pool as it was.
+func TestPublicationTransactionsSyncToDisk(t *testing.T) {
+	ctx := context.Background()
+	h, s, _, _ := guardedRig(t)
+	var before int
+	_ = s.db.QueryRow(`PRAGMA synchronous`).Scan(&before)
+	tx, done, err := h.beginDurable(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var inside int
+	if err := tx.QueryRowContext(ctx, `PRAGMA synchronous`).Scan(&inside); err != nil {
+		t.Fatal(err)
+	}
+	_ = tx.Rollback()
+	done()
+	var after int
+	_ = s.db.QueryRow(`PRAGMA synchronous`).Scan(&after)
+	if inside != 2 || after != before {
+		t.Fatalf("synchronous: inside %d (want 2 = FULL), before %d, after %d", inside, before, after)
+	}
+}
+
+// BenchmarkPublish measures one guarded save (intent, file, commit) on a scratch database.
+func BenchmarkPublish(b *testing.B) {
+	ctx := context.Background()
+	files, err := NewWorkflowFileStore(b.TempDir())
+	if err != nil {
+		b.Fatal(err)
+	}
+	db, err := storage.NewDatabase(filepath.Join(b.TempDir(), "bench.db"))
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer db.Close()
+	if err := db.ApplyMigrations(); err != nil {
+		b.Fatal(err)
+	}
+	sqlStore := NewSQLiteWorkflowStore(db.DB)
+	h := NewHybridWorkflowStore(files, sqlStore)
+	if err := h.SaveWorkflow(ctx, mirrorWF("wf-b", "b-trig", "b-set")); err != nil {
+		b.Fatal(err)
+	}
+	cur, _ := h.GetWorkflow(ctx, "wf-b")
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		nodes := append([]WorkflowNode(nil), cur.Nodes...)
+		nodes[1].Config = map[string]interface{}{"k": i}
+		if err := h.SaveWorkflowNodes(ctx, "wf-b", nodes); err != nil {
+			b.Fatal(err)
+		}
 	}
 }

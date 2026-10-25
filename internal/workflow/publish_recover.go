@@ -125,10 +125,11 @@ func (h *HybridWorkflowStore) resolveIntent(ctx context.Context, tx *sql.Tx, in 
 // resolveByID resolves one intent under the write lock. Without force an intent whose owner is
 // still working is left alone.
 func (h *HybridWorkflowStore) resolveByID(ctx context.Context, id int64, force bool) error {
-	tx, err := h.sql.db.BeginTx(ctx, nil)
+	tx, done, err := h.beginDurable(ctx)
 	if err != nil {
 		return err
 	}
+	defer done()
 	defer tx.Rollback()
 	if _, err := tx.ExecContext(ctx, `UPDATE workflow_publications SET state = state WHERE id = ?`, id); err != nil {
 		return err

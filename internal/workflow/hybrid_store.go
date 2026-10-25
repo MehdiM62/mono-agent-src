@@ -45,19 +45,6 @@ func NewHybridWorkflowStore(files *WorkflowFileStore, sql *SQLiteWorkflowStore) 
 // Workflow CRUD — the file store wins, SQLite covers what it lacks
 // ---------------------------------------------------------------------------
 
-// persist writes w through whichever backend holds definitions. With a file
-// store it saves the file and mirrors the result into SQLite; without one it
-// runs sqlWrite against SQLite directly. The OnSaved hook fires on success.
-func (h *HybridWorkflowStore) persist(ctx context.Context, w *Workflow, sqlWrite func(context.Context, *Workflow) error) error {
-	if h.files == nil {
-		return h.saved(ctx, w.ID, sqlWrite(ctx, w))
-	}
-	if err := h.files.SaveWorkflow(ctx, w); err != nil {
-		return err
-	}
-	return h.saved(ctx, w.ID, h.mirrorToSQL(ctx, w))
-}
-
 // fileWorkflows lists the file store's workflows; none when there is no file
 // store. A workflow with a change in flight is left out: its file may hold a
 // definition that has not committed, so the rows speak for it.
@@ -218,49 +205,6 @@ func (h *HybridWorkflowStore) SaveWorkflow(ctx context.Context, w *Workflow) err
 // ErrSharedIDs reports a workflow whose node or connection ids belong to
 // another workflow in SQLite; such a workflow is not mirrored.
 var ErrSharedIDs = errors.New("workflow shares node or connection ids with another workflow")
-
-// mirrorToSQL makes SQLite's copy of w match the file just written: the
-// workflow row (created, or its name/description/active flag updated; the
-// profile and version are left alone), then nodes and connections. The
-// file stays canonical. A workflow whose node/connection ids are owned by
-// another workflow is skipped (SaveWorkflowNodes' upsert would move them);
-// the save itself still succeeds. The caller's w is not modified.
-func (h *HybridWorkflowStore) mirrorToSQL(ctx context.Context, w *Workflow) error {
-	if h.sql == nil || w == nil || w.ID == "" {
-		return nil
-	}
-	if err := h.sql.checkOwnIDs(ctx, w); err != nil {
-		if errors.Is(err, ErrSharedIDs) {
-			return nil
-		}
-		return err
-	}
-	var n int
-	if err := h.sql.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM workflows WHERE id = ?`, w.ID).Scan(&n); err != nil {
-		return fmt.Errorf("mirror workflow %s: %w", w.ID, err)
-	}
-	if n == 0 {
-		stub := *w
-		stub.Nodes, stub.Connections = nil, nil
-		if err := h.sql.CreateWorkflow(ctx, &stub); err != nil {
-			return fmt.Errorf("mirror workflow %s: %w", w.ID, err)
-		}
-	} else if _, err := h.sql.db.ExecContext(ctx,
-		`UPDATE workflows SET name = ?, description = ?, is_active = ?, updated_at = ? WHERE id = ?`,
-		w.Name, w.Description, boolToInt(w.IsActive), time.Now().UTC(), w.ID); err != nil {
-		return fmt.Errorf("mirror workflow %s: %w", w.ID, err)
-	}
-	saveWorkflowSettings(ctx, h.sql.db, w)
-	nodes := append([]WorkflowNode(nil), w.Nodes...)
-	if err := h.sql.SaveWorkflowNodes(ctx, w.ID, nodes); err != nil {
-		return fmt.Errorf("mirror workflow %s nodes: %w", w.ID, err)
-	}
-	conns := append([]WorkflowConnection(nil), w.Connections...)
-	if err := h.sql.SaveWorkflowConnections(ctx, w.ID, conns); err != nil {
-		return fmt.Errorf("mirror workflow %s connections: %w", w.ID, err)
-	}
-	return nil
-}
 
 // checkOwnIDs returns ErrSharedIDs when any of w's node or connection ids
 // belongs to a different workflow in SQLite.

@@ -103,11 +103,6 @@ func (s *WorkflowFileStore) SaveWorkflow(ctx context.Context, wf *Workflow) erro
 	return s.saveWorkflow(ctx, wf)
 }
 
-// saveWorkflowDurable is kept for the guarded save; every save is atomic and flushed now.
-func (s *WorkflowFileStore) saveWorkflowDurable(ctx context.Context, wf *Workflow) error {
-	return s.saveWorkflow(ctx, wf)
-}
-
 func (s *WorkflowFileStore) saveWorkflow(ctx context.Context, wf *Workflow) error {
 	data, err := s.renderWorkflow(wf)
 	if err != nil {

@@ -349,3 +349,62 @@ processes") is the R-series; the crash tests C1-C6 are the crash-recovery bar.
    `SyncFileWorkflowsToSQL` at start (enginebuild); how the GUI `SaveWorkflow` request reaches the store
    (CLI shell-out per project rule, not opened); how many workflows have shared ids (the
    `ErrSharedIDs` special case); Windows process liveness.
+
+## 6. As built, and the choices made on the open questions
+
+Branch `ai4/design977`. Differences from sections 3 and 4:
+
+- **Migration number.** The tables are in migration 126 (125 was taken on master by another change).
+- **`Publish`** is `HybridWorkflowStore.Publish` (publish.go); recovery is publish_recover.go; the
+  outside-edit importer is `ImportFile` (publish_import.go). The failpoints are in failpoint_on.go
+  (build tag `wfcrash`); release builds compile the no-op in failpoint_off.go.
+- **Which transaction takes the lock.** Every transaction of the protocol starts with a write
+  statement on `workflow_publications`, which takes SQLite's write lock for the rest of that
+  transaction; `BEGIN IMMEDIATE` on a dedicated connection was not needed.
+- **Version in the file.** The next version number is worked out in TX1 (same rule as
+  `recordVersionTx`) so the file carries it; TX2 refuses to commit if the rule gave a different
+  number.
+- **Base of an edit.** Node and connection edits, `apply-fix` and the active toggle start from the
+  committed rows plus the name, description, settings and active flag of the file (the toggle from the
+  whole file), so a hand edit of those survives, as it did when the file was read-modify-written.
+  Removing a node takes its connections out of the file as well as the rows.
+- **Unresolved owner.** When a rollback in the owner's own process cannot put the file back, the intent
+  keeps `owner_pid = 0` so the next process retries it at once. A file that is neither the old nor the
+  new bytes is copied to `workflow-quarantine/` and the intent becomes `unresolved`; the owner gets
+  `ErrFileInconsistent`.
+- **Behaviour changes that are visible.** A node or connection edit whose file cannot be written is
+  now an error and changes nothing (it was dropped silently). `DeleteWorkflow` is all or nothing (a file
+  that cannot be removed keeps the rows). A second change to a workflow with an open change waits up to
+  5 s and then returns `ErrPublicationBusy`. After a failed rollback the next save of that workflow
+  reports `ErrFileInconsistent` until the change is resolved (`doctor --fix` or any command that opens
+  the store). `import`, `templates use`, duplicate and `record` are one publication; their old
+  compensation code is gone.
+
+Decisions on section 5:
+
+1. **Hand edits stay supported.** An edit that changes the definition is imported by content: the rows
+   follow the file, a version with the note `edited outside the app` is recorded, and the file is never
+   rewritten. An edit that does not change the definition (re-serialisation, profile stamping) only
+   updates the remembered bytes. The daemon keeps reading the file as before.
+2. **Approvals are not explicitly revoked on import.** The conservative option: today an outside edit
+   leaves the new definition unapproved because approvals are keyed by definition hash, and an edit that
+   returns to an earlier approved definition counts as approved. That is kept. Explicit revocation on
+   every outside edit (this plan's 3.6) would change that and is left to the owner. `apply-fix` and
+   save-draft still revoke, now inside the commit.
+3. **`doctor`** shows `workflows.publications` and offers a fix that runs the recovery every command
+   that opens the store runs anyway; plain `doctor` changes nothing. `unresolved` rows are only reported.
+4. **Durability.** See the note in section 7 on `synchronous=FULL`.
+
+## 7. Durability measurement and what remains
+
+The three transactions of a publication run on a connection set to `synchronous=FULL`
+(`beginDurable`), restored afterwards. `BenchmarkPublish` (one node edit: intent, file, commit) on the
+shared, loaded development machine was too noisy to separate the two settings: FULL gave 16 to 44 ms per
+save and NORMAL 4 to 49 ms across three runs of 300. The file's own fsyncs (temp file and folder)
+dominate either way, and saves are operator-rate events. Real power loss and macOS fsync semantics were
+not exercised.
+
+Not done: skipping pending ids in profile stamping (a stamp that lands in the window makes a crash
+there `unresolved` instead of rolled back, which is safe but louder); the three package-level test
+seams in guarded_save.go are kept (non-tagged tests use them) next to the tagged failpoints; Windows
+liveness is lease-only (30 s) as designed.

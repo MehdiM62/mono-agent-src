@@ -104,16 +104,47 @@ func (h *HybridWorkflowStore) Publish(ctx context.Context, p Publication) (*Work
 	}
 }
 
+// beginDurable starts a transaction on a connection that flushes its commit to disk
+// (synchronous=FULL, the pool's default is NORMAL). The intent must reach the disk before the file
+// is replaced: otherwise a power cut could keep the new file and lose the intent, and the file
+// would look like an outside edit. done puts the connection back as it was and must run after the
+// transaction has ended.
+func (h *HybridWorkflowStore) beginDurable(ctx context.Context) (tx *sql.Tx, done func(), err error) {
+	conn, err := h.sql.db.Conn(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	var level int
+	if err := conn.QueryRowContext(ctx, `PRAGMA synchronous`).Scan(&level); err != nil {
+		conn.Close()
+		return nil, nil, err
+	}
+	if _, err := conn.ExecContext(ctx, `PRAGMA synchronous = FULL`); err != nil {
+		conn.Close()
+		return nil, nil, err
+	}
+	done = func() {
+		_, _ = conn.ExecContext(context.Background(), fmt.Sprintf(`PRAGMA synchronous = %d`, level))
+		conn.Close()
+	}
+	if tx, err = conn.BeginTx(ctx, nil); err != nil {
+		done()
+		return nil, nil, err
+	}
+	return tx, done, nil
+}
+
 func (h *HybridWorkflowStore) publishOnce(ctx context.Context, p Publication) (*Workflow, error) {
 	if h.files != nil {
 		if err := h.recoverID(ctx, p.WorkflowID); err != nil {
 			return nil, fmt.Errorf("%w: workflow %s: %v", ErrFileInconsistent, p.WorkflowID, err)
 		}
 	}
-	tx, err := h.sql.db.BeginTx(ctx, nil)
+	tx, done, err := h.beginDurable(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("beginning publication: %w", err)
 	}
+	defer done()
 	defer tx.Rollback()
 	if err := lockPublication(ctx, tx, p.WorkflowID); err != nil {
 		return nil, fmt.Errorf("locking workflow %s: %w", p.WorkflowID, err)
@@ -343,10 +374,11 @@ func (h *HybridWorkflowStore) commitPublication(ctx context.Context, p Publicati
 	if err := failpoint("before-tx2"); err != nil {
 		return nil, err
 	}
-	tx, err := h.sql.db.BeginTx(ctx, nil)
+	tx, done, err := h.beginDurable(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("committing guarded save: %w", err)
 	}
+	defer done()
 	defer tx.Rollback()
 	res, err := tx.ExecContext(ctx, `UPDATE workflow_publications SET state = state WHERE id = ? AND state = 'pending'`, intentID)
 	if err != nil {
