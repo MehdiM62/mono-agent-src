@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/monoes/mono-agent/internal/aitask"
@@ -173,4 +175,62 @@ func TestSuccessfulAnswersAreScrubbed(t *testing.T) {
 	if err != nil || strings.Contains(string(r.Result), "task-token-0123456789") || strings.Contains(string(r.Result), tok) {
 		t.Fatalf("%s %v", r.Result, err)
 	}
+}
+
+// A secret written with an escape in an answer is scrubbed, nested or as a key.
+func TestEscapedSecretsInAnAnswerAreScrubbed(t *testing.T) {
+	esc := "\\u006d" + tok[1:]
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"taskId":"at-1","status":"complete","result":{"` + esc + `":"x ` + esc + `"},"error":"` + esc + `"}`))
+	}))
+	defer srv.Close()
+	task, err := New(srv.URL, tok).Task(context.Background(), "at-1")
+	if err != nil || strings.Contains(string(task.Result), tok[1:]) || strings.Contains(task.Error, tok[1:]) {
+		t.Fatalf("%s %q %v", task.Result, task.Error, err)
+	}
+}
+
+// Calls share a client: each call's task token is its own, so a concurrent call cannot clear or
+// swap another's (run with -race).
+func TestConcurrentCallsKeepTheirOwnTaskTokens(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go func() {
+				buf := make([]byte, 4096)
+				n, _ := c.Read(buf)
+				// Echo the request's task token in a broken status line.
+				var tt string
+				for _, l := range strings.Split(string(buf[:n]), "\r\n") {
+					if v, ok := strings.CutPrefix(l, "X-Aitask-Token: "); ok {
+						tt = v
+					}
+				}
+				_, _ = c.Write([]byte("HTTP/1.1 " + tt + " Broken\r\n\r\n"))
+				c.Close()
+			}()
+		}
+	}()
+	cl := New("http://"+ln.Addr().String()+"/profiles/p", tok)
+	var wg sync.WaitGroup
+	for i := 0; i < 24; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			task := fmt.Sprintf("task-token-%02d-abcdefghij", i)
+			_, err := cl.Complete(context.Background(), "at-1", task, []byte(`{}`))
+			if err == nil || strings.Contains(err.Error(), task) {
+				t.Errorf("call %d: %v", i, err)
+			}
+		}()
+	}
+	wg.Wait()
 }

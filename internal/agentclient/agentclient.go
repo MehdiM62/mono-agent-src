@@ -46,9 +46,7 @@ const (
 type Client struct {
 	base  string
 	token string
-	// task is the task token of the call in progress, scrubbed like the bearer from every message.
-	task string
-	http *http.Client
+	http  *http.Client
 }
 
 // FromEnv is the client the environment asks for, or nil when it does not ask for one: both
@@ -86,7 +84,7 @@ func (c *Client) scrub(s string, taskToken ...string) string {
 			s = strings.ReplaceAll(s, t, "[token]")
 		}
 	}
-	return s
+	return aitask.RedactAgentTokens(s) // any agent token, whoever's
 }
 
 // scrubAny scrubs every string inside v, keys included.
@@ -128,19 +126,19 @@ func secureTarget(u *url.URL) bool {
 	return false
 }
 
-func (c *Client) unavailable(format string, a ...any) error {
-	return &aitask.Error{Code: CodeAPIUnavailable, Message: c.scrub(fmt.Sprintf(format, a...), c.task)}
+func (c *Client) unavailable(taskToken, format string, a ...any) error {
+	return &aitask.Error{Code: CodeAPIUnavailable, Message: c.scrub(fmt.Sprintf(format, a...), taskToken)}
 }
 
 // do sends one request and returns the status and body.
 func (c *Client) do(ctx context.Context, method, path, taskToken string, body []byte) (int, []byte, error) {
 	u, err := url.Parse(c.base + path)
 	if err != nil || !secureTarget(u) {
-		return 0, nil, c.unavailable("%s must be an https URL, or http to 127.0.0.1, [::1] or localhost: the bearer and the task token are not sent anywhere else", EnvURL)
+		return 0, nil, c.unavailable(taskToken, "%s must be an https URL, or http to 127.0.0.1, [::1] or localhost: the bearer and the task token are not sent anywhere else", EnvURL)
 	}
 	req, err := http.NewRequestWithContext(ctx, method, u.String(), bytes.NewReader(body))
 	if err != nil {
-		return 0, nil, c.unavailable("building the request: %v", err)
+		return 0, nil, c.unavailable(taskToken, "building the request: %v", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+c.token)
 	if taskToken != "" {
@@ -155,12 +153,12 @@ func (c *Client) do(ctx context.Context, method, path, taskToken string, body []
 		if errors.As(err, &ue) {
 			err = ue.Err // the URL is the caller's own and not worth repeating
 		}
-		return 0, nil, c.unavailable("the agent API at %s cannot be reached: %v", c.base, err)
+		return 0, nil, c.unavailable(taskToken, "the agent API at %s cannot be reached: %v", c.base, err)
 	}
 	defer resp.Body.Close()
 	b, err := io.ReadAll(io.LimitReader(resp.Body, maxResponse))
 	if err != nil {
-		return 0, nil, c.unavailable("reading the agent API's answer: %v", err)
+		return 0, nil, c.unavailable(taskToken, "reading the agent API's answer: %v", err)
 	}
 	return resp.StatusCode, b, nil
 }
@@ -168,7 +166,7 @@ func (c *Client) do(ctx context.Context, method, path, taskToken string, body []
 // refusal turns a non-2xx answer into the *aitask.Error the commands print.
 func (c *Client) refusal(status int, b []byte, taskToken string) error {
 	if status >= 300 && status < 400 {
-		return c.unavailable("the agent API answered with a redirect (HTTP %d), which is not followed", status)
+		return c.unavailable(taskToken, "the agent API answered with a redirect (HTTP %d), which is not followed", status)
 	}
 	var doc map[string]any
 	if json.Unmarshal(b, &doc) == nil {
@@ -191,12 +189,10 @@ func (c *Client) refusal(status int, b []byte, taskToken string) error {
 		return &aitask.Error{Code: CodeAPIRefused,
 			Message: fmt.Sprintf("the agent API refused this token (HTTP %d): it may be expired, revoked or not bound to this task", status)}
 	}
-	return c.unavailable("the agent API answered HTTP %d", status)
+	return c.unavailable(taskToken, "the agent API answered HTTP %d", status)
 }
 
 func (c *Client) call(ctx context.Context, method, path, taskToken string, body []byte, out any) error {
-	c.task = taskToken
-	defer func() { c.task = "" }()
 	status, b, err := c.do(ctx, method, path, taskToken, body)
 	if err != nil {
 		return err
@@ -205,9 +201,9 @@ func (c *Client) call(ctx context.Context, method, path, taskToken string, body 
 		return c.refusal(status, b, taskToken)
 	}
 	// What the API says is data: it never carries either credential on to the caller.
-	b = []byte(c.scrub(string(b), taskToken))
+	b = aitask.ScrubJSON(b, func(s string) string { return c.scrub(s, taskToken) })
 	if err := json.Unmarshal(b, out); err != nil {
-		return c.unavailable("the agent API's answer is not what this version expects")
+		return c.unavailable(taskToken, "the agent API's answer is not what this version expects")
 	}
 	return nil
 }

@@ -464,3 +464,32 @@ func TestAitaskReadsScrubTheBearerFromTheStoredRow(t *testing.T) {
 		}
 	}
 }
+
+// A stored row is cleaned whoever reads it and whatever they presented: any agent token (another
+// agent's too), the task's own token found by its stored hash, and a secret written with escapes.
+func TestAitaskReadsScrubSecretsTheCallerNeverPresented(t *testing.T) {
+	s := newTestServer(t, false)
+	taskTok := aitask.NewToken() // 64 hex characters
+	st := &aitask.Store{DB: s.rt.db.DB, Profile: "default"}
+	if _, err := st.Insert(aitask.Task{ID: "at-1", Kind: "api-check", ConversationID: "conv-1", Status: aitask.StatusRunning, Goal: "g"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SetToken("at-1", taskTok); err != nil {
+		t.Fatal(err)
+	}
+	reader := boundToken(t, s, "default", "reader", agenttokens.ScopeRead, "at-1", "conv-1")
+	other := mint(t, s, "default", "someone-else", agenttokens.ScopeRead) // another agent's bearer
+	esc := "\\u006d" + other[1:]
+	row := `{"summary":"a ` + other + ` b ` + taskTok + ` c ` + esc + `","` + esc + `":1}`
+	if _, err := s.rt.db.DB.Exec(`UPDATE ai_tasks SET goal = ?, error = ?, result_json = ? WHERE id = 'at-1'`,
+		"goal "+taskTok, "err "+other, row); err != nil {
+		t.Fatal(err)
+	}
+	for _, tail := range []string{"", "/result"} {
+		rw := aitaskReq(t, s, "GET", aitaskPath("at-1", tail), reader, "", "")
+		body := rw.Body.String()
+		if rw.Code != 200 || strings.Contains(body, other) || strings.Contains(body, other[1:]) || strings.Contains(body, taskTok) {
+			t.Errorf("GET %q: %d %s", tail, rw.Code, body)
+		}
+	}
+}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"regexp"
 
 	"github.com/monoes/mono-agent/internal/agenttokens"
 	"github.com/monoes/mono-agent/internal/aitask"
@@ -94,7 +95,27 @@ func writeAitaskError(w http.ResponseWriter, r *http.Request, err error) {
 // requestSecrets hides both credentials of a request, the bearer and the task's own token, by
 // value: in a stored result, a failure reason and anything an answer repeats.
 func requestSecrets(r *http.Request) func(string) string {
-	return aitask.RedactValues([]string{bearerCredential(r), r.Header.Get(aitaskTokenHeader)})
+	exact := aitask.RedactValues([]string{bearerCredential(r), r.Header.Get(aitaskTokenHeader)})
+	return func(s string) string { return aitask.RedactAgentTokens(exact(s)) }
+}
+
+// taskTokenShape is a task token: 32 random bytes in hex (aitask.NewToken).
+var taskTokenShape = regexp.MustCompile(`[0-9a-f]{64}`)
+
+// readSecrets is requestSecrets for what a task's stored row says: it also hides every agent
+// token whoever holds it, and any hex string that is task id's own token (checked against the
+// stored hash, so no secret has to be presented for it to be found).
+func readSecrets(r *http.Request, store *aitask.Store, id string) func(string) string {
+	base := requestSecrets(r)
+	return func(s string) string {
+		s = base(s)
+		return taskTokenShape.ReplaceAllStringFunc(s, func(c string) string {
+			if store.CheckTokenRemote(id, c) {
+				return aitask.RedactedValue
+			}
+			return c
+		})
+	}
 }
 
 // scrubValue applies redact to every string inside v (maps, lists and the strings themselves).
@@ -129,7 +150,7 @@ func scrubValue(v any, redact func(string) string) any {
 func scrubTask(t aitask.Task, redact func(string) string) aitask.Task {
 	t.Goal, t.Error, t.ApplicationID = redact(t.Goal), redact(t.Error), redact(t.ApplicationID)
 	if len(t.Result) > 0 {
-		t.Result = json.RawMessage(redact(string(t.Result)))
+		t.Result = json.RawMessage(aitask.ScrubJSON(t.Result, redact))
 	}
 	return t
 }
@@ -194,13 +215,13 @@ func (s *Server) handleAitaskKinds(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleAitaskStatus(w http.ResponseWriter, r *http.Request) {
 	if _, t, ok := s.aitaskFor(w, r); ok {
-		writeJSON(w, http.StatusOK, scrubTask(t, requestSecrets(r)))
+		writeJSON(w, http.StatusOK, scrubTask(t, readSecrets(r, svcStore(s, r), t.ID)))
 	}
 }
 
 func (s *Server) handleAitaskResult(w http.ResponseWriter, r *http.Request) {
 	if _, t, ok := s.aitaskFor(w, r); ok {
-		t = scrubTask(t, requestSecrets(r))
+		t = scrubTask(t, readSecrets(r, svcStore(s, r), t.ID))
 		writeJSON(w, http.StatusOK, map[string]any{"taskId": t.ID, "status": t.Status, "result": t.Result, "error": t.Error})
 	}
 }
@@ -221,7 +242,7 @@ func (s *Server) handleAitaskComplete(w http.ResponseWriter, r *http.Request) {
 		writeAitaskError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, scrubTask(t, requestSecrets(r)))
+	writeJSON(w, http.StatusOK, scrubTask(t, readSecrets(r, svcStore(s, r), t.ID)))
 }
 
 func (s *Server) handleAitaskFail(w http.ResponseWriter, r *http.Request) {
@@ -241,7 +262,7 @@ func (s *Server) handleAitaskFail(w http.ResponseWriter, r *http.Request) {
 		writeAitaskError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, scrubTask(t, requestSecrets(r)))
+	writeJSON(w, http.StatusOK, scrubTask(t, readSecrets(r, svcStore(s, r), t.ID)))
 }
 
 func (s *Server) handleAitaskCancel(w http.ResponseWriter, r *http.Request) {
@@ -254,5 +275,10 @@ func (s *Server) handleAitaskCancel(w http.ResponseWriter, r *http.Request) {
 		writeAitaskError(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, scrubTask(t, requestSecrets(r)))
+	writeJSON(w, http.StatusOK, scrubTask(t, readSecrets(r, svcStore(s, r), t.ID)))
+}
+
+// svcStore is the profile's task store for a request.
+func svcStore(s *Server, r *http.Request) *aitask.Store {
+	return &aitask.Store{DB: s.rt.db.DB, Profile: profileOf(r)}
 }
