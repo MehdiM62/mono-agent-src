@@ -3,6 +3,9 @@ package dynorg
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -29,6 +32,10 @@ type e2eRig struct {
 	other  tasks.Task
 	otherS int64
 	execs  int
+	// repo, when set, makes every lead an isolated-writers conductor in that repository (a
+	// turn of its own each), so writers get worktrees and branches and may run in parallel.
+	repo  string
+	turns int
 }
 
 // exec is the fake exec of every run: a worker attaches the commit evidence of its code task
@@ -53,6 +60,12 @@ func (e *e2eRig) exec(ctx context.Context, o monomind.ExecOptions, on func(monom
 		if _, err := e.store.AddArtifact(tbg, "default", act.Session, act.Task, tasks.ArtifactInput{Kind: "commit", Ref: "commit-" + act.Label() + "-" + time.Now().Format("150405.000000")}, act); err != nil {
 			e.t.Errorf("a worker attaching its evidence: %v", err)
 		}
+		if strings.Contains(o.Cwd, WorktreeDirName) {
+			// an isolated writer edits its own worktree; the conductor commits it on the worker's branch
+			if err := os.WriteFile(filepath.Join(o.Cwd, fmt.Sprintf("task-%d.txt", act.Task)), []byte("work of "+act.Label()+"\n"), 0o644); err != nil {
+				e.t.Errorf("a worker writing in its worktree: %v", err)
+			}
+		}
 		if first {
 			// a worker may finish only its own task: neither a task of its session nor of another
 			// session, with its own binding or by naming another session
@@ -72,8 +85,13 @@ func (e *e2eRig) exec(ctx context.Context, o monomind.ExecOptions, on func(monom
 }
 
 func (e *e2eRig) conductorOf(m *MissionConfig) *Conductor {
-	c := New(tbg, Config{Cwd: "/w", Limits: Limits{MaxAgents: 20, MaxConcurrent: 5}, Staffer: &Staffer{Roster: []Model{opus, haiku}, Lead: opus},
-		ReadAccess: true, Exec: e.exec, Emit: e.em, Missions: e.mc, Mission: m})
+	cfg := Config{Cwd: "/w", Limits: Limits{MaxAgents: 20, MaxConcurrent: 5}, Staffer: &Staffer{Roster: []Model{opus, haiku}, Lead: opus},
+		ReadAccess: true, Exec: e.exec, Emit: e.em, Missions: e.mc, Mission: m}
+	if e.repo != "" {
+		e.turns++
+		cfg.Cwd, cfg.Writers, cfg.TurnID = e.repo, WritersIsolated, fmt.Sprintf("t%d", e.turns)
+	}
+	c := New(tbg, cfg)
 	e.t.Cleanup(c.Close)
 	return c
 }
@@ -116,11 +134,18 @@ func e2ePlan() map[string]any {
 	}}
 }
 
-// planned drives the lead through propose, confirm and plan, and has the operator approve.
+// planned drives the lead through propose, confirm and plan, and has the operator approve
+// (auto_close_verified on).
 func (e *e2eRig) planned() (lead *Conductor, ids map[string]int64) {
+	return e.plannedWith(e2ePlan(), 5, true)
+}
+
+// plannedWith is planned for a plan of n tasks; auto says whether the operator turns
+// auto_close_verified on.
+func (e *e2eRig) plannedWith(plan map[string]any, n int, auto bool) (lead *Conductor, ids map[string]int64) {
 	t := e.t
 	unconfirmed := e.conductorOf(&MissionConfig{Store: e.store, ProfileID: "default", ConversationID: e2eConv, Actor: "mission-lead", Access: "coding"})
-	if _, err := unconfirmed.Handle(tbg, ToolMissionPlan, mustJSON(e2ePlan())); err == nil {
+	if _, err := unconfirmed.Handle(tbg, ToolMissionPlan, mustJSON(plan)); err == nil {
 		t.Fatal("a plan before the user confirmed")
 	}
 	e.call(unconfirmed, ToolMissionPropose, `{"title":"Add the json flag","goal":"Add a --json flag with tests"}`)
@@ -136,20 +161,20 @@ func (e *e2eRig) planned() (lead *Conductor, ids map[string]int64) {
 		SessionID int64 `json:"session_id"`
 		TaskIDs   []int64
 	}
-	if err := json.Unmarshal([]byte(e.call(lead, ToolMissionPlan, string(mustJSON(e2ePlan())))), &planned); err != nil {
+	if err := json.Unmarshal([]byte(e.call(lead, ToolMissionPlan, string(mustJSON(plan)))), &planned); err != nil {
 		t.Fatal(err)
 	}
 	e.sid = planned.SessionID
 	e.c = lead
 	ids = map[string]int64{}
-	plan, err := e.store.PlanOfSession(tbg, "default", e.sid, operator)
+	stored, err := e.store.PlanOfSession(tbg, "default", e.sid, operator)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(plan.Tasks) != 5 || e.session().State != tasks.SessionDraft {
-		t.Fatalf("plan: %d tasks, state %s", len(plan.Tasks), e.session().State)
+	if len(stored.Tasks) != n || e.session().State != tasks.SessionDraft {
+		t.Fatalf("plan: %d tasks, state %s", len(stored.Tasks), e.session().State)
 	}
-	for _, tk := range plan.Tasks {
+	for _, tk := range stored.Tasks {
 		ids[tk.Title] = tk.ID
 	}
 
@@ -162,7 +187,9 @@ func (e *e2eRig) planned() (lead *Conductor, ids map[string]int64) {
 		t.Fatal("the lead approved its own plan")
 	}
 	e.approve() // the operator, as Human
-	e.autoClose()
+	if auto {
+		e.autoClose()
+	}
 	return lead, ids
 }
 
