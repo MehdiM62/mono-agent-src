@@ -285,8 +285,8 @@ func TestMissionReplanIsBoundedToTwoRounds(t *testing.T) {
 		t.Fatalf("third round: %v", err)
 	}
 	after, _ := st.PlanOfSession(ctx, missionProfile, id, missionHuman)
-	if len(after.Tasks) != len(before.Tasks) || m.round(id) != 2 {
-		t.Errorf("third round changed the plan: %d -> %d tasks, round %d", len(before.Tasks), len(after.Tasks), m.round(id))
+	if len(after.Tasks) != len(before.Tasks) || m.round(context.Background(), id) != 2 {
+		t.Errorf("third round changed the plan: %d -> %d tasks, round %d", len(before.Tasks), len(after.Tasks), m.round(context.Background(), id))
 	}
 	cards := em.find(chatevents.EventMissionPlan)
 	if last := cards[len(cards)-1].(chatevents.MissionPlanPayload); last.Round != 2 || last.TaskCount != 5 {
@@ -312,8 +312,8 @@ func TestMissionReplanAfterApprovalIsNotARound(t *testing.T) {
 			t.Fatalf("replan %d: %v", i, err)
 		}
 	}
-	if m.round(id) != 0 {
-		t.Errorf("rounds counted after approval: %d", m.round(id))
+	if m.round(context.Background(), id) != 0 {
+		t.Errorf("rounds counted after approval: %d", m.round(context.Background(), id))
 	}
 	plan, _ := st.PlanOfSession(ctx, missionProfile, id, missionHuman)
 	for _, tk := range plan.Tasks {
@@ -387,3 +387,65 @@ func TestMissionProposeEmitsEvent(t *testing.T) {
 }
 
 func idStr(n int64) string { b, _ := json.Marshal(n); return string(b) }
+
+// The review-round count lives in the store: a new Conductor (a restart) still knows it.
+func TestMissionReviewRoundsSurviveARestart(t *testing.T) {
+	st := missionStore(t)
+	c, _, m := missionConductor(t, st, "conv-1", true, nil)
+	res, _ := call(t, c, ToolMissionPlan, goodPlan())
+	id := int64(res["session_id"].(float64))
+	if _, err := call(t, c, ToolMissionReplan, map[string]any{"note": "one", "add": []PlanTask{okTask("r1")}}); err != nil {
+		t.Fatal(err)
+	}
+	n, err := st.CountSessionEvents(context.Background(), missionProfile, id, tasks.EventPlanRevised, missionHuman)
+	if err != nil || n != 1 {
+		t.Fatalf("plan_revised events: %d %v", n, err)
+	}
+	c2, _, m2 := missionConductor(t, st, "conv-1", true, nil)
+	if m2 == m || m2.round(context.Background(), id) != 1 {
+		t.Fatalf("a new conductor sees %d rounds, want 1", m2.round(context.Background(), id))
+	}
+	if _, err := call(t, c2, ToolMissionReplan, map[string]any{"note": "two", "add": []PlanTask{okTask("r2")}}); err != nil {
+		t.Fatal(err)
+	}
+	c3, _, _ := missionConductor(t, st, "conv-1", true, nil)
+	if _, err := call(t, c3, ToolMissionReplan, map[string]any{"note": "three", "add": []PlanTask{okTask("r3")}}); err == nil || !strings.Contains(err.Error(), "review rounds") {
+		t.Fatalf("a third round after two restarts: %v", err)
+	}
+}
+
+func TestMissionSplitChildrenCarryTheirOwnFilesAndSize(t *testing.T) {
+	st := missionStore(t)
+	ctx := context.Background()
+	c, _, _ := missionConductor(t, st, "conv-1", true, nil)
+	res, _ := call(t, c, ToolMissionPlan, goodPlan())
+	ids := res["task_ids"].(map[string]any)
+	t2 := int64(ids["t2"].(float64))
+	if _, err := call(t, c, ToolMissionSplit, map[string]any{"task_id": t2, "parts": []SplitPart{
+		{Title: "p1", Acceptance: "`go test ./a` exits 0", Files: []string{"cmd/a.go"}, Size: "xs"},
+		{Title: "p2", Acceptance: "`go test ./b` exits 0"}}}); err != nil {
+		t.Fatal(err)
+	}
+	plan, _ := st.PlanOfSession(ctx, missionProfile, int64(res["session_id"].(float64)), missionHuman)
+	got := map[string]TaskMeta{}
+	for _, tk := range plan.Tasks {
+		if tk.Title == "p1" || tk.Title == "p2" {
+			m, ok := ParseTaskMeta(tk.Notes)
+			if !ok {
+				t.Fatalf("%s has no meta: %q", tk.Title, tk.Notes)
+			}
+			got[tk.Title] = m
+		}
+	}
+	if m := got["p1"]; len(m.Files) != 1 || m.Files[0] != "cmd/a.go" || m.Size != "xs" || m.Risk != "low" {
+		t.Errorf("p1 meta %+v: its own files and size, the parent's risk", m)
+	}
+	if m := got["p2"]; len(m.Files) != 1 || m.Files[0] != "cmd/print.go" || m.Size != "m" {
+		t.Errorf("p2 meta %+v: the parent's", m)
+	}
+	// a bad size is rejected before the store
+	if _, err := call(t, c, ToolMissionSplit, map[string]any{"task_id": t2, "parts": []SplitPart{
+		{Title: "x", Acceptance: "`a` exits 0", Size: "l"}, {Title: "y", Acceptance: "`b` exits 0"}}}); err == nil {
+		t.Error("size l accepted in a split")
+	}
+}

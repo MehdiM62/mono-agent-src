@@ -162,6 +162,7 @@ func (r *missionRig) conductor(lim Limits) *Conductor {
 type spec struct {
 	title, files, exec string
 	deps               []int64
+	noEvidence         bool // a code task whose worker will attach nothing
 }
 
 // add plans a task into the (draft) session.
@@ -179,6 +180,13 @@ func (r *missionRig) add(s spec) tasks.Task {
 		Acceptance: "criteria of " + s.title, DependsOn: s.deps, SuggestedExecutor: exec}, operator)
 	if err != nil {
 		r.t.Fatal(err)
+	}
+	if s.files != "" && !s.noEvidence {
+		// a code task needs evidence to reach review: stand in for the commit its worker makes
+		art := tasks.ArtifactInput{Kind: "commit", Ref: "commit-of-" + strconv.FormatInt(tk.ID, 10)}
+		if _, err := r.store.AddArtifact(tbg, "default", r.sid, tk.ID, art, operator); err != nil {
+			r.t.Fatal(err)
+		}
 	}
 	return tk
 }

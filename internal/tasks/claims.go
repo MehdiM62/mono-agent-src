@@ -455,6 +455,11 @@ func (s *Store) handBack(ctx context.Context, profileID string, session, id int6
 		if _, err := s.heldBy(ctx, x, profileID, id, actor); err != nil {
 			return err
 		}
+		if session != 0 && kind == "result" {
+			if err := s.needsEvidence(ctx, x, profileID, id); err != nil {
+				return err
+			}
+		}
 		pos, err := s.edgePosition(ctx, x, profileID, to, atTop(to), id)
 		if err != nil {
 			return err

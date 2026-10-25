@@ -2,6 +2,7 @@ package dynorg
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -247,6 +248,17 @@ func (c *Conductor) handBackReport(ctx context.Context, mc *MissionRun, w *worke
 		return
 	}
 	if _, err := mc.Store.SessionFinish(ctx, mc.ProfileID, b.session, b.task.ID, tasks.Outcome{Result: text}, b.actor); err != nil {
+		if errors.Is(err, tasks.ErrNoEvidence) {
+			// the evidence rule: a code task goes to review with a commit, diff or test output.
+			// Give the task back with the reason so the next worker (or the lead) attaches it.
+			_, _ = mc.Store.SessionComment(ctx, mc.ProfileID, b.session, b.task.ID, "worker "+w.id+" finished without evidence: attach a commit, diff or test output (task artifact) before finishing", b.actor)
+			c.msched.mu.Lock()
+			c.msched.failures[b.task.ID]++
+			c.msched.mu.Unlock()
+			c.releaseClaim(b.session, b.task.ID, b.name, "finished without evidence")
+			c.notice("mission.evidence", fmt.Sprintf("Task #%d: %s finished a code task without evidence (a commit, diff or test output): the task is given back.", b.task.ID, w.id), chatevents.SeverityWarning)
+			return
+		}
 		c.notice("mission.finish", fmt.Sprintf("Task #%d: %s could not hand it to review: %v", b.task.ID, w.id, err), chatevents.SeverityWarning)
 		return
 	}

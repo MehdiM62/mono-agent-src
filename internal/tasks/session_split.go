@@ -25,14 +25,14 @@ func (s *Store) SplitTask(ctx context.Context, profileID string, sessionID, id i
 	if len(parts) < 2 || len(parts) > MaxSplitParts {
 		return nil, invalid("a split makes 2 to %d tasks (got %d)", MaxSplitParts, len(parts))
 	}
-	type part struct{ title, acceptance string }
+	type part struct{ title, acceptance, notes string }
 	clean := make([]part, 0, len(parts))
 	for _, p := range parts {
 		title, acceptance := cleanTitle(p.Title), cutBytes(cleanText(p.Acceptance), MaxAcceptanceBytes)
 		if title == "" || blank(acceptance) {
 			return nil, invalid("every part of a split needs a title and acceptance criteria")
 		}
-		clean = append(clean, part{title, acceptance})
+		clean = append(clean, part{title, acceptance, cutBytes(cleanText(p.Notes), MaxNotesBytes)})
 	}
 	source, err := sourceKindFor(actor, "")
 	if err != nil {
@@ -74,7 +74,11 @@ func (s *Store) SplitTask(ctx context.Context, profileID string, sessionID, id i
 		ids := make([]int64, 0, len(clean))
 		for _, p := range clean {
 			in := SessionTaskInput{Kind: cur.Kind, ParentID: cur.ParentID, SuggestedExecutor: cur.SuggestedExecutor}
-			nid, err := s.insertSessionTask(ctx, x, profileID, se, cur.Status, in, p.title, cur.Notes, p.acceptance, source, actor)
+			notes := cur.Notes
+			if p.notes != "" {
+				notes = p.notes
+			}
+			nid, err := s.insertSessionTask(ctx, x, profileID, se, cur.Status, in, p.title, notes, p.acceptance, source, actor)
 			if err != nil {
 				return err
 			}

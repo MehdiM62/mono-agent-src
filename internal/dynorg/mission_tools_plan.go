@@ -53,6 +53,9 @@ func splitsSchema() map[string]any {
 		"task_id": map[string]any{"type": "integer", "description": "The task to replace."},
 		"parts": map[string]any{"type": "array", "description": "Two or more parts; they keep the task's files, size and dependencies.", "items": obj(map[string]any{
 			"title": str("The part's outcome."), "acceptance": str("How the part is checked."),
+			"notes": str("Optional notes of the part; the task's by default."),
+			"files": strList("Optional files the part touches; the task's by default."),
+			"size":  str("Optional size xs, s or m; the task's by default."),
 		}, "title", "acceptance")},
 	}, "task_id", "parts")}
 }
@@ -208,7 +211,7 @@ func (c *Conductor) missionReplan(ctx context.Context, m *MissionConfig, args js
 		return "", err
 	}
 	draft := se.State == tasks.SessionDraft
-	if draft && m.round(se.ID) >= MaxReviewRounds {
+	if draft && m.round(ctx, se.ID) >= MaxReviewRounds {
 		return "", fmt.Errorf("the plan has had its %d review rounds: it stands as it is. Tell the user it is ready for approval", MaxReviewRounds)
 	}
 	for _, s := range a.Split {
@@ -228,7 +231,9 @@ func (c *Conductor) missionReplan(ctx context.Context, m *MissionConfig, args js
 		}
 	}
 	if draft {
-		m.addRound(se.ID)
+		if err := m.addRound(ctx, se.ID, a.Note); err != nil {
+			return "", err
+		}
 	}
 	return c.missionResult(ctx, m, se.ID, out)
 }
@@ -316,7 +321,7 @@ func (c *Conductor) missionStatus(ctx context.Context, m *MissionConfig) (string
 	out := map[string]any{"session": plan.Session, "tasks": taskViews(plan.Tasks), "recent_events": events}
 	switch plan.Session.State {
 	case tasks.SessionDraft:
-		out["review_rounds_left"] = max(0, MaxReviewRounds-m.round(se.ID))
+		out["review_rounds_left"] = max(0, MaxReviewRounds-m.round(ctx, se.ID))
 		out["next"] = "Draft: waiting for the operator's approval. Do not execute any task."
 	case tasks.SessionRunning:
 		out["next"] = "Approved and running: work the Ready tasks in dependency order."

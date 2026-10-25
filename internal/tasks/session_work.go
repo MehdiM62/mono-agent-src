@@ -162,6 +162,10 @@ func (s *Store) SessionComment(ctx context.Context, profileID string, sessionID,
 }
 
 // SessionFinish is Finish on a task of the session: the task goes to Review.
+//
+// A code task (kind task, files declared in its notes) is handed to review with a result
+// only when it holds evidence: a commit, diff, test, file or log artifact (ErrNoEvidence).
+// A report does not count, and a question needs none.
 func (s *Store) SessionFinish(ctx context.Context, profileID string, sessionID, id int64, o Outcome, actor Actor) (Task, error) {
 	return s.finishIn(ctx, profileID, sessionID, id, o, actor)
 }
