@@ -173,7 +173,7 @@ describe('mission strip', () => {
 })
 
 describe('report card', () => {
-  it('shows the summary with a link to the session, and the strip reads Finished', async () => {
+  it('shows the summary with a link to the session, and the strip reads Done', async () => {
     turnsWith({ id: 't1', events: [mev('t1', 2, 'mission.report', { sessionId: 7, summary: 'Shipped CSV export; 14 tests pass.' })] })
     sess.list.mockResolvedValue({ sessions: [sessionDoc(7, 'done')] })
     sess.show.mockResolvedValue({ session: sessionDoc(7, 'done') })
@@ -181,7 +181,7 @@ describe('report card', () => {
     const card = await screen.findByTestId('mission-report')
     expect(card).toHaveTextContent('Shipped CSV export; 14 tests pass.')
     const strip = await screen.findByTestId('mission-strip')
-    expect(strip).toHaveTextContent('Finished')
+    expect(strip).toHaveTextContent('Done')
     fireEvent.click(screen.getByTestId('mission-open-report'))
     expect(nav).toHaveBeenCalledWith('tasks', { sessionId: 7, report: true })
   })

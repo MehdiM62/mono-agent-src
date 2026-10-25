@@ -1737,7 +1737,7 @@
         "draft": "Draft",
         "running": "Running",
         "paused": "Paused",
-        "done": "Finished",
+        "done": "Done",
         "stopped": "Stopped",
         "failed": "Failed"
       },

@@ -11,6 +11,7 @@ const LIST_POLL_MS = 4000
 
 export function useTaskSessions(active, selectedId) {
   const [sessions, setSessions] = useState([])
+  const [loaded, setLoaded] = useState(false) // the first list read has answered (well or not)
   const [events, setEvents] = useState([])
   const [notice, setNotice] = useState(null) // {error, code}
   const seq = useRef(0)
@@ -19,7 +20,9 @@ export function useTaskSessions(active, selectedId) {
   const reload = useCallback(async () => {
     const mine = ++seq.current
     const doc = await sessionsApi.list(false)
-    if (mine !== seq.current || doc?.error) return
+    if (mine !== seq.current) return
+    setLoaded(true)
+    if (doc?.error) return
     setSessions(Array.isArray(doc?.sessions) ? doc.sessions : [])
   }, [])
 
@@ -57,5 +60,5 @@ export function useTaskSessions(active, selectedId) {
     return res
   }, [reload])
 
-  return { sessions, selected, events, notice, clearNotice: () => setNotice(null), act, setBudget, reload }
+  return { sessions, loaded, selected, events, notice, clearNotice: () => setNotice(null), act, setBudget, reload }
 }

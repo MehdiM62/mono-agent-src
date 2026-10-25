@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { missionItems, sessionOf, stripFor, stripActions, workingOn, isTerminal } from './missionModel.js'
+import { missionItems, sessionOf, stripFor, stripActions, workingOn, isTerminal, integrationTasks, hasFinalReport, pickReportTask } from './missionModel.js'
 
 const plan = (sessionId, round = 0) => ({ type: 'mission.plan', payload: { sessionId, title: 'T', round } })
 const propose = (title) => ({ type: 'mission.propose', payload: { title, goal: 'g' } })
@@ -57,5 +57,33 @@ describe('sessionOf and the strip', () => {
     expect(workingOn({ tasks: { in_progress: [{ id: 4, title: 'x', assignee: 'w1' }, { id: 5, title: 'y', claim: { by: 'w2' } }] } }))
       .toEqual([{ id: 4, title: 'x', worker: 'w1' }, { id: 5, title: 'y', worker: 'w2' }])
     expect(workingOn(null)).toEqual([])
+  })
+})
+
+describe('pickReportTask', () => {
+  const tasks = [
+    { id: 1, kind: 'epic', title: 'Build' },
+    { id: 2, kind: 'check', title: 'Unit checks' },
+    { id: 3, kind: 'check', title: 'Integration check' },
+  ]
+  const fr = { id: 9, kind: 'report', ref: 'final-report', note: 'x' }
+  it('finds the integration check tasks only', () => {
+    expect(integrationTasks(tasks).map(t => t.id)).toEqual([3])
+    expect(integrationTasks(null)).toEqual([])
+  })
+  it('recognises a final report by ref or kind, also in the untrusted view', () => {
+    expect(hasFinalReport([fr])).toBe(true)
+    expect(hasFinalReport([{ kind: 'final-report' }])).toBe(true)
+    expect(hasFinalReport([{ kind: 'report', ref_untrusted: 'final-report' }])).toBe(true)
+    expect(hasFinalReport([{ kind: 'report', ref: 'report:w1' }])).toBe(false)
+    expect(hasFinalReport(undefined)).toBe(false)
+  })
+  it('prefers the task that has the final-report artifact', () => {
+    expect(pickReportTask(tasks, { 2: [fr], 3: [] })).toEqual({ taskId: 2, hasReport: true })
+  })
+  it('falls back to the Integration check task, then to nothing', () => {
+    expect(pickReportTask(tasks, { 3: [] })).toEqual({ taskId: 3, hasReport: false })
+    expect(pickReportTask([tasks[0]], {})).toBeNull()
+    expect(pickReportTask(null, null)).toBeNull()
   })
 })
