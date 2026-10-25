@@ -39,9 +39,9 @@ type coderSettings struct {
 	// mission turn in a git work tree may default to isolated writers (missionWriters).
 	// It is never saved as an operator's choice (saveCoderSettings).
 	orgWritersDefaulted bool
-	OrgMaxConcurrent      int     `json:"orgMaxConcurrent"`
-	OrgBudgetUSD          float64 `json:"orgBudgetUsd"`
-	OrgModelPicker        string  `json:"orgModelPicker"`
+	OrgMaxConcurrent    int     `json:"orgMaxConcurrent"`
+	OrgBudgetUSD        float64 `json:"orgBudgetUsd"`
+	OrgModelPicker      string  `json:"orgModelPicker"`
 	// OrgRouter (coder.router) is who picks a worker's role and skills when
 	// the lead names none: "auto" (default), "jev" or "model".
 	OrgRouter string `json:"orgRouter"`
