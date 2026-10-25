@@ -4,6 +4,7 @@ import { Check, ListChecks, Square, Flag, ExternalLink } from 'lucide-react'
 import { confirm } from '../../ConfirmDialog.jsx'
 import { sessionsApi } from '../../../services/taskSessions.js'
 import { isTerminal } from '../../../lib/missionModel.js'
+import { ChatMarkdown } from '../../chat/ChatMarkdown.jsx'
 import { useSessionLive } from './useMissionSession.js'
 import './mission.css'
 
@@ -86,7 +87,7 @@ export function ReportCard({ item, onNavigate }) {
   return (
     <section className="ms-card" data-testid="mission-report" aria-label={t('bubbles.mission.reportLabel')}>
       <div className="ms-card-head"><Flag size={12} aria-hidden="true" /> <strong>{t('bubbles.mission.report')}</strong></div>
-      <p className="ms-text" style={{ whiteSpace: 'pre-wrap' }}>{p.summary}</p>
+      <div className="ms-text"><ChatMarkdown content={p.report ?? p.summary ?? ''} /></div>
       <div className="ms-actions">
         <button type="button" className="btn btn-secondary btn-sm" data-testid="mission-open-report" onClick={() => onNavigate?.('tasks', { sessionId: p.sessionId, report: true })}>
           <ExternalLink size={12} aria-hidden="true" /> {t('bubbles.mission.openReport')}

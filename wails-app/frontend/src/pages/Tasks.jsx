@@ -305,7 +305,7 @@ export function TaskBoard({ isActive = true, switcher = null, session = null, se
         <div role="alert" onClick={b.clearNotice}>{t('tasks.refused', { error: b.notice.error })}</div>
       )}
       <div className="tb-main">
-        {!b.board ? <div className="tb-cols">{t('tasks.loading')}</div> : renderPlan ? <div className="tb-cols">{renderPlan({ openTask: openCard })}</div> : <div className="tb-cols" data-tb-board-scroll>
+        {!b.board ? (b.error ? null : <div className="tb-cols">{t('tasks.loading')}</div>) : renderPlan ? <div className="tb-cols">{renderPlan({ openTask: openCard })}</div> : <div className="tb-cols" data-tb-board-scroll>
           {COLUMNS.map(status => {
             const over = drag?.overStatus === status
             const lineAt = over ? (shown.columns[status].filter(x => x.id !== drag.id)[drag.overIndex]?.id ?? 'end') : null
@@ -319,7 +319,7 @@ export function TaskBoard({ isActive = true, switcher = null, session = null, se
               >
                 <h2 className="tb-col-head">{t(`tasks.column.${status}`)} <span className="tb-count">{shown.counts[status] ?? shown.columns[status].length}</span></h2>
                 {!readOnly && !session && (status === 'inbox' || status === 'ready') && <QuickAdd status={status} onAdd={b.add} t={t} />}
-                {shown.columns[status].length === 0 && <div className="tb-empty">{t(`tasks.emptyBy.${status}`, { defaultValue: t('tasks.empty') })}</div>}
+                {shown.columns[status].length === 0 && <div className="tb-empty">{session ? t('tasks.empty') : t(`tasks.emptyBy.${status}`, { defaultValue: t('tasks.empty') })}</div>}
                 {shown.columns[status].map(task => (
                   <Fragment key={task.id}>
                     {lineAt === task.id && <div className="tb-drop-line" data-testid="tb-drop-line" aria-hidden="true" />}
