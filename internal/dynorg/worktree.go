@@ -383,6 +383,7 @@ func (c *Conductor) Merge(ctx context.Context, id string) (MergeResult, error) {
 	c.mu.Lock()
 	w.merged = true
 	c.mu.Unlock()
+	c.recordMerge(ctx, w)
 	if strings.TrimSpace(before) == strings.TrimSpace(after) {
 		res.Note = "already up to date: the branch has nothing your tree doesn't"
 		return res, nil

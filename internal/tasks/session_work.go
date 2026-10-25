@@ -299,7 +299,15 @@ func (s *Store) verifyRetry(ctx context.Context, x dbx, profileID string, cur Ta
 	return nil
 }
 
-var artifactKinds = map[string]bool{"commit": true, "file": true, "report": true, "test": true, "diff": true, "log": true, "url": true, "other": true}
+// Artifact kinds only the operator's process writes (the conductor, for an isolated writer):
+// branch (ref = the writer's branch, note = who and where) and merge (ref = that branch,
+// once org_merge brought it in). A mission's pending merges are computed from them.
+const (
+	ArtifactBranch = "branch"
+	ArtifactMerge  = "merge"
+)
+
+var artifactKinds = map[string]bool{"commit": true, "file": true, "report": true, "test": true, "diff": true, "log": true, "url": true, "other": true, ArtifactBranch: true, ArtifactMerge: true}
 
 // artifactRefRunes bounds an artifact's reference.
 const artifactRefRunes = 2048
@@ -315,6 +323,9 @@ func (s *Store) AddArtifact(ctx context.Context, profileID string, sessionID, id
 	}
 	if !artifactKindRE.MatchString(in.Kind) || !artifactKinds[in.Kind] {
 		return Artifact{}, invalid("unknown artifact kind %q (use commit, file, report, test, diff, log, url or other)", echo(in.Kind))
+	}
+	if (in.Kind == ArtifactBranch || in.Kind == ArtifactMerge) && actor.Kind != Human {
+		return Artifact{}, operatorOnly("record a " + in.Kind + " artifact: the scheduler's records of writer branches are the operator's process's")
 	}
 	ref := cutRunes(oneLine(in.Ref), artifactRefRunes)
 	if ref == "" {

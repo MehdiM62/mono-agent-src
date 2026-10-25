@@ -201,6 +201,7 @@ func TestMissionFinishListsWriterBranchesNotMerged(t *testing.T) {
 	w := r.c.workers[wid]
 	w.branch = "monoagent/turn1-w1"
 	r.c.mu.Unlock()
+	r.c.recordBranch(tbg, r.mc, w) // what the worker's hand-back records for an isolated writer
 	r.next(r.c)
 	lead := tasks.Actor{Kind: tasks.Agent, Name: missionLeadName, Session: r.sid, Task: it.ID}
 	if _, err := r.store.SessionFinish(tbg, "default", r.sid, it.ID, tasks.Outcome{Result: "checks pass"}, lead); err != nil {
@@ -217,9 +218,7 @@ func TestMissionFinishListsWriterBranchesNotMerged(t *testing.T) {
 	if r.session().State != tasks.SessionRunning {
 		t.Fatal("closed with an unmerged branch")
 	}
-	r.c.mu.Lock()
-	w.merged = true
-	r.c.mu.Unlock()
+	r.c.recordMerge(tbg, w) // what org_merge records
 	if v := r.finish(); !v.Finished || r.session().State != tasks.SessionDone {
 		t.Fatalf("after the merge it closes: %+v", v)
 	}

@@ -256,6 +256,7 @@ func (c *Conductor) handBackReport(ctx context.Context, mc *MissionRun, w *worke
 		c.notice("mission.artifact", fmt.Sprintf("Task #%d: the report of %s could not be attached: %v", b.task.ID, w.id, err), chatevents.SeverityWarning)
 	}
 	if !held {
+		c.recordBranch(ctx, mc, w)
 		return
 	}
 	if _, err := mc.Store.SessionFinish(ctx, mc.ProfileID, b.session, b.task.ID, tasks.Outcome{Result: text}, b.actor); err != nil {
@@ -273,6 +274,7 @@ func (c *Conductor) handBackReport(ctx context.Context, mc *MissionRun, w *worke
 		c.notice("mission.finish", fmt.Sprintf("Task #%d: %s could not hand it to review: %v", b.task.ID, w.id, err), chatevents.SeverityWarning)
 		return
 	}
+	c.recordBranch(ctx, mc, w)
 	c.msched.mu.Lock()
 	delete(c.msched.owned, b.task.ID)
 	delete(c.msched.failures, b.task.ID)

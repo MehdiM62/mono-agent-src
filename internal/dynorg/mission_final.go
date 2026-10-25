@@ -230,42 +230,6 @@ func (c *Conductor) createIntegration(ctx context.Context, mc *MissionRun, sid i
 	}, missionActor())
 }
 
-// mergesRemaining lists the writer branches of settled tasks that org_merge has not
-// brought in. Only the worker that handed the task to review counts: an earlier run's
-// branch was sent back with its failure and is not merged.
-func (c *Conductor) mergesRemaining(ctx context.Context, mc *MissionRun, sid int64, all []tasks.Task) []string {
-	var out []string
-	for _, t := range all {
-		if t.Kind == tasks.KindEpic || !settled(t) {
-			continue
-		}
-		d, err := mc.Store.SessionTask(ctx, mc.ProfileID, sid, t.ID, missionActor())
-		if err != nil {
-			continue
-		}
-		for i := len(d.Artifacts) - 1; i >= 0; i-- {
-			a := d.Artifacts[i]
-			if a.Kind != "report" || !strings.HasPrefix(a.Ref, "report:") {
-				continue
-			}
-			id := strings.TrimPrefix(a.Ref, "report:")
-			c.mu.Lock()
-			w := c.workers[id]
-			open := w != nil && w.branch != "" && !w.merged && !running(w.status)
-			var branch string
-			if w != nil {
-				branch = w.branch
-			}
-			c.mu.Unlock()
-			if open {
-				out = append(out, fmt.Sprintf("%s (%s, task #%d)", id, branch, t.ID))
-			}
-			break
-		}
-	}
-	return out
-}
-
 // closeMission writes the final report and closes the session as done.
 func (c *Conductor) closeMission(ctx context.Context, mc *MissionRun, se tasks.Session, plan tasks.SessionPlan, integration tasks.Task, v FinishView) (FinishView, error) {
 	rep, payload := c.finalReport(ctx, mc, se, plan)
