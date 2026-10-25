@@ -111,6 +111,9 @@ func (h *Host) watch(x Session, t Turn) {
 // Tick makes one pass over the waiting commands. A command that cannot run yet
 // (a send to a busy or paused session) stays pending, in order.
 func (h *Host) Tick() error {
+	if err := h.Store.ExpireSends(); err != nil {
+		return err
+	}
 	cmds, err := h.Store.Pending()
 	if err != nil {
 		return err
@@ -145,18 +148,27 @@ func (h *Host) Tick() error {
 			x.State, x.TurnID, x.TurnPID, x.TurnStamp = StateRunning, c.TurnID, t.PID(), t.Stamp()
 			if err := h.Store.SaveSession(x); err != nil {
 				t.Stop()
+				h.end(c, CmdFailed, "could not record the session: "+err.Error())
 				return err
 			}
 			h.live[k] = t
 			h.watch(x, t)
 			h.end(c, CmdDone, "")
 		case KindStop:
+			// A stop also drops the sends queued before it: the operator
+			// stopped the session, not just the turn that happened to run.
+			dropped, err := h.Store.CancelPendingSends(c.ProfileID, c.ConversationID, c.ID, "cancelled by a stop")
+			if err != nil {
+				return err
+			}
 			t := h.live[k]
-			if t == nil {
-				h.end(c, CmdFailed, "no turn is running")
+			if t == nil && dropped == 0 {
+				h.end(c, CmdFailed, "no turn is running and nothing is queued")
 				continue
 			}
-			t.Stop()
+			if t != nil {
+				t.Stop()
+			}
 			h.end(c, CmdDone, "")
 		case KindPause:
 			x.State = StatePaused

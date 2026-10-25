@@ -2,7 +2,10 @@ package chat
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/ai"
 	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/coderhost"
 	"github.com/monoes/mono-agent/internal/daemonhb"
@@ -43,33 +47,115 @@ func (l *execLauncher) Start(profileID, conversationID, turnID, message string, 
 	if err := os.MkdirAll(l.logDir, 0o700); err != nil {
 		return nil, err
 	}
-	logFile, err := os.OpenFile(filepath.Join(l.logDir, turnID+".log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
+	logPath := filepath.Join(l.logDir, turnID+".log")
+	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {
 		return nil, err
 	}
 	defer logFile.Close()
-	rest := []string{"chat", "--conversation", conversationID, "--turn", turnID, "--instance", l.instance}
+	offset, _ := logFile.Seek(0, io.SeekEnd)
+	// The prompt goes in through stdin from a private file: it is in no
+	// process listing, and a 256 KiB message does not hit the argument limit.
+	promptPath := filepath.Join(l.logDir, turnID+".prompt")
+	if err := os.WriteFile(promptPath, []byte(message), 0o600); err != nil {
+		return nil, err
+	}
+	prompt, err := os.Open(promptPath)
+	if err != nil {
+		return nil, err
+	}
+	defer prompt.Close()
+	rest := []string{"chat", "--conversation", conversationID, "--turn", turnID, "--instance", l.instance, "--prompt-stdin"}
 	for _, a := range attachments {
 		rest = append(rest, "--attach="+a)
 	}
-	cmd := exec.Command(l.bin, l.args(profileID, append(rest, "--", message)...)...)
-	cmd.Stdout, cmd.Stderr = logFile, logFile
+	cmd := exec.Command(l.bin, l.args(profileID, rest...)...)
+	cmd.Dir = filepath.Dir(l.logDir)
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = prompt, logFile, logFile
 	if err := clicore.DetachStart(cmd); err != nil {
+		os.Remove(promptPath)
 		return nil, err
 	}
 	t := &execTurn{pid: cmd.Process.Pid, stamp: pidStamp(cmd.Process.Pid), done: make(chan struct{})}
 	go func() {
 		t.err = cmd.Wait()
 		close(t.done)
+		os.Remove(promptPath)
 	}()
+	if err := awaitAdmission(logPath, offset, t.done); err != nil {
+		t.Stop()
+		return nil, err
+	}
 	return t, nil
 }
 
-func (l *execLauncher) Adopt(pid int, stamp string) coderhost.Turn {
-	if pid <= 0 || !daemonhb.ProcessAlive(pid) {
-		return nil
+// admissionWait is how long a started turn gets to admit itself.
+var admissionWait = 20 * time.Second
+
+// awaitAdmission reads the turn process's first JSON line from its log: the
+// admission, or the {"error"} of a turn refused before it was admitted (a
+// conversation that does not exist, one the app is running a turn in, a turn
+// id used before). A refusal comes back as the error, so the command fails
+// with the reason instead of reading "done".
+func awaitAdmission(logPath string, offset int64, done <-chan struct{}) error {
+	deadline := time.Now().Add(admissionWait)
+	for {
+		exited := false
+		select {
+		case <-done:
+			exited = true
+		default:
+		}
+		raw, _ := os.ReadFile(logPath)
+		if int64(len(raw)) > offset {
+			raw = raw[offset:]
+		} else {
+			raw = nil
+		}
+		for _, line := range strings.Split(string(raw), "\n") {
+			if !strings.HasPrefix(line, "{") {
+				continue
+			}
+			var m struct {
+				Admitted bool   `json:"admitted"`
+				Existed  bool   `json:"existed"`
+				Error    string `json:"error"`
+			}
+			if json.Unmarshal([]byte(line), &m) != nil {
+				continue
+			}
+			switch {
+			case m.Error != "":
+				return errors.New(m.Error)
+			case m.Existed:
+				return errors.New("this turn id was already used")
+			case m.Admitted:
+				return nil
+			}
+		}
+		if exited {
+			last := ""
+			for _, line := range strings.Split(strings.TrimSpace(string(raw)), "\n") {
+				if strings.TrimSpace(line) != "" {
+					last = strings.TrimSpace(line)
+				}
+			}
+			if last == "" {
+				last = "no output"
+			}
+			return fmt.Errorf("the turn process exited before the turn was admitted: %s", last)
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("the turn was not admitted within %s", admissionWait)
+		}
+		time.Sleep(25 * time.Millisecond)
 	}
-	if stamp != "" && pidStamp(pid) != stamp {
+}
+
+func (l *execLauncher) Adopt(pid int, stamp string) coderhost.Turn {
+	// Without a start time there is nothing to tell this process from a later
+	// one that reused the pid, and the turn would be signalled by pid: not adopted.
+	if pid <= 1 || stamp == "" || !daemonhb.ProcessAlive(pid) || pidStamp(pid) != stamp {
 		return nil
 	}
 	return &adoptedTurn{pid: pid, stamp: stamp}
@@ -100,7 +186,7 @@ type execTurn struct {
 func (t *execTurn) PID() int      { return t.pid }
 func (t *execTurn) Stamp() string { return t.stamp }
 func (t *execTurn) Wait() error   { <-t.done; return t.err }
-func (t *execTurn) Stop()         { t.once.Do(func() { stopGroup(t.pid, t.done) }) }
+func (t *execTurn) Stop()         { t.once.Do(func() { stopGroup(t.pid, "") }) }
 
 // adoptedTurn is a turn process a previous host started: not this process's
 // child, so it is watched by pid.
@@ -114,7 +200,7 @@ func (t *adoptedTurn) PID() int      { return t.pid }
 func (t *adoptedTurn) Stamp() string { return t.stamp }
 
 func (t *adoptedTurn) gone() bool {
-	return !daemonhb.ProcessAlive(t.pid) || (t.stamp != "" && pidStamp(t.pid) != t.stamp)
+	return !daemonhb.ProcessAlive(t.pid) || pidStamp(t.pid) != t.stamp
 }
 
 func (t *adoptedTurn) Wait() error {
@@ -125,24 +211,28 @@ func (t *adoptedTurn) Wait() error {
 }
 
 func (t *adoptedTurn) Stop() {
-	t.once.Do(func() {
-		done := make(chan struct{})
-		go func() { _ = t.Wait(); close(done) }()
-		stopGroup(t.pid, done)
-	})
+	t.once.Do(func() { stopGroup(t.pid, t.stamp) })
 }
 
-// stopGroup asks the turn's process group to end, and kills it when it has not
-// within hostTurnGrace. It returns at once.
-func stopGroup(pid int, done <-chan struct{}) {
-	_ = terminateGroup(pid)
-	time.AfterFunc(hostTurnGrace, func() {
-		select {
-		case <-done:
-		default:
-			_ = killGroup(pid)
-		}
-	})
+// signalTurn sends sig to the turn's process group, if pid still is the
+// session leader the host started. stamp, when set, is the start time pid must
+// still have (a turn the host did not start itself); "" for a child of this
+// process, whose pid cannot be reused while it is unreaped or its group lives.
+type groupSignal func(pid int) error
+
+func signalTurn(pid int, stamp string, sig groupSignal) {
+	if pid <= 1 || (stamp != "" && pidStamp(pid) != stamp) {
+		return
+	}
+	_ = sig(pid)
+}
+
+// stopGroup asks the turn's process group to end and, once hostTurnGrace has
+// passed, kills whatever of the group is left, also when only its leader
+// exited. It returns at once.
+func stopGroup(pid int, stamp string) {
+	signalTurn(pid, stamp, terminateGroup)
+	time.AfterFunc(hostTurnGrace, func() { signalTurn(pid, stamp, killGroup) })
 }
 
 // pidStamp says what makes pid the process it is now: its start time. "" when
@@ -172,4 +262,30 @@ func pidStamp(pid int) string {
 		return "started:" + s
 	}
 	return ""
+}
+
+// hostHeldTurns is the reconcile sweep's skip list: a turn that is the current
+// turn of a host session and whose process is still the one the host started
+// (alive, same start time). A turn whose process is gone is not held, however
+// the host ended, so it is interrupted like any other orphan.
+func hostHeldTurns(cfg *Deps) func(ai.Turn) bool {
+	db, err := cfg.OpenDB()
+	if err != nil {
+		return nil
+	}
+	defer db.Close()
+	sessions, err := coderhost.NewStore(db.DB).ListSessions("")
+	if err != nil {
+		return nil
+	}
+	held := map[string]coderhost.Session{}
+	for _, x := range sessions {
+		if x.TurnID != "" {
+			held[x.ProfileID+"\x00"+x.ConversationID+"\x00"+x.TurnID] = x
+		}
+	}
+	return func(t ai.Turn) bool {
+		x, ok := held[t.ProfileID+"\x00"+t.ConversationID+"\x00"+t.ID]
+		return ok && x.TurnPID > 1 && x.TurnStamp != "" && daemonhb.ProcessAlive(x.TurnPID) && pidStamp(x.TurnPID) == x.TurnStamp
+	}
 }

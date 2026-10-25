@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -31,6 +32,7 @@ const hostInfoFile = "host.json"
 // hostInfo is what a running host writes next to its lock.
 type hostInfo struct {
 	PID       int    `json:"pid"`
+	Stamp     string `json:"stamp"`
 	Instance  string `json:"instance"`
 	StartedAt string `json:"startedAt"`
 }
@@ -60,10 +62,17 @@ func readHostInfo(cfg *Deps) (hostInfo, bool) {
 	return h, true
 }
 
+// hostExecutable is this binary's path. After an in-place upgrade Linux reports
+// the replaced file as "<path> (deleted)"; the new one is at <path>.
+func hostExecutable() (string, error) {
+	exe, err := os.Executable()
+	return strings.TrimSuffix(exe, " (deleted)"), err
+}
+
 // startHostProcess starts `coder host run` detached; a variable so tests do not
 // start a real one.
 var startHostProcess = func(cfg *Deps) error {
-	exe, err := os.Executable()
+	exe, err := hostExecutable()
 	if err != nil {
 		return err
 	}
@@ -103,7 +112,8 @@ func newCoderHostCmd(cfg *Deps) *cobra.Command {
 		Short: "The process that keeps coder sessions running after the app closes",
 		Long: "The coder host runs the turns of coder sessions as detached processes and takes commands for them " +
 			"from the database (`coder sessions send`, `stop`, `pause`, `resume`). It starts by itself on the first " +
-			"`coder sessions send`. Stopping it does not stop a running turn; the next host picks the turn up.",
+			"`coder sessions send`. Stopping it does not stop a running turn; the next host picks the turn up. " +
+			"The host and the turns it starts keep the environment of the terminal that started the host.",
 	}
 	cmd.AddCommand(newCoderHostRunCmd(cfg), newCoderHostStatusCmd(cfg), newCoderHostStopCmd(cfg))
 	return cmd
@@ -119,25 +129,38 @@ func newCoderHostRunCmd(cfg *Deps) *cobra.Command {
 			if err := clicore.RequireOperator(cfg.RequireOperator, "run the coder host, which starts full-access turns"); err != nil {
 				return err
 			}
-			release, err := daemonhb.LockFile(hostLockPath(cfg))
+			if err := os.MkdirAll(hostDir(cfg), 0o700); err != nil {
+				return err
+			}
+			// A `host status` or `sessions list` probes by taking the lock for a
+			// moment, so a held lock is retried briefly before it counts as a host.
+			var release func()
+			var err error
+			for i := 0; i < 10; i++ {
+				if release, err = daemonhb.LockFile(hostLockPath(cfg)); !errors.Is(err, daemonhb.ErrHeld) {
+					break
+				}
+				time.Sleep(100 * time.Millisecond)
+			}
 			if errors.Is(err, daemonhb.ErrHeld) {
 				return clicore.InvalidInput("a coder host is already running for this database")
 			} else if err != nil {
 				return err
 			}
 			defer release()
+			// host.json first: `host stop` and `host status` read it as soon as the lock is held.
+			info := hostInfo{PID: os.Getpid(), Stamp: pidStamp(os.Getpid()), Instance: "host-" + uuid.NewString()[:8], StartedAt: time.Now().UTC().Format(time.RFC3339)}
+			raw, _ := json.Marshal(info)
+			if err := os.WriteFile(filepath.Join(hostDir(cfg), hostInfoFile), raw, 0o600); err != nil {
+				return err
+			}
 			db, err := cfg.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
 			}
 			defer db.Close()
-			exe, err := os.Executable()
+			exe, err := hostExecutable()
 			if err != nil {
-				return err
-			}
-			info := hostInfo{PID: os.Getpid(), Instance: "host-" + uuid.NewString()[:8], StartedAt: time.Now().UTC().Format(time.RFC3339)}
-			raw, _ := json.Marshal(info)
-			if err := os.WriteFile(filepath.Join(hostDir(cfg), hostInfoFile), raw, 0o600); err != nil {
 				return err
 			}
 			logf := func(f string, a ...any) {
@@ -203,6 +226,9 @@ func newCoderHostStopCmd(cfg *Deps) *cobra.Command {
 			info, ok := readHostInfo(cfg)
 			if !hostRunning(cfg) || !ok {
 				return printQueueJSON(cmd, map[string]any{"stopped": false, "reason": "no host is running"})
+			}
+			if info.PID <= 1 || (info.Stamp != "" && pidStamp(info.PID) != info.Stamp) {
+				return clicore.InvalidInput("host.json names a process that is not the host any more; remove %s", filepath.Join(hostDir(cfg), hostInfoFile))
 			}
 			if err := terminateProcess(info.PID); err != nil {
 				return err

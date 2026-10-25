@@ -223,7 +223,7 @@ func newChatHistoryReconcileCmd(cfg *Deps) *cobra.Command {
 				return err
 			}
 			defer closeDB()
-			turns, errs := store.ReconcileActiveTurns(exceptOwner)
+			turns, errs := store.ReconcileActiveTurnsSkipping(exceptOwner, hostHeldTurns(cfg))
 			// Mailbox folders of turns whose process died (#255).
 			sweepAgentControl(agentControlRoot(cfg), time.Now())
 			res := chatReconcileResult{Reconciled: []ai.TurnRecord{}, Errors: []string{}, Worktrees: reconcileWorktrees(cmd.Context(), store)}

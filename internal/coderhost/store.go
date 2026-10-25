@@ -44,10 +44,12 @@ const (
 
 // Bounds on what one caller can queue.
 const (
-	MaxMessageBytes    = 256 << 10
-	MaxPendingPerChat  = 50
-	MaxAttachments     = 10
-	pendingBatch       = 200
+	MaxMessageBytes   = 256 << 10
+	MaxPendingPerChat = 50
+	MaxAttachments    = 10
+	pendingBatch      = 200
+	// MaxSendAge is how long a queued send stays valid.
+	MaxSendAge         = 6 * time.Hour
 	timeLayout         = time.RFC3339Nano
 	maxTurnIDLen       = 128
 	maxConversationLen = 128
@@ -126,9 +128,11 @@ func (s *Store) Enqueue(c Command) (Command, error) {
 	if err != nil {
 		return c, err
 	}
+	// Sends and control commands are capped apart: a chat full of queued sends
+	// must still take the stop or resume that would get it moving.
 	var waiting int
-	if err := s.db.QueryRow(`SELECT COUNT(*) FROM coder_session_commands WHERE profile_id = ? AND conversation_id = ? AND status = 'pending'`,
-		c.ProfileID, c.ConversationID).Scan(&waiting); err != nil {
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM coder_session_commands WHERE profile_id = ? AND conversation_id = ? AND status = 'pending' AND (kind = 'send') = ?`,
+		c.ProfileID, c.ConversationID, c.Kind == KindSend).Scan(&waiting); err != nil {
 		return c, err
 	}
 	if waiting >= MaxPendingPerChat {
@@ -145,10 +149,16 @@ func (s *Store) Enqueue(c Command) (Command, error) {
 	return c, nil
 }
 
-// Pending returns the commands still waiting, oldest first.
+// Pending returns the commands still waiting: control commands first, then
+// sends, each oldest first. Sends to a chat that is paused or has a turn are
+// left out, so a pile of blocked sends cannot push a later resume or stop (or
+// another chat's send) out of the window.
 func (s *Store) Pending() ([]Command, error) {
 	rows, err := s.db.Query(`SELECT id, profile_id, conversation_id, kind, turn_id, message, attachments, status, error, created_at, updated_at
-		FROM coder_session_commands WHERE status = 'pending' ORDER BY id LIMIT ?`, pendingBatch)
+		FROM coder_session_commands c WHERE status = 'pending'
+		AND (kind != 'send' OR NOT EXISTS (SELECT 1 FROM coder_sessions s
+			WHERE s.profile_id = c.profile_id AND s.conversation_id = c.conversation_id AND (s.state = 'paused' OR s.turn_pid > 0)))
+		ORDER BY CASE kind WHEN 'send' THEN 1 ELSE 0 END, id LIMIT ?`, pendingBatch)
 	if err != nil {
 		return nil, err
 	}
@@ -165,6 +175,28 @@ func (s *Store) Pending() ([]Command, error) {
 		out = append(out, c)
 	}
 	return out, rows.Err()
+}
+
+// CancelPendingSends fails the sends still waiting for a chat that were queued
+// before command beforeID (a stop), so a stopped session does not start the
+// next queued turn. It returns how many it cancelled.
+func (s *Store) CancelPendingSends(profileID, conversationID string, beforeID int64, reason string) (int, error) {
+	res, err := s.db.Exec(`UPDATE coder_session_commands SET status = 'failed', error = ?, updated_at = ?
+		WHERE profile_id = ? AND conversation_id = ? AND kind = 'send' AND status = 'pending' AND id < ?`,
+		reason, s.stamp(), profileID, conversationID, beforeID)
+	if err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return int(n), nil
+}
+
+// ExpireSends fails the sends that have waited longer than MaxSendAge, so a
+// message queued while no host ran does not start a full-access turn days later.
+func (s *Store) ExpireSends() error {
+	_, err := s.db.Exec(`UPDATE coder_session_commands SET status = 'failed', error = 'expired before the host could run it', updated_at = ?
+		WHERE kind = 'send' AND status = 'pending' AND created_at < ?`, s.stamp(), s.now().Add(-MaxSendAge).UTC().Format(timeLayout))
+	return err
 }
 
 // GetCommand returns one command.
@@ -227,6 +259,9 @@ func (s *Store) EnsureSession(profileID, conversationID string) (Session, error)
 
 // SaveSession writes a session's state and current turn.
 func (s *Store) SaveSession(x Session) error {
+	if x.TurnPID < 0 || x.TurnPID == 1 {
+		return fmt.Errorf("coder host: %d is not a turn's pid", x.TurnPID)
+	}
 	_, err := s.db.Exec(`UPDATE coder_sessions SET state = ?, turn_id = ?, turn_pid = ?, turn_stamp = ?, updated_at = ? WHERE profile_id = ? AND conversation_id = ?`,
 		string(x.State), x.TurnID, x.TurnPID, x.TurnStamp, s.stamp(), x.ProfileID, x.ConversationID)
 	return err

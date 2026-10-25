@@ -301,3 +301,61 @@ func TestRunLeavesTurnsRunningWhenTheHostStops(t *testing.T) {
 		t.Fatalf("session = %+v, want it still running for the next host", x)
 	}
 }
+
+func TestStopDropsTheSendsQueuedBehindTheRunningTurn(t *testing.T) {
+	h, l, st := newHost(t)
+	send(t, st, "c1", "t1", "one")
+	_ = h.Tick()
+	b := send(t, st, "c1", "t2", "two")
+	st.Enqueue(Command{ProfileID: "p", ConversationID: "c1", Kind: KindStop})
+	_ = h.Tick()
+	waitFor(t, "c1 to be idle", func() bool { return state(t, st, "c1").State == StateIdle })
+	_ = h.Tick()
+	if len(l.started) != 1 {
+		t.Fatalf("started = %v, want no second turn after a stop", l.started)
+	}
+	if got, _, _ := st.GetCommand(b.ID); got.Status != CmdFailed || !strings.Contains(got.Error, "stop") {
+		t.Fatalf("queued send = %+v", got)
+	}
+}
+
+func TestBlockedSendsCannotStarveALaterResume(t *testing.T) {
+	h, l, st := newHost(t)
+	for c := 0; c < 5; c++ { // 5 paused chats x 50 sends is more than one Pending window
+		conv := string(rune('a' + c))
+		st.Enqueue(Command{ProfileID: "p", ConversationID: conv, Kind: KindPause})
+		_ = h.Tick()
+		for i := 0; i < MaxPendingPerChat; i++ {
+			send(t, st, conv, conv+"-"+strings.Repeat("x", i%3)+string(rune('A'+i%26))+string(rune('a'+i/26)), "m")
+		}
+	}
+	st.Enqueue(Command{ProfileID: "p", ConversationID: "e", Kind: KindResume})
+	for i := 0; i < 2; i++ {
+		if err := h.Tick(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(l.started) == 0 {
+		t.Fatal("a resume queued behind 250 blocked sends never ran")
+	}
+}
+
+func TestASendThatWaitedTooLongExpires(t *testing.T) {
+	h, l, st := newHost(t)
+	c := send(t, st, "c1", "t1", "hello")
+	later := time.Now().Add(MaxSendAge + time.Minute)
+	st.now = func() time.Time { return later }
+	_ = h.Tick()
+	if got, _, _ := st.GetCommand(c.ID); got.Status != CmdFailed || !strings.Contains(got.Error, "expired") || len(l.started) != 0 {
+		t.Fatalf("command = %+v, started %v", got, l.started)
+	}
+}
+
+func TestSaveSessionRefusesPid1(t *testing.T) {
+	_, _, st := newHost(t)
+	x, _ := st.EnsureSession("p", "c1")
+	x.TurnPID = 1
+	if err := st.SaveSession(x); err == nil {
+		t.Fatal("pid 1 was saved as a turn's pid")
+	}
+}
