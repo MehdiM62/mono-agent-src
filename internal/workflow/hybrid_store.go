@@ -59,12 +59,27 @@ func (h *HybridWorkflowStore) persist(ctx context.Context, w *Workflow, sqlWrite
 }
 
 // fileWorkflows lists the file store's workflows; none when there is no file
-// store.
+// store. A workflow with a change in flight is left out: its file may hold a
+// definition that has not committed, so the rows speak for it.
 func (h *HybridWorkflowStore) fileWorkflows(ctx context.Context) ([]*Workflow, error) {
 	if h.files == nil {
 		return nil, nil
 	}
-	return h.files.ListWorkflows(ctx)
+	all, err := h.files.ListWorkflows(ctx)
+	if err != nil {
+		return nil, err
+	}
+	open := h.openIntents(ctx)
+	if len(open) == 0 {
+		return all, nil
+	}
+	kept := all[:0:0]
+	for _, wf := range all {
+		if !open[wf.ID] {
+			kept = append(kept, wf)
+		}
+	}
+	return kept, nil
 }
 
 // CreateWorkflow saves a new workflow's whole definition, all-or-nothing
@@ -77,6 +92,9 @@ func (h *HybridWorkflowStore) CreateWorkflow(ctx context.Context, w *Workflow) e
 // imported and older workflows are kept.
 func (h *HybridWorkflowStore) GetWorkflow(ctx context.Context, id string) (*Workflow, error) {
 	if h.files == nil {
+		return h.sql.GetWorkflow(ctx, id)
+	}
+	if h.openIntents(ctx)[id] {
 		return h.sql.GetWorkflow(ctx, id)
 	}
 	wf, err := h.files.GetWorkflow(ctx, id)
@@ -314,7 +332,7 @@ func (h *HybridWorkflowStore) SetWorkflowActive(ctx context.Context, id string, 
 // fileCopy returns the file store's workflow for id, or nil when there is no
 // file store, no such workflow, or the read failed.
 func (h *HybridWorkflowStore) fileCopy(ctx context.Context, id string) *Workflow {
-	if h.files == nil {
+	if h.files == nil || h.openIntents(ctx)[id] {
 		return nil
 	}
 	wf, err := h.files.GetWorkflow(ctx, id)

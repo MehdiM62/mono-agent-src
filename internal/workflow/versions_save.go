@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"time"
@@ -18,6 +19,47 @@ func (s *SQLiteWorkflowStore) SaveWorkflow(ctx context.Context, w *Workflow) err
 	return s.saveDefinition(ctx, w, true, 0, "", nil)
 }
 
+// writeDefinitionRows writes w's workflow row, settings, nodes and connections and records its
+// version inside tx, and returns that version. The caller commits.
+func writeDefinitionRows(ctx context.Context, tx *sql.Tx, w *Workflow, mirrorGraph bool, storedVersion int, note string) (int, error) {
+	now := time.Now().UTC()
+	created := w.CreatedAt
+	if created.IsZero() {
+		created = now
+	}
+	profileID := w.ProfileID
+	if profileID == "" {
+		return 0, fmt.Errorf("saving workflow %s: %w", w.ID, ErrNoProfile)
+	}
+	// The profile and version of an existing row are not the saver's to
+	// change: the profile is set where the workflow is created, the version
+	// by recordVersionTx below.
+	if _, err := tx.ExecContext(ctx, `
+		INSERT INTO workflows (id, name, description, is_active, version, profile_id, created_at, updated_at)
+		VALUES (?, ?, ?, ?, 0, ?, ?, ?)
+		ON CONFLICT(id) DO UPDATE SET
+			name = excluded.name, description = excluded.description,
+			is_active = excluded.is_active, updated_at = excluded.updated_at`,
+		w.ID, w.Name, w.Description, boolToInt(w.IsActive), profileID, created, now); err != nil {
+		return 0, fmt.Errorf("saving workflow %s: %w", w.ID, err)
+	}
+	saveWorkflowSettings(ctx, tx, w)
+	var rowVersion int
+	if err := tx.QueryRowContext(ctx, `SELECT version FROM workflows WHERE id = ?`, w.ID).Scan(&rowVersion); err != nil {
+		return 0, fmt.Errorf("reading version of workflow %s: %w", w.ID, err)
+	}
+	if mirrorGraph {
+		if err := saveNodesTx(ctx, tx, w.ID, append([]WorkflowNode(nil), w.Nodes...)); err != nil {
+			return 0, fmt.Errorf("saving workflow %s nodes: %w", w.ID, err)
+		}
+		if err := saveConnectionsTx(ctx, tx, w.ID, append([]WorkflowConnection(nil), w.Connections...)); err != nil {
+			return 0, fmt.Errorf("saving workflow %s connections: %w", w.ID, err)
+		}
+	}
+	v, _, err := recordVersionTx(ctx, tx, w, max(storedVersion, rowVersion), false, note)
+	return v, err
+}
+
 // saveDefinition is the transaction behind SaveWorkflow. mirrorGraph false
 // leaves nodes and connections alone (see ErrSharedIDs). storedVersion is the
 // version the caller saw before the save. beforeCommit runs last inside the
@@ -30,41 +72,7 @@ func (s *SQLiteWorkflowStore) saveDefinition(ctx context.Context, w *Workflow, m
 	}
 	defer tx.Rollback()
 
-	now := time.Now().UTC()
-	created := w.CreatedAt
-	if created.IsZero() {
-		created = now
-	}
-	profileID := w.ProfileID
-	if profileID == "" {
-		return fmt.Errorf("saving workflow %s: %w", w.ID, ErrNoProfile)
-	}
-	// The profile and version of an existing row are not the saver's to
-	// change: the profile is set where the workflow is created, the version
-	// by recordVersionTx below.
-	if _, err := tx.ExecContext(ctx, `
-		INSERT INTO workflows (id, name, description, is_active, version, profile_id, created_at, updated_at)
-		VALUES (?, ?, ?, ?, 0, ?, ?, ?)
-		ON CONFLICT(id) DO UPDATE SET
-			name = excluded.name, description = excluded.description,
-			is_active = excluded.is_active, updated_at = excluded.updated_at`,
-		w.ID, w.Name, w.Description, boolToInt(w.IsActive), profileID, created, now); err != nil {
-		return fmt.Errorf("saving workflow %s: %w", w.ID, err)
-	}
-	saveWorkflowSettings(ctx, tx, w)
-	var rowVersion int
-	if err := tx.QueryRowContext(ctx, `SELECT version FROM workflows WHERE id = ?`, w.ID).Scan(&rowVersion); err != nil {
-		return fmt.Errorf("reading version of workflow %s: %w", w.ID, err)
-	}
-	if mirrorGraph {
-		if err := saveNodesTx(ctx, tx, w.ID, append([]WorkflowNode(nil), w.Nodes...)); err != nil {
-			return fmt.Errorf("saving workflow %s nodes: %w", w.ID, err)
-		}
-		if err := saveConnectionsTx(ctx, tx, w.ID, append([]WorkflowConnection(nil), w.Connections...)); err != nil {
-			return fmt.Errorf("saving workflow %s connections: %w", w.ID, err)
-		}
-	}
-	v, _, err := recordVersionTx(ctx, tx, w, max(storedVersion, rowVersion), false, note)
+	v, err := writeDefinitionRows(ctx, tx, w, mirrorGraph, storedVersion, note)
 	if err != nil {
 		return err
 	}

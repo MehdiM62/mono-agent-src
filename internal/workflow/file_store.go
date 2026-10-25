@@ -109,6 +109,25 @@ func (s *WorkflowFileStore) saveWorkflowDurable(ctx context.Context, wf *Workflo
 }
 
 func (s *WorkflowFileStore) saveWorkflow(ctx context.Context, wf *Workflow) error {
+	data, err := s.renderWorkflow(wf)
+	if err != nil {
+		return err
+	}
+	path, err := s.filePath(wf.ID)
+	if err != nil {
+		return err
+	}
+	// Write atomically: write to a temp file then rename over the target, so a
+	// crash mid-write cannot truncate/corrupt an existing workflow definition.
+	if err := writeFileAtomic(path, data); err != nil {
+		return fmt.Errorf("file_store: write %s: %w", wf.ID, err)
+	}
+	s.invalidate(path)
+	return nil
+}
+
+// renderWorkflow numbers and stamps wf as a save does and returns the bytes of its file.
+func (s *WorkflowFileStore) renderWorkflow(wf *Workflow) ([]byte, error) {
 	if wf.ID == "" {
 		wf.ID = uuid.New().String()
 		wf.CreatedAt = time.Now().UTC()
@@ -166,19 +185,9 @@ func (s *WorkflowFileStore) saveWorkflow(ctx context.Context, wf *Workflow) erro
 
 	data, err := json.MarshalIndent(wfFile, "", "  ")
 	if err != nil {
-		return fmt.Errorf("file_store: marshal %s: %w", wf.ID, err)
+		return nil, fmt.Errorf("file_store: marshal %s: %w", wf.ID, err)
 	}
-	path, err := s.filePath(wf.ID)
-	if err != nil {
-		return err
-	}
-	// Write atomically: write to a temp file then rename over the target, so a
-	// crash mid-write cannot truncate/corrupt an existing workflow definition.
-	if err := writeFileAtomic(path, data); err != nil {
-		return fmt.Errorf("file_store: write %s: %w", wf.ID, err)
-	}
-	s.invalidate(path)
-	return nil
+	return data, nil
 }
 
 // writeFileAtomic replaces path with data so that a reader sees the old file or the new one and a
@@ -435,4 +444,22 @@ func NormalizeConnectionHandles(conns []WorkflowConnection) {
 			conns[i].TargetHandle = "main"
 		}
 	}
+}
+
+// writeRaw publishes data as the workflow's file, atomically and durably.
+func (s *WorkflowFileStore) writeRaw(id string, data []byte) error {
+	path, err := s.filePath(id)
+	if err != nil {
+		return err
+	}
+	defer s.invalidate(path)
+	if err := writeFileAtomic(path, data); err != nil {
+		return fmt.Errorf("file_store: write %s: %w", id, err)
+	}
+	return nil
+}
+
+// removeFile removes the workflow's file; a missing file is fine.
+func (s *WorkflowFileStore) removeFile(id string) error {
+	return s.restoreRaw(id, nil, false)
 }

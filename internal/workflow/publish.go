@@ -1,0 +1,391 @@
+package workflow
+
+import (
+	"context"
+	"crypto/sha256"
+	"database/sql"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"os"
+	"time"
+)
+
+// Publication kinds.
+const (
+	PubSave   = "save"
+	PubDelete = "delete"
+	PubImport = "import"
+)
+
+// ErrPublicationBusy: another publication of this workflow is open.
+var ErrPublicationBusy = errors.New("another change to this workflow is in progress")
+
+// ErrPublicationLost: the publication was rolled back by another process before it committed
+// (its file was put back), so nothing was changed.
+var ErrPublicationLost = errors.New("the change was rolled back by another process before it committed")
+
+const publicationLease = 30 * time.Second
+
+// publicationWait is how long Publish retries while another change of the same workflow is open.
+var publicationWait = 5 * time.Second
+
+// Publication describes one change of a workflow's definition, made through Publish.
+type Publication struct {
+	WorkflowID string
+	Kind       string // PubSave (default), PubDelete or PubImport
+	Origin     string // the writer, kept on the intent row
+	Note       string // the note of the version it records
+	// ExpectHash is the ReviewHash the committed workflow must still have (ErrChangedSincePreview).
+	ExpectHash string
+	// RevokeApprovals removes every stored approval in the commit.
+	RevokeApprovals bool
+	// StoredVersion is the version the caller saw before the change.
+	StoredVersion int
+	// KeepFileless leaves a workflow that has no file without one (rows only).
+	KeepFileless bool
+	// Build maps the committed definition (nil when there are no rows) to the one to publish.
+	Build func(cur *Workflow) (*Workflow, error)
+}
+
+type pubPlan struct {
+	cur        *Workflow
+	target     *Workflow
+	graph      bool
+	baseHash   string
+	version    int
+	data       []byte
+	targetSHA  string
+	targetHash string
+}
+
+func shaHex(b []byte) string {
+	if b == nil {
+		return ""
+	}
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:])
+}
+
+// lockPublication takes the database write lock for the rest of tx (a write statement acquires
+// it) so the reads that follow cannot be overtaken.
+func lockPublication(ctx context.Context, tx *sql.Tx, id string) error {
+	_, err := tx.ExecContext(ctx, `UPDATE workflow_publications SET state = state WHERE workflow_id = ?`, id)
+	return err
+}
+
+// Publish is the one path by which a definition reaches both stores. The rows are the commit
+// point and the file a projection of them; because they cannot share a transaction, an intent is
+// recorded first (its own transaction, visible to every process), then the file is published,
+// then the rows commit together with the version and the intent's removal. A process that dies
+// in between leaves the intent behind, and whoever sees it next puts the file back (see
+// resolveIntent). It returns the published workflow, nil for a delete.
+func (h *HybridWorkflowStore) Publish(ctx context.Context, p Publication) (*Workflow, error) {
+	if p.Kind == "" {
+		p.Kind = PubSave
+	}
+	deadline := time.Now().Add(publicationWait)
+	for {
+		w, err := h.publishOnce(ctx, p)
+		if !errors.Is(err, ErrPublicationBusy) || time.Now().After(deadline) {
+			return w, h.saved(ctx, p.WorkflowID, err)
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
+}
+
+func (h *HybridWorkflowStore) publishOnce(ctx context.Context, p Publication) (*Workflow, error) {
+	if h.files != nil {
+		if err := h.recoverID(ctx, p.WorkflowID); err != nil {
+			return nil, fmt.Errorf("%w: workflow %s: %v", ErrFileInconsistent, p.WorkflowID, err)
+		}
+	}
+	tx, err := h.sql.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("beginning publication: %w", err)
+	}
+	defer tx.Rollback()
+	if err := lockPublication(ctx, tx, p.WorkflowID); err != nil {
+		return nil, fmt.Errorf("locking workflow %s: %w", p.WorkflowID, err)
+	}
+	var busy int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM workflow_publications WHERE workflow_id = ?`, p.WorkflowID).Scan(&busy); err != nil {
+		return nil, err
+	}
+	if busy > 0 {
+		return nil, ErrPublicationBusy
+	}
+	plan, err := h.plan(ctx, tx, p)
+	if err != nil {
+		return nil, err
+	}
+	var prev []byte
+	var existed bool
+	if h.files != nil {
+		if prev, existed, err = h.files.readRaw(p.WorkflowID); err != nil {
+			return nil, fmt.Errorf("%w: %v", ErrFileSyncFailed, err)
+		}
+	}
+	if h.files == nil || (p.KeepFileless && !existed && p.Kind != PubDelete) {
+		return h.publishRowsOnly(ctx, tx, p, plan)
+	}
+	res, err := tx.ExecContext(ctx, `
+		INSERT INTO workflow_publications
+			(workflow_id, kind, state, base_hash, target_hash, target_sha, prev_sha, prev_bytes, prev_existed,
+			 next_version, origin, owner_pid, started_at, note)
+		VALUES (?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		p.WorkflowID, p.Kind, plan.baseHash, plan.targetHash, plan.targetSHA, shaHex(prev), prev, boolToInt(existed),
+		plan.version, p.Origin, os.Getpid(), time.Now().UTC(), p.Note)
+	if err != nil {
+		return nil, fmt.Errorf("recording the intent for workflow %s: %w", p.WorkflowID, err)
+	}
+	intentID, _ := res.LastInsertId()
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("recording the intent for workflow %s: %w", p.WorkflowID, err)
+	}
+	_ = failpoint("after-intent")
+
+	if err := h.publishFile(p, plan); err != nil {
+		return nil, h.abort(ctx, intentID, p.WorkflowID, err)
+	}
+	var window error
+	if guardedCommitFault != nil {
+		window = guardedCommitFault()
+	}
+	if window == nil {
+		window = failpoint("after-rename")
+	}
+	if window != nil {
+		return nil, h.abort(ctx, intentID, p.WorkflowID, fmt.Errorf("committing guarded save: %w", window))
+	}
+	w, err := h.commitPublication(ctx, p, plan, intentID)
+	if err != nil {
+		if errors.Is(err, ErrPublicationLost) {
+			return nil, err
+		}
+		return nil, h.abort(ctx, intentID, p.WorkflowID, err)
+	}
+	_ = failpoint("after-commit")
+	return w, nil
+}
+
+// plan reads the committed workflow inside tx and works out what the publication writes.
+func (h *HybridWorkflowStore) plan(ctx context.Context, tx *sql.Tx, p Publication) (*pubPlan, error) {
+	pl := &pubPlan{}
+	cur, err := getWorkflowFrom(ctx, tx, p.WorkflowID)
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+	case err != nil:
+		return nil, err
+	default:
+		pl.cur = cur
+		if pl.baseHash, err = ReviewHash(cur); err != nil {
+			return nil, err
+		}
+	}
+	if p.ExpectHash != "" {
+		if pl.cur == nil {
+			return nil, fmt.Errorf("workflow %s not found", p.WorkflowID)
+		}
+		if pl.baseHash != p.ExpectHash {
+			return nil, ErrChangedSincePreview
+		}
+	}
+	if p.Kind == PubDelete {
+		return pl, nil
+	}
+	if pl.target, err = p.Build(pl.cur); err != nil {
+		return nil, err
+	}
+	t := pl.target
+	t.ID = p.WorkflowID
+	for i := range t.Connections {
+		if t.Connections[i].ID == "" {
+			t.Connections[i].ID = newID()
+		}
+	}
+	pl.graph = true
+	if err := h.sql.checkOwnIDs(ctx, t); err != nil {
+		if !errors.Is(err, ErrSharedIDs) {
+			return nil, err
+		}
+		pl.graph = false
+	}
+	if pl.targetHash, err = definitionHash(t); err != nil {
+		return nil, err
+	}
+	if pl.version, err = nextVersionTx(ctx, tx, t, p.StoredVersion, pl.cur); err != nil {
+		return nil, err
+	}
+	t.Version = pl.version
+	if h.files != nil {
+		if pl.data, err = h.files.renderWorkflow(t); err != nil {
+			return nil, err
+		}
+		pl.targetSHA = shaHex(pl.data)
+	}
+	return pl, nil
+}
+
+// nextVersionTx is the version recordVersionTx will give w: the latest one when the definition is
+// unchanged, the next one otherwise.
+func nextVersionTx(ctx context.Context, tx *sql.Tx, w *Workflow, stored int, cur *Workflow) (int, error) {
+	hash, err := snapshotOf(w).hash()
+	if err != nil {
+		return 0, err
+	}
+	var latest int
+	var latestHash string
+	err = tx.QueryRowContext(ctx, `
+		SELECT version, definition_hash FROM workflow_versions
+		WHERE workflow_id = ? ORDER BY version DESC LIMIT 1`, w.ID).Scan(&latest, &latestHash)
+	if err != nil && err != sql.ErrNoRows {
+		return 0, fmt.Errorf("reading latest version of workflow %s: %w", w.ID, err)
+	}
+	if latest != 0 && latestHash == hash {
+		return latest, nil
+	}
+	rowVersion := 0
+	if cur != nil {
+		rowVersion = cur.Version
+	}
+	return max(latest, max(stored, rowVersion)) + 1, nil
+}
+
+// applyRows is the commit body shared by the file and the rows-only paths: the rows, the version,
+// the approvals and the caller's transaction hook.
+func (h *HybridWorkflowStore) applyRows(ctx context.Context, tx *sql.Tx, p Publication, pl *pubPlan) error {
+	if p.Kind == PubDelete {
+		if _, err := tx.ExecContext(ctx, deleteWorkflowRowSQL, p.WorkflowID); err != nil {
+			return fmt.Errorf("removing workflow %s: %w", p.WorkflowID, err)
+		}
+		return nil
+	}
+	v, err := writeDefinitionRows(ctx, tx, pl.target, pl.graph, p.StoredVersion, p.Note)
+	if err != nil {
+		return err
+	}
+	if v != pl.version {
+		return fmt.Errorf("workflow %s: the version moved from %d to %d during the change", p.WorkflowID, pl.version, v)
+	}
+	if p.RevokeApprovals {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM workflow_approvals WHERE workflow_id = ?`, p.WorkflowID); err != nil && !isNoTable(err) {
+			return fmt.Errorf("revoking approvals: %w", err)
+		}
+	}
+	if hook := txHookFrom(ctx); hook != nil {
+		if err := hook(ctx, tx); err != nil {
+			return &TxHookError{Err: err}
+		}
+	}
+	return nil
+}
+
+// deleteWorkflowRowSQL removes a workflow's row; its nodes, connections, approvals and versions
+// follow by cascade.
+const deleteWorkflowRowSQL = `DELETE FROM workflows WHERE id = ?`
+
+// publishRowsOnly commits a publication that has no file to publish, in the transaction that
+// planned it.
+func (h *HybridWorkflowStore) publishRowsOnly(ctx context.Context, tx *sql.Tx, p Publication, pl *pubPlan) (*Workflow, error) {
+	if err := h.applyRows(ctx, tx, p, pl); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("committing guarded save: %w", err)
+	}
+	return pl.target, nil
+}
+
+// publishFile is step 2: the file reaches its target bytes (or is removed, for a delete).
+func (h *HybridWorkflowStore) publishFile(p Publication, pl *pubPlan) error {
+	fileWriteMu.Lock()
+	defer fileWriteMu.Unlock()
+	err := failpoint("before-rename")
+	if err == nil && guardedFileFault != nil {
+		err = guardedFileFault()
+	}
+	if err == nil {
+		if p.Kind == PubDelete {
+			err = h.files.removeFile(p.WorkflowID)
+		} else {
+			err = h.files.writeRaw(p.WorkflowID, pl.data)
+		}
+	}
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrFileSyncFailed, err)
+	}
+	return nil
+}
+
+// commitPublication is step 3: the rows, the version, the approvals and the removal of the
+// intent commit together.
+func (h *HybridWorkflowStore) commitPublication(ctx context.Context, p Publication, pl *pubPlan, intentID int64) (*Workflow, error) {
+	if err := failpoint("before-tx2"); err != nil {
+		return nil, err
+	}
+	tx, err := h.sql.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("committing guarded save: %w", err)
+	}
+	defer tx.Rollback()
+	res, err := tx.ExecContext(ctx, `UPDATE workflow_publications SET state = state WHERE id = ? AND state = 'pending'`, intentID)
+	if err != nil {
+		return nil, fmt.Errorf("committing guarded save: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return nil, ErrPublicationLost
+	}
+	base := ""
+	cur, err := getWorkflowFrom(ctx, tx, p.WorkflowID)
+	switch {
+	case err == nil:
+		if base, err = ReviewHash(cur); err != nil {
+			return nil, err
+		}
+	case !errors.Is(err, sql.ErrNoRows):
+		return nil, err
+	}
+	if base != pl.baseHash {
+		return nil, ErrChangedSincePreview
+	}
+	if err := h.applyRows(ctx, tx, p, pl); err != nil {
+		return nil, err
+	}
+	if p.Kind == PubDelete {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM workflow_file_state WHERE workflow_id = ?`, p.WorkflowID); err != nil {
+			return nil, err
+		}
+	} else if _, err := tx.ExecContext(ctx, `
+		INSERT INTO workflow_file_state (workflow_id, file_sha, definition_hash, updated_at) VALUES (?, ?, ?, ?)
+		ON CONFLICT(workflow_id) DO UPDATE SET file_sha = excluded.file_sha,
+			definition_hash = excluded.definition_hash, updated_at = excluded.updated_at`,
+		p.WorkflowID, pl.targetSHA, pl.targetHash, time.Now().UTC()); err != nil {
+		return nil, fmt.Errorf("recording the file state: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM workflow_publications WHERE id = ?`, intentID); err != nil {
+		return nil, err
+	}
+	if err := failpoint("inside-tx2-before-commit"); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("committing guarded save: %w", err)
+	}
+	return pl.target, nil
+}
+
+// abort undoes a publication that failed in this process: the file goes back to what the rows
+// say, the intent is removed, and err is returned (joined with what could not be undone).
+func (h *HybridWorkflowStore) abort(ctx context.Context, intentID int64, id string, err error) error {
+	if rerr := h.rollbackIntent(ctx, intentID); rerr != nil {
+		// Nobody owns the unfinished change now: the next process to look retries the restore.
+		_, _ = h.sql.db.ExecContext(ctx, `UPDATE workflow_publications SET owner_pid = 0 WHERE id = ?`, intentID)
+		return errors.Join(err, fmt.Errorf("%w: workflow %s: %v", ErrFileInconsistent, id, rerr))
+	}
+	return err
+}

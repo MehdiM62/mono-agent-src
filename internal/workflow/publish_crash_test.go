@@ -210,3 +210,104 @@ func TestCrashReaderInsideTheWindowSeesCommittedRows(t *testing.T) {
 		t.Fatalf("the save did not land after release: %v", got)
 	}
 }
+
+func (r *crashRig) pauseHelper(t *testing.T, point string) (cmd *exec.Cmd, release func()) {
+	t.Helper()
+	fifo := filepath.Join(r.root, "pause")
+	if err := syscall.Mkfifo(fifo, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cmd = r.startHelper(t, "apply-fix", "MONOAGENT_WF_FAILPOINT_PAUSE="+point+":"+fifo)
+	deadline := time.Now().Add(30 * time.Second)
+	for {
+		if _, err := os.Stat(fifo + ".reached"); err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the helper never reached the window")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	return cmd, func() {
+		f, err := os.OpenFile(fifo, os.O_WRONLY, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, _ = f.Write([]byte("x"))
+		f.Close()
+	}
+}
+
+func (r *crashRig) openIntents(t *testing.T) int {
+	t.Helper()
+	var n int
+	if err := r.s.db.QueryRow(`SELECT COUNT(*) FROM workflow_publications`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n
+}
+
+// C2: killed after the intent and before the file changed: nothing to put back, the intent goes.
+func TestCrashKilledBeforeTheFileChangedLeavesNothingBehind(t *testing.T) {
+	r := newCrashRig(t)
+	before := r.fileOnDisk(t)
+	waitKilled(t, r.startHelper(t, "apply-fix", "MONOAGENT_WF_FAILPOINT=after-intent"))
+	if r.openIntents(t) != 1 {
+		t.Fatal("the dead process should have left its intent")
+	}
+	r.assertFileMatchesRows(t)
+	if r.openIntents(t) != 0 || !bytes.Equal(r.fileOnDisk(t), before) {
+		t.Fatal("recovery left an intent behind or changed the file")
+	}
+}
+
+// C4: an edit from outside lands in the window and the process dies: the file is not touched, a
+// copy is kept, the intent is unresolved, and readers keep serving the committed rows.
+func TestCrashExternalEditInTheWindowIsKeptNotOverwritten(t *testing.T) {
+	r := newCrashRig(t)
+	cmd, _ := r.pauseHelper(t, "after-rename")
+	edited := []byte(`{"id":"wf-c","name":"edited by hand","nodes":[],"connections":[]}`)
+	if err := os.WriteFile(filepath.Join(r.root, "workflows", "wf-c.json"), edited, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_ = cmd.Process.Kill()
+	_ = cmd.Wait()
+	r.assertFileMatchesRows(t)
+	if !bytes.Equal(r.fileOnDisk(t), edited) {
+		t.Fatal("the outside edit was overwritten")
+	}
+	var state string
+	if err := r.s.db.QueryRow(`SELECT state FROM workflow_publications`).Scan(&state); err != nil || state != "unresolved" {
+		t.Fatalf("state %q err %v", state, err)
+	}
+	kept, _ := filepath.Glob(filepath.Join(r.root, "workflow-quarantine", "wf-c.*.json"))
+	if len(kept) != 1 {
+		t.Fatalf("quarantined copies: %v", kept)
+	}
+}
+
+// A change that another process already rolled back must not commit afterwards.
+func TestCrashARolledBackChangeDoesNotCommit(t *testing.T) {
+	r := newCrashRig(t)
+	before := r.fileOnDisk(t)
+	cmd, release := r.pauseHelper(t, "after-rename")
+	var id int64
+	if err := r.s.db.QueryRow(`SELECT id FROM workflow_publications`).Scan(&id); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.h.rollbackIntent(context.Background(), id); err != nil {
+		t.Fatal(err)
+	}
+	release()
+	err := cmd.Wait()
+	if ee, ok := err.(*exec.ExitError); !ok || ee.ExitCode() != 3 {
+		t.Fatalf("the helper should report the change as lost: %v", err)
+	}
+	r.assertFileMatchesRows(t)
+	if !bytes.Equal(r.fileOnDisk(t), before) {
+		t.Fatal("the file does not hold the committed definition")
+	}
+	if got := sqlConfig(t, r.s, "wf-c", "c-set"); got == "from-helper" {
+		t.Fatal("the rolled-back change committed")
+	}
+}
