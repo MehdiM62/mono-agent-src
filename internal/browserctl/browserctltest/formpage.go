@@ -24,8 +24,16 @@ type FormPage struct {
 	// Submit: the probed control is submit-like.
 	Submit bool
 	Fields []browserctl.FormField
-	// Triggered counts submits the trigger script made.
+	// Triggered counts submits the trigger script let through.
 	Triggered int
+	// NoReaction: the page does not change after the click.
+	NoReaction bool
+	// Disabled: the submit control is disabled; Covered: another element
+	// sits over it.
+	Disabled, Covered bool
+	// Blocks: the form changes between the trigger and the click, so the
+	// page's click check stops the click.
+	Blocks bool
 }
 
 // Set changes one field's value.
@@ -51,6 +59,10 @@ func (fp *FormPage) form() map[string]any {
 
 var expectRE = regexp.MustCompile(`const EXPECT = "([0-9a-f]*)";`)
 
+// subRE finds the submit control's selector in the trigger script: "" when
+// the held submit has none (the form is requestSubmit()ed).
+var subRE = regexp.MustCompile(`const el = ("[^"]*") \?`)
+
 // Handler answers eval_cdp for the three scripts; anything else gets null.
 func (fp *FormPage) Handler() Handler {
 	return func(c *extension.Command) (any, error) {
@@ -71,10 +83,19 @@ func (fp *FormPage) Handler() Handler {
 			m := expectRE.FindStringSubmatch(expr)
 			if m != nil && m[1] != "" && m[1] != fp.digest() {
 				res = map[string]any{"changed": true}
-			} else {
+			} else if sub := subRE.FindStringSubmatch(expr); sub == nil || sub[1] == `""` {
 				fp.Triggered++
 				res = map[string]any{"ok": true}
+			} else if fp.Disabled {
+				res = map[string]any{"disabled": true}
+			} else if fp.Covered {
+				res = map[string]any{"covered": true}
+			} else {
+				fp.Triggered++
+				res = map[string]any{"ok": true, "click": true, "x": 120, "y": 48}
 			}
+		case strings.HasPrefix(expr, "/*mono:collect*/"):
+			res = map[string]any{"fired": !fp.Blocks, "blocked": fp.Blocks, "changed": !fp.NoReaction}
 		}
 		return map[string]any{"result": res}, nil
 	}

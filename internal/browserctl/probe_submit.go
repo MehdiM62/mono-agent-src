@@ -202,10 +202,27 @@ const holdJS = `/*mono:hold*/(() => {` + formLibJS + `
   return { found: true, form: summarize(form), digest: digestOf(form, ctl) };
 })()`
 
-// triggerJS repeats a held submit only if what it would send still has the
-// digest __MONO_EXPECT__ ("" checks nothing): the check and the click (or
-// requestSubmit) run in one evaluation, so nothing can change in between.
-const triggerJS = `/*mono:trigger*/(() => {` + formLibJS + `
+// reactionLibJS fingerprints what a click could change on the page: its
+// address, its text and the value of every field. Only compared for equality.
+const reactionLibJS = `
+  const fpOf = () => {
+    let h = 5381;
+    const add = (s) => { for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; };
+    add(location.href);
+    add(document.body ? document.body.innerText : "");
+    for (const e of document.querySelectorAll("input,textarea,[contenteditable]")) add(typeof e.value === "string" ? e.value : (e.textContent || ""));
+    return h;
+  };`
+
+// triggerJS prepares a held submit only if what it would send still has the
+// digest __MONO_EXPECT__ ("" checks nothing). A form with no submit control
+// is requestSubmit()ed here. For a control it scrolls the control into view,
+// checks nothing covers it, and answers where to click: the click itself is a
+// trusted mouse event the caller sends (a page's handlers can ignore a
+// script's el.click()). A one-shot capture listener on window checks the
+// digest again in the click event itself, and stops that click if the form
+// changed: the check and the click are one event, not two round trips.
+const triggerJS = `/*mono:trigger*/(() => {` + formLibJS + reactionLibJS + `
   const EXPECT = __MONO_EXPECT__;
   const form = __MONO_FORM__ ? document.querySelector(__MONO_FORM__) : null;
   const el = __MONO_SUB__ ? document.querySelector(__MONO_SUB__) : null;
@@ -213,9 +230,34 @@ const triggerJS = `/*mono:trigger*/(() => {` + formLibJS + `
   if (__MONO_SUB__ && !el) return { missing: "the submit control" };
   const ctl = ctlOf(el);
   if (EXPECT && digestOf(form, ctl) !== EXPECT) return { changed: true };
-  if (el) el.click();
-  else form.requestSubmit();
-  return { ok: true };
+  if (!el) { form.requestSubmit(); return { ok: true }; }
+  if (ctl.disabled || ctl.getAttribute("aria-disabled") === "true") return { disabled: true };
+  ctl.scrollIntoView({ block: "center", inline: "center" });
+  const r = ctl.getBoundingClientRect();
+  const x = Math.round(r.left + r.width / 2), y = Math.round(r.top + r.height / 2);
+  const top = document.elementFromPoint(x, y);
+  if (!top || !(ctl === top || ctl.contains(top))) return { covered: true };
+  const state = { fired: false, blocked: false };
+  const on = (e) => {
+    if (!e.isTrusted || !(ctl === e.target || ctl.contains(e.target))) return;
+    window.removeEventListener("click", on, true);
+    if (EXPECT && digestOf(form, ctl) !== EXPECT) { state.blocked = true; e.preventDefault(); e.stopImmediatePropagation(); return; }
+    state.fired = true;
+  };
+  window.addEventListener("click", on, true);
+  window.__monoTrigger = { state, on, fingerprint: fpOf() };
+  return { ok: true, click: true, x, y };
+})()`
+
+// collectJS reads how the trusted click went, in the world triggerJS ran in,
+// and removes its listener: whether the click reached the control, whether
+// the digest check stopped it, and whether the page changed.
+const collectJS = `/*mono:collect*/(() => {` + reactionLibJS + `
+  const t = window.__monoTrigger;
+  if (!t) return { gone: true };
+  window.removeEventListener("click", t.on, true);
+  delete window.__monoTrigger;
+  return { fired: t.state.fired, blocked: t.state.blocked, changed: fpOf() !== t.fingerprint };
 })()`
 
 // pageScript fills a script's __MONO_FORM__, __MONO_SUB__ and

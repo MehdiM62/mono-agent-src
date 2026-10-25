@@ -16,7 +16,18 @@ import (
 // HTMLFormElement.prototype, FormData, and click()/requestSubmit() that
 // record what they did.
 const probeDOM = `
-const clicks = [], submits = [];
+const clicks = [], submits = [], listeners = [], trusted = [];
+let hit = null;
+const window = {
+  addEventListener(type, fn, capture) { listeners.push([type, fn, capture]); },
+  removeEventListener(type, fn) { const i = listeners.findIndex((l) => l[0] === type && l[1] === fn); if (i >= 0) listeners.splice(i, 1); },
+};
+// trustedClick is what the browser does for a real mouse click on el.
+const trustedClick = (el, isTrusted = true) => {
+  const e = { type: "click", target: el, isTrusted, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; }, stopImmediatePropagation() { this.stopped = true; } };
+  for (const l of listeners.slice()) { if (l[0] === "click" && !e.stopped) l[1](e); }
+  if (!e.defaultPrevented) trusted.push(el.id || el.tagName);
+};
 const FIELD_TAGS = ["INPUT", "BUTTON", "SELECT", "TEXTAREA"];
 class El {
   constructor(tag, attrs, props) {
@@ -52,6 +63,9 @@ class El {
   }
   querySelector(sel) { return this.querySelectorAll(sel)[0] || null; }
   click() { clicks.push(this.id || this.tagName); }
+  scrollIntoView() {}
+  getBoundingClientRect() { return { left: 10, top: 20, width: 100, height: 40 }; }
+  contains(o) { for (let n = o; n; n = n.parentElement) if (n === this) return true; return false; }
   compareDocumentPosition(other) {
     const order = [];
     const walk = (n) => { order.push(n); n.kids.forEach(walk); };
@@ -89,11 +103,16 @@ const CSS = { escape: (s) => s };
 const location = { href: "https://example.com/compose/new" };
 const html = new El("html");
 const body = html.add(new El("body"));
+body.innerText = "page text";
 const bySel = {};
 const document = {
   documentElement: html, body,
   querySelector: (s) => bySel[s] || null,
-  querySelectorAll: (s) => { const id = s.slice(1); const all = []; const walk = (n) => { if (n.id === id) all.push(n); n.kids.forEach(walk); }; walk(html); return all; },
+  querySelectorAll: (s) => {
+    if (!s.startsWith("#")) return body.querySelectorAll(s);
+    const id = s.slice(1); const all = []; const walk = (n) => { if (n.id === id) all.push(n); n.kids.forEach(walk); }; walk(html); return all;
+  },
+  elementFromPoint: () => hit,
 };
 const field = (form, tag, attrs, props) => { const f = form.add(new El(tag, attrs, props)); f.form = form; f.labels = []; return f; };
 
@@ -119,6 +138,7 @@ field(form, "input", { name: "color" }, { type: "radio", checked: false, value: 
 const send = field(form, "button", { type: "submit", id: "send", name: "op" }, { type: "submit", value: "send" });
 bySel["#send span"] = send.add(new El("span", {}, { innerText: "Send" }));
 bySel["#send"] = send;
+hit = send;
 bySel["#login"] = form;
 bySel["#toggle"] = field(form, "button", { type: "button", id: "toggle" }, { type: "button", innerText: "Show password" });
 for (let i = 0; i < 64; i++) field(form, "input", { name: "extra" + i }, { type: "text", value: "v" + i });
@@ -291,33 +311,99 @@ func TestHeldDigestOfAControlOutsideAForm(t *testing.T) {
 	}
 }
 
-// The trigger checks the digest and submits in one evaluation.
-func TestTriggerChecksAndSubmitsInOneStep(t *testing.T) {
+// The trigger checks the digest and readies a trusted click: it never calls
+// the control's synthetic click() (a page's handlers can ignore that), and a
+// click event that arrives after the form changed is stopped.
+func TestTriggerReadiesATrustedClickAndChecksTheDigestInTheClickEvent(t *testing.T) {
 	vm := page(t, "")
 	var h held
 	run(t, vm, pageScript(holdJS, "#login", "#send", ""), &h)
-	var out struct {
-		OK      bool   `json:"ok"`
-		Changed bool   `json:"changed"`
-		Missing string `json:"missing"`
+	type answer struct {
+		OK       bool   `json:"ok"`
+		Click    bool   `json:"click"`
+		X        int    `json:"x"`
+		Y        int    `json:"y"`
+		Changed  bool   `json:"changed"`
+		Disabled bool   `json:"disabled"`
+		Covered  bool   `json:"covered"`
+		Missing  string `json:"missing"`
 	}
+	var out answer
 	run(t, vm, pageScript(triggerJS, "#login", "#send", h.Digest), &out)
-	if !out.OK || vm.Get("clicks").String() != "send" {
-		t.Fatalf("trigger: %+v, clicks %v", out, vm.Get("clicks"))
+	if !out.OK || !out.Click || out.X != 60 || out.Y != 40 {
+		t.Fatalf("trigger: %+v", out)
 	}
-	if _, err := vm.RunString(`form.querySelectorAll("input")[1].value = "changed";`); err != nil {
+	if got := vm.Get("clicks").String(); got != "" {
+		t.Fatalf("the trigger called the control's synthetic click(): %q", got)
+	}
+	// A real click that reaches the control goes through and is reported.
+	if _, err := vm.RunString(`trustedClick(bySel["#send span"]);`); err != nil {
 		t.Fatal(err)
 	}
-	out.OK = false
-	run(t, vm, pageScript(triggerJS, "#login", "#send", h.Digest), &out)
-	if out.OK || !out.Changed || vm.Get("clicks").String() != "send" {
-		t.Fatalf("trigger after a change: %+v, clicks %v", out, vm.Get("clicks"))
+	var fin struct{ Fired, Blocked, Changed bool }
+	run(t, vm, collectJS, &fin)
+	if !fin.Fired || fin.Blocked || fin.Changed || vm.Get("trusted").String() != "SPAN" {
+		t.Fatalf("collect after an unchanged page: %+v, trusted %v", fin, vm.Get("trusted"))
 	}
-	out.Changed = false
+	// The form changing between the trigger and the click stops that click.
+	run(t, vm, pageScript(triggerJS, "#login", "#send", h.Digest), &out)
+	if _, err := vm.RunString(`form.querySelectorAll("input")[1].value = "changed"; trustedClick(bySel["#send"]);`); err != nil {
+		t.Fatal(err)
+	}
+	run(t, vm, collectJS, &fin)
+	if fin.Fired || !fin.Blocked || vm.Get("trusted").String() != "SPAN" {
+		t.Fatalf("a changed form must stop the click: %+v, trusted %v", fin, vm.Get("trusted"))
+	}
+	// A script-made (untrusted) click event is not the click the trigger waits for.
+	run(t, vm, pageScript(triggerJS, "#login", "#send", ""), &out)
+	if _, err := vm.RunString(`trustedClick(bySel["#send"], false);`); err != nil {
+		t.Fatal(err)
+	}
+	run(t, vm, collectJS, &fin)
+	if fin.Fired {
+		t.Fatalf("an untrusted click counted: %+v", fin)
+	}
+	// The page reacting is reported as a change.
+	run(t, vm, pageScript(triggerJS, "#login", "#send", ""), &out)
+	if _, err := vm.RunString(`trustedClick(bySel["#send"]); location.href = "https://example.com/done";`); err != nil {
+		t.Fatal(err)
+	}
+	run(t, vm, collectJS, &fin)
+	if !fin.Fired || !fin.Changed {
+		t.Fatalf("a page that moved on must read as changed: %+v", fin)
+	}
+	// Changed before the click is even sent, a disabled control, a covered
+	// control and a missing one never ready a click.
+	out = answer{}
+	if _, err := vm.RunString(`form.querySelectorAll("input")[1].value = "changed again";`); err != nil {
+		t.Fatal(err)
+	}
+	run(t, vm, pageScript(triggerJS, "#login", "#send", h.Digest), &out)
+	if out.OK || !out.Changed {
+		t.Fatalf("trigger after a change: %+v", out)
+	}
+	if _, err := vm.RunString(`bySel["#send"].disabled = true;`); err != nil {
+		t.Fatal(err)
+	}
+	out = answer{}
+	run(t, vm, pageScript(triggerJS, "#login", "#send", ""), &out)
+	if out.OK || !out.Disabled {
+		t.Fatalf("a disabled control: %+v", out)
+	}
+	if _, err := vm.RunString(`bySel["#send"].disabled = false; hit = bySel["#menu"];`); err != nil {
+		t.Fatal(err)
+	}
+	out = answer{}
+	run(t, vm, pageScript(triggerJS, "#login", "#send", ""), &out)
+	if out.OK || !out.Covered {
+		t.Fatalf("a covered control: %+v", out)
+	}
+	out = answer{}
 	run(t, vm, pageScript(triggerJS, "#login", "", ""), &out)
-	if !out.OK || vm.Get("submits").String() != "login" {
+	if !out.OK || out.Click || vm.Get("submits").String() != "login" {
 		t.Fatalf("requestSubmit with no check: %+v, submits %v", out, vm.Get("submits"))
 	}
+	out = answer{}
 	run(t, vm, pageScript(triggerJS, "#login", "#gone", h.Digest), &out)
 	if out.Missing == "" {
 		t.Fatalf("a missing control: %+v", out)

@@ -252,11 +252,11 @@ func TestLocalPagesAreNotGated(t *testing.T) {
 	}
 }
 
-func TestResubmitChecksAndSubmitsInOneIsolatedEvaluation(t *testing.T) {
+func resubmitSetup(t *testing.T, fp *browserctltest.FormPage) (*browserctltest.Fake, *browserctl.Session, browserctl.SubmitItem) {
+	t.Helper()
 	setEnv(t, true)
 	f := browserctltest.New()
 	f.AddTab("https://example.com/", "Coder · Agent", true)
-	fp := &browserctltest.FormPage{Selector: "#f", Fields: []browserctl.FormField{{Name: "q", Value: "hi"}}}
 	f.On("eval_cdp", fp.Handler())
 	s, _ := browserctl.Open(browserctl.Options{Profile: "p1", Sender: f, Allowlist: []string{"https://example.com"}})
 	it, err := browserctl.CreateSubmitItem(context.Background(), testdb.Open(t).DB, browserctl.SubmitRequest{
@@ -264,20 +264,97 @@ func TestResubmitChecksAndSubmitsInOneIsolatedEvaluation(t *testing.T) {
 	if err != nil || it.FormDigest == "" {
 		t.Fatalf("held item %+v, %v", it, err)
 	}
+	return f, s, it
+}
+
+// The replay checks the form in the page, then clicks with the browser's own
+// mouse events and reads how the page took it. It never goes back to the
+// script's synthetic click(), which a page's handlers can ignore.
+func TestResubmitClicksWithTrustedMouseEventsAndReadsTheReaction(t *testing.T) {
+	fp := &browserctltest.FormPage{Selector: "#f", Fields: []browserctl.FormField{{Name: "q", Value: "hi"}}}
+	f, s, it := resubmitSetup(t, fp)
 	if err := s.Resubmit(it); err != nil || fp.Triggered != 1 {
 		t.Fatalf("resubmit: %v (%d submits)", err, fp.Triggered)
 	}
-	// arm, allow_once, then the check-and-submit in an isolated world.
+	// arm, allow_once, the trigger in an isolated world, the mouse, then
+	// the read in the same world.
 	calls := f.Calls()
-	last := calls[len(calls)-5:]
+	last := calls[len(calls)-9:]
 	eval, _ := last[4].Params["params"].(map[string]interface{})
 	expr, _ := eval["expression"].(string)
+	read, _ := last[8].Params["params"].(map[string]interface{})
+	readExpr, _ := read["expression"].(string)
 	if last[0].Type != extension.CmdSubmitGuard || last[0].Params["action"] != extension.SubmitGuardArm ||
 		last[1].Type != extension.CmdSubmitGuard || last[1].Params["action"] != extension.SubmitGuardAllowOnce || last[1].Params["frameId"] != 0 ||
 		last[2].Params["method"] != "Page.getFrameTree" || last[3].Params["method"] != "Page.createIsolatedWorld" ||
 		last[4].Params["method"] != "Runtime.evaluate" || eval["contextId"] != 7 ||
-		!strings.HasPrefix(expr, "/*mono:trigger*/") || !strings.Contains(expr, it.FormDigest) {
+		!strings.HasPrefix(expr, "/*mono:trigger*/") || !strings.Contains(expr, it.FormDigest) ||
+		last[8].Params["method"] != "Runtime.evaluate" || read["contextId"] != 7 || !strings.HasPrefix(readExpr, "/*mono:collect*/") {
 		t.Fatalf("calls = %+v", last)
+	}
+	var mouse []string
+	for i, c := range last[5:8] {
+		p, _ := c.Params["params"].(map[string]interface{})
+		if c.Params["method"] != "Input.dispatchMouseEvent" || p["x"] != 120 || p["y"] != 48 {
+			t.Fatalf("call %d is not a mouse event at the control: %+v", i, c.Params)
+		}
+		mouse = append(mouse, p["type"].(string))
+	}
+	if strings.Join(mouse, ",") != "mouseMoved,mousePressed,mouseReleased" {
+		t.Fatalf("mouse events = %v", mouse)
+	}
+	for _, c := range calls {
+		p, _ := c.Params["params"].(map[string]interface{})
+		if e, _ := p["expression"].(string); strings.Contains(e, ".click()") {
+			t.Fatalf("a script calls the synthetic click(): %.200s", e)
+		}
+	}
+}
+
+// A click that reached the control but changed nothing is reported, not
+// passed off as a submit.
+func TestResubmitReportsAClickThePageDidNotReactTo(t *testing.T) {
+	fp := &browserctltest.FormPage{Selector: "#f", NoReaction: true, Fields: []browserctl.FormField{{Name: "q", Value: "hi"}}}
+	_, s, it := resubmitSetup(t, fp)
+	var idle *browserctl.NoReactionError
+	if err := s.Resubmit(it); !errors.As(err, &idle) || errors.Is(err, browserctl.ErrNotSent) {
+		t.Fatalf("resubmit of a click nothing answered: %v", err)
+	}
+}
+
+// The page's own check in the click event stops a click whose form changed
+// after the approval; the guard is closed again.
+func TestResubmitStopsAClickWhoseFormChangedBeforeIt(t *testing.T) {
+	fp := &browserctltest.FormPage{Selector: "#f", Blocks: true, Fields: []browserctl.FormField{{Name: "q", Value: "hi"}}}
+	f, s, it := resubmitSetup(t, fp)
+	var changed *browserctl.SubmitChangedError
+	if err := s.Resubmit(it); !errors.As(err, &changed) {
+		t.Fatalf("a form changed under the click: %v", err)
+	}
+	if got := guardActions(f); strings.Join(got, ",") != "arm,allow_once,disarm,arm" {
+		t.Fatalf("guard actions = %v", got)
+	}
+}
+
+// A control the page would ignore, or one something covers, is not clicked
+// and the approval goes back.
+func TestResubmitDoesNotClickADisabledOrCoveredControl(t *testing.T) {
+	for name, fp := range map[string]*browserctltest.FormPage{
+		"disabled": {Selector: "#f", Disabled: true, Fields: []browserctl.FormField{{Name: "q", Value: "hi"}}},
+		"covered":  {Selector: "#f", Covered: true, Fields: []browserctl.FormField{{Name: "q", Value: "hi"}}},
+	} {
+		f, s, it := resubmitSetup(t, fp)
+		if err := s.Resubmit(it); !errors.Is(err, browserctl.ErrNotSent) {
+			t.Fatalf("%s: %v", name, err)
+		}
+		for _, c := range f.Calls() {
+			if c.Params["method"] == "Input.dispatchMouseEvent" {
+				t.Fatalf("%s: the control was clicked", name)
+			}
+		}
+		if got := guardActions(f); strings.Join(got, ",") != "arm,allow_once,disarm,arm" {
+			t.Fatalf("%s: guard actions = %v", name, got)
+		}
 	}
 }
 

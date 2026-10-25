@@ -321,31 +321,100 @@ func resubmit(p *extension.ExtensionPage, f FormSummary, frameID int, expect str
 		_, _ = p.SubmitGuard(extension.SubmitGuardDisarm)
 		_, _ = p.SubmitGuard(extension.SubmitGuardArm)
 	}
-	res, err := evalIsolated(p, pageScript(triggerJS, f.Selector, f.Submitter, expect))
+	ctxID, err := newIsolatedWorld(p)
+	if err != nil {
+		reclose()
+		return err
+	}
+	res, err := evalIn(p, ctxID, pageScript(triggerJS, f.Selector, f.Submitter, expect))
 	if err != nil {
 		reclose()
 		return err
 	}
 	raw, _ := json.Marshal(res)
 	var out struct {
-		OK      bool   `json:"ok"`
-		Changed bool   `json:"changed"`
-		Missing string `json:"missing"`
+		OK       bool   `json:"ok"`
+		Click    bool   `json:"click"`
+		X        int    `json:"x"`
+		Y        int    `json:"y"`
+		Changed  bool   `json:"changed"`
+		Disabled bool   `json:"disabled"`
+		Covered  bool   `json:"covered"`
+		Missing  string `json:"missing"`
 	}
 	_ = json.Unmarshal(raw, &out)
 	switch {
+	case out.OK && !out.Click:
+		return nil // the form was submitted by the page script
 	case out.OK:
-		return nil
 	case out.Changed:
 		reclose()
 		return &SubmitChangedError{What: "what the form would send"}
 	case out.Missing != "":
 		reclose()
 		return fmt.Errorf("%w: %s is no longer on the page", ErrNotSent, out.Missing)
+	case out.Disabled:
+		reclose()
+		return fmt.Errorf("%w: the submit control is disabled, so the page would ignore a click", ErrNotSent)
+	case out.Covered:
+		reclose()
+		return fmt.Errorf("%w: another element covers the submit control", ErrNotSent)
+	default:
+		reclose()
+		return fmt.Errorf("%w: the page did not answer the submit (%s)", ErrNotSent, raw)
 	}
-	reclose()
-	return fmt.Errorf("%w: the page did not answer the submit (%s)", ErrNotSent, raw)
+	// The click is a trusted mouse event, as a person's is: a page's own
+	// handlers can ignore the synthetic click of a script.
+	for i, typ := range []string{"mouseMoved", "mousePressed", "mouseReleased"} {
+		ev := map[string]interface{}{"type": typ, "x": out.X, "y": out.Y, "button": "left", "clickCount": 1}
+		if typ == "mouseMoved" {
+			ev["button"], ev["clickCount"] = "none", 0
+		}
+		if _, err := p.CDP("Input.dispatchMouseEvent", ev); err != nil {
+			reclose()
+			if i < 2 {
+				return fmt.Errorf("%w: clicking the submit control: %v", ErrNotSent, err)
+			}
+			return err
+		}
+	}
+	time.Sleep(reactionWait)
+	fin, err := evalIn(p, ctxID, collectJS)
+	if err != nil {
+		return nil // the click went out; how the page took it is unknown
+	}
+	raw, _ = json.Marshal(fin)
+	var done struct {
+		Fired   bool `json:"fired"`
+		Blocked bool `json:"blocked"`
+		Changed bool `json:"changed"`
+	}
+	_ = json.Unmarshal(raw, &done)
+	switch {
+	case done.Blocked:
+		reclose()
+		return &SubmitChangedError{What: "what the form would send"}
+	case !done.Fired:
+		reclose()
+		return fmt.Errorf("%w: the click did not reach the submit control", ErrNotSent)
+	case !done.Changed:
+		return &NoReactionError{}
+	}
+	return nil
 }
+
+// NoReactionError reports a replayed submit whose click reached the control
+// but after which nothing on the page changed: it may not have gone through.
+// The approval is used up either way.
+type NoReactionError struct{}
+
+func (*NoReactionError) Error() string {
+	return "clicked the submit control, but the page did not react (nothing on the page changed); the submit may not have gone through"
+}
+
+// reactionWait is how long a replayed click gets to change the page before
+// it is read.
+const reactionWait = 300 * time.Millisecond
 
 // settle gives a page a moment to act on a click before AfterAct reads it.
 const settle = 300 * time.Millisecond
