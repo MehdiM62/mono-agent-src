@@ -252,9 +252,28 @@ func TestMissionEndToEndParallelBranchesFailuresResumeMergeAndClose(t *testing.T
 	if st := gitT(t, repo, "status", "--porcelain"); st != "" {
 		t.Fatalf("tree not clean:\n%s", st)
 	}
+	// every merge changed the tree, so each requeued the settled integration check
+	// (recordMerge): the verdict about the old tree no longer counts and the session
+	// cannot close on it
+	v = e.finishOf(L3)
+	if v.Finished || len(v.MergesRemaining) != 0 || len(v.Unfinished) != 1 || v.Unfinished[0].ID != chk || v.Unfinished[0].Status != string(tasks.StatusReady) {
+		t.Fatalf("finish after the merges must wait for a fresh integration check: %+v", v)
+	}
+	// the lead runs and verifies the check again, on the merged tree
+	res = e.next(L3)
+	if got := e.startedIDs(res); len(got) != 1 || got[0] != chk || res.Started[0].Executor != ExecLead {
+		t.Fatalf("the requeued integration check is the lead's own: %+v", res)
+	}
+	if _, err := e.store.SessionFinish(tbg, "default", e.sid, chk, tasks.Outcome{Result: "go build and go test pass on the merged tree, after the merges"}, lead); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.verify(chk); err != nil {
+		t.Fatal(err)
+	}
+	e.verified(chk)
 	v = e.finishOf(L3)
 	if !v.Finished || len(v.MergesRemaining) != 0 || v.Session.State != string(tasks.SessionDone) {
-		t.Fatalf("finish after the merges: %+v", v)
+		t.Fatalf("finish after the merges and the second check: %+v", v)
 	}
 
 	// the final state, exactly
@@ -309,16 +328,16 @@ func TestMissionEndToEndParallelBranchesFailuresResumeMergeAndClose(t *testing.T
 	if !final || len(e.em.find(chatevents.EventMissionReport)) != 1 {
 		t.Errorf("final report attached %v, %d report events", final, len(e.em.find(chatevents.EventMissionReport)))
 	}
-	// spend: 6 worker runs and 7 verdicts at 0.01 (the cut verifier cost nothing)
-	if got := e.session().SpentUSD; got < 0.1295 || got > 0.1305 {
-		t.Errorf("spent %v, want 0.13", got)
+	// spend: 6 worker runs and 8 verdicts at 0.01 (the cut verifier cost nothing; the integration check was verified twice)
+	if got := e.session().SpentUSD; got < 0.1395 || got > 0.1405 {
+		t.Errorf("spent %v, want 0.14", got)
 	}
 	e.untouched()
 	e.mu.Lock()
 	execs := e.execs
 	e.mu.Unlock()
-	if execs != 14 { // 6 workers + 8 verifier runs (7 verdicts and the one that was cut)
-		t.Errorf("%d runs through the fake exec, want 14", execs)
+	if execs != 15 { // 6 workers + 9 verifier runs (8 verdicts and the one that was cut)
+		t.Errorf("%d runs through the fake exec, want 15", execs)
 	}
 
 	// nothing is left running
