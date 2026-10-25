@@ -135,6 +135,11 @@ func TestTaskSessionLoopThroughTheTools(t *testing.T) {
 	if g := sessTask(f.doc("task_get", map[string]any{"id": ts[0].ID})); g["verified"] != true || g["session_id"] == nil {
 		t.Fatalf("task_get of a session task: %v", g)
 	}
+	// task_list of the session shows its tasks (and only those)
+	lst := f.doc("task_list", map[string]any{"session": se.ID})
+	if items, _ := lst["tasks"].([]any); len(items) != 2 {
+		t.Fatalf("task_list of the session: %v", lst)
+	}
 	// split and follow-ups
 	spl := f.doc("task_split", map[string]any{"id": ts[1].ID, "parts": []map[string]any{{"title": "2a", "acceptance": "a"}, {"title": "2b", "acceptance": "b"}}})
 	if parts, _ := spl["tasks"].([]any); len(parts) != 2 {
