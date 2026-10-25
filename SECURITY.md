@@ -1643,13 +1643,30 @@ that works a task acts on them. The defences:
   dependencies (a cycle is refused), attach artifacts and verify; it may pause
   or stop the session (a stop releases every claim) and it cannot undo a pause.
   A verifier's pass marks a task verified and never closes it, unless the
-  operator turned on auto-close; a task is verified by an agent other than the
-  one that did it; a task that fails verification more often than
+  operator turned on auto-close. Who verifies is enforced by the binding plus an
+  identity check, not by a name alone: the operator may; an agent bound to the task
+  as its worker never may (only a verifier binding passes), and a named agent of the
+  session may not verify a task whose last hand-back came from the same agent
+  identity (its `agent:<client>` name without the per-connection `#<4 hex>`, compared
+  without case). A name is a label an agent picks, so an agent that is not bound to
+  a task can get past the identity check by choosing another name: a worker started
+  by the conductor is bound, a free agent is not. An agent verifies only while the
+  session runs; the operator may act while it is paused. A task that fails
+  verification more often than
   `max_retries` is blocked for the operator. A process bound to a session
   (`MONOAGENT_TASK_SESSION`, the carrier of the worker token to come) may act in
   that session only: not on the personal board and not in another session, in
-  the CLI, the store and over MCP. That variable is a label, not a credential: an
-  agent that sets or unsets its own environment can change it. A session's
+  the CLI, the store and over MCP. That includes the operator-enabled delegation
+  (`task agents allow --approve --view`): a bound worker cannot approve or view the
+  personal board through it, the `task digest` hook shows it nothing of that board,
+  and a delegated approval never opens a session's task (only `session approve`
+  does). That variable is a label, not a credential: an agent that sets or unsets
+  its own environment can change it. **An agent that scrubs its own environment (no
+  agent marker, no `--as`) is treated as the operator by the CLI** and can run
+  `session approve`, `session resume` and `session budget`: it can open its own plan,
+  resume a pause and raise its own budget. That weakness predates sessions and has
+  higher stakes with them; the guard stops accidents and injected text, not an agent
+  that works around it on purpose. A session's
   goal and a task's acceptance criteria are text an agent wrote and come back
   as data (`_untrusted` over MCP, a notice in text), and a session's tasks are
   deleted with its profile. A session that has spent its budget hands out no tasks.
@@ -1658,11 +1675,16 @@ that works a task acts on them. The defences:
   binding: in the store that actor may verify, comment on (once the task is in Review)
   and attach evidence to its one task, and is refused claiming, finishing, releasing,
   splitting, adding or writing session events; a verifier without a task is refused. The
-  lead records no verdict itself, so it cannot pass its own work. Like the binding, the role
+  conductor never records a verdict for the lead, but that is the conductor's rule and
+  not the store's: the store lets any named agent of the session verify a task it did
+  not hand back (a peer checker), so the lead holds no verifier binding and no more. Like the binding, the role
   is an environment label, not a credential. **The evidence rule:** a task of kind
   `task` that declares files cannot be finished to Review with a result unless it holds a
   commit, diff, test, file or log artifact (a report does not count); the check runs in the
-  store, inside the hand-back transaction, for every caller. When a mission's tasks are all
+  store, inside the hand-back transaction, for every caller. It is self-asserted: an
+  artifact reference is a string the agent wrote and is not validated, and the files a
+  task declares come from notes the planner wrote, so the rule makes skipping evidence
+  a visible refusal and is not proof that the work exists. When a mission's tasks are all
   done or verified, `mission_finish` closes the session as done in the operator's process
   (as the spend record is): the agent cannot close it while a task is open, blocked or
   failing, or a writer branch is unmerged.

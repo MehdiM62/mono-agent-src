@@ -92,6 +92,7 @@ const (
 // Verifier, with Task, makes the binding a verifier's: the actor may record a verdict on that
 // one task (once it is in Review), comment on it there and attach evidence to it, and may
 // not claim, finish, release, split or assign anything. A Verifier without a Task is refused.
+// A Task binding without Verifier never records a verdict, on its own task or another.
 type Actor struct {
 	Kind     ActorKind
 	Name     string

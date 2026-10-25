@@ -1795,12 +1795,20 @@ and `verify`s: `--pass` marks the task verified and nothing more (closing it to 
 is the user's, unless the user turned on `session budget --auto-close on`), `--fail
 --note TEXT` sends it back to Ready with the note, up to the session's max retries
 (default 2), and one more failure blocks it (it stays in Review with `blocked` set,
-for the user). A task is verified by an agent other than the one that did it. Only
+for the user). A task is verified by the user or by an agent that did not do it: one bound
+to the task as its worker never verifies it, and the agent identity of the last hand-back (its
+`agent:<client>` name without the `#<4 hex>` suffix) cannot; an agent verifies only while the
+session runs. The identity check is a name check, so an unbound agent that picks another name
+passes it; workers the conductor starts are bound. Only
 the user approves, resumes, sets the budget, caps, access level and auto-close
 (`session budget`), archives (`session archive`) and removes dependencies
 (`undepend`); an agent may pause and stop a session (stop releases every claim).
 Setting `MONOAGENT_TASK_SESSION=N` binds a process to session N: its agent may act in
-that session only, on the CLI and over MCP. The MCP tools are `task_session_list` and
+that session only, on the CLI and over MCP, including the delegated approve and view of
+`task agents allow`: a bound worker reaches the personal board through neither, and `task digest`
+shows it nothing of it. That binding is an environment label: an agent that scrubs its own
+environment (no agent marker, no `--as`) is treated as the operator by the CLI and can run
+`session approve`, `resume` and `budget`; that weakness is old and matters more now. The MCP tools are `task_session_list` and
 `task_session_get` (read) and, with `--allow-mutations`, `task_split`, `task_verify`
 and `task_artifact`, with `task_add`, `task_claim`, `task_comment`, `task_finish`,
 `task_release`, `task_list`, `task_get` and `task_next` taking `session`. Goals and

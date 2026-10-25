@@ -117,8 +117,9 @@ WHO MAY DO WHAT
   task's title over 200 characters is refused (invalid_input), not cut. A verifier marks a task verified with verify --pass; closing it to Done is
   the operator's unless the operator turned auto-close on. verify --fail sends the task
   back to Ready with the note, up to the session's max retries, then it is blocked and
-  waits in Review for the operator. A task is verified by someone other than the agent
-  that did it. A process bound to a session with MONOAGENT_TASK_SESSION acts in it only.
+  waits in Review for the operator. A task is verified by the operator or an agent that did not do it: one bound to
+  the task as its worker never verifies it, nor the same agent identity as the last hand-back (agent:<client>
+  without its #suffix); an agent verifies only while the session runs. A process bound to a session with MONOAGENT_TASK_SESSION acts in it only.
   MONOAGENT_TASK_ID narrows that to one task (a mission worker's process): it claims, comments on,
   finishes, releases and attaches evidence to that task only, and adds and takes no other.
   MONOAGENT_TASK_ROLE=verifier (with MONOAGENT_TASK_ID) makes it a verifier's binding: it verifies,
@@ -127,6 +128,7 @@ WHO MAY DO WHAT
   finished with a result unless it holds a commit, diff, test, file or log artifact (a report does
   not count; refused with invalid_input "a code task needs evidence"): attach one with artifact first.
   After a failed verification the evidence from before does not count: a retry attaches a new one.
+  The evidence rule is self-asserted: artifact references are not validated and the declared files come from the planner's notes.
   MISSIONS. A coder chat's lead runs a session with the mission tools (chat --conversation C --turn T
   --mission, a hidden flag; an open session of the conversation implies it): mission_plan, mission_add_tasks,
   mission_split, mission_status, mission_replan, and once a session exists mission_next, mission_assign,
