@@ -192,7 +192,7 @@ func (c *Conductor) missionReconcile(ctx context.Context, sid int64) {
 		case ours && t.Claim.By == missionLeadName:
 			continue // the lead is doing it itself; its lease ends if it never finishes
 		case ours:
-			c.releaseClaim(sid, t.ID, t.Claim.By, "no worker holds this task any more: given back to the scheduler")
+			c.releaseHeld(sid, t.ID, *t.Claim, "no worker holds this task any more: given back to the scheduler")
 		case t.Claim.Stale:
 			// The list above may be older than a release and a new claim by the same name
 			// (a restarted turn's worker): read the claim again, and look at the workers
@@ -207,7 +207,7 @@ func (c *Conductor) missionReconcile(ctx context.Context, sid int64) {
 			if pending {
 				continue
 			}
-			c.releaseClaim(sid, t.ID, cur.Claim.By, "the claim's lease ended and nobody renewed it: given back to the scheduler")
+			c.releaseHeld(sid, t.ID, *cur.Claim, "the claim's lease ended and nobody renewed it: given back to the scheduler")
 		}
 	}
 }

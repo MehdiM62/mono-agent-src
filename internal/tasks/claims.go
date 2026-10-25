@@ -431,7 +431,7 @@ func (s *Store) finishIn(ctx context.Context, profileID string, session, id int6
 	if question != "" {
 		kind, note = "question", question
 	}
-	return s.handBack(ctx, profileID, session, id, actor, StatusReview, kind, note)
+	return s.handBack(ctx, profileID, session, id, actor, StatusReview, kind, note, nil)
 }
 
 // Release gives a held task back to Ready, behind the others, so that the agent that gave it up is not
@@ -445,12 +445,13 @@ func (s *Store) releaseIn(ctx context.Context, profileID string, session, id int
 	if err := needName(actor); err != nil {
 		return Task{}, err
 	}
-	return s.handBack(ctx, profileID, session, id, actor, StatusReady, "released", cutBytes(cleanText(note), MaxCommentBytes))
+	return s.handBack(ctx, profileID, session, id, actor, StatusReady, "released", cutBytes(cleanText(note), MaxCommentBytes), nil)
 }
 
 // handBack ends the agent's claim: the task goes to `to` (Review at the top, Ready at the bottom), both
-// claim columns are emptied, and the event says why.
-func (s *Store) handBack(ctx context.Context, profileID string, session, id int64, actor Actor, to Status, kind, note string) (Task, error) {
+// claim columns are emptied, and the event says why. When only is set the claim must still be that
+// one (same holder, same lease end), checked in the same transaction: else errClaimMoved.
+func (s *Store) handBack(ctx context.Context, profileID string, session, id int64, actor Actor, to Status, kind, note string, only *Claim) (Task, error) {
 	if err := noVerifier(actor, "finish or release a task"); err != nil {
 		return Task{}, err
 	}
@@ -462,8 +463,12 @@ func (s *Store) handBack(ctx context.Context, profileID string, session, id int6
 		if err := s.checkScope(ctx, x, profileID, id, session, actor); err != nil {
 			return err
 		}
-		if _, err := s.heldBy(ctx, x, profileID, id, actor); err != nil {
+		cur, err := s.heldBy(ctx, x, profileID, id, actor)
+		if err != nil {
 			return err
+		}
+		if only != nil && !cur.Claim.Until.Equal(only.Until) {
+			return errClaimMoved
 		}
 		if session != 0 && kind == "result" {
 			if err := s.needsEvidence(ctx, x, profileID, id); err != nil {

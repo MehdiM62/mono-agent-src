@@ -166,6 +166,17 @@ func (c *Conductor) missionStarted(b *missionBind, label string) {
 
 // releaseClaim gives a task held under name back to Ready (the retry count is untouched).
 func (c *Conductor) releaseClaim(sid, taskID int64, name, why string) {
+	c.release(sid, taskID, name, nil, why)
+}
+
+// releaseHeld is releaseClaim for a claim read earlier by the reconcile: it gives the task
+// back only while that very claim is held (same name, same lease end), atomically in the
+// store, so a claim a restarted turn took again under the same name is left alone.
+func (c *Conductor) releaseHeld(sid, taskID int64, held tasks.Claim, why string) {
+	c.release(sid, taskID, held.By, &held, why)
+}
+
+func (c *Conductor) release(sid, taskID int64, name string, held *tasks.Claim, why string) {
 	mc, err := c.missions()
 	if err != nil {
 		return
@@ -173,7 +184,14 @@ func (c *Conductor) releaseClaim(sid, taskID int64, name, why string) {
 	actor := tasks.Actor{Kind: tasks.Agent, Name: name, Session: sid, Task: taskID}
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(c.ctx), 10*time.Second)
 	defer cancel()
-	if _, err := mc.Store.SessionRelease(ctx, mc.ProfileID, sid, taskID, why, actor); err == nil {
+	done := false
+	if held != nil {
+		done, _ = mc.Store.SessionReleaseIfHeld(ctx, mc.ProfileID, sid, taskID, *held, why, actor)
+	} else {
+		_, err := mc.Store.SessionRelease(ctx, mc.ProfileID, sid, taskID, why, actor)
+		done = err == nil
+	}
+	if done {
 		c.msched.mu.Lock()
 		delete(c.msched.owned, taskID)
 		c.msched.mu.Unlock()
