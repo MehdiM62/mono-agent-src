@@ -161,6 +161,7 @@ func startDynamicOrg(ctx context.Context, cfg *Deps, journal *turnJournal, setti
 	if settings.OrgWriters == dynorg.WritersIsolated {
 		reconcileTurnWorktrees(ctx, journal, t.cwd)
 	}
+	mission := missionConfig(ctx, db.DB, cfg.ProfileID(), journal.conversationID, t)
 	cond := dynorg.New(ctx, dynorg.Config{
 		Cwd: t.cwd, Limits: limits, Staffer: staffer, Base: base, Exec: taskExec,
 		Writers: settings.OrgWriters, TurnID: journal.turnID,
@@ -174,7 +175,8 @@ func startDynamicOrg(ctx context.Context, cfg *Deps, journal *turnJournal, setti
 			_ = agentroster.RecordQuality(context.WithoutCancel(ctx), db.DB, e)
 		}},
 		Remember: journal.rememberWorker,
-		Mission:  missionConfig(ctx, db.DB, cfg.ProfileID(), journal.conversationID, t),
+		Mission:  mission,
+		Missions: missionRun(mission),
 	})
 	cond.AddVeterans(journal.veterans())
 	opts.Tools = dynorg.ToolSpecs(settings.appAccess())
@@ -183,6 +185,7 @@ func startDynamicOrg(ctx context.Context, cfg *Deps, journal *turnJournal, setti
 	// The profile context is already in the lead's prompt (coderLeadSystemPrompt).
 	opts.SystemPrompt += dynorg.LeadPrompt(limits, settings.appAccess()) + dynorg.LeadExtras(settings.OrgRouter)
 	opts.Tools = append(opts.Tools, dynorg.MissionPlanToolSpecs(cond.Mission())...)
+	opts.Tools = append(opts.Tools, dynorg.MissionRunToolSpecs(ctx, cond.Mission())...)
 	opts.SystemPrompt += dynorg.MissionPrompt(cond.Mission())
 	if cond.Isolated() {
 		opts.Tools = append(opts.Tools, dynorg.MergeToolSpec())

@@ -42,6 +42,14 @@ func boundTask() int64 {
 	return n
 }
 
+// boundRoleEnv narrows the task binding to a verifier's ("verifier"): verify, comment and attach
+// evidence to the one task, nothing else.
+const boundRoleEnv = "MONOAGENT_TASK_ROLE"
+
+func boundVerifier() bool {
+	return boundTask() != 0 && strings.TrimSpace(os.Getenv(boundRoleEnv)) == "verifier"
+}
+
 // sessionIntro is added to the description of the tools that take a session.
 const sessionIntro = "A task session is one goal with a board of its own: the operator approves its plan, and until then its tasks " +
 	"are a draft that nobody can take. Inside a running session you work only that session's tasks. "

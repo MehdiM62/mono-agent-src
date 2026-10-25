@@ -336,8 +336,8 @@ func TestMissionReportRebuildsFromTheSession(t *testing.T) {
 	if rep.Session.State != "running" || rep.Session.SpentUSD <= 0 || rep.Session.BudgetUSD != 10 || len(rep.Tasks) != 2 {
 		t.Fatalf("%+v", rep)
 	}
-	if rep.Artifacts != 1 || len(rep.Unfinished) != 2 {
-		t.Fatalf("one artifact, nothing done yet: %+v", rep)
+	if rep.Artifacts != 3 || len(rep.Unfinished) != 2 {
+		t.Fatalf("one report and two commits, nothing done yet: %+v", rep)
 	}
 	var ta ReportTask
 	for _, rt := range rep.Tasks {
@@ -345,7 +345,7 @@ func TestMissionReportRebuildsFromTheSession(t *testing.T) {
 			ta = rt
 		}
 	}
-	if ta.Status != "review" || !strings.HasPrefix(ta.Assignee, "worker:") || !strings.Contains(ta.LastResult, "report for task") || len(ta.Evidence) != 1 {
+	if ta.Status != "review" || !strings.HasPrefix(ta.Assignee, "worker:") || !strings.Contains(ta.LastResult, "report for task") || len(ta.Evidence) != 2 {
 		t.Fatalf("%+v", ta)
 	}
 	_ = b

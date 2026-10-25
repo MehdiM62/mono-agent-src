@@ -147,6 +147,8 @@ type ReportTask struct {
 	DependsOn  []int64  `json:"depends_on,omitempty"`
 	Evidence   []string `json:"evidence,omitempty"`
 	LastResult string   `json:"last_result,omitempty"`
+	// FailureNotes are what verification said when it sent the task back or blocked it.
+	FailureNotes []string `json:"failure_notes,omitempty"`
 }
 
 // maxReportTasks bounds the tasks listed in full.
@@ -177,6 +179,7 @@ func (c *Conductor) missionReport(ctx context.Context, mc *MissionRun, sid int64
 					}
 				}
 				rt.LastResult = boundText(lastResult(d), 600)
+				rt.FailureNotes = failureNotes(d)
 			}
 		}
 		rep.Tasks = append(rep.Tasks, rt)

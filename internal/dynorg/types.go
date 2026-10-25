@@ -129,6 +129,9 @@ type SpawnRequest struct {
 	// executor is who carries the task out (lead, worker, subagent): set by the
 	// scheduler, never by the lead's JSON.
 	executor string
+	// verify makes the worker the verifier of TaskID (a task in Review): bound to verify
+	// that task and nothing else; set by mission_verify, never by the lead's JSON.
+	verify bool
 }
 
 // Skill is one skill given to a worker: its name and the text put in its

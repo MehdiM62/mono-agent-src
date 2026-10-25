@@ -165,6 +165,9 @@ func (s *Store) claimIn(ctx context.Context, profileID string, session, id int64
 	if err := needName(actor); err != nil {
 		return Task{}, err
 	}
+	if err := noVerifier(actor, "claim a task"); err != nil {
+		return Task{}, err
+	}
 	var out Task
 	err := s.tx(ctx, func(x dbx) error {
 		if _, err := s.profileOf(ctx, x, profileID); err != nil {
@@ -370,10 +373,14 @@ func (s *Store) commentIn(ctx context.Context, profileID string, session, id int
 // the agent holds, so no read can make a comment shorten a lease or touch one that is not the agent's.
 func (s *Store) commentTx(ctx context.Context, x dbx, profileID string, id int64, text string, actor Actor) (Task, error) {
 	var err error
-	if actor.Kind == Agent {
+	if actor.Kind == Agent && !actor.Verifier {
 		_, err = s.heldBy(ctx, x, profileID, id, actor)
 	} else {
-		_, err = s.getTx(ctx, x, profileID, id)
+		var cur Task
+		cur, err = s.getTx(ctx, x, profileID, id)
+		if err == nil && actor.Verifier && cur.Status != StatusReview {
+			err = notClaimant("task #%d is %s: a verifier comments on a task in Review", id, cur.Status)
+		}
 	}
 	if err != nil {
 		return Task{}, err
@@ -444,6 +451,9 @@ func (s *Store) releaseIn(ctx context.Context, profileID string, session, id int
 // handBack ends the agent's claim: the task goes to `to` (Review at the top, Ready at the bottom), both
 // claim columns are emptied, and the event says why.
 func (s *Store) handBack(ctx context.Context, profileID string, session, id int64, actor Actor, to Status, kind, note string) (Task, error) {
+	if err := noVerifier(actor, "finish or release a task"); err != nil {
+		return Task{}, err
+	}
 	var out Task
 	err := s.tx(ctx, func(x dbx) error {
 		if _, err := s.profileOf(ctx, x, profileID); err != nil {
@@ -454,6 +464,11 @@ func (s *Store) handBack(ctx context.Context, profileID string, session, id int6
 		}
 		if _, err := s.heldBy(ctx, x, profileID, id, actor); err != nil {
 			return err
+		}
+		if session != 0 && kind == "result" {
+			if err := s.needsEvidence(ctx, x, profileID, id); err != nil {
+				return err
+			}
 		}
 		pos, err := s.edgePosition(ctx, x, profileID, to, atTop(to), id)
 		if err != nil {

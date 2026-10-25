@@ -305,6 +305,21 @@ func (c *Conductor) execOnce(ctx context.Context, w *worker, m Model, prompt, re
 		opts.BudgetUSD = remaining
 	}
 	c.mu.Unlock()
+	if w.task != nil {
+		// a mission worker is also capped by what its session has left (the operator's budget)
+		left, bounded, err := c.missionExecCap(ctx, w)
+		if err != nil {
+			return nil, err
+		}
+		if bounded {
+			if left <= 0 {
+				return nil, fmt.Errorf("%w: the mission's budget is spent", errBudgetRefused)
+			}
+			if opts.BudgetUSD <= 0 || left < opts.BudgetUSD {
+				opts.BudgetUSD = left
+			}
+		}
+	}
 	opts.SystemPrompt = workerSystemPrompt(w.staff, dir, w.files, c.spawnsOn(w, m, opts.Access)) + c.profileSection() + c.worktreeRule(w) + missionRule(w)
 	c.workerTools(w, m, &opts)
 	var run monomind.TurnResult

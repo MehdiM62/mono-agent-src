@@ -312,7 +312,7 @@ func TestHandleTools(t *testing.T) {
 	if _, err := c.Handle(context.Background(), "org_nope", nil); err == nil {
 		t.Error("unknown tool must fail")
 	}
-	if n := len(ToolSpecs(true)) - len(missionExecToolSpecs()); n != 6 {
+	if n := len(ToolSpecs(true)); n != 6 {
 		t.Error("six org tools")
 	}
 }

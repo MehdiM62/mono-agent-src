@@ -90,6 +90,7 @@ type missionBind struct {
 	name     string
 	actor    tasks.Actor // what the worker's process acts as: bound to the session and the task
 	executor string
+	verifier bool // the worker verifies the task in Review; it holds no claim
 
 	// guarded by missionState.mu
 	spent        float64   // worker cost already added to the session

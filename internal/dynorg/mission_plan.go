@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"sync"
 
 	"github.com/monoes/mono-agent/internal/ai/chatevents"
 	"github.com/monoes/mono-agent/internal/tasks"
@@ -30,9 +29,6 @@ type MissionConfig struct {
 	// Confirmed: the user confirmed a mission with one click (D2). Without it
 	// the lead can only propose.
 	Confirmed bool
-
-	mu     sync.Mutex
-	rounds map[int64]int // review rounds applied per draft session, this turn
 }
 
 // MissionAccess says whether an access level may run missions: coding and up.
@@ -50,20 +46,18 @@ func (m *MissionConfig) actor(session int64) tasks.Actor {
 	return tasks.Actor{Kind: tasks.Agent, Name: m.Actor, Session: session}
 }
 
-func (m *MissionConfig) round(session int64) int {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.rounds[session]
+// round is how many review rounds the draft has had: the plan_revised events of the
+// session, so a new Conductor (a restart, a second turn) keeps the count.
+func (m *MissionConfig) round(ctx context.Context, session int64) int {
+	n, err := m.Store.CountSessionEvents(ctx, m.ProfileID, session, tasks.EventPlanRevised, m.actor(session))
+	if err != nil {
+		return MaxReviewRounds // unreadable: do not hand out more rounds
+	}
+	return n
 }
 
-func (m *MissionConfig) addRound(session int64) int {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.rounds == nil {
-		m.rounds = map[int64]int{}
-	}
-	m.rounds[session]++
-	return m.rounds[session]
+func (m *MissionConfig) addRound(ctx context.Context, session int64, note string) error {
+	return m.Store.AddSessionEvent(ctx, m.ProfileID, session, tasks.EventPlanRevised, note, m.actor(session))
 }
 
 // active is the open session of this conversation (draft, running or paused),
@@ -195,6 +189,11 @@ type SplitSpec struct {
 type SplitPart struct {
 	Title      string `json:"title"`
 	Acceptance string `json:"acceptance"`
+	// Notes, Files and Size are the part's own; a part that leaves them out keeps the
+	// task's.
+	Notes string   `json:"notes,omitempty"`
+	Files []string `json:"files,omitempty"`
+	Size  string   `json:"size,omitempty"`
 }
 
 // validateSplit checks the parts of a split against the same rules as a task
@@ -213,6 +212,7 @@ func validateSplit(s SplitSpec) []Rejection {
 			why = append(why, fmt.Sprintf("part %d: acceptance is missing or not checkable", i+1))
 		}
 	}
+	why = append(why, validateSplitMeta(s)...)
 	if len(why) == 0 {
 		return nil
 	}
@@ -223,9 +223,9 @@ func (m *MissionConfig) split(ctx context.Context, se tasks.Session, s SplitSpec
 	if rej := validateSplit(s); len(rej) > 0 {
 		return nil, &RejectedError{rej}
 	}
-	parts := make([]tasks.SplitPart, len(s.Parts))
-	for i, p := range s.Parts {
-		parts[i] = tasks.SplitPart{Title: p.Title, Acceptance: p.Acceptance}
+	parts, err := splitParts(ctx, m, se.ID, s)
+	if err != nil {
+		return nil, err
 	}
 	return m.Store.SplitTask(ctx, m.ProfileID, se.ID, s.TaskID, parts, m.actor(se.ID))
 }
@@ -237,7 +237,7 @@ func (c *Conductor) planCard(ctx context.Context, m *MissionConfig, se tasks.Ses
 		return chatevents.MissionPlanPayload{}, err
 	}
 	card := chatevents.MissionPlanPayload{
-		SessionID: se.ID, Title: se.Title, Goal: se.Goal, Round: m.round(se.ID),
+		SessionID: se.ID, Title: se.Title, Goal: se.Goal, Round: m.round(ctx, se.ID),
 		TaskCount: len(plan.Tasks), EstimatedBudgetUSD: estimateBudget(plan.Tasks),
 	}
 	c.cfg.Emit.Emit(chatevents.EventMissionPlan, card)

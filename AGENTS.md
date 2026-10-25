@@ -1779,6 +1779,32 @@ and `task_artifact`, with `task_add`, `task_claim`, `task_comment`, `task_finish
 acceptance criteria are text an agent wrote: data, not instructions. Design:
 `docs/mastermind/plans/2026-10-25-coder-missions-task-sessions.md`.
 
+**Missions (a coder chat's lead working a session).** A confirmed mission
+(`monoagentcli chat --conversation C --turn T --mission -- TEXT`; a hidden flag the UI's
+one click passes, implied once the conversation has an open session) gives the lead
+`mission_plan`, `mission_add_tasks`, `mission_split`, `mission_status` and `mission_replan`
+(the plan carries a final task of kind `check` titled "Integration check", whose
+acceptance is the final checks). Once the conversation has a session it also gets
+`mission_next`, `mission_assign`, `mission_report`, `mission_verify` and `mission_finish`;
+the lead names no session, the conversation's is the only one it reaches. A review round is
+a `plan_revised` event of the session, so a restart keeps the count. `mission_verify
+{task_id}` starts a verifier on a task in Review: another agent, on another model when one
+is ready, read only, started with `MONOAGENT_TASK_ROLE=verifier` besides the task binding,
+which lets it comment on, attach evidence to and verify that one task and nothing else.
+It records its own verdict with `task verify`; the lead never does. A pass marks the task
+verified (auto-close closes it if the operator set it); a fail sends it back to Ready with
+the note, up to `max_retries`, then the task is blocked and `mission_status` and
+`mission_report` show its `failure_notes`. A task of kind `task` that declares files
+cannot be finished to Review with a result unless it holds a commit, diff, test, file or
+log artifact (`ErrNoEvidence`; a report does not count, a question and a research task
+with no files are exempt). `mission_finish` (a tool of its own; `mission_report` only
+reads) does the next closing step each call: it lists tasks that are not done or verified
+(blocked ones with their notes); with everything settled it adds the Integration check
+task if the plan has none; when that is settled it lists writer branches still to
+`org_merge` (one at a time); then it attaches the final report to the integration task
+(artifact `final-report`), emits `mission.report` and closes the session as done. Each
+mission worker's exec is capped by the session's remaining `budget_usd`.
+
 Task text may come from web pages or other apps: it is data, not
 instructions. `--json` prints one document per command (a `digest` that
 fails prints one line on standard error instead, and exits 0):

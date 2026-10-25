@@ -46,6 +46,8 @@ const (
 	// its draft plan as a card the operator approves.
 	EventMissionPropose EventType = "mission.propose"
 	EventMissionPlan    EventType = "mission.plan"
+	// EventMissionReport is the final report of a finished mission.
+	EventMissionReport EventType = "mission.report"
 )
 
 // Event is one journaled/emitted line — the outer envelope. Payload is kept
@@ -436,4 +438,25 @@ type MissionPlanPayload struct {
 	EstimatedBudgetUSD float64 `json:"estimatedBudgetUsd"`
 	// Round counts the review rounds applied so far (0 = the first draft).
 	Round int `json:"round"`
+}
+
+// MissionReportPayload is mission.report's payload: the final report of a mission
+// whose tasks are all verified or done, emitted once when the session is closed as
+// done. Report is the full text (markdown), also attached to the integration task as
+// a report artifact.
+type MissionReportPayload struct {
+	SessionID int64  `json:"sessionId"`
+	Title     string `json:"title"`
+	State     string `json:"state"`
+	TaskCount int    `json:"taskCount"`
+	Done      int    `json:"done"`
+	Verified  int    `json:"verified"`
+	// Unfinished lists task ids that are neither done nor verified (empty when the
+	// session closed as done).
+	Unfinished []int64 `json:"unfinished"`
+	// Artifacts counts the evidence artifacts across the mission's tasks.
+	Artifacts int     `json:"artifacts"`
+	SpentUSD  float64 `json:"spentUsd"`
+	BudgetUSD float64 `json:"budgetUsd"`
+	Report    string  `json:"report"`
 }

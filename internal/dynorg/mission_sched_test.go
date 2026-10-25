@@ -45,7 +45,7 @@ func TestMissionRunsTasksInDependencyOrder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(d.Artifacts) != 1 || d.Artifacts[0].Kind != "report" || !strings.Contains(d.Artifacts[0].Note, "report for task") {
+	if n := len(d.Artifacts); n != 2 || d.Artifacts[n-1].Kind != "report" || !strings.Contains(d.Artifacts[n-1].Note, "report for task") {
 		t.Fatalf("the report is attached as an artifact: %+v", d.Artifacts)
 	}
 	var result string
@@ -220,7 +220,7 @@ func TestMissionStopReleasesClaimsAndStopsWorkers(t *testing.T) {
 			t.Fatalf("#%d: a stop gives the claim back and leaves the task: %+v", id, tk)
 		}
 		d, _ := r.store.SessionTask(tbg, "default", r.sid, id, operator)
-		if len(d.Artifacts) != 0 {
+		if len(d.Artifacts) != 1 || d.Artifacts[0].Kind != "commit" {
 			t.Fatalf("a stopped worker leaves no report: %+v", d.Artifacts)
 		}
 		for _, e := range d.Events {

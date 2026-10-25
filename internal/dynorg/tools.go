@@ -46,9 +46,7 @@ func ToolSpecs(appAccess bool) []monomind.ToolSpec {
 
 // toolSpecs are the lead's org tools, offering these access profiles.
 func toolSpecs(profiles []string) []monomind.ToolSpec {
-	return append(orgToolSpecs(profiles),
-		missionExecToolSpecs()..., // mission execution tools (mission_exec_tools.go)
-	)
+	return orgToolSpecs(profiles)
 }
 
 // orgToolSpecs are the org tools of every lead.
@@ -223,6 +221,12 @@ func (c *Conductor) handle(ctx context.Context, parent *worker, name string, arg
 	case ToolMissionNext, ToolMissionAssign, ToolMissionReport:
 		return c.handleMissionExec(ctx, name, args)
 	// --- end of mission execution tools ---
+	// --- mission verification and closing tools (mission_verify.go, mission_final.go) ---
+	case ToolMissionVerify:
+		return c.handleMissionVerify(ctx, args)
+	case ToolMissionFinish:
+		return c.handleMissionFinish(ctx, args)
+	// --- end of mission verification and closing tools ---
 	case ToolMerge:
 		var a struct {
 			AgentID string `json:"agent_id"`

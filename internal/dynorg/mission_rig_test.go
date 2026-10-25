@@ -21,6 +21,7 @@ var (
 	tbg      = context.Background()
 	operator = tasks.Actor{Kind: tasks.Human}
 	taskRE   = regexp.MustCompile(`doing task #(\d+)`)
+	verifyRE = regexp.MustCompile(`verifying task #(\d+)`)
 )
 
 // missionClock is the task store's time, which a test moves to end leases.
@@ -51,6 +52,14 @@ type gateExec struct {
 	running int32
 	maxRun  int32
 	cost    float64
+	// verify answers the runs of verifiers (a prompt that says "verifying task #N"); it
+	// sees the options the run got. vruns records them per task.
+	verify func(ctx context.Context, task int64, o monomind.ExecOptions) (*monomind.TurnResult, error)
+	vruns  map[int64][]monomind.ExecOptions
+	// budgets records the --budget-usd every run got.
+	budgets []float64
+	// models records the runtime/model the last run of each task's worker got.
+	models map[int64]string
 }
 
 func newGateExec() *gateExec {
@@ -80,6 +89,20 @@ func (g *gateExec) release(ids ...int64) {
 func (g *gateExec) runCount(id int64) int { g.mu.Lock(); defer g.mu.Unlock(); return g.runs[id] }
 
 func (g *gateExec) exec(ctx context.Context, o monomind.ExecOptions, on func(monomind.Event)) (*monomind.TurnResult, error) {
+	g.mu.Lock()
+	g.budgets = append(g.budgets, o.BudgetUSD)
+	g.mu.Unlock()
+	if vm := verifyRE.FindStringSubmatch(o.Prompt + o.SystemPrompt); vm != nil && g.verify != nil {
+		id, _ := strconv.ParseInt(vm[1], 10, 64)
+		g.mu.Lock()
+		if g.vruns == nil {
+			g.vruns = map[int64][]monomind.ExecOptions{}
+		}
+		g.vruns[id] = append(g.vruns[id], o)
+		g.mu.Unlock()
+		on(monomind.Event{Type: monomind.EventStart})
+		return g.verify(ctx, id, o)
+	}
 	m := taskRE.FindStringSubmatch(o.Prompt + o.SystemPrompt)
 	var id int64
 	if m != nil {
@@ -88,6 +111,10 @@ func (g *gateExec) exec(ctx context.Context, o monomind.ExecOptions, on func(mon
 	g.mu.Lock()
 	g.runs[id]++
 	g.envs[id], g.prompts[id], g.access[id] = o.Env, o.Prompt, string(o.Access)
+	if g.models == nil {
+		g.models = map[int64]string{}
+	}
+	g.models[id] = o.Runtime + "/" + o.Model
 	gate := g.gate(id)
 	crash := g.fail[id] > 0
 	if crash {
@@ -131,6 +158,7 @@ type rigOpts struct {
 	timeout time.Duration
 	lease   time.Duration
 	budget  float64
+	conv    string // the conversation the session belongs to
 }
 
 func newRig(t *testing.T, o rigOpts) *missionRig {
@@ -138,7 +166,7 @@ func newRig(t *testing.T, o rigOpts) *missionRig {
 	db := testdb.Open(t).DB
 	r := &missionRig{t: t, store: tasks.NewStore(db), clk: &missionClock{t: time.Date(2026, 10, 25, 12, 0, 0, 0, time.UTC)}, ex: newGateExec(), em: &recEmitter{}}
 	r.store.SetClock(r.clk.now)
-	se, err := r.store.CreateSession(tbg, "default", tasks.SessionInput{Title: "mission", Goal: "ship the feature", BudgetUSD: o.budget}, operator)
+	se, err := r.store.CreateSession(tbg, "default", tasks.SessionInput{Title: "mission", Goal: "ship the feature", BudgetUSD: o.budget, ConversationID: o.conv}, operator)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,15 +181,27 @@ func newRig(t *testing.T, o rigOpts) *missionRig {
 
 // conductor starts a conductor over the rig's store (a second one is a restarted turn).
 func (r *missionRig) conductor(lim Limits) *Conductor {
+	return r.conductorFor(lim, nil)
+}
+
+// conductorFor is conductor for a lead of a conversation (Config.Mission): it works the
+// session of that conversation only.
+func (r *missionRig) conductorFor(lim Limits, m *MissionConfig) *Conductor {
 	c := New(tbg, Config{Cwd: "/w", Limits: lim, Staffer: &Staffer{Roster: []Model{opus, haiku}, Lead: opus},
-		ReadAccess: true, Exec: r.ex.exec, Emit: r.em, Missions: r.mc})
+		ReadAccess: true, Exec: r.ex.exec, Emit: r.em, Missions: r.mc, Mission: m})
 	r.t.Cleanup(c.Close)
 	return c
+}
+
+// leadOf is the mission setup of the lead of a conversation, confirmed.
+func (r *missionRig) leadOf(conv string) *MissionConfig {
+	return &MissionConfig{Store: r.store, ProfileID: "default", ConversationID: conv, Actor: "mission-lead", Access: "coding", Confirmed: true}
 }
 
 type spec struct {
 	title, files, exec string
 	deps               []int64
+	noEvidence         bool // a code task whose worker will attach nothing
 }
 
 // add plans a task into the (draft) session.
@@ -179,6 +219,13 @@ func (r *missionRig) add(s spec) tasks.Task {
 		Acceptance: "criteria of " + s.title, DependsOn: s.deps, SuggestedExecutor: exec}, operator)
 	if err != nil {
 		r.t.Fatal(err)
+	}
+	if s.files != "" && !s.noEvidence {
+		// a code task needs evidence to reach review: stand in for the commit its worker makes
+		art := tasks.ArtifactInput{Kind: "commit", Ref: "commit-of-" + strconv.FormatInt(tk.ID, 10)}
+		if _, err := r.store.AddArtifact(tbg, "default", r.sid, tk.ID, art, operator); err != nil {
+			r.t.Fatal(err)
+		}
 	}
 	return tk
 }

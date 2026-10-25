@@ -141,7 +141,7 @@ func TestSessionSplitKeepsDependencies(t *testing.T) {
 	after := mustTask(t, s, "default", se.ID, "after", big.ID)
 	mustRun(t, s, "default", se)
 
-	parts, err := s.SplitTask(bg, "default", se.ID, big.ID, []SplitPart{{"big 1", "part one passes"}, {"big 2", "part two passes"}}, bot("lead"))
+	parts, err := s.SplitTask(bg, "default", se.ID, big.ID, []SplitPart{{Title: "big 1", Acceptance: "part one passes"}, {Title: "big 2", Acceptance: "part two passes"}}, bot("lead"))
 	if err != nil || len(parts) != 2 {
 		t.Fatalf("split: %+v %v", parts, err)
 	}
@@ -174,13 +174,13 @@ func TestSessionSplitKeepsDependencies(t *testing.T) {
 	if got := claimNext(t, s, se.ID, "w"); got == nil || got.ID != base.ID {
 		t.Fatalf("base first: %+v", got)
 	}
-	if _, err := s.SplitTask(bg, "default", se.ID, base.ID, []SplitPart{{"a", "b"}, {"c", "d"}}, bot("lead")); !errors.Is(err, ErrInvalid) {
+	if _, err := s.SplitTask(bg, "default", se.ID, base.ID, []SplitPart{{Title: "a", Acceptance: "b"}, {Title: "c", Acceptance: "d"}}, bot("lead")); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("splitting a held task: %v", err)
 	}
-	if _, err := s.SplitTask(bg, "default", se.ID, after.ID, []SplitPart{{"only", "one"}}, human); !errors.Is(err, ErrInvalid) {
+	if _, err := s.SplitTask(bg, "default", se.ID, after.ID, []SplitPart{{Title: "only", Acceptance: "one"}}, human); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("one part: %v", err)
 	}
-	if _, err := s.SplitTask(bg, "default", se.ID, after.ID, []SplitPart{{"a", ""}, {"c", "d"}}, human); !errors.Is(err, ErrInvalid) {
+	if _, err := s.SplitTask(bg, "default", se.ID, after.ID, []SplitPart{{Title: "a"}, {Title: "c", Acceptance: "d"}}, human); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("a part with no criteria: %v", err)
 	}
 }
@@ -193,7 +193,7 @@ func TestSessionSplitCountsAgainstTheCap(t *testing.T) {
 	if _, err := s.UpdateSession(bg, "default", se.ID, SessionUpdate{MaxTasks: ptr(3)}, human); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.SplitTask(bg, "default", se.ID, a.ID, []SplitPart{{"1", "x"}, {"2", "x"}, {"3", "x"}}, human); !errors.Is(err, ErrLimit) {
+	if _, err := s.SplitTask(bg, "default", se.ID, a.ID, []SplitPart{{Title: "1", Acceptance: "x"}, {Title: "2", Acceptance: "x"}, {Title: "3", Acceptance: "x"}}, human); !errors.Is(err, ErrLimit) {
 		t.Fatalf("a split past the cap: %v", err)
 	}
 	if n := countWhere(t, db, "tasks", "session_id = ? AND status <> 'archived'", se.ID); n != 2 {

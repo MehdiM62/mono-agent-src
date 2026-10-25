@@ -22,6 +22,8 @@ func (s *Store) ApproveSession(ctx context.Context, profileID string, id int64, 
 		if err != nil {
 			return err
 		}
+		// Inbox cards stack newest on top; the plan's order is the order they were added.
+		slices.Sort(ids)
 		if se.Counts.Total == 0 {
 			return invalid("session #%d has no tasks: plan some before approving", id)
 		}

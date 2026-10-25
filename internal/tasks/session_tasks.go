@@ -19,6 +19,9 @@ func actorIn(actor Actor, session int64) error {
 	default:
 		return operatorOnly("change a session's tasks")
 	}
+	if actor.Verifier && actor.Task == 0 {
+		return operatorOnly("act as a verifier: it is bound to no task")
+	}
 	return bound(actor, session)
 }
 

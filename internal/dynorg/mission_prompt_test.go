@@ -30,14 +30,14 @@ func TestMissionPromptOnlyForCodingAccessAndConfirmedMission(t *testing.T) {
 		}
 	}
 	p := MissionPrompt(&MissionConfig{Store: st, Access: "coding", Confirmed: true})
-	for _, must := range []string{"UNDERSTAND", "PLAN", "REVIEW", "WAIT FOR APPROVAL", "EXECUTE", "state draft", "must NOT execute", "ask_user", "mission_status", "2 review rounds"} {
+	for _, must := range []string{"UNDERSTAND", "PLAN", "REVIEW", "WAIT FOR APPROVAL", "EXECUTE", "state draft", "must NOT execute", "ask_user", "mission_status", "2 review rounds", "Integration check", "mission_next", "mission_verify", "mission_finish", "evidence"} {
 		if !strings.Contains(p, must) {
 			t.Errorf("prompt lacks %q", must)
 		}
 	}
 	// Phases come in order.
 	last := -1
-	for _, ph := range []string{"1. UNDERSTAND", "2. PLAN", "3. REVIEW", "4. WAIT FOR APPROVAL", "5. EXECUTE"} {
+	for _, ph := range []string{"1. UNDERSTAND", "2. PLAN", "3. REVIEW", "4. WAIT FOR APPROVAL", "5. EXECUTE", "6. VERIFY", "7. FINISH"} {
 		i := strings.Index(p, ph)
 		if i <= last {
 			t.Errorf("phase %q out of order", ph)

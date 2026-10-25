@@ -53,6 +53,9 @@ func splitsSchema() map[string]any {
 		"task_id": map[string]any{"type": "integer", "description": "The task to replace."},
 		"parts": map[string]any{"type": "array", "description": "Two or more parts; they keep the task's files, size and dependencies.", "items": obj(map[string]any{
 			"title": str("The part's outcome."), "acceptance": str("How the part is checked."),
+			"notes": str("Optional notes of the part; the task's by default."),
+			"files": strList("Optional files the part touches; the task's by default."),
+			"size":  str("Optional size xs, s or m; the task's by default."),
 		}, "title", "acceptance")},
 	}, "task_id", "parts")}
 }
@@ -208,7 +211,7 @@ func (c *Conductor) missionReplan(ctx context.Context, m *MissionConfig, args js
 		return "", err
 	}
 	draft := se.State == tasks.SessionDraft
-	if draft && m.round(se.ID) >= MaxReviewRounds {
+	if draft && m.round(ctx, se.ID) >= MaxReviewRounds {
 		return "", fmt.Errorf("the plan has had its %d review rounds: it stands as it is. Tell the user it is ready for approval", MaxReviewRounds)
 	}
 	for _, s := range a.Split {
@@ -228,7 +231,9 @@ func (c *Conductor) missionReplan(ctx context.Context, m *MissionConfig, args js
 		}
 	}
 	if draft {
-		m.addRound(se.ID)
+		if err := m.addRound(ctx, se.ID, a.Note); err != nil {
+			return "", err
+		}
 	}
 	return c.missionResult(ctx, m, se.ID, out)
 }
@@ -281,6 +286,9 @@ type taskView struct {
 	Files      []string `json:"files,omitempty"`
 	Size       string   `json:"size,omitempty"`
 	Risk       string   `json:"risk,omitempty"`
+	Retries    int      `json:"retries,omitempty"`
+	// FailureNotes are what verification said about a task it sent back or blocked.
+	FailureNotes []string `json:"failure_notes,omitempty"`
 }
 
 func taskViews(ts []tasks.Task) []taskView {
@@ -313,10 +321,19 @@ func (c *Conductor) missionStatus(ctx context.Context, m *MissionConfig) (string
 	if err != nil {
 		return "", err
 	}
-	out := map[string]any{"session": plan.Session, "tasks": taskViews(plan.Tasks), "recent_events": events}
+	views := taskViews(plan.Tasks)
+	for i, t := range plan.Tasks {
+		views[i].Retries = t.Retries
+		if t.Retries > 0 || t.Blocked {
+			if d, err := m.Store.SessionTask(ctx, m.ProfileID, se.ID, t.ID, m.actor(se.ID)); err == nil {
+				views[i].FailureNotes = failureNotes(d)
+			}
+		}
+	}
+	out := map[string]any{"session": plan.Session, "tasks": views, "recent_events": events}
 	switch plan.Session.State {
 	case tasks.SessionDraft:
-		out["review_rounds_left"] = max(0, MaxReviewRounds-m.round(se.ID))
+		out["review_rounds_left"] = max(0, MaxReviewRounds-m.round(ctx, se.ID))
 		out["next"] = "Draft: waiting for the operator's approval. Do not execute any task."
 	case tasks.SessionRunning:
 		out["next"] = "Approved and running: work the Ready tasks in dependency order."

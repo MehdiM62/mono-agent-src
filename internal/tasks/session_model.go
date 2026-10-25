@@ -129,6 +129,8 @@ type SessionTaskInput struct {
 type SplitPart struct {
 	Title      string
 	Acceptance string
+	// Notes, when set, replace the notes the part would inherit from the task split.
+	Notes string
 }
 
 // ArtifactInput is evidence of a task's work.

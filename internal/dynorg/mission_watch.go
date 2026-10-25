@@ -118,6 +118,9 @@ func (c *Conductor) sessionWorkers(sid int64) []*worker {
 func (c *Conductor) renewLeases(ctx context.Context, mc *MissionRun, sid int64) {
 	now := c.cfg.Now()
 	for _, w := range c.sessionWorkers(sid) {
+		if w.task.verifier {
+			continue // it holds no claim to renew
+		}
 		c.msched.mu.Lock()
 		due := now.Sub(w.task.renewedAt) >= mc.lease()/3
 		c.msched.mu.Unlock()
