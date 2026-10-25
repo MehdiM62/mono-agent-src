@@ -32,3 +32,13 @@ func TestRefTasksDescribesClientIDAndFlagErrors(t *testing.T) {
 		}
 	}
 }
+
+func TestRefTasksDescribesTheMissionWritersDefault(t *testing.T) {
+	t.Parallel()
+	text := strings.Join(strings.Fields(TasksText), " ")
+	for _, want := range []string{"defaults to isolated while the operator never set orgWriters", "writers show the mode in effect"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("`ref tasks` does not say %q", want)
+		}
+	}
+}

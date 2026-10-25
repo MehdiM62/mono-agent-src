@@ -141,8 +141,10 @@ WHO MAY DO WHAT
   operator turned that on. The lead never closes a task. mission_finish closes the SESSION only
   through the one guarded operator close: every task done or verified, none blocked, no writer
   branch left to merge, and the integration check done or verified. Two writers work in parallel
-  only when the operator set orgWriters to isolated (a worktree and branch each, merged one at a
-  time with org_merge); with shared they take turns.
+  when orgWriters is isolated (a worktree and branch each, merged one at a
+  time with org_merge); with shared they take turns. A confirmed mission in a git work tree with a
+  commit defaults to isolated while the operator never set orgWriters; an operator's shared (or
+  isolated) is kept, and mission_plan and mission_status writers show the mode in effect.
   An agent names itself with --as NAME (or MONOAGENT_ACTOR), the same name for the
   whole task. A name is 1 to 64 characters of letters, digits and ._#@:-;
   the labels you, agent, capture, chrome and os are reserved (in any case). A name

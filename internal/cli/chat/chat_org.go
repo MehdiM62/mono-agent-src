@@ -158,14 +158,15 @@ func startDynamicOrg(ctx context.Context, cfg *Deps, journal *turnJournal, setti
 		Bin: opts.Bin, Settings: monomind.CoderSettings, MaxTurns: settings.MaxTurns, Timeout: settings.timeout(),
 		EffortFlag: opts.EffortFlag, Env: agentSendEnv(journal, "", ""),
 	}
-	if settings.OrgWriters == dynorg.WritersIsolated {
-		reconcileTurnWorktrees(ctx, journal, t.cwd)
-	}
 	mission := missionConfig(ctx, db.DB, cfg.ProfileID(), journal.conversationID, t)
 	limits.MaxAgents = missionMaxAgents(settings, mission)
+	writers := missionWriters(ctx, settings, mission, t.cwd)
+	if writers == dynorg.WritersIsolated {
+		reconcileTurnWorktrees(ctx, journal, t.cwd)
+	}
 	cond := dynorg.New(ctx, dynorg.Config{
 		Cwd: t.cwd, Limits: limits, Staffer: staffer, Base: base, Exec: taskExec,
-		Writers: settings.OrgWriters, TurnID: journal.turnID,
+		Writers: writers, TurnID: journal.turnID,
 		ReadAccess: st.caps.Has(monomind.CapAgentExecAccessRead),
 		Emit:       journal,
 		Answers:    journalAnswers{journal},
