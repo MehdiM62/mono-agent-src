@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Pause, Play, Square } from 'lucide-react'
 import { confirm } from '../../ConfirmDialog.jsx'
 import { sessionsApi } from '../../../services/taskSessions.js'
+import BudgetFlag from '../../tasksessions/BudgetFlag.jsx'
 import StateChip from '../../tasksessions/StateChip.jsx'
 import { nearBudget, progress, spendParts } from '../../../lib/taskSessionModel.js'
 import { stripActions, stripFor, workingOn } from '../../../lib/missionModel.js'
@@ -42,6 +43,7 @@ export default function MissionStrip({ conversationId, enabled = true, bump = 0,
         <span data-testid="mission-strip-spend" className={nearBudget(session) ? 'ts-near' : undefined}>
           {budget ? t('tasks.session.spendOf', { spent, budget }) : t('tasks.session.spendNoBudget', { spent })}
         </span>
+        <BudgetFlag session={session} />
         <span style={{ flex: 1 }} />
         {stripActions(session).map(a => {
           const Icon = ICONS[a]

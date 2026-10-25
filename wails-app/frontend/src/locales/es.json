@@ -1699,6 +1699,8 @@
         "stopped": "Detenida",
         "failed": "Fallida"
       },
+      "budget_near": "Cerca del presupuesto",
+      "budget_over": "Presupuesto alcanzado",
       "archived": "Archivada",
       "progress": "{{done}} hechas",
       "spendOf": "{{spent}} de {{budget}}",

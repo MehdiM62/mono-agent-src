@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
+import BudgetFlag from './BudgetFlag.jsx'
 import StateChip from './StateChip.jsx'
 import { progress, spendParts } from '../../lib/taskSessionModel.js'
 
@@ -38,6 +39,7 @@ export default function SessionSwitcher({ sessions, selectedId, onSelect, error 
         return tab(s.id, <span className="ts-tab-title" title={s.title}>{s.title}</span>, (
           <span className="ts-tab-meta">
             <StateChip session={s} />
+            <BudgetFlag session={s} />
             <span data-testid="ts-progress">{progress(s)}</span>
             <span data-testid="ts-spend">{budget ? t('tasks.session.spendOf', { spent, budget }) : spent}</span>
           </span>

@@ -1741,6 +1741,8 @@
         "stopped": "Stopped",
         "failed": "Failed"
       },
+      "budget_near": "Near budget",
+      "budget_over": "Budget reached",
       "archived": "Archived",
       "progress": "{{done}} done",
       "spendOf": "{{spent}} of {{budget}}",

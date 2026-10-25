@@ -2115,3 +2115,4 @@ body.tb-dragging, body.tb-dragging * { cursor: grabbing !important; user-select:
 .ts-switcher { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .ts-switcher .ts-tabs { min-width: 0; }
 .ts-list-error { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; font-size: 12px; color: var(--orange); }
+.ts-budget-flag { display: inline-flex; align-items: center; gap: 3px; color: var(--orange); font-weight: 600; white-space: nowrap; }
