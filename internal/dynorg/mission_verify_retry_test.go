@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/monoes/mono-agent/internal/monomind"
 	"github.com/monoes/mono-agent/internal/tasks"
@@ -194,5 +195,62 @@ func TestVerifierEndingsCountsOnlyUnjudgedRuns(t *testing.T) {
 		if n, _ := verifierEndings(d, sid, tc.live); n != tc.want {
 			t.Errorf("%s: %d, want %d", tc.name, n, tc.want)
 		}
+	}
+}
+
+// A verifier that stays alive and never answers (a zombie) is stopped by the SAME
+// Conductor at VerifierTimeout and counts as one run without a verdict; at the cap the
+// task is blocked. The task's own TaskTimeout (an hour) is never reached.
+func TestMissionVerifierPastItsTimeoutIsStoppedAndCounted(t *testing.T) {
+	r := newRig(t, rigOpts{vtimeout: 80 * time.Millisecond})
+	a := r.add(spec{title: "a", files: "a.go"})
+	r.approve()
+	r.ex.verify = func(ctx context.Context, id int64, o monomind.ExecOptions) (*monomind.TurnResult, error) {
+		<-ctx.Done() // alive, no output, no verdict
+		return &monomind.TurnResult{SawDone: true, StopReason: monomind.StopCancelled}, nil
+	}
+	r.toReview(a.ID)
+	if _, err := r.verify(a.ID); err != nil {
+		t.Fatal(err)
+	}
+	eventually(t, "the zombie to be cut", func() bool { return r.noVerdictComments(a.ID) == 1 && !r.c.verifierLive(a.ID) })
+	d, _ := r.store.SessionTask(tbg, "default", r.sid, a.ID, operator)
+	var said bool
+	for _, e := range d.Events {
+		if e.Kind == "comment" && strings.Contains(e.Note, noVerdictMarker) && strings.Contains(e.Note, "timed out after 80ms") {
+			said = true
+		}
+	}
+	if !said {
+		t.Fatalf("the timeout is not recorded: %+v", d.Events)
+	}
+	if tk := r.task(a.ID); tk.Status != tasks.StatusReview || tk.Verified || tk.Blocked {
+		t.Fatalf("one timeout only counts: %+v", tk)
+	}
+
+	res := r.next(r.c) // the second attempt, on the same Conductor
+	if !strings.Contains(res.Note, "new one started") {
+		t.Fatalf("note %q", res.Note)
+	}
+	eventually(t, "the second zombie to be cut", func() bool { return r.noVerdictComments(a.ID) == 2 && !r.c.verifierLive(a.ID) })
+	r.next(r.c)
+	if tk := r.task(a.ID); !tk.Blocked || tk.Status != tasks.StatusReview || r.verifierRuns(a.ID) != 2 {
+		t.Fatalf("after the cap: %+v, runs %d", tk, r.verifierRuns(a.ID))
+	}
+	r.c.mu.Lock()
+	defer r.c.mu.Unlock()
+	for id, w := range r.c.workers {
+		if running(w.status) {
+			t.Fatalf("worker %s still running", id)
+		}
+	}
+}
+
+func TestMissionVerifierTimeoutDefaultsToTwentyMinutes(t *testing.T) {
+	if got := (&MissionRun{}).verifierTimeout(); got != 20*time.Minute {
+		t.Fatalf("default %v", got)
+	}
+	if got := (&MissionRun{VerifierTimeout: time.Second}).verifierTimeout(); got != time.Second {
+		t.Fatalf("set %v", got)
 	}
 }

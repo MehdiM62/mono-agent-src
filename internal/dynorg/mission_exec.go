@@ -169,10 +169,10 @@ func (c *Conductor) releaseClaim(sid, taskID int64, name, why string) {
 	c.release(sid, taskID, name, nil, why)
 }
 
-// releaseHeld is releaseClaim for a claim read earlier by the reconcile: it gives the task
+// releaseIfHeld is releaseClaim for a claim read earlier by the reconcile: it gives the task
 // back only while that very claim is held (same name, same lease end), atomically in the
 // store, so a claim a restarted turn took again under the same name is left alone.
-func (c *Conductor) releaseHeld(sid, taskID int64, held tasks.Claim, why string) {
+func (c *Conductor) releaseIfHeld(sid, taskID int64, held tasks.Claim, why string) {
 	c.release(sid, taskID, held.By, &held, why)
 }
 

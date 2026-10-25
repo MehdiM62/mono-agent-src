@@ -207,6 +207,12 @@ func (c *Conductor) verifierFinished(ctx context.Context, mc *MissionRun, w *wor
 		return // judged (verified, sent back or blocked), or moved on
 	}
 	why := fmt.Sprintf("verifier %s ended without a verdict (%s)", w.id, outcome)
+	c.msched.mu.Lock()
+	timedOut := w.task.timedOut
+	c.msched.mu.Unlock()
+	if timedOut {
+		why = fmt.Sprintf("verifier %s ended without a verdict (timed out after %s)", w.id, mc.verifierTimeout())
+	}
 	if e := strings.TrimSpace(errText); e != "" {
 		why += ": " + boundText(e, 400)
 	}

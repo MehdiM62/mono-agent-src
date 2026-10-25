@@ -39,6 +39,10 @@ type MissionRun struct {
 	Lease time.Duration
 	// TaskTimeout bounds one worker run on one task (default 60 minutes).
 	TaskTimeout time.Duration
+	// VerifierTimeout bounds one verifier run (default 20 minutes): a verifier that is
+	// still going past it (alive, no verdict) is stopped and counts as one run that ended
+	// without a verdict.
+	VerifierTimeout time.Duration
 	// MaxAttempts is how many times a task's worker may crash or time out in this turn
 	// before the scheduler leaves the task to the lead (default 3).
 	MaxAttempts int
@@ -52,6 +56,9 @@ func (m *MissionRun) lease() time.Duration {
 	return orDur(m.Lease, 5*time.Minute)
 }
 func (m *MissionRun) timeout() time.Duration { return orDur(m.TaskTimeout, time.Hour) }
+func (m *MissionRun) verifierTimeout() time.Duration {
+	return orDur(m.VerifierTimeout, 20*time.Minute)
+}
 func (m *MissionRun) attempts() int {
 	if m.MaxAttempts > 0 {
 		return m.MaxAttempts
@@ -98,7 +105,7 @@ type missionBind struct {
 	// guarded by missionState.mu
 	spent        float64   // worker cost already added to the session
 	stopped      string    // why the mission ended the run ("" = it was not)
-	timedOut     bool      // the run was cut at TaskTimeout
+	timedOut     bool      // the run was cut at TaskTimeout (VerifierTimeout for a verifier)
 	workingSince time.Time // when the watcher first saw it working
 	renewedAt    time.Time
 }

@@ -139,7 +139,8 @@ func (c *Conductor) renewLeases(ctx context.Context, mc *MissionRun, sid int64) 
 	}
 }
 
-// cutOverlong stops a worker that has been working on its task past TaskTimeout.
+// cutOverlong stops a worker that has been working on its task past TaskTimeout, and a
+// verifier past VerifierTimeout.
 func (c *Conductor) cutOverlong(mc *MissionRun, sid int64) {
 	now := c.cfg.Now()
 	for _, w := range c.sessionWorkers(sid) {
@@ -153,7 +154,11 @@ func (c *Conductor) cutOverlong(mc *MissionRun, sid int64) {
 		if w.task.workingSince.IsZero() {
 			w.task.workingSince = now
 		}
-		over := now.Sub(w.task.workingSince) > mc.timeout()
+		limit := mc.timeout()
+		if w.task.verifier {
+			limit = mc.verifierTimeout()
+		}
+		over := now.Sub(w.task.workingSince) > limit
 		if over {
 			w.task.timedOut = true
 		}
@@ -192,7 +197,7 @@ func (c *Conductor) missionReconcile(ctx context.Context, sid int64) {
 		case ours && t.Claim.By == missionLeadName:
 			continue // the lead is doing it itself; its lease ends if it never finishes
 		case ours:
-			c.releaseHeld(sid, t.ID, *t.Claim, "no worker holds this task any more: given back to the scheduler")
+			c.releaseIfHeld(sid, t.ID, *t.Claim, "no worker holds this task any more: given back to the scheduler")
 		case t.Claim.Stale:
 			// The list above may be older than a release and a new claim by the same name
 			// (a restarted turn's worker): read the claim again, and look at the workers
@@ -207,7 +212,7 @@ func (c *Conductor) missionReconcile(ctx context.Context, sid int64) {
 			if pending {
 				continue
 			}
-			c.releaseHeld(sid, t.ID, *cur.Claim, "the claim's lease ended and nobody renewed it: given back to the scheduler")
+			c.releaseIfHeld(sid, t.ID, *cur.Claim, "the claim's lease ended and nobody renewed it: given back to the scheduler")
 		}
 	}
 }

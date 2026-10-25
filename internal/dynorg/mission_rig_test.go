@@ -160,11 +160,12 @@ type missionRig struct {
 }
 
 type rigOpts struct {
-	lim     Limits
-	timeout time.Duration
-	lease   time.Duration
-	budget  float64
-	conv    string // the conversation the session belongs to
+	lim      Limits
+	timeout  time.Duration
+	vtimeout time.Duration // MissionRun.VerifierTimeout
+	lease    time.Duration
+	budget   float64
+	conv     string // the conversation the session belongs to
 }
 
 func newRig(t *testing.T, o rigOpts) *missionRig {
@@ -177,7 +178,7 @@ func newRig(t *testing.T, o rigOpts) *missionRig {
 		t.Fatal(err)
 	}
 	r.sid = se.ID
-	r.mc = &MissionRun{Store: r.store, ProfileID: "default", Session: se.ID, Poll: 10 * time.Millisecond, Lease: orDur(o.lease, time.Minute), TaskTimeout: o.timeout}
+	r.mc = &MissionRun{Store: r.store, ProfileID: "default", Session: se.ID, Poll: 10 * time.Millisecond, Lease: orDur(o.lease, time.Minute), TaskTimeout: o.timeout, VerifierTimeout: o.vtimeout}
 	if o.lim.MaxAgents == 0 {
 		o.lim = Limits{MaxAgents: 20, MaxConcurrent: 5}
 	}
