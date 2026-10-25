@@ -214,6 +214,12 @@ func (c *Conductor) verifierFinished(ctx context.Context, mc *MissionRun, w *wor
 	c.notice("mission.verify", fmt.Sprintf("Task #%d: %s.", b.task.ID, why), chatevents.SeverityWarning)
 }
 
+// verifierMark writes a marker comment as the verifier; it says whether it was written.
+func (c *Conductor) verifierMark(ctx context.Context, mc *MissionRun, sid, taskID int64, actor tasks.Actor, text string) bool {
+	_, err := mc.Store.SessionComment(ctx, mc.ProfileID, sid, taskID, text, actor)
+	return err == nil
+}
+
 // VerifyView is mission_verify's result.
 type VerifyView struct {
 	TaskID    int64  `json:"task_id"`
@@ -241,8 +247,15 @@ func (c *Conductor) missionVerify(ctx context.Context, mc *MissionRun, sid, task
 	}
 	executor, exModel, _ := c.executorOf(d)
 	pick, same := VerifierFor(c.cfg.Staffer, exModel)
+	// The start is recorded before the run, durably: a verifier whose whole process dies
+	// leaves this and nothing else, and the scheduler then counts it as an attempt.
+	actor := tasks.Actor{Kind: tasks.Agent, Name: missionVerifierName(sid, taskID), Session: sid, Task: taskID, Verifier: true}
+	started := c.verifierMark(ctx, mc, sid, taskID, actor, verifierStartedMarker+" on "+pick.Runtime+"/"+pick.Model)
 	info, err := c.spawn(ctx, SpawnRequest{TaskID: taskID, verify: true, Role: "reviewer", Runtime: pick.Runtime, Model: pick.Model}, nil)
 	if err != nil {
+		if started {
+			c.verifierMark(ctx, mc, sid, taskID, actor, verifierAbandonedMarker+": "+boundText(err.Error(), 200))
+		}
 		return VerifyView{}, err
 	}
 	c.missionWatch(sid)

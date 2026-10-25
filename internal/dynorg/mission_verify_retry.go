@@ -32,20 +32,46 @@ func (m *MissionRun) verifyAttempts() int {
 	return defaultMaxVerifyAttempts
 }
 
+// verifierStartedMarker is in the comment missionVerify writes, as the verifier, before
+// its run starts. A run that was started and left neither a verdict nor an ending comment
+// died with its process (a crash, a kill, a Conductor dropped): it counts as one run that
+// ended without a verdict once no verifier of the task is live.
+const verifierStartedMarker = "verifier run started"
+
+// verifierAbandonedMarker closes a started marker whose run never began (the spawn failed).
+const verifierAbandonedMarker = "verifier run did not start"
+
 // verifierEndings counts the runs of the task's verifier that ended without a verdict, and
 // says whether the latest of them came after the work was last handed to review (an ending
-// before a new hand-back belongs to an earlier round, which a verdict sent back).
-func verifierEndings(d tasks.SessionTaskDetail, session int64) (n int, current bool) {
+// before a new hand-back belongs to an earlier round, which a verdict sent back). A started
+// run with no verdict and no ending counts too when live is false: its process is gone.
+func verifierEndings(d tasks.SessionTaskDetail, session int64, live bool) (n int, current bool) {
 	name := missionVerifierName(session, d.Task.ID)
-	lastResult, lastEnding := -1, -1
+	lastResult, lastEnding, startedAt := -1, -1, -1
+	open := false
 	for i, e := range d.Events {
 		switch {
 		case e.Kind == "result" || e.Kind == "question":
-			lastResult = i
+			lastResult, open = i, false
+		case e.Kind == "verified" || e.Kind == "verify_failed" || e.Kind == "blocked":
+			open = false // judged, or the operator's to judge
+		case e.Kind == "comment" && e.Actor == name && strings.Contains(e.Note, verifierStartedMarker):
+			if open {
+				n++ // the earlier run was never closed: its process died
+				lastEnding = startedAt
+			}
+			open, startedAt = true, i
+		case e.Kind == "comment" && e.Actor == name && strings.Contains(e.Note, verifierAbandonedMarker):
+			open = false
 		case e.Kind == "comment" && e.Actor == name && strings.Contains(e.Note, noVerdictMarker):
+			open = false
 			n++
 			lastEnding = i
 		}
+	}
+	if open && !live {
+		n++
+		lastEnding = startedAt
 	}
 	return n, lastEnding > lastResult
 }
@@ -68,7 +94,7 @@ func (c *Conductor) verifyRetries(ctx context.Context, mc *MissionRun, sid int64
 		if err != nil || lastHandBackKind(d) == "question" {
 			continue
 		}
-		n, current := verifierEndings(d, sid)
+		n, current := verifierEndings(d, sid, false)
 		if !current {
 			continue
 		}
