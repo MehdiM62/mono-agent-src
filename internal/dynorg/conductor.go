@@ -47,6 +47,10 @@ type Config struct {
 	// worktrees and branches.
 	Writers string
 	TurnID  string
+
+	// Mission turns the lead into a mission planner (mission_plan.go); nil
+	// leaves it as it was.
+	Mission *MissionConfig
 }
 
 // Conductor runs one lead turn's workers.

@@ -1,0 +1,30 @@
+package chat
+
+import (
+	"context"
+	"database/sql"
+
+	"github.com/monoes/mono-agent/internal/dynorg"
+	"github.com/monoes/mono-agent/internal/tasks"
+)
+
+// missionActor is the name the coder lead plans missions under.
+const missionActor = "mission-lead"
+
+// missionConfig is the lead's mission setup for this turn: the planning tools
+// and prompt need coding access or more and a confirmed mission (the user's
+// one click, D2), which a conversation with an open mission session keeps
+// across turns and restarts. Below coding access it is nil.
+func missionConfig(ctx context.Context, db *sql.DB, profileID, conversationID string, t coderTurn) *dynorg.MissionConfig {
+	if !dynorg.MissionAccess(t.access) || conversationID == "" {
+		return nil
+	}
+	m := &dynorg.MissionConfig{
+		Store: tasks.NewStore(db), ProfileID: profileID, ConversationID: conversationID,
+		Actor: missionActor, Access: t.access, Confirmed: t.missionConfirmed,
+	}
+	if !m.Confirmed && m.HasOpenSession(ctx) {
+		m.Confirmed = true
+	}
+	return m
+}

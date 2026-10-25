@@ -174,6 +174,7 @@ func startDynamicOrg(ctx context.Context, cfg *Deps, journal *turnJournal, setti
 			_ = agentroster.RecordQuality(context.WithoutCancel(ctx), db.DB, e)
 		}},
 		Remember: journal.rememberWorker,
+		Mission:  missionConfig(ctx, db.DB, cfg.ProfileID(), journal.conversationID, t),
 	})
 	cond.AddVeterans(journal.veterans())
 	opts.Tools = dynorg.ToolSpecs(settings.appAccess())
@@ -181,6 +182,8 @@ func startDynamicOrg(ctx context.Context, cfg *Deps, journal *turnJournal, setti
 	opts.ToolTimeout = dynorg.ToolTimeout
 	// The profile context is already in the lead's prompt (coderLeadSystemPrompt).
 	opts.SystemPrompt += dynorg.LeadPrompt(limits, settings.appAccess()) + dynorg.LeadExtras(settings.OrgRouter)
+	opts.Tools = append(opts.Tools, dynorg.MissionPlanToolSpecs(cond.Mission())...)
+	opts.SystemPrompt += dynorg.MissionPrompt(cond.Mission())
 	if cond.Isolated() {
 		opts.Tools = append(opts.Tools, dynorg.MergeToolSpec())
 		opts.SystemPrompt += dynorg.IsolatedLeadPrompt

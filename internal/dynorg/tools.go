@@ -217,6 +217,9 @@ func (c *Conductor) handle(ctx context.Context, parent *worker, name string, arg
 			return "", err
 		}
 		return marshal(res)
+	// --- mission planning tools (mission_tools_plan.go) ---
+	case ToolMissionPropose, ToolMissionPlan, ToolMissionAddTasks, ToolMissionSplit, ToolMissionStatus, ToolMissionReplan:
+		return c.handleMission(ctx, name, args)
 	}
 	return "", fmt.Errorf("unknown org tool %q", name)
 }

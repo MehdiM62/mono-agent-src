@@ -40,6 +40,12 @@ const (
 	EventAgentMessage    EventType = "agent.message"
 	EventAgentReassigned EventType = "agent.reassigned"
 	EventAgentFinished   EventType = "agent.finished"
+
+	// Missions (docs/mastermind/plans/2026-10-25-coder-missions-task-sessions.md):
+	// the coder lead proposes a mission for the user to confirm, and shows
+	// its draft plan as a card the operator approves.
+	EventMissionPropose EventType = "mission.propose"
+	EventMissionPlan    EventType = "mission.plan"
 )
 
 // Event is one journaled/emitted line — the outer envelope. Payload is kept
@@ -407,4 +413,27 @@ type AgentFinishedPayload struct {
 	CostEstimated bool     `json:"costEstimated,omitempty"`
 	DurationMs    int64    `json:"durationMs,omitempty"`
 	FilesChanged  []string `json:"filesChanged,omitempty"`
+}
+
+// MissionProposePayload is mission.propose's payload: the lead thinks the
+// goal is big enough for a planned mission and asks the user to confirm it
+// with one click.
+type MissionProposePayload struct {
+	Title  string `json:"title"`
+	Goal   string `json:"goal"`
+	Reason string `json:"reason,omitempty"`
+}
+
+// MissionPlanPayload is mission.plan's payload, the plan card: the draft
+// session the operator can approve. It is emitted again, with the same
+// SessionID, each time the plan changes; the latest one is the card.
+type MissionPlanPayload struct {
+	SessionID int64  `json:"sessionId"`
+	Title     string `json:"title"`
+	Goal      string `json:"goal"`
+	TaskCount int    `json:"taskCount"`
+	// EstimatedBudgetUSD is a rough estimate from the tasks' size labels.
+	EstimatedBudgetUSD float64 `json:"estimatedBudgetUsd"`
+	// Round counts the review rounds applied so far (0 = the first draft).
+	Round int `json:"round"`
 }
