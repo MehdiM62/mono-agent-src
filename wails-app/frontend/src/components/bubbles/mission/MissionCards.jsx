@@ -114,7 +114,7 @@ export default function MissionCards({ items, conversationId, busy, started, onC
   if (!items?.length) return null
   return (
     <div className="ms-cards" data-testid="mission-cards">
-      {items.map(it => it.type === 'propose' ? <ProposalCard key={it.id} item={it} conversationId={conversationId} busy={busy} started={started} onConfirm={(p) => onConfirm(it.id, p)} />
+      {items.map(it => it.type === 'propose' ? <ProposalCard key={it.id} item={it} conversationId={conversationId} busy={busy} started={started?.has(it.id)} onConfirm={(p) => onConfirm(it.id, p)} />
         : it.type === 'plan' ? <PlanCard key={it.id} item={it} conversationId={conversationId} onNavigate={onNavigate} />
           : <ReportCard key={it.id} item={it} onNavigate={onNavigate} />)}
     </div>

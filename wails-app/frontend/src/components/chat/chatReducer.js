@@ -17,7 +17,7 @@ export function initialChatState() {
     terminal: null,          // { status, reason, code, exitCode, historySaved } once turn.finished fires
     sandbox: null,           // the CLI's monomind.SandboxStatus* verdict ('sandboxed', 'scoped', …); null = none asked for
     stage: null,             // the org stage (#228, lib/orgStage.js); null until an event it uses
-    missions: [],            // mission.propose / mission.plan / mission.report events: [{type, payload}]
+    missions: [],            // mission.propose / mission.plan / mission.report events: [{type, payload, at}]
     agents: {},              // dynamic org (#226): agentId -> { role, runtime, model, access, status, brief, report, tools, lastTool, … }
     agentCalls: {},          // their tool calls, callId -> call (the org stage's drawer shows them)
     startedAt: null,          // turn.started's "at", for local elapsed-time display
@@ -202,7 +202,7 @@ function eventPatch(state, ev) {
     case 'mission.propose':
     case 'mission.plan':
     case 'mission.report':
-      return { missions: [...(state.missions || []), { type: ev.type, payload }] }
+      return { missions: [...(state.missions || []), { type: ev.type, payload, at: ev.at }] }
 
     case 'turn.finished':
       return {

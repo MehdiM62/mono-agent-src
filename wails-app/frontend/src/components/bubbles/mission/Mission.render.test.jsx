@@ -81,6 +81,20 @@ describe('proposal card', () => {
     expect(api.startChatTurn).not.toHaveBeenCalled()
     await waitFor(() => expect(screen.getByTestId('mission-started')).toBeInTheDocument())
   })
+  it('with two proposals, the one followed by a plan is started and the later pending one still offers Start', async () => {
+    turnsWith(
+      { id: 't1', events: [mev('t1', 2, 'mission.propose', { title: 'First mission', goal: 'g1' }), mev('t1', 3, 'mission.plan', { sessionId: 7, title: 'First mission', taskCount: 1, round: 0 })] },
+      { id: 't2', events: [mev('t2', 2, 'mission.propose', { title: 'Second mission', goal: 'g2' })] },
+    )
+    sess.show.mockResolvedValue({ session: sessionDoc(7, 'done') })
+    render(<Harness open={conv()} />)
+    const cards = await screen.findAllByTestId('mission-propose')
+    expect(cards).toHaveLength(2)
+    await waitFor(() => expect(screen.getAllByTestId('mission-started')).toHaveLength(1))
+    expect(cards[0]).toHaveTextContent('Mission started.')
+    expect(cards[1]).not.toHaveTextContent('Mission started.')
+    expect(screen.getAllByRole('button', { name: 'Start mission' })).toHaveLength(1)
+  })
   it('Not now is remembered and sends nothing', async () => {
     turnsWith({ id: 't1', events: [mev('t1', 2, 'mission.propose', propose)] })
     render(<Harness open={conv()} />)
