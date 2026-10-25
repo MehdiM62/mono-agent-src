@@ -2,7 +2,7 @@
 
 Date: 2026-10-24. Base: master `cbd1fe7df`. Issue: monoes/mono-agent-src#977 (refs #976, #951). Design only.
 
-Legend for facts: **[V]** verified by reading the cited code, **[U]** not verified (inferred or not opened).
+Facts: **[V]** verified by reading the cited code, **[U]** not verified.
 
 ## 0. The problem
 
