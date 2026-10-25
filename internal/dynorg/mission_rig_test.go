@@ -158,6 +158,7 @@ type rigOpts struct {
 	timeout time.Duration
 	lease   time.Duration
 	budget  float64
+	conv    string // the conversation the session belongs to
 }
 
 func newRig(t *testing.T, o rigOpts) *missionRig {
@@ -165,7 +166,7 @@ func newRig(t *testing.T, o rigOpts) *missionRig {
 	db := testdb.Open(t).DB
 	r := &missionRig{t: t, store: tasks.NewStore(db), clk: &missionClock{t: time.Date(2026, 10, 25, 12, 0, 0, 0, time.UTC)}, ex: newGateExec(), em: &recEmitter{}}
 	r.store.SetClock(r.clk.now)
-	se, err := r.store.CreateSession(tbg, "default", tasks.SessionInput{Title: "mission", Goal: "ship the feature", BudgetUSD: o.budget}, operator)
+	se, err := r.store.CreateSession(tbg, "default", tasks.SessionInput{Title: "mission", Goal: "ship the feature", BudgetUSD: o.budget, ConversationID: o.conv}, operator)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,10 +181,21 @@ func newRig(t *testing.T, o rigOpts) *missionRig {
 
 // conductor starts a conductor over the rig's store (a second one is a restarted turn).
 func (r *missionRig) conductor(lim Limits) *Conductor {
+	return r.conductorFor(lim, nil)
+}
+
+// conductorFor is conductor for a lead of a conversation (Config.Mission): it works the
+// session of that conversation only.
+func (r *missionRig) conductorFor(lim Limits, m *MissionConfig) *Conductor {
 	c := New(tbg, Config{Cwd: "/w", Limits: lim, Staffer: &Staffer{Roster: []Model{opus, haiku}, Lead: opus},
-		ReadAccess: true, Exec: r.ex.exec, Emit: r.em, Missions: r.mc})
+		ReadAccess: true, Exec: r.ex.exec, Emit: r.em, Missions: r.mc, Mission: m})
 	r.t.Cleanup(c.Close)
 	return c
+}
+
+// leadOf is the mission setup of the lead of a conversation, confirmed.
+func (r *missionRig) leadOf(conv string) *MissionConfig {
+	return &MissionConfig{Store: r.store, ProfileID: "default", ConversationID: conv, Actor: "mission-lead", Access: "coding", Confirmed: true}
 }
 
 type spec struct {

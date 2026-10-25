@@ -2,6 +2,7 @@ package chat
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/monoes/mono-agent/internal/tasks"
@@ -31,5 +32,36 @@ func TestMissionConfigGates(t *testing.T) {
 	}
 	if m := missionConfig(ctx, db, "default", "c2", coderTurn{access: "coding"}); m == nil || m.Planning() {
 		t.Errorf("another conversation confirmed: %+v", m)
+	}
+}
+
+func TestMissionRunOnlyForAConfirmedLead(t *testing.T) {
+	db := testdb.Open(t).DB
+	ctx := context.Background()
+	if mr := missionRun(nil); mr != nil {
+		t.Errorf("no mission setup: %+v", mr)
+	}
+	if mr := missionRun(missionConfig(ctx, db, "default", "c1", coderTurn{access: "coding"})); mr != nil {
+		t.Errorf("unconfirmed lead got the mission engine: %+v", mr)
+	}
+	m := missionConfig(ctx, db, "default", "c1", coderTurn{access: "coding", missionConfirmed: true})
+	mr := missionRun(m)
+	if mr == nil || mr.Store == nil || mr.ProfileID != "default" || mr.Session != 0 {
+		t.Fatalf("confirmed lead: %+v (the session is the conversation's, never preset)", mr)
+	}
+}
+
+// --mission is the operator-friendly hidden flag the UI click passes: it is registered, hidden,
+// and refused outside a coder conversation.
+func TestChatMissionFlagIsHiddenAndNeedsAConversation(t *testing.T) {
+	cmd := newChatCmd(testDeps(&testConfig{DBPath: t.TempDir() + "/x.db", ProfileID: "default"}))
+	f := cmd.Flags().Lookup("mission")
+	if f == nil || !f.Hidden {
+		t.Fatalf("--mission: %+v", f)
+	}
+	cmd.SetArgs([]string{"--mission", "--runtime", "fake", "hi"})
+	err := cmd.Execute()
+	if err == nil || !strings.Contains(err.Error(), "--mission only applies to a coder conversation") {
+		t.Fatalf("--mission outside a conversation: %v", err)
 	}
 }
