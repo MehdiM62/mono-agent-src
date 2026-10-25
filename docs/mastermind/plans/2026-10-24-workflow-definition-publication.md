@@ -354,7 +354,7 @@ processes") is the R-series; the crash tests C1-C6 are the crash-recovery bar.
 
 Branch `ai4/design977`. Differences from sections 3 and 4:
 
-- **Migration number.** The tables are in migration 126 (125 was taken on master by another change).
+- **Migration number.** The tables are in migration 128 (125 to 127 were taken on master by other changes).
 - **`Publish`** is `HybridWorkflowStore.Publish` (publish.go); recovery is publish_recover.go; the
   outside-edit importer is `ImportFile` (publish_import.go). The failpoints are in failpoint_on.go
   (build tag `wfcrash`); release builds compile the no-op in failpoint_off.go.
