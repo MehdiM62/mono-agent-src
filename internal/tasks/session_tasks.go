@@ -3,6 +3,7 @@ package tasks
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"slices"
 	"unicode/utf8"
@@ -180,6 +181,25 @@ func (s *Store) edgePositionIn(ctx context.Context, x dbx, profileID string, ses
 	return gapBelow(hi.Int64)
 }
 
+// noEpicDeps refuses a dependency on an epic or an archived task: neither ever settles, so
+// what waits for it would wait for good (a split hands its dependents to the parts instead).
+func (s *Store) noEpicDeps(ctx context.Context, x dbx, on []int64) error {
+	for _, d := range on {
+		var kind, status string
+		err := x.QueryRowContext(ctx, `SELECT kind, status FROM tasks WHERE id = ?`, d).Scan(&kind, &status)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("tasks: reading #%d: %w", d, err)
+		}
+		if kind == "epic" {
+			return invalid("task #%d is an epic, which is never done: depend on one of its parts instead", d)
+		}
+		if status == string(StatusArchived) {
+			return invalid("task #%d is archived and never settles: depend on a task that is not", d)
+		}
+	}
+	return nil
+}
+
 func (s *Store) insertDeps(ctx context.Context, x dbx, task int64, on []int64) error {
 	for _, d := range on {
 		if _, err := x.ExecContext(ctx, `INSERT OR IGNORE INTO task_deps (task_id, depends_on_task_id) VALUES (?,?)`, task, d); err != nil {
@@ -269,6 +289,9 @@ func (s *Store) AddSessionTask(ctx context.Context, profileID string, sessionID 
 		}
 		id, err := s.insertSessionTask(ctx, x, profileID, se, status, in, title, notes, acceptance, source, actor)
 		if err != nil {
+			return err
+		}
+		if err := s.noEpicDeps(ctx, x, in.DependsOn); err != nil {
 			return err
 		}
 		if err := s.insertDeps(ctx, x, id, in.DependsOn); err != nil {
@@ -372,6 +395,9 @@ func (s *Store) AddDependencies(ctx context.Context, profileID string, sessionID
 			if cycle {
 				return invalid("task #%d cannot depend on #%d: #%d already waits for #%d, so that would be a cycle", id, d, d, id)
 			}
+		}
+		if err := s.noEpicDeps(ctx, x, on); err != nil {
+			return err
 		}
 		if err := s.insertDeps(ctx, x, id, on); err != nil {
 			return err

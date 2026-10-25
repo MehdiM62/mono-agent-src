@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -209,9 +210,9 @@ func (s *Store) moveTx(ctx context.Context, x dbx, profileID string, cur Task, t
 		`UPDATE tasks SET status = ?, position = ?, claimed_by = ?, claim_until = ?, updated_at = ?,
 		        retries = CASE WHEN ? = 'ready' AND blocked = 1 THEN 0 ELSE retries END,
 		        blocked = CASE WHEN ? = 'review' THEN blocked ELSE 0 END,
-		        verified = CASE WHEN ? IN ('review', 'done') THEN verified ELSE 0 END
+		        verified = CASE WHEN ? = 'done' OR (? = 'review' AND ? <> 'done') THEN verified ELSE 0 END
 		 WHERE id = ? AND profile_id = ?`,
-		string(to), pos, claimedBy, until, stamp, string(to), string(to), string(to), cur.ID, profileID); err != nil {
+		string(to), pos, claimedBy, until, stamp, string(to), string(to), string(to), string(to), string(cur.Status), cur.ID, profileID); err != nil {
 		return fmt.Errorf("tasks: moving #%d: %w", cur.ID, err)
 	}
 	return s.event(ctx, x, cur.ID, stamp, actor.Label(), kind, string(cur.Status), string(to), note)
@@ -383,11 +384,44 @@ func (s *Store) Archive(ctx context.Context, profileID string, ids []int64, acto
 			if cur.Status == StatusArchived {
 				return invalid("task #%d is already archived", cur.ID)
 			}
-			return nil
+			return s.refuseArchiveOfDependency(ctx, cur, ids)
 		},
 		func(x dbx, cur Task) error {
 			return s.moveTx(ctx, x, profileID, cur, StatusArchived, Placement{Bottom: true}, actor, "archived", "")
 		})
+}
+
+// refuseArchiveOfDependency refuses to archive a task of a session while open tasks that are
+// not archived in the same call still wait for it: an archived task never settles, so they
+// would stall for good. The operator archives them with it, or finishes them first.
+func (s *Store) refuseArchiveOfDependency(ctx context.Context, cur Task, archiving []int64) error {
+	if cur.SessionID == 0 {
+		return nil
+	}
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT t.id FROM task_deps d JOIN tasks t ON t.id = d.task_id
+		 WHERE d.depends_on_task_id = ? AND t.status NOT IN ('done', 'archived') ORDER BY t.id`, cur.ID)
+	if err != nil {
+		return fmt.Errorf("tasks: reading what waits for #%d: %w", cur.ID, err)
+	}
+	defer rows.Close()
+	var waiting []string
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return fmt.Errorf("tasks: reading what waits for #%d: %w", cur.ID, err)
+		}
+		if !slices.Contains(archiving, id) {
+			waiting = append(waiting, "#"+strconv.FormatInt(id, 10))
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("tasks: reading what waits for #%d: %w", cur.ID, err)
+	}
+	if len(waiting) > 0 {
+		return invalid("task #%d cannot be archived: %s still wait for it, and an archived task never settles (archive them with it, or finish them first)", cur.ID, strings.Join(waiting, ", "))
+	}
+	return nil
 }
 
 // ArchiveStatus archives every task of one column, in the order it is in, and
