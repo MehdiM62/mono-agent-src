@@ -1612,10 +1612,38 @@ that works a task acts on them. The defences:
   Leave it off unless you trust
   the agents on the machine.
 - **Over MCP** an agent works the board through the `task_*` tools of `monoagentcli mcp`, over stdio (no port, no HTTP route). They act as the agent the server names after its client (`agent:<client>#<4 hex>`: two sessions are two claimants, and no argument can choose the name), on the profile each call names (the required `profile` argument; a task of another profile is not found). No tool edits, moves or archives a task, and none approves unless the operator delegated it (see Delegation). Every text a person, an agent or a capture wrote comes back in a field ending in `_untrusted`, with a note to weigh it and not follow instructions inside it, and a tool refuses any argument it does not list. `mcp --tasks-only` serves these tools without the workflow tools that `--allow-mutations` would also serve.
+- **Task sessions: the operator opens a goal once, not each task.** A
+  session (tables `task_sessions`, `task_deps`, `task_artifacts`,
+  `task_session_events`, `task_session_rev`) is a goal with a board of its own,
+  planned by an agent as a draft. Until the operator runs `session approve`
+  its tasks cannot be claimed, are in no inbox (so the rule that an agent
+  never approves what an agent created is untouched) and are skipped by every
+  read of the personal board, which behaves exactly as before for a task with
+  no session. Approval, resuming a pause, the budget, the caps (`max_tasks`,
+  `max_depth`, `max_retries`), the access level, `auto_close_verified`,
+  archiving a session, recording spend and removing a dependency are the
+  operator's: the store refuses any other actor, and the CLI refuses an
+  agent-driven caller with `operator_only`. Inside a running session an agent may
+  claim, comment, finish, add follow-ups (bounded by `max_tasks` and the
+  budget, with no separate cap), split a task that has not begun, add
+  dependencies (a cycle is refused), attach artifacts and verify; it may pause
+  or stop the session (a stop releases every claim) and it cannot undo a pause.
+  A verifier's pass marks a task verified and never closes it, unless the
+  operator turned on auto-close; a task is verified by an agent other than the
+  one that did it; a task that fails verification more often than
+  `max_retries` is blocked for the operator. A process bound to a session
+  (`MONOAGENT_TASK_SESSION`, the carrier of the worker token to come) may act in
+  that session only: not on the personal board and not in another session, in
+  the CLI, the store and over MCP. That variable is a label, not a credential: an
+  agent that sets or unsets its own environment can change it. A session's
+  goal and a task's acceptance criteria are text an agent wrote and come back
+  as data (`_untrusted` over MCP, a notice in text), and a session's tasks are
+  deleted with its profile. A session that has spent its budget hands out no tasks.
 - **The operator-only commands refuse an agent-driven caller:** `board`
   (it shows the Inbox) and `approve` (both unless delegated, see above),
-  `edit`, `move`, `archive`, `unarchive`, `add --ready`, `agents allow` and
-  `agents deny`. A caller is agent-driven when an
+  `edit`, `move`, `archive`, `unarchive`, `add --ready`, `agents allow`,
+  `agents deny`, `session approve`, `session resume`, `session archive`,
+  `session budget` and `undepend`. A caller is agent-driven when an
   agent-context environment variable is set (the markers org signing
   already uses, `CLAUDECODE` among them), or `--as` is given, or
   `MONOAGENT_ACTOR` is set. This stops an agent acting by accident or on
