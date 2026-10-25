@@ -162,6 +162,7 @@ func startDynamicOrg(ctx context.Context, cfg *Deps, journal *turnJournal, setti
 		reconcileTurnWorktrees(ctx, journal, t.cwd)
 	}
 	mission := missionConfig(ctx, db.DB, cfg.ProfileID(), journal.conversationID, t)
+	limits.MaxAgents = missionMaxAgents(settings, mission)
 	cond := dynorg.New(ctx, dynorg.Config{
 		Cwd: t.cwd, Limits: limits, Staffer: staffer, Base: base, Exec: taskExec,
 		Writers: settings.OrgWriters, TurnID: journal.turnID,

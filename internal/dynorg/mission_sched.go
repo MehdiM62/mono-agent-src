@@ -399,9 +399,9 @@ func (c *Conductor) cannotStart(mc *MissionRun, t tasks.Task, exec, access strin
 	}
 	if exec != ExecLead {
 		c.mu.Lock()
-		spawned, maxAgents := c.spawned, c.cfg.Limits.MaxAgents
+		spawned, maxAgents, retry := c.spawned, c.cfg.Limits.MaxAgents, c.taskRuns[t.ID] && c.missionTurn()
 		c.mu.Unlock()
-		if spawned >= maxAgents {
+		if spawned >= maxAgents && !retry {
 			return fmt.Sprintf("this turn already has its %d workers", maxAgents)
 		}
 		if n := c.runningWorkers(); n >= c.cfg.Limits.MaxConcurrent {

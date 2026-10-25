@@ -39,3 +39,13 @@ func missionRun(m *dynorg.MissionConfig) *dynorg.MissionRun {
 	}
 	return &dynorg.MissionRun{Store: m.Store, ProfileID: m.ProfileID}
 }
+
+// missionMaxAgents is the per-turn worker cap of a turn: a confirmed mission gets the larger
+// mission default when the operator never set --org-max-agents; an operator's value, any
+// value, stays authoritative (it is bounded 1-20 where it is set).
+func missionMaxAgents(settings coderSettings, m *dynorg.MissionConfig) int {
+	if m.Planning() && settings.orgMaxAgentsDefaulted && settings.OrgMaxAgents < dynorg.MissionMaxAgents {
+		return dynorg.MissionMaxAgents
+	}
+	return settings.OrgMaxAgents
+}

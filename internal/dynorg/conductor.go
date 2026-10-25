@@ -70,6 +70,9 @@ type Conductor struct {
 	workers map[string]*worker
 	order   []string
 	spawned int
+	// taskRuns: tasks that already had a worker this turn; a retry of one does not count
+	// against Limits.MaxAgents in a mission turn (mission_cap.go).
+	taskRuns map[int64]bool
 	seq     int // the highest worker number so far, veterans included
 	cost    float64
 	// costEstimated: some of cost is estimated from tokens (estimate.go).
@@ -290,9 +293,10 @@ func (c *Conductor) spawn(ctx context.Context, req SpawnRequest, parent *worker)
 		}
 	}
 	c.mu.Lock()
-	if c.spawned >= c.cfg.Limits.MaxAgents {
+	free := c.capFreeLocked(req)
+	if !free && c.spawned >= c.cfg.Limits.MaxAgents {
 		c.mu.Unlock()
-		return WorkerInfo{}, fmt.Errorf("this turn already has its %d workers; wait for them and use org_message for follow-ups", c.cfg.Limits.MaxAgents)
+		return WorkerInfo{}, c.capError()
 	}
 	if err := c.budgetErrLocked(); err != nil {
 		c.mu.Unlock()
@@ -328,12 +332,12 @@ func (c *Conductor) spawn(ctx context.Context, req SpawnRequest, parent *worker)
 		}
 	}
 	c.mu.Lock()
-	if c.spawned >= c.cfg.Limits.MaxAgents { // another spawn won the race
+	if !free && c.spawned >= c.cfg.Limits.MaxAgents { // another spawn won the race
 		c.mu.Unlock()
 		c.missionUnclaim(task, "the turn's worker cap was reached first")
-		return WorkerInfo{}, fmt.Errorf("this turn already has its %d workers", c.cfg.Limits.MaxAgents)
+		return WorkerInfo{}, c.capError()
 	}
-	c.spawned++
+	c.countSpawnLocked(req, free)
 	c.seq++
 	w := &worker{
 		id: fmt.Sprintf("w%d", c.seq), staff: st, brief: req.Brief, files: req.Files,
