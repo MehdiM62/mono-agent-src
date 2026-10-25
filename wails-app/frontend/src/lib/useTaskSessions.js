@@ -13,6 +13,7 @@ export function useTaskSessions(active, selectedId) {
   const [sessions, setSessions] = useState([])
   const [loaded, setLoaded] = useState(false) // the first list read has answered (well or not)
   const [events, setEvents] = useState([])
+  const [listError, setListError] = useState(false) // the latest list read failed
   const [notice, setNotice] = useState(null) // {error, code}
   const seq = useRef(0)
   const visible = usePageVisible()
@@ -22,6 +23,7 @@ export function useTaskSessions(active, selectedId) {
     const doc = await sessionsApi.list(false)
     if (mine !== seq.current) return
     setLoaded(true)
+    setListError(!!doc?.error)
     if (doc?.error) return
     setSessions(Array.isArray(doc?.sessions) ? doc.sessions : [])
   }, [])
@@ -60,5 +62,5 @@ export function useTaskSessions(active, selectedId) {
     return res
   }, [reload])
 
-  return { sessions, loaded, selected, events, notice, clearNotice: () => setNotice(null), act, setBudget, reload }
+  return { sessions, loaded, listError, selected, events, notice, clearNotice: () => setNotice(null), act, setBudget, reload }
 }

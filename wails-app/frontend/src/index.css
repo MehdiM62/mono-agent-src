@@ -2112,3 +2112,6 @@ body.tb-dragging, body.tb-dragging * { cursor: grabbing !important; user-select:
 /* ── Publication: pager pinned to the bottom ── */
 .pub-body { display: flex; flex-direction: column; }
 .pub-pager { display: flex; gap: 12px; align-items: center; justify-content: center; margin-top: auto; padding-top: 16px; border-top: 1px solid var(--border-dim); font-size: 12px; color: var(--text-secondary); }
+.ts-switcher { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.ts-switcher .ts-tabs { min-width: 0; }
+.ts-list-error { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; font-size: 12px; color: var(--orange); }

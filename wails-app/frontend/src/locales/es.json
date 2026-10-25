@@ -1738,6 +1738,8 @@
       "artifacts": "Artefactos",
       "noArtifacts": "Aún no hay artefactos",
       "events": "Eventos de la sesión",
+      "listError": "No se pudieron leer las sesiones",
+      "retry": "Reintentar",
       "planError": "No se pudo leer el plan",
       "planEmpty": "Este plan aún no tiene tareas"
     }

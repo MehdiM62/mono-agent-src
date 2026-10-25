@@ -1780,6 +1780,8 @@
       "artifacts": "Artifacts",
       "noArtifacts": "No artifacts yet",
       "events": "Session events",
+      "listError": "Could not read sessions",
+      "retry": "Retry",
       "planError": "Could not read the plan",
       "planEmpty": "No tasks in this plan yet"
     }
