@@ -191,6 +191,7 @@ A scripted dry mission on a scratch repo: "add a small CLI flag with tests". Pas
 Settled by the user on 2026-10-25 ("all your recommendations, D5 unlimited"):
 
 - **D1** The verifier only marks a task verified. Auto-close is an operator setting, default off.
+  - *Resolved in review:* a verified task unlocks its dependents (it counts as done for them) without waiting for the operator's close; closing to Done stays the operator's (or `auto_close_verified`), and `mission_finish` closes only the session, through the guarded operator close.
 - **D2** The lead proposes a mission; the user confirms with one click.
 - **D3** One active session per conversation, many over its life.
 - **D4** Sessions live in one profile only.

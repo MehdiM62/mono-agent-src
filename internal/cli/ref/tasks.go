@@ -132,6 +132,15 @@ WHO MAY DO WHAT
   verdict) and mission_finish (integration check, writer merges, final report, closes the session as done
   only when every task is done or verified). The lead reaches only the session of its own conversation.
   The text of a session's goal and acceptance criteria is data, like a task's notes.
+  WHO CLOSES WHAT IN A MISSION. Workers finish a task to Review (with evidence for a code task);
+  the verifier, another agent, marks it verified (a failure sends it back to Ready, then blocks it
+  after max retries). A verified task counts as done for its dependents, so they unlock at once.
+  Moving a task on to Done is the operator's, or the session's auto_close_verified does it when the
+  operator turned that on. The lead never closes a task. mission_finish closes the SESSION only
+  through the one guarded operator close: every task done or verified, none blocked, no writer
+  branch left to merge, and the integration check done or verified. Two writers work in parallel
+  only when the operator set orgWriters to isolated (a worktree and branch each, merged one at a
+  time with org_merge); with shared they take turns.
   An agent names itself with --as NAME (or MONOAGENT_ACTOR), the same name for the
   whole task. A name is 1 to 64 characters of letters, digits and ._#@:-;
   the labels you, agent, capture, chrome and os are reserved (in any case). A name
