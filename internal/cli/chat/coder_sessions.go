@@ -183,4 +183,3 @@ func newCoderSessionsControlCmd(cfg *Deps, kind coderhost.Kind, short string) *c
 	clicore.WithJSONErrors(cfg.JSONOutput, cmd)
 	return cmd
 }
-

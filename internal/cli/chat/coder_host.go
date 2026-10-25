@@ -140,7 +140,9 @@ func newCoderHostRunCmd(cfg *Deps) *cobra.Command {
 			if err := os.WriteFile(filepath.Join(hostDir(cfg), hostInfoFile), raw, 0o600); err != nil {
 				return err
 			}
-			logf := func(f string, a ...any) { fmt.Fprintf(cmd.ErrOrStderr(), time.Now().Format(time.RFC3339)+" "+f+"\n", a...) }
+			logf := func(f string, a ...any) {
+				fmt.Fprintf(cmd.ErrOrStderr(), time.Now().Format(time.RFC3339)+" "+f+"\n", a...)
+			}
 			h := &coderhost.Host{
 				Store: coderhost.NewStore(db.DB),
 				L:     &execLauncher{bin: exe, dbPath: cfg.DBPath(), instance: info.Instance, logDir: filepath.Join(hostDir(cfg), "turns"), logf: logf},
@@ -214,4 +216,3 @@ func newCoderHostStopCmd(cfg *Deps) *cobra.Command {
 	clicore.WithJSONErrors(cfg.JSONOutput, cmd)
 	return cmd
 }
-
