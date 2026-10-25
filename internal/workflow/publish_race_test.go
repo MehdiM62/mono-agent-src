@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"testing"
 )
 
@@ -21,6 +22,25 @@ var helperActions = map[string]func(ctx context.Context, h *HybridWorkflowStore,
 	"save": func(ctx context.Context, h *HybridWorkflowStore, cur *Workflow) error {
 		cur.Nodes[1].Config = map[string]interface{}{"k": "from-save-" + os.Getenv("WF_HELPER_VALUE")}
 		return h.SaveWorkflow(ctx, cur)
+	},
+	"node-set": func(ctx context.Context, h *HybridWorkflowStore, cur *Workflow) error {
+		nodes := append([]WorkflowNode(nil), cur.Nodes...)
+		nodes[1].Config = map[string]interface{}{"k": "from-node-set-" + os.Getenv("WF_HELPER_VALUE")}
+		return h.SaveWorkflowNodes(ctx, "wf-c", nodes)
+	},
+	"connections": func(ctx context.Context, h *HybridWorkflowStore, cur *Workflow) error {
+		return h.SaveWorkflowConnections(ctx, "wf-c", nil)
+	},
+	"toggle": func(ctx context.Context, h *HybridWorkflowStore, cur *Workflow) error {
+		round, _ := strconv.Atoi(os.Getenv("WF_HELPER_VALUE"))
+		return h.SetWorkflowActive(ctx, "wf-c", round%2 == 0)
+	},
+	"delete": func(ctx context.Context, h *HybridWorkflowStore, cur *Workflow) error {
+		return h.DeleteWorkflow(ctx, "wf-c")
+	},
+	"update": func(ctx context.Context, h *HybridWorkflowStore, cur *Workflow) error {
+		cur.Description = "updated-" + os.Getenv("WF_HELPER_VALUE")
+		return h.UpdateWorkflow(ctx, cur)
 	},
 	"save-revoking": func(ctx context.Context, h *HybridWorkflowStore, cur *Workflow) error {
 		cur.Nodes[1].Config = map[string]interface{}{"k": "from-revoking"}
@@ -105,5 +125,80 @@ func TestCrashKilledSaveAfterRenameIsRolledBack(t *testing.T) {
 	r.assertConsistent(t)
 	if string(r.fileOnDisk(t)) != string(before) {
 		t.Fatal("the file still holds the save that never committed")
+	}
+}
+
+func TestRaceNodeSetAgainstApplyFix(t *testing.T)     { newCrashRig(t).raceRounds(t, 8, "node-set") }
+func TestRaceConnectionsAgainstApplyFix(t *testing.T) { newCrashRig(t).raceRounds(t, 4, "connections") }
+
+func TestCrashKilledNodeSetAfterRenameIsRolledBack(t *testing.T) {
+	r := newCrashRig(t)
+	before := r.fileOnDisk(t)
+	waitKilled(t, r.startHelper(t, "node-set", "MONOAGENT_WF_FAILPOINT=after-rename"))
+	r.assertConsistent(t)
+	if string(r.fileOnDisk(t)) != string(before) {
+		t.Fatal("the file still holds the edit that never committed")
+	}
+}
+
+// A toggle and a node edit from two processes both land: neither reads the file outside the lock
+// and writes it back over the other.
+func TestRaceToggleAgainstNodeSet(t *testing.T) {
+	r := newCrashRig(t)
+	for i := 0; i < 8; i++ {
+		if w := r.race(t, i, "node-set", "toggle"); w != 2 {
+			t.Fatalf("round %d: %d writers won", i, w)
+		}
+		r.assertConsistent(t)
+		got, _ := r.h.GetWorkflow(context.Background(), "wf-c")
+		if got.IsActive != (i%2 == 0) {
+			t.Fatalf("round %d: the toggle was lost", i)
+		}
+		if want := fmt.Sprintf("from-node-set-%d", i); got.Nodes[1].Config["k"] != want {
+			t.Fatalf("round %d: the node edit was lost: %v", i, got.Nodes[1].Config["k"])
+		}
+	}
+}
+
+func TestRaceUpdateAgainstApplyFix(t *testing.T) { newCrashRig(t).raceRounds(t, 4, "update") }
+
+func TestCrashKilledDeleteAfterTheFileIsGoneKeepsTheWorkflow(t *testing.T) {
+	r := newCrashRig(t)
+	waitKilled(t, r.startHelper(t, "delete", "MONOAGENT_WF_FAILPOINT=after-rename"))
+	r.assertConsistent(t)
+	if got, _ := r.h.GetWorkflow(context.Background(), "wf-c"); got == nil {
+		t.Fatal("the workflow vanished")
+	}
+	if len(r.fileOnDisk(t)) == 0 {
+		t.Fatal("the file was not put back")
+	}
+}
+
+func TestDeleteRemovesFileRowsApprovalsAndVersions(t *testing.T) {
+	r := newCrashRig(t)
+	if err := r.startHelper(t, "delete").Wait(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(r.root, "workflows", "wf-c.json")); !os.IsNotExist(err) {
+		t.Fatalf("the file is still there: %v", err)
+	}
+	var rows, vers int
+	_ = r.s.db.QueryRow(`SELECT COUNT(*) FROM workflows WHERE id = 'wf-c'`).Scan(&rows)
+	_ = r.s.db.QueryRow(`SELECT COUNT(*) FROM workflow_versions WHERE workflow_id = 'wf-c'`).Scan(&vers)
+	if rows != 0 || vers != 0 || approvals(t, r.s, "wf-c") != 0 || r.openIntents(t) != 0 {
+		t.Fatalf("rows %d versions %d approvals %d intents %d", rows, vers, approvals(t, r.s, "wf-c"), r.openIntents(t))
+	}
+}
+
+// A delete raced with a guarded save ends as one or the other, never a file without rows or rows
+// without a file.
+func TestRaceDeleteAgainstApplyFix(t *testing.T) {
+	r := newCrashRig(t)
+	r.race(t, 0, "apply-fix", "delete")
+	_, err := os.Stat(filepath.Join(r.root, "workflows", "wf-c.json"))
+	var rows int
+	_ = r.s.db.QueryRow(`SELECT COUNT(*) FROM workflows WHERE id = 'wf-c'`).Scan(&rows)
+	if (err == nil) != (rows == 1) || r.openIntents(t) != 0 {
+		t.Fatalf("file present %v, rows %d, intents %d", err == nil, rows, r.openIntents(t))
 	}
 }

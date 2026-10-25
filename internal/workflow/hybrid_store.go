@@ -200,7 +200,10 @@ func (h *HybridWorkflowStore) NodeCounts(ctx context.Context, profileID string) 
 }
 
 func (h *HybridWorkflowStore) UpdateWorkflow(ctx context.Context, w *Workflow) error {
-	return h.persist(ctx, w, h.sql.UpdateWorkflow)
+	if h.files == nil {
+		return h.saved(ctx, w.ID, h.sql.UpdateWorkflow(ctx, w))
+	}
+	return h.saveDefinitionAs(ctx, w, "", false)
 }
 
 // SaveWorkflow writes a workflow to the file store (create or update) and
@@ -304,29 +307,59 @@ func (s *SQLiteWorkflowStore) checkOwnIDs(ctx context.Context, w *Workflow) erro
 // know whether cleanup actually happened would be told "success" even when
 // the workflow (or its rows) are still sitting there.
 func (h *HybridWorkflowStore) DeleteWorkflow(ctx context.Context, id string) error {
-	var fileErr, sqlErr error
-	if h.files != nil {
-		if err := h.files.DeleteWorkflow(ctx, id); err != nil {
-			fileErr = fmt.Errorf("file store: %w", err)
-		}
-	}
-	if err := h.sql.DeleteWorkflow(ctx, id); err != nil && !errors.Is(err, ErrWorkflowNotFound) {
-		sqlErr = fmt.Errorf("sql store: %w", err)
-	}
-	return errors.Join(fileErr, sqlErr)
+	_, err := h.Publish(ctx, Publication{WorkflowID: id, Kind: PubDelete, Origin: "delete"})
+	return err
 }
 
-// SetWorkflowActive flips the flag on the file-store copy when there is one
-// (mirroring it to SQLite), and otherwise on the SQLite row alone.
+// SetWorkflowActive flips the flag on the whole workflow as the file holds it when there is a
+// file (so a hand edit is not lost), and otherwise on the committed rows. File and rows change
+// in one publication.
 func (h *HybridWorkflowStore) SetWorkflowActive(ctx context.Context, id string, active bool) error {
-	if wf := h.fileCopy(ctx, id); wf != nil {
-		wf.IsActive = active
-		if err := h.files.SaveWorkflow(ctx, wf); err != nil {
-			return err
-		}
-		return h.mirrorToSQL(ctx, wf)
+	_, err := h.Publish(ctx, Publication{
+		WorkflowID:   id,
+		Origin:       "active",
+		KeepFileless: true,
+		Build: func(cur *Workflow) (*Workflow, error) {
+			var next Workflow
+			switch fw := h.lockedFileCopy(ctx, id); {
+			case fw != nil:
+				next = *fw
+				if next.ProfileID == "" && cur != nil {
+					next.ProfileID = cur.ProfileID
+				}
+			case cur != nil:
+				next = *cur
+			default:
+				return nil, fmt.Errorf("workflow %s: %w", id, ErrWorkflowNotFound)
+			}
+			next.IsActive = active
+			return &next, nil
+		},
+	})
+	return err
+}
+
+// lockedFileCopy reads the file's workflow from inside a publication, which has already ruled out
+// an open change of that workflow (so the file can be trusted without asking again).
+func (h *HybridWorkflowStore) lockedFileCopy(ctx context.Context, id string) *Workflow {
+	if h.files == nil {
+		return nil
 	}
-	return h.sql.SetWorkflowActive(ctx, id, active)
+	wf, err := h.files.GetWorkflow(ctx, id)
+	if err != nil {
+		return nil
+	}
+	return wf
+}
+
+// editBase is the definition a node or connection edit starts from: the committed rows, with the
+// name, description, settings and active flag the file carries, so a hand edit of those survives.
+func (h *HybridWorkflowStore) editBase(ctx context.Context, cur *Workflow) Workflow {
+	next := *cur
+	if fw := h.lockedFileCopy(ctx, cur.ID); fw != nil {
+		next.Name, next.Description, next.IsActive, next.Settings = fw.Name, fw.Description, fw.IsActive, fw.Settings
+	}
+	return next
 }
 
 // fileCopy returns the file store's workflow for id, or nil when there is no
@@ -370,49 +403,58 @@ func (h *HybridWorkflowStore) ensureSQLWorkflow(ctx context.Context, workflowID 
 	_ = h.sql.CreateWorkflow(ctx, &stub)
 }
 
-// syncFileNodes mirrors the current SQL-stored nodes/connections for
-// workflowID back onto the file-store copy. GetWorkflow prefers the file
-// store, so without this, nodes/connections written via SaveWorkflowNodes/
-// SaveWorkflowConnections would be invisible to every read path.
-func (h *HybridWorkflowStore) syncFileNodes(ctx context.Context, workflowID string) {
-	if h.files == nil {
-		return
-	}
-	// The same lock a guarded save holds from publishing its file to its commit, so this
-	// copy of the rows is never older than a file already published.
-	fileWriteMu.Lock()
-	defer fileWriteMu.Unlock()
-	wf, err := h.files.GetWorkflow(ctx, workflowID)
-	if err != nil || wf == nil {
-		return
-	}
-	sqlWF, err := h.sql.GetWorkflow(ctx, workflowID)
-	if err != nil || sqlWF == nil {
-		return
-	}
-	wf.Nodes = sqlWF.Nodes
-	wf.Connections = sqlWF.Connections
-	_ = h.files.saveWorkflow(ctx, wf)
+// publishGraph publishes workflow id with its nodes or connections replaced, through Publish:
+// the file and the rows change together or not at all, and a file that cannot be written is an
+// error.
+func (h *HybridWorkflowStore) publishGraph(ctx context.Context, workflowID, origin string, edit func(next *Workflow)) error {
+	h.ensureSQLWorkflow(ctx, workflowID)
+	_, err := h.Publish(ctx, Publication{
+		WorkflowID:   workflowID,
+		Origin:       origin,
+		KeepFileless: true,
+		RequireGraph: true,
+		Build: func(cur *Workflow) (*Workflow, error) {
+			if cur == nil {
+				return nil, fmt.Errorf("workflow %s: %w", workflowID, ErrWorkflowNotFound)
+			}
+			next := h.editBase(ctx, cur)
+			edit(&next)
+			return &next, nil
+		},
+	})
+	return err
 }
 
+// SaveWorkflowNodes replaces the workflow's nodes. A connection to a node that is gone goes with
+// it, as it does in the rows.
 func (h *HybridWorkflowStore) SaveWorkflowNodes(ctx context.Context, workflowID string, nodes []WorkflowNode) error {
-	h.ensureSQLWorkflow(ctx, workflowID)
-	if err := h.sql.SaveWorkflowNodes(ctx, workflowID, nodes); err != nil {
-		return err
+	return h.publishGraph(ctx, workflowID, "nodes", func(next *Workflow) {
+		next.Nodes = nodes
+		next.Connections = connectionsAmong(next.Connections, nodes)
+	})
+}
+
+// SaveWorkflowGraph replaces the workflow's nodes and connections in one change.
+func (h *HybridWorkflowStore) SaveWorkflowGraph(ctx context.Context, workflowID string, nodes []WorkflowNode, conns []WorkflowConnection) error {
+	return h.publishGraph(ctx, workflowID, "graph", func(next *Workflow) { next.Nodes, next.Connections = nodes, conns })
+}
+
+func connectionsAmong(conns []WorkflowConnection, nodes []WorkflowNode) []WorkflowConnection {
+	have := make(map[string]bool, len(nodes))
+	for _, n := range nodes {
+		have[n.ID] = true
 	}
-	h.syncFileNodes(ctx, workflowID)
-	_, _ = h.captureVersion(ctx, workflowID) // best effort: CreateExecution captures again
-	return h.saved(ctx, workflowID, nil)
+	var kept []WorkflowConnection
+	for _, c := range conns {
+		if have[c.SourceNodeID] && have[c.TargetNodeID] {
+			kept = append(kept, c)
+		}
+	}
+	return kept
 }
 
 func (h *HybridWorkflowStore) SaveWorkflowConnections(ctx context.Context, workflowID string, conns []WorkflowConnection) error {
-	h.ensureSQLWorkflow(ctx, workflowID)
-	if err := h.sql.SaveWorkflowConnections(ctx, workflowID, conns); err != nil {
-		return err
-	}
-	h.syncFileNodes(ctx, workflowID)
-	_, _ = h.captureVersion(ctx, workflowID) // best effort: CreateExecution captures again
-	return nil
+	return h.publishGraph(ctx, workflowID, "connections", func(next *Workflow) { next.Connections = conns })
 }
 
 // ---------------------------------------------------------------------------

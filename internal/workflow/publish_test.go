@@ -114,3 +114,92 @@ func TestSaveWorkflowRevokingRemovesApprovalsInTheSameCommit(t *testing.T) {
 		t.Fatal("approvals survived")
 	}
 }
+
+// A node edit whose file cannot be written is an error, and the rows keep the old nodes: the
+// file step used to be dropped silently after the rows had changed.
+func TestNodeEditWithAFailingFileIsAnErrorAndChangesNothing(t *testing.T) {
+	ctx := context.Background()
+	h, s, _, nodes := guardedRig(t)
+	guardedFileFault = func() error { return errors.New("disk full") }
+	err := h.SaveWorkflowNodes(ctx, "wf-g", nodes)
+	if !errors.Is(err, ErrFileSyncFailed) {
+		t.Fatalf("%v", err)
+	}
+	if sqlConfig(t, s, "wf-g", "g-set") == "edited" {
+		t.Fatal("the rows changed although the file did not")
+	}
+	err = h.SaveWorkflowConnections(ctx, "wf-g", nil)
+	if !errors.Is(err, ErrFileSyncFailed) {
+		t.Fatalf("%v", err)
+	}
+	if got, _ := s.GetWorkflow(ctx, "wf-g"); len(got.Connections) != 1 {
+		t.Fatal("the connections changed although the file did not")
+	}
+}
+
+// A node edit lands in the file and the rows, and records its version in the same commit.
+func TestNodeEditPublishesFileRowsAndVersionTogether(t *testing.T) {
+	ctx := context.Background()
+	h, s, _, nodes := guardedRig(t)
+	before, _ := h.GetWorkflow(ctx, "wf-g")
+	if err := h.SaveWorkflowNodes(ctx, "wf-g", nodes); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := h.GetWorkflow(ctx, "wf-g")
+	if got.Nodes[1].Config["k"] != "edited" || sqlConfig(t, s, "wf-g", "g-set") != "edited" {
+		t.Fatal("file and rows disagree")
+	}
+	if got.Version != before.Version+1 {
+		t.Fatalf("version %d -> %d", before.Version, got.Version)
+	}
+	if v, _ := h.GetWorkflowVersion(ctx, "wf-g", got.Version); v == nil {
+		t.Fatal("no version recorded")
+	}
+}
+
+// An operator edit records its approval in the commit that writes the rows; a refused commit
+// records nothing.
+func TestWithApprovalRecordsTheNewDefinitionInTheCommit(t *testing.T) {
+	ctx := context.Background()
+	h, s, _, nodes := guardedRig(t)
+	refuse := WithApproval(WithTxHook(ctx, func(context.Context, *sql.Tx) error { return errors.New("no") }))
+	if err := h.SaveWorkflowNodes(refuse, "wf-g", nodes); err == nil {
+		t.Fatal("the hook should have refused")
+	}
+	if approvals(t, s, "wf-g") != 1 {
+		t.Fatalf("a refused edit changed approvals: %d", approvals(t, s, "wf-g"))
+	}
+	if err := h.SaveWorkflowNodes(WithApproval(ctx), "wf-g", nodes); err != nil {
+		t.Fatal(err)
+	}
+	cur, _ := h.GetWorkflow(ctx, "wf-g")
+	hash, _ := definitionHash(cur)
+	if ok, _ := h.DefinitionApproved(ctx, "wf-g", hash); !ok {
+		t.Fatal("the edited definition was not approved")
+	}
+	// Without it the edit is left for a person to approve.
+	nodes[1].Config = map[string]interface{}{"k": "again"}
+	if err := h.SaveWorkflowNodes(ctx, "wf-g", nodes); err != nil {
+		t.Fatal(err)
+	}
+	cur, _ = h.GetWorkflow(ctx, "wf-g")
+	hash, _ = definitionHash(cur)
+	if ok, _ := h.DefinitionApproved(ctx, "wf-g", hash); ok {
+		t.Fatal("an edit without WithApproval was approved")
+	}
+}
+
+// Removing a node takes its connections out of the file as well as the rows.
+func TestRemovingANodeTakesItsConnectionsFromTheFileToo(t *testing.T) {
+	ctx := context.Background()
+	h, s, _, _ := guardedRig(t)
+	cur, _ := h.GetWorkflow(ctx, "wf-g")
+	if err := h.SaveWorkflowNodes(ctx, "wf-g", cur.Nodes[:1]); err != nil {
+		t.Fatal(err)
+	}
+	f, _ := h.files.GetWorkflow(ctx, "wf-g")
+	r, _ := s.GetWorkflow(ctx, "wf-g")
+	if len(f.Connections) != 0 || len(r.Connections) != 0 {
+		t.Fatalf("file %d rows %d connections left", len(f.Connections), len(r.Connections))
+	}
+}

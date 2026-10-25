@@ -94,7 +94,7 @@ func (h *HybridWorkflowStore) SaveNodesGuarded(ctx context.Context, workflowID s
 		RevokeApprovals: guard.RevokeApprovals,
 		KeepFileless:    true,
 		Build: func(cur *Workflow) (*Workflow, error) {
-			next := *cur
+			next := h.editBase(ctx, cur)
 			next.Nodes = nodes
 			return &next, nil
 		},

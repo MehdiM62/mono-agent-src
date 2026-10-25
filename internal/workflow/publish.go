@@ -42,6 +42,9 @@ type Publication struct {
 	RevokeApprovals bool
 	// StoredVersion is the version the caller saw before the change.
 	StoredVersion int
+	// RequireGraph refuses (ErrSharedIDs) a definition whose node or connection ids belong to
+	// another workflow, instead of saving it without its graph rows.
+	RequireGraph bool
 	// KeepFileless leaves a workflow that has no file without one (rows only).
 	KeepFileless bool
 	// Build maps the committed definition (nil when there are no rows) to the one to publish.
@@ -88,6 +91,9 @@ func (h *HybridWorkflowStore) Publish(ctx context.Context, p Publication) (*Work
 	for {
 		w, err := h.publishOnce(ctx, p)
 		if !errors.Is(err, ErrPublicationBusy) || time.Now().After(deadline) {
+			if p.Kind == PubDelete {
+				return w, err
+			}
 			return w, h.saved(ctx, p.WorkflowID, err)
 		}
 		select {
@@ -213,6 +219,9 @@ func (h *HybridWorkflowStore) plan(ctx context.Context, tx *sql.Tx, p Publicatio
 		if !errors.Is(err, ErrSharedIDs) {
 			return nil, err
 		}
+		if p.RequireGraph {
+			return nil, err
+		}
 		pl.graph = false
 	}
 	if pl.targetHash, err = definitionHash(t); err != nil {
@@ -271,6 +280,12 @@ func (h *HybridWorkflowStore) applyRows(ctx context.Context, tx *sql.Tx, p Publi
 	}
 	if v != pl.version {
 		return fmt.Errorf("workflow %s: the version moved from %d to %d during the change", p.WorkflowID, pl.version, v)
+	}
+	if approvalFrom(ctx) && p.Kind != PubDelete {
+		if _, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO workflow_approvals (workflow_id, definition_hash) VALUES (?, ?)`,
+			p.WorkflowID, pl.targetHash); err != nil && !isNoTable(err) {
+			return fmt.Errorf("recording the approval: %w", err)
+		}
 	}
 	if p.RevokeApprovals {
 		if _, err := tx.ExecContext(ctx, `DELETE FROM workflow_approvals WHERE workflow_id = ?`, p.WorkflowID); err != nil && !isNoTable(err) {
@@ -388,4 +403,18 @@ func (h *HybridWorkflowStore) abort(ctx context.Context, intentID int64, id stri
 		return errors.Join(err, fmt.Errorf("%w: workflow %s: %v", ErrFileInconsistent, id, rerr))
 	}
 	return err
+}
+
+type approvalKey struct{}
+
+// WithApproval makes the next publication made with ctx also record its resulting definition as
+// approved, in the commit that writes the rows (the operator's own edits, which have no window
+// between the save and the approval). RevokeApprovals runs after it and wins.
+func WithApproval(ctx context.Context) context.Context {
+	return context.WithValue(ctx, approvalKey{}, true)
+}
+
+func approvalFrom(ctx context.Context) bool {
+	v, _ := ctx.Value(approvalKey{}).(bool)
+	return v
 }
