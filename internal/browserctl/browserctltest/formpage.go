@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"regexp"
 	"strings"
 	"sync"
@@ -37,6 +38,13 @@ type FormPage struct {
 	// right before the press. MovesAway: something covers the control by
 	// then.
 	Blocks, Misdirects, Drifts, MovesAway bool
+	// StrayAndFired: a click elsewhere was cancelled, and the click on the
+	// control went through.
+	StrayAndFired bool
+	// ReadFails: reading how the click went fails with this error;
+	// OnRead runs first (a test moves the tab there).
+	ReadFails string
+	OnRead    func()
 }
 
 // Set changes one field's value.
@@ -107,8 +115,15 @@ func (fp *FormPage) Handler() Handler {
 				res = map[string]any{"ok": true}
 			}
 		case strings.HasPrefix(expr, "/*mono:peek*/"), strings.HasPrefix(expr, "/*mono:collect*/"):
+			if strings.HasPrefix(expr, "/*mono:peek*/") && fp.OnRead != nil {
+				fp.OnRead()
+			}
+			if fp.ReadFails != "" && strings.HasPrefix(expr, "/*mono:peek*/") {
+				return nil, errors.New(fp.ReadFails)
+			}
 			res = map[string]any{
-				"fired": !fp.Blocks && !fp.Misdirects, "blocked": fp.Blocks, "misdirected": fp.Misdirects, "changed": !fp.NoReaction,
+				"fired": !fp.Blocks && !fp.Misdirects, "blocked": fp.Blocks,
+				"misdirected": fp.Misdirects || fp.StrayAndFired, "changed": !fp.NoReaction,
 			}
 		}
 		return map[string]any{"result": res}, nil

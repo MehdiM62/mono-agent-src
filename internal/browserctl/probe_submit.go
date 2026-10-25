@@ -249,7 +249,10 @@ const triggerJS = `/*mono:trigger*/(() => {` + formLibJS + reactionLibJS + `
   const state = { fired: false, blocked: false, misdirected: false };
   const types = ["pointerdown", "mousedown", "pointerup", "mouseup", "click"];
   const stop = (e) => { e.preventDefault(); e.stopImmediatePropagation(); };
-  const drop = () => { for (const t of types) window.removeEventListener(t, on, true); };
+  // The watch ends by itself, so a run that dies leaves no page that
+  // swallows its user's clicks: when the click arrives, when the page is
+  // left, or after a few seconds.
+  const drop = () => { clearTimeout(timer); for (const t of types) window.removeEventListener(t, on, true); window.removeEventListener("pagehide", drop, true); };
   const on = (e) => {
     if (!e.isTrusted) return;
     if (!(ctl === e.target || ctl.contains(e.target))) { state.misdirected = true; stop(e); return; }
@@ -257,6 +260,8 @@ const triggerJS = `/*mono:trigger*/(() => {` + formLibJS + reactionLibJS + `
     if (e.type === "click") { state.fired = true; drop(); }
   };
   for (const t of types) window.addEventListener(t, on, true);
+  window.addEventListener("pagehide", drop, true);
+  const timer = setTimeout(drop, 5000);
   const verify = () => {
     if (EXPECT && digestOf(form, ctl) !== EXPECT) return { changed: true };
     if (covered()) return { covered: true };

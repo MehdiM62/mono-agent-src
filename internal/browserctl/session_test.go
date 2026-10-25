@@ -280,29 +280,29 @@ func TestResubmitClicksWithTrustedMouseEventsAndReadsTheReaction(t *testing.T) {
 	// right before the press, press and release, then the reads of how the
 	// page took it, all in the same world.
 	calls := f.Calls()
-	last := calls[len(calls)-11:]
+	last := calls[len(calls)-12:]
 	method := func(c extension.Command) string { m, _ := c.Params["method"].(string); return m }
 	expr := func(c extension.Command) (string, any) {
 		p, _ := c.Params["params"].(map[string]interface{})
 		e, _ := p["expression"].(string)
 		return e, p["contextId"]
 	}
-	trig, trigCtx := expr(last[4])
-	recheck, recheckCtx := expr(last[6])
-	peek, peekCtx := expr(last[9])
-	collect, collectCtx := expr(last[10])
+	trig, trigCtx := expr(last[5])
+	recheck, recheckCtx := expr(last[7])
+	peek, peekCtx := expr(last[10])
+	collect, collectCtx := expr(last[11])
 	if last[0].Type != extension.CmdSubmitGuard || last[0].Params["action"] != extension.SubmitGuardArm ||
 		last[1].Type != extension.CmdSubmitGuard || last[1].Params["action"] != extension.SubmitGuardAllowOnce || last[1].Params["frameId"] != 0 ||
-		method(last[2]) != "Page.getFrameTree" || method(last[3]) != "Page.createIsolatedWorld" ||
-		method(last[4]) != "Runtime.evaluate" || trigCtx != 7 ||
+		last[2].Type != extension.CmdPageInfo || method(last[3]) != "Page.getFrameTree" || method(last[4]) != "Page.createIsolatedWorld" ||
+		method(last[5]) != "Runtime.evaluate" || trigCtx != 7 ||
 		!strings.HasPrefix(trig, "/*mono:trigger*/") || !strings.Contains(trig, it.FormDigest) ||
-		method(last[6]) != "Runtime.evaluate" || recheckCtx != 7 || !strings.HasPrefix(recheck, "/*mono:recheck*/") ||
-		method(last[9]) != "Runtime.evaluate" || peekCtx != 7 || !strings.HasPrefix(peek, "/*mono:peek*/") ||
-		method(last[10]) != "Runtime.evaluate" || collectCtx != 7 || !strings.HasPrefix(collect, "/*mono:collect*/") {
+		method(last[7]) != "Runtime.evaluate" || recheckCtx != 7 || !strings.HasPrefix(recheck, "/*mono:recheck*/") ||
+		method(last[10]) != "Runtime.evaluate" || peekCtx != 7 || !strings.HasPrefix(peek, "/*mono:peek*/") ||
+		method(last[11]) != "Runtime.evaluate" || collectCtx != 7 || !strings.HasPrefix(collect, "/*mono:collect*/") {
 		t.Fatalf("calls = %+v", last)
 	}
 	var mouse []string
-	for _, i := range []int{5, 7, 8} {
+	for _, i := range []int{6, 8, 9} {
 		p, _ := last[i].Params["params"].(map[string]interface{})
 		if method(last[i]) != "Input.dispatchMouseEvent" || p["x"] != 120 || p["y"] != 48 {
 			t.Fatalf("call %d is not a mouse event at the control: %+v", i, last[i].Params)
@@ -390,6 +390,37 @@ func TestResubmitMisdirectedAndUnansweredClicksCloseTheGuard(t *testing.T) {
 	}
 	if got := guardActions(f); strings.Join(got, ",") != "arm,allow_once,arm" {
 		t.Fatalf("unanswered: guard actions = %v", got)
+	}
+}
+
+// A stray click elsewhere that was cancelled does not undo a click that
+// reached the control: the approval is used up, not handed back.
+func TestResubmitAStrayClickDoesNotHandTheApprovalBack(t *testing.T) {
+	fp := &browserctltest.FormPage{Selector: "#f", StrayAndFired: true, Fields: []browserctl.FormField{{Name: "q", Value: "hi"}}}
+	_, s, it := resubmitSetup(t, fp)
+	if err := s.Resubmit(it); err != nil {
+		t.Fatalf("a click that reached the control with a stray one beside it: %v", err)
+	}
+}
+
+// A result that cannot be read is a submit only when the tab's address
+// really changed; otherwise it is unknown, the guard is closed and the
+// error says so.
+func TestResubmitAnUnreadableResultNeedsTheTabToHaveMoved(t *testing.T) {
+	fp := &browserctltest.FormPage{Selector: "#f", ReadFails: "Cannot find context with specified id", Fields: []browserctl.FormField{{Name: "q", Value: "hi"}}}
+	f, s, it := resubmitSetup(t, fp)
+	err := s.Resubmit(it)
+	if err == nil || errors.Is(err, browserctl.ErrNotSent) || !strings.Contains(err.Error(), "check the page") {
+		t.Fatalf("an unreadable result on a page that did not move: %v", err)
+	}
+	if got := guardActions(f); strings.Join(got, ",") != "arm,allow_once,disarm,arm" {
+		t.Fatalf("guard actions = %v", got)
+	}
+	fp = &browserctltest.FormPage{Selector: "#f", ReadFails: "Cannot find context with specified id", Fields: []browserctl.FormField{{Name: "q", Value: "hi"}}}
+	f, s, it = resubmitSetup(t, fp)
+	fp.OnRead = func() { f.SetURL(s.TabID(), "https://example.com/sent") }
+	if err := s.Resubmit(it); err != nil {
+		t.Fatalf("a page that moved on after the click: %v", err)
 	}
 }
 

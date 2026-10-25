@@ -196,7 +196,7 @@ func (g *extGuard) Submit(ctx context.Context, b blockedSubmit, hilID string) er
 	}
 	var idle *browserctl.NoReactionError
 	if errors.As(err, &idle) {
-		err = nil // the click went out; the run's own "nothing changed" check watches the page
+		err = nil // the click went out; the loop's "three actions in a row changed nothing" stop (node.go) watches the page
 	}
 	if err != nil {
 		_, _ = g.page.SubmitGuard(extension.SubmitGuardArm) // drop an unused allow_once

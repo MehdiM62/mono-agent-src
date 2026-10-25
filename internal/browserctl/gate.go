@@ -321,6 +321,7 @@ func resubmit(p *extension.ExtensionPage, f FormSummary, frameID int, expect str
 		_, _ = p.SubmitGuard(extension.SubmitGuardDisarm)
 		_, _ = p.SubmitGuard(extension.SubmitGuardArm)
 	}
+	before, _ := p.GetURL()
 	ctxID, err := newIsolatedWorld(p)
 	if err != nil {
 		reclose()
@@ -380,6 +381,28 @@ func resubmit(p *extension.ExtensionPage, f FormSummary, frameID int, expect str
 		reclose()
 		return err
 	}
+	var done struct {
+		Fired       bool `json:"fired"`
+		Blocked     bool `json:"blocked"`
+		Misdirected bool `json:"misdirected"`
+		Changed     bool `json:"changed"`
+		Gone        bool `json:"gone"`
+	}
+	readWatch := func(js string) error {
+		fin, err := evalIn(p, ctxID, js)
+		if err != nil {
+			return err
+		}
+		raw, _ = json.Marshal(fin)
+		done.Fired, done.Blocked, done.Misdirected, done.Changed, done.Gone = false, false, false, false, false
+		if err := json.Unmarshal(raw, &done); err != nil {
+			return err
+		}
+		if done.Gone {
+			return errors.New("the click watch is gone: its page context was destroyed")
+		}
+		return nil
+	}
 	if err := mouse("mouseMoved"); err != nil {
 		return abort(fmt.Errorf("%w: moving to the submit control: %v", ErrNotSent, err))
 	}
@@ -406,6 +429,13 @@ func resubmit(p *extension.ExtensionPage, f FormSummary, frameID int, expect str
 	}
 	if err := mouse("mousePressed"); err != nil {
 		_ = mouse("mouseReleased") // never leave the button held down
+		// A press that failed on the way back may still have been
+		// delivered: if the click reached the control, the approval is used.
+		if peekErr := readWatch(peekJS); peekErr == nil && done.Fired {
+			endWatch()
+			reclose()
+			return fmt.Errorf("the mouse press reported an error (%v), but the click reached the submit control; check the page before trying again", err)
+		}
 		return abort(fmt.Errorf("%w: clicking the submit control: %v", ErrNotSent, err))
 	}
 	if err := mouse("mouseReleased"); err != nil {
@@ -415,44 +445,34 @@ func resubmit(p *extension.ExtensionPage, f FormSummary, frameID int, expect str
 			return fmt.Errorf("pressed the submit control but could not release the mouse button: %v", err)
 		}
 	}
-	var done struct {
-		Fired       bool `json:"fired"`
-		Blocked     bool `json:"blocked"`
-		Misdirected bool `json:"misdirected"`
-		Changed     bool `json:"changed"`
-	}
-	read := func(js string) error {
-		fin, err := evalIn(p, ctxID, js)
-		if err != nil {
-			return err
-		}
-		raw, _ = json.Marshal(fin)
-		done.Fired, done.Blocked, done.Misdirected, done.Changed = false, false, false, false
-		return json.Unmarshal(raw, &done)
-	}
 	// Give the page a moment to answer; stop waiting at the first sign.
 	var readErr error
 	for waited := time.Duration(0); ; waited += reactionPoll {
-		if readErr = read(peekJS); readErr != nil || done.Changed || done.Blocked || done.Misdirected || waited >= reactionWait {
+		if readErr = readWatch(peekJS); readErr != nil || done.Changed || done.Blocked || done.Misdirected || waited >= reactionWait {
 			break
 		}
 		time.Sleep(reactionPoll)
 	}
 	if readErr != nil {
-		if pageGone(readErr) {
-			return nil // the click took the page somewhere else: the usual sign of a submit
+		// A page that moved on is the usual sign of a submit that worked,
+		// but only if the tab's address really changed: any other failure
+		// to read is "unknown".
+		if now, uerr := p.GetURL(); pageGone(readErr) && uerr == nil && now != before {
+			return nil
 		}
 		reclose()
 		return fmt.Errorf("clicked the submit control, but could not read how the page took it (%v); check the page before trying again", readErr)
 	}
 	endWatch()
+	// Fired first: a stray click elsewhere that was cancelled does not
+	// undo a click that reached the control.
 	switch {
-	case done.Misdirected:
-		reclose()
-		return fmt.Errorf("%w: the click landed on another element and was stopped", ErrNotSent)
 	case done.Blocked:
 		reclose()
 		return &SubmitChangedError{What: "what the form would send"}
+	case !done.Fired && done.Misdirected:
+		reclose()
+		return fmt.Errorf("%w: the click landed on another element and was stopped", ErrNotSent)
 	case !done.Fired:
 		reclose()
 		return fmt.Errorf("%w: the click did not reach the submit control", ErrNotSent)

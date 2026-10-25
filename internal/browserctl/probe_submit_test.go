@@ -17,7 +17,10 @@ import (
 // record what they did.
 const probeDOM = `
 const clicks = [], submits = [], listeners = [], trusted = [];
-let hit = null;
+let hit = null, cancelledAt = "";
+const timers = [];
+const setTimeout = (fn, ms) => { timers.push({ fn, ms }); return timers.length; };
+const clearTimeout = (id) => { if (timers[id - 1]) timers[id - 1].cleared = true; };
 const window = {
   addEventListener(type, fn, capture) { listeners.push([type, fn, capture]); },
   removeEventListener(type, fn) { const i = listeners.findIndex((l) => l[0] === type && l[1] === fn); if (i >= 0) listeners.splice(i, 1); },
@@ -27,10 +30,11 @@ const window = {
 // listeners; the click counts only if nothing cancelled it.
 const trustedClick = (el, isTrusted = true) => {
   let cancelled = false;
+  cancelledAt = "";
   for (const type of ["pointerdown", "mousedown", "pointerup", "mouseup", "click"]) {
     const e = { type, target: el, isTrusted, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; }, stopImmediatePropagation() { this.stopped = true; } };
     for (const l of listeners.slice()) { if (l[0] === type && !e.stopped) l[1](e); }
-    if (e.defaultPrevented) cancelled = true;
+    if (e.defaultPrevented) { cancelled = true; if (!cancelledAt) cancelledAt = type; }
   }
   if (!cancelled) trusted.push(el.id || el.tagName);
 };
@@ -379,6 +383,11 @@ func TestTriggerReadiesATrustedClickAndChecksTheDigestInTheClickEvents(t *testin
 	if fin.Fired || !fin.Blocked || vm.Get("trusted").String() != "SPAN" {
 		t.Fatalf("a changed form must stop the click: %+v, trusted %v", fin, vm.Get("trusted"))
 	}
+	// ... at the first event of the press, so a page that submits on
+	// pointerdown or mousedown is stopped there, not at the click.
+	if got := vm.Get("cancelledAt").String(); got != "pointerdown" {
+		t.Fatalf("the changed form was stopped at %q, want pointerdown", got)
+	}
 	js(`form.querySelectorAll("input")[1].value = "hunter3";`)
 	// The recheck sees a form that changed after the move.
 	arm("")
@@ -415,6 +424,16 @@ func TestTriggerReadiesATrustedClickAndChecksTheDigestInTheClickEvents(t *testin
 	run(t, vm, collectJS, &fin)
 	if !fin.Misdirected || fin.Fired || vm.Get("trusted").String() != "SPAN" {
 		t.Fatalf("a misdirected click: %+v, trusted %v", fin, vm.Get("trusted"))
+	}
+	// The watch ends by itself: after its time, or when the page is left.
+	arm(h.Digest)
+	js(`timers.filter((t) => !t.cleared).forEach((t) => t.fn());`)
+	if n := vm.Get("listeners").Export().([]any); len(n) != 0 {
+		t.Fatalf("listeners left after the watch timed out: %d", len(n))
+	}
+	js(`trustedClick(bySel["#menu"]);`)
+	if got := vm.Get("trusted").String(); got != "SPAN,menu" {
+		t.Fatalf("a click elsewhere after the watch ended must go through: %q", got)
 	}
 	// A script-made (untrusted) event is not the click the trigger waits for.
 	arm("")
