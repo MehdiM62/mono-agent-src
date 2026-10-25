@@ -22,11 +22,17 @@ const window = {
   addEventListener(type, fn, capture) { listeners.push([type, fn, capture]); },
   removeEventListener(type, fn) { const i = listeners.findIndex((l) => l[0] === type && l[1] === fn); if (i >= 0) listeners.splice(i, 1); },
 };
-// trustedClick is what the browser does for a real mouse click on el.
+// trustedClick is what the browser does for a real mouse click on el: the
+// pointer and mouse events, then the click, each through the capture
+// listeners; the click counts only if nothing cancelled it.
 const trustedClick = (el, isTrusted = true) => {
-  const e = { type: "click", target: el, isTrusted, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; }, stopImmediatePropagation() { this.stopped = true; } };
-  for (const l of listeners.slice()) { if (l[0] === "click" && !e.stopped) l[1](e); }
-  if (!e.defaultPrevented) trusted.push(el.id || el.tagName);
+  let cancelled = false;
+  for (const type of ["pointerdown", "mousedown", "pointerup", "mouseup", "click"]) {
+    const e = { type, target: el, isTrusted, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; }, stopImmediatePropagation() { this.stopped = true; } };
+    for (const l of listeners.slice()) { if (l[0] === type && !e.stopped) l[1](e); }
+    if (e.defaultPrevented) cancelled = true;
+  }
+  if (!cancelled) trusted.push(el.id || el.tagName);
 };
 const FIELD_TAGS = ["INPUT", "BUTTON", "SELECT", "TEXTAREA"];
 class El {
@@ -312,9 +318,9 @@ func TestHeldDigestOfAControlOutsideAForm(t *testing.T) {
 }
 
 // The trigger checks the digest and readies a trusted click: it never calls
-// the control's synthetic click() (a page's handlers can ignore that), and a
-// click event that arrives after the form changed is stopped.
-func TestTriggerReadiesATrustedClickAndChecksTheDigestInTheClickEvent(t *testing.T) {
+// the control's synthetic click(), and the digest is checked again in the
+// events of the click itself.
+func TestTriggerReadiesATrustedClickAndChecksTheDigestInTheClickEvents(t *testing.T) {
 	vm := page(t, "")
 	var h held
 	run(t, vm, pageScript(holdJS, "#login", "#send", ""), &h)
@@ -328,71 +334,121 @@ func TestTriggerReadiesATrustedClickAndChecksTheDigestInTheClickEvent(t *testing
 		Covered  bool   `json:"covered"`
 		Missing  string `json:"missing"`
 	}
+	type watch struct{ Fired, Blocked, Misdirected, Changed bool }
 	var out answer
-	run(t, vm, pageScript(triggerJS, "#login", "#send", h.Digest), &out)
-	if !out.OK || !out.Click || out.X != 60 || out.Y != 40 {
-		t.Fatalf("trigger: %+v", out)
+	var fin watch
+	arm := func(expect string) {
+		t.Helper()
+		out = answer{}
+		run(t, vm, pageScript(triggerJS, "#login", "#send", expect), &out)
+		if !out.OK || !out.Click || out.X != 60 || out.Y != 40 {
+			t.Fatalf("trigger: %+v", out)
+		}
 	}
+	js := func(src string) {
+		t.Helper()
+		if _, err := vm.RunString(src); err != nil {
+			t.Fatal(err)
+		}
+	}
+	arm(h.Digest)
 	if got := vm.Get("clicks").String(); got != "" {
 		t.Fatalf("the trigger called the control's synthetic click(): %q", got)
 	}
-	// A real click that reaches the control goes through and is reported.
-	if _, err := vm.RunString(`trustedClick(bySel["#send span"]);`); err != nil {
-		t.Fatal(err)
+	// A real click that reaches the control goes through and is reported;
+	// the page's change is read against the baseline taken at the recheck.
+	var again struct{ OK, Changed, Covered bool }
+	again.OK, again.Changed, again.Covered = false, false, false
+	run(t, vm, recheckJS, &again)
+	if !again.OK {
+		t.Fatalf("recheck: %+v", again)
 	}
-	var fin struct{ Fired, Blocked, Changed bool }
+	js(`trustedClick(bySel["#send span"]);`)
 	run(t, vm, collectJS, &fin)
-	if !fin.Fired || fin.Blocked || fin.Changed || vm.Get("trusted").String() != "SPAN" {
+	if !fin.Fired || fin.Blocked || fin.Misdirected || fin.Changed || vm.Get("trusted").String() != "SPAN" {
 		t.Fatalf("collect after an unchanged page: %+v, trusted %v", fin, vm.Get("trusted"))
 	}
-	// The form changing between the trigger and the click stops that click.
-	run(t, vm, pageScript(triggerJS, "#login", "#send", h.Digest), &out)
-	if _, err := vm.RunString(`form.querySelectorAll("input")[1].value = "changed"; trustedClick(bySel["#send"]);`); err != nil {
-		t.Fatal(err)
+	if n := vm.Get("listeners").Export().([]any); len(n) != 0 {
+		t.Fatalf("listeners left behind: %d", len(n))
 	}
+	// The form changing between the trigger and the click stops it at the
+	// first event, a mousedown submit included.
+	arm(h.Digest)
+	js(`form.querySelectorAll("input")[1].value = "changed"; trustedClick(bySel["#send"]);`)
 	run(t, vm, collectJS, &fin)
 	if fin.Fired || !fin.Blocked || vm.Get("trusted").String() != "SPAN" {
 		t.Fatalf("a changed form must stop the click: %+v, trusted %v", fin, vm.Get("trusted"))
 	}
-	// A script-made (untrusted) click event is not the click the trigger waits for.
-	run(t, vm, pageScript(triggerJS, "#login", "#send", ""), &out)
-	if _, err := vm.RunString(`trustedClick(bySel["#send"], false);`); err != nil {
-		t.Fatal(err)
+	js(`form.querySelectorAll("input")[1].value = "hunter3";`)
+	// The recheck sees a form that changed after the move.
+	arm("")
+	again.OK, again.Changed, again.Covered = false, false, false
+	run(t, vm, recheckJS, &again)
+	if !again.OK {
+		t.Fatalf("recheck without a digest: %+v", again)
+	}
+	out = answer{}
+	js(`form.querySelectorAll("input")[1].value = "hunter2";`)
+	run(t, vm, collectJS, &fin)
+	arm(h.Digest)
+	js(`form.querySelectorAll("input")[1].value = "changed after the move";`)
+	again.OK, again.Changed, again.Covered = false, false, false
+	run(t, vm, recheckJS, &again)
+	if again.OK || !again.Changed {
+		t.Fatalf("recheck after a change: %+v", again)
 	}
 	run(t, vm, collectJS, &fin)
-	if fin.Fired {
+	js(`form.querySelectorAll("input")[1].value = "hunter2";`)
+	// Something covering the control by then.
+	arm(h.Digest)
+	js(`hit = bySel["#menu"];`)
+	again.OK, again.Changed, again.Covered = false, false, false
+	run(t, vm, recheckJS, &again)
+	if again.OK || !again.Covered {
+		t.Fatalf("recheck of a covered control: %+v", again)
+	}
+	run(t, vm, collectJS, &fin)
+	js(`hit = bySel["#send"];`)
+	// A click that lands on another element is cancelled, not let through.
+	arm(h.Digest)
+	js(`trustedClick(bySel["#menu"]);`)
+	run(t, vm, collectJS, &fin)
+	if !fin.Misdirected || fin.Fired || vm.Get("trusted").String() != "SPAN" {
+		t.Fatalf("a misdirected click: %+v, trusted %v", fin, vm.Get("trusted"))
+	}
+	// A script-made (untrusted) event is not the click the trigger waits for.
+	arm("")
+	js(`trustedClick(bySel["#send"], false);`)
+	run(t, vm, collectJS, &fin)
+	if fin.Fired || fin.Misdirected {
 		t.Fatalf("an untrusted click counted: %+v", fin)
 	}
 	// The page reacting is reported as a change.
-	run(t, vm, pageScript(triggerJS, "#login", "#send", ""), &out)
-	if _, err := vm.RunString(`trustedClick(bySel["#send"]); location.href = "https://example.com/done";`); err != nil {
-		t.Fatal(err)
-	}
-	run(t, vm, collectJS, &fin)
+	arm("")
+	again.OK, again.Changed, again.Covered = false, false, false
+	run(t, vm, recheckJS, &again)
+	js(`trustedClick(bySel["#send"]); location.href = "https://example.com/done";`)
+	run(t, vm, peekJS, &fin)
 	if !fin.Fired || !fin.Changed {
 		t.Fatalf("a page that moved on must read as changed: %+v", fin)
 	}
+	run(t, vm, collectJS, &fin)
+	js(`location.href = "https://example.com/compose/new";`)
 	// Changed before the click is even sent, a disabled control, a covered
 	// control and a missing one never ready a click.
+	js(`form.querySelectorAll("input")[1].value = "changed again";`)
 	out = answer{}
-	if _, err := vm.RunString(`form.querySelectorAll("input")[1].value = "changed again";`); err != nil {
-		t.Fatal(err)
-	}
 	run(t, vm, pageScript(triggerJS, "#login", "#send", h.Digest), &out)
 	if out.OK || !out.Changed {
 		t.Fatalf("trigger after a change: %+v", out)
 	}
-	if _, err := vm.RunString(`bySel["#send"].disabled = true;`); err != nil {
-		t.Fatal(err)
-	}
+	js(`bySel["#send"].disabled = true;`)
 	out = answer{}
 	run(t, vm, pageScript(triggerJS, "#login", "#send", ""), &out)
 	if out.OK || !out.Disabled {
 		t.Fatalf("a disabled control: %+v", out)
 	}
-	if _, err := vm.RunString(`bySel["#send"].disabled = false; hit = bySel["#menu"];`); err != nil {
-		t.Fatal(err)
-	}
+	js(`bySel["#send"].disabled = false; hit = bySel["#menu"];`)
 	out = answer{}
 	run(t, vm, pageScript(triggerJS, "#login", "#send", ""), &out)
 	if out.OK || !out.Covered {

@@ -203,25 +203,34 @@ const holdJS = `/*mono:hold*/(() => {` + formLibJS + `
 })()`
 
 // reactionLibJS fingerprints what a click could change on the page: its
-// address, its text and the value of every field. Only compared for equality.
+// address, its text and the value or checked state of every field. Only
+// compared for equality.
 const reactionLibJS = `
   const fpOf = () => {
     let h = 5381;
     const add = (s) => { for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; };
     add(location.href);
     add(document.body ? document.body.innerText : "");
-    for (const e of document.querySelectorAll("input,textarea,[contenteditable]")) add(typeof e.value === "string" ? e.value : (e.textContent || ""));
+    for (const e of document.querySelectorAll("input,textarea,select,[contenteditable]")) {
+      add(typeof e.value === "string" ? e.value : (e.textContent || ""));
+      add(e.checked ? "1" : "0");
+    }
     return h;
   };`
 
 // triggerJS prepares a held submit only if what it would send still has the
 // digest __MONO_EXPECT__ ("" checks nothing). A form with no submit control
-// is requestSubmit()ed here. For a control it scrolls the control into view,
-// checks nothing covers it, and answers where to click: the click itself is a
-// trusted mouse event the caller sends (a page's handlers can ignore a
-// script's el.click()). A one-shot capture listener on window checks the
-// digest again in the click event itself, and stops that click if the form
-// changed: the check and the click are one event, not two round trips.
+// is requestSubmit()ed here. For a control it scrolls the control into view
+// (at once, never animated), checks nothing covers it, and answers where to
+// click: the click itself is a trusted mouse event the caller sends (a page's
+// handlers can ignore a script's el.click()).
+//
+// Capture listeners on window watch that mouse sequence. A trusted event for
+// any other element is cancelled (the click is misdirected, nothing it does
+// may count as the approved submit). A trusted pointer, mouse or click event
+// on the control is cancelled when the digest differs, so the check is made
+// in the very events that act, not only before them. verify() repeats the
+// digest and the hit test on demand.
 const triggerJS = `/*mono:trigger*/(() => {` + formLibJS + reactionLibJS + `
   const EXPECT = __MONO_EXPECT__;
   const form = __MONO_FORM__ ? document.querySelector(__MONO_FORM__) : null;
@@ -231,33 +240,60 @@ const triggerJS = `/*mono:trigger*/(() => {` + formLibJS + reactionLibJS + `
   const ctl = ctlOf(el);
   if (EXPECT && digestOf(form, ctl) !== EXPECT) return { changed: true };
   if (!el) { form.requestSubmit(); return { ok: true }; }
-  if (ctl.disabled || ctl.getAttribute("aria-disabled") === "true") return { disabled: true };
-  ctl.scrollIntoView({ block: "center", inline: "center" });
+  if (ctl.disabled || (ctl.matches && ctl.matches(":disabled")) || ctl.getAttribute("aria-disabled") === "true") return { disabled: true };
+  ctl.scrollIntoView({ block: "center", inline: "center", behavior: "instant" });
   const r = ctl.getBoundingClientRect();
   const x = Math.round(r.left + r.width / 2), y = Math.round(r.top + r.height / 2);
-  const top = document.elementFromPoint(x, y);
-  if (!top || !(ctl === top || ctl.contains(top))) return { covered: true };
-  const state = { fired: false, blocked: false };
+  const covered = () => { const top = document.elementFromPoint(x, y); return !top || !(ctl === top || ctl.contains(top)); };
+  if (covered()) return { covered: true };
+  const state = { fired: false, blocked: false, misdirected: false };
+  const types = ["pointerdown", "mousedown", "pointerup", "mouseup", "click"];
+  const stop = (e) => { e.preventDefault(); e.stopImmediatePropagation(); };
+  const drop = () => { for (const t of types) window.removeEventListener(t, on, true); };
   const on = (e) => {
-    if (!e.isTrusted || !(ctl === e.target || ctl.contains(e.target))) return;
-    window.removeEventListener("click", on, true);
-    if (EXPECT && digestOf(form, ctl) !== EXPECT) { state.blocked = true; e.preventDefault(); e.stopImmediatePropagation(); return; }
-    state.fired = true;
+    if (!e.isTrusted) return;
+    if (!(ctl === e.target || ctl.contains(e.target))) { state.misdirected = true; stop(e); return; }
+    if (EXPECT && digestOf(form, ctl) !== EXPECT) { state.blocked = true; stop(e); return; }
+    if (e.type === "click") { state.fired = true; drop(); }
   };
-  window.addEventListener("click", on, true);
-  window.__monoTrigger = { state, on, fingerprint: fpOf() };
+  for (const t of types) window.addEventListener(t, on, true);
+  const verify = () => {
+    if (EXPECT && digestOf(form, ctl) !== EXPECT) return { changed: true };
+    if (covered()) return { covered: true };
+    return { ok: true };
+  };
+  window.__monoTrigger = { state, drop, verify, fingerprint: fpOf() };
   return { ok: true, click: true, x, y };
 })()`
 
-// collectJS reads how the trusted click went, in the world triggerJS ran in,
-// and removes its listener: whether the click reached the control, whether
-// the digest check stopped it, and whether the page changed.
+// recheckJS runs right before the mouse is pressed, in the world triggerJS
+// ran in: the digest and the hit test once more (the move may have opened a
+// menu or shifted the page), and the baseline the page's reaction is read
+// against.
+const recheckJS = `/*mono:recheck*/(() => {` + reactionLibJS + `
+  const t = window.__monoTrigger;
+  if (!t) return { gone: true };
+  const v = t.verify();
+  if (v.ok) t.fingerprint = fpOf();
+  return v;
+})()`
+
+// peekJS reads how the click is going without ending the watch: whether it
+// reached the control, whether a check stopped it or it landed elsewhere, and
+// whether the page changed.
+const peekJS = `/*mono:peek*/(() => {` + reactionLibJS + `
+  const t = window.__monoTrigger;
+  if (!t) return { gone: true };
+  return { fired: t.state.fired, blocked: t.state.blocked, misdirected: t.state.misdirected, changed: fpOf() !== t.fingerprint };
+})()`
+
+// collectJS ends the watch (removes the listeners) and reads the same.
 const collectJS = `/*mono:collect*/(() => {` + reactionLibJS + `
   const t = window.__monoTrigger;
   if (!t) return { gone: true };
-  window.removeEventListener("click", t.on, true);
+  t.drop();
   delete window.__monoTrigger;
-  return { fired: t.state.fired, blocked: t.state.blocked, changed: fpOf() !== t.fingerprint };
+  return { fired: t.state.fired, blocked: t.state.blocked, misdirected: t.state.misdirected, changed: fpOf() !== t.fingerprint };
 })()`
 
 // pageScript fills a script's __MONO_FORM__, __MONO_SUB__ and

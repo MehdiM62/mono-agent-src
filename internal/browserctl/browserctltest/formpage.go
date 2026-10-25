@@ -32,8 +32,11 @@ type FormPage struct {
 	// sits over it.
 	Disabled, Covered bool
 	// Blocks: the form changes between the trigger and the click, so the
-	// page's click check stops the click.
-	Blocks bool
+	// page's click check stops the click. Misdirects: the click lands on
+	// another element. Drifts: the form changed by the time of the check
+	// right before the press. MovesAway: something covers the control by
+	// then.
+	Blocks, Misdirects, Drifts, MovesAway bool
 }
 
 // Set changes one field's value.
@@ -94,8 +97,19 @@ func (fp *FormPage) Handler() Handler {
 				fp.Triggered++
 				res = map[string]any{"ok": true, "click": true, "x": 120, "y": 48}
 			}
-		case strings.HasPrefix(expr, "/*mono:collect*/"):
-			res = map[string]any{"fired": !fp.Blocks, "blocked": fp.Blocks, "changed": !fp.NoReaction}
+		case strings.HasPrefix(expr, "/*mono:recheck*/"):
+			switch {
+			case fp.Drifts:
+				res = map[string]any{"changed": true}
+			case fp.MovesAway:
+				res = map[string]any{"covered": true}
+			default:
+				res = map[string]any{"ok": true}
+			}
+		case strings.HasPrefix(expr, "/*mono:peek*/"), strings.HasPrefix(expr, "/*mono:collect*/"):
+			res = map[string]any{
+				"fired": !fp.Blocks && !fp.Misdirects, "blocked": fp.Blocks, "misdirected": fp.Misdirects, "changed": !fp.NoReaction,
+			}
 		}
 		return map[string]any{"result": res}, nil
 	}

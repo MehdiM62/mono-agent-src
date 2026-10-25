@@ -276,27 +276,36 @@ func TestResubmitClicksWithTrustedMouseEventsAndReadsTheReaction(t *testing.T) {
 	if err := s.Resubmit(it); err != nil || fp.Triggered != 1 {
 		t.Fatalf("resubmit: %v (%d submits)", err, fp.Triggered)
 	}
-	// arm, allow_once, the trigger in an isolated world, the mouse, then
-	// the read in the same world.
+	// arm, allow_once, the trigger in an isolated world, a move, the check
+	// right before the press, press and release, then the reads of how the
+	// page took it, all in the same world.
 	calls := f.Calls()
-	last := calls[len(calls)-9:]
-	eval, _ := last[4].Params["params"].(map[string]interface{})
-	expr, _ := eval["expression"].(string)
-	read, _ := last[8].Params["params"].(map[string]interface{})
-	readExpr, _ := read["expression"].(string)
+	last := calls[len(calls)-11:]
+	method := func(c extension.Command) string { m, _ := c.Params["method"].(string); return m }
+	expr := func(c extension.Command) (string, any) {
+		p, _ := c.Params["params"].(map[string]interface{})
+		e, _ := p["expression"].(string)
+		return e, p["contextId"]
+	}
+	trig, trigCtx := expr(last[4])
+	recheck, recheckCtx := expr(last[6])
+	peek, peekCtx := expr(last[9])
+	collect, collectCtx := expr(last[10])
 	if last[0].Type != extension.CmdSubmitGuard || last[0].Params["action"] != extension.SubmitGuardArm ||
 		last[1].Type != extension.CmdSubmitGuard || last[1].Params["action"] != extension.SubmitGuardAllowOnce || last[1].Params["frameId"] != 0 ||
-		last[2].Params["method"] != "Page.getFrameTree" || last[3].Params["method"] != "Page.createIsolatedWorld" ||
-		last[4].Params["method"] != "Runtime.evaluate" || eval["contextId"] != 7 ||
-		!strings.HasPrefix(expr, "/*mono:trigger*/") || !strings.Contains(expr, it.FormDigest) ||
-		last[8].Params["method"] != "Runtime.evaluate" || read["contextId"] != 7 || !strings.HasPrefix(readExpr, "/*mono:collect*/") {
+		method(last[2]) != "Page.getFrameTree" || method(last[3]) != "Page.createIsolatedWorld" ||
+		method(last[4]) != "Runtime.evaluate" || trigCtx != 7 ||
+		!strings.HasPrefix(trig, "/*mono:trigger*/") || !strings.Contains(trig, it.FormDigest) ||
+		method(last[6]) != "Runtime.evaluate" || recheckCtx != 7 || !strings.HasPrefix(recheck, "/*mono:recheck*/") ||
+		method(last[9]) != "Runtime.evaluate" || peekCtx != 7 || !strings.HasPrefix(peek, "/*mono:peek*/") ||
+		method(last[10]) != "Runtime.evaluate" || collectCtx != 7 || !strings.HasPrefix(collect, "/*mono:collect*/") {
 		t.Fatalf("calls = %+v", last)
 	}
 	var mouse []string
-	for i, c := range last[5:8] {
-		p, _ := c.Params["params"].(map[string]interface{})
-		if c.Params["method"] != "Input.dispatchMouseEvent" || p["x"] != 120 || p["y"] != 48 {
-			t.Fatalf("call %d is not a mouse event at the control: %+v", i, c.Params)
+	for _, i := range []int{5, 7, 8} {
+		p, _ := last[i].Params["params"].(map[string]interface{})
+		if method(last[i]) != "Input.dispatchMouseEvent" || p["x"] != 120 || p["y"] != 48 {
+			t.Fatalf("call %d is not a mouse event at the control: %+v", i, last[i].Params)
 		}
 		mouse = append(mouse, p["type"].(string))
 	}
@@ -333,6 +342,54 @@ func TestResubmitStopsAClickWhoseFormChangedBeforeIt(t *testing.T) {
 	}
 	if got := guardActions(f); strings.Join(got, ",") != "arm,allow_once,disarm,arm" {
 		t.Fatalf("guard actions = %v", got)
+	}
+}
+
+// The check right before the press stops a click when the form changed or
+// something moved over the control after the mouse moved there: the button is
+// never pressed, the watch is taken down and the guard closed again.
+func TestResubmitChecksAgainBeforePressing(t *testing.T) {
+	for name, fp := range map[string]*browserctltest.FormPage{
+		"form changed":  {Selector: "#f", Drifts: true, Fields: []browserctl.FormField{{Name: "q", Value: "hi"}}},
+		"control moved": {Selector: "#f", MovesAway: true, Fields: []browserctl.FormField{{Name: "q", Value: "hi"}}},
+	} {
+		f, s, it := resubmitSetup(t, fp)
+		err := s.Resubmit(it)
+		var changed *browserctl.SubmitChangedError
+		if !errors.Is(err, browserctl.ErrNotSent) && !errors.As(err, &changed) {
+			t.Fatalf("%s: %v", name, err)
+		}
+		for _, c := range f.Calls() {
+			if p, _ := c.Params["params"].(map[string]interface{}); p["type"] == "mousePressed" {
+				t.Fatalf("%s: the button was pressed", name)
+			}
+		}
+		if got := guardActions(f); strings.Join(got, ",") != "arm,allow_once,disarm,arm" {
+			t.Fatalf("%s: guard actions = %v", name, got)
+		}
+	}
+}
+
+// A click that landed on another element is cancelled in the page and the
+// approval goes back; a click the page did not answer re-arms the guard so
+// an unused allowance does not stay open.
+func TestResubmitMisdirectedAndUnansweredClicksCloseTheGuard(t *testing.T) {
+	fp := &browserctltest.FormPage{Selector: "#f", Misdirects: true, Fields: []browserctl.FormField{{Name: "q", Value: "hi"}}}
+	f, s, it := resubmitSetup(t, fp)
+	if err := s.Resubmit(it); !errors.Is(err, browserctl.ErrNotSent) {
+		t.Fatalf("a misdirected click: %v", err)
+	}
+	if got := guardActions(f); strings.Join(got, ",") != "arm,allow_once,disarm,arm" {
+		t.Fatalf("misdirected: guard actions = %v", got)
+	}
+	fp = &browserctltest.FormPage{Selector: "#f", NoReaction: true, Fields: []browserctl.FormField{{Name: "q", Value: "hi"}}}
+	f, s, it = resubmitSetup(t, fp)
+	var idle *browserctl.NoReactionError
+	if err := s.Resubmit(it); !errors.As(err, &idle) {
+		t.Fatalf("an unanswered click: %v", err)
+	}
+	if got := guardActions(f); strings.Join(got, ",") != "arm,allow_once,arm" {
+		t.Fatalf("unanswered: guard actions = %v", got)
 	}
 }
 
