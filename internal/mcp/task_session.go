@@ -21,26 +21,35 @@ import (
 // boundSessionEnv names the session an agent's process is bound to.
 const boundSessionEnv = "MONOAGENT_TASK_SESSION"
 
-// boundSession reads boundSessionEnv: 0 when it is not set or not a session number.
-func boundSession() int64 {
-	n, err := strconv.ParseInt(strings.TrimPrefix(strings.TrimSpace(os.Getenv(boundSessionEnv)), "#"), 10, 64)
-	if err != nil || n <= 0 {
+// taskBindingNumber reads a process binding. An invalid nonempty value is a
+// binding to no existing row (-1), never an unbound process (0).
+func taskBindingNumber(raw string) int64 {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
 		return 0
 	}
+	n, err := strconv.ParseInt(strings.TrimPrefix(raw, "#"), 10, 64)
+	if err != nil || n <= 0 {
+		return -1
+	}
 	return n
+}
+
+// boundSession reads boundSessionEnv. A task without its session is a damaged
+// binding (-1), not an unbound Personal-board caller.
+func boundSession() int64 {
+	session := taskBindingNumber(os.Getenv(boundSessionEnv))
+	if session == 0 && boundTask() != 0 {
+		return -1
+	}
+	return session
 }
 
 // boundTaskEnv narrows boundSessionEnv to one task (a mission worker's).
 const boundTaskEnv = "MONOAGENT_TASK_ID"
 
-// boundTask reads boundTaskEnv: 0 when it is not set or not a task number.
-func boundTask() int64 {
-	n, err := strconv.ParseInt(strings.TrimPrefix(strings.TrimSpace(os.Getenv(boundTaskEnv)), "#"), 10, 64)
-	if err != nil || n <= 0 {
-		return 0
-	}
-	return n
-}
+// boundTask reads boundTaskEnv: 0 only when no binding was supplied.
+func boundTask() int64 { return taskBindingNumber(os.Getenv(boundTaskEnv)) }
 
 // boundRoleEnv narrows the task binding to a verifier's ("verifier"): verify, comment and attach
 // evidence to the one task, nothing else.

@@ -184,6 +184,16 @@ func (d Deps) callerFor(as string) Caller {
 		envBlank = env != "" && name == ""
 	}
 	marker := d.agentContextMarker()
+	// A task binding is itself an agent marker, including a damaged binding:
+	// losing the usual runtime marker must not turn a worker into the operator.
+	if marker == "" {
+		for _, key := range []string{boundSessionEnv, boundTaskEnv} {
+			if strings.TrimSpace(d.Getenv(key)) != "" {
+				marker = key
+				break
+			}
+		}
+	}
 	if name != "" || marker != "" || blank || envBlank {
 		return Caller{d: d, actor: tasks.Actor{Kind: tasks.Agent, Name: name, Session: d.boundSession(), Task: d.boundTask(), Verifier: d.boundVerifier()}, marker: marker, asBlank: blank && name == "", envBlank: envBlank}
 	}

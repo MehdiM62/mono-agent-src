@@ -92,6 +92,14 @@ func (c *Conductor) verifyPrepare(ctx context.Context, req SpawnRequest, parent 
 	if t.SessionID == 0 {
 		return nil, req, fmt.Errorf("task #%d is on the personal board, not in a mission", t.ID)
 	}
+	// org_spawn also accepts task_id, so enforce the conversation binding here,
+	// below every tool route, before a task can be claimed or a worker started.
+	if c.cfg.Mission != nil {
+		if _, err := c.sessionOf(ctx, mc, t.SessionID); err != nil {
+			return nil, req, err
+		}
+	}
+
 	d, err := mc.Store.SessionTask(ctx, mc.ProfileID, t.SessionID, t.ID, missionActor())
 	if err != nil {
 		return nil, req, err

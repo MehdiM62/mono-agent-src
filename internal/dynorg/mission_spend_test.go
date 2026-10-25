@@ -2,11 +2,13 @@ package dynorg
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 	"testing"
 
 	"github.com/monoes/mono-agent/internal/monomind"
 	"github.com/monoes/mono-agent/internal/tasks"
+	"github.com/monoes/mono-agent/internal/testdb"
 )
 
 func usageCost(usd float64) monomind.Event {
@@ -83,4 +85,56 @@ func TestMissionTickWarnsAtNinetyPercentWhileAWorkerRuns(t *testing.T) {
 		t.Fatal(err)
 	}
 	eventually(t, "the warning from the tick", func() bool { return countNotices(r.em, "mission.budget_90") == 1 })
+}
+
+// A failed persistence attempt must remain uncharged in memory so the next
+// report can retry it. Concurrent reports must not charge that retry twice.
+func TestMissionSpendRetriesFailedPersistenceWithoutDoubleCharging(t *testing.T) {
+	db := testdb.Open(t).DB
+	store := tasks.NewStore(db)
+	se, err := store.CreateSession(tbg, "default", tasks.SessionInput{Title: "spend retry", BudgetUSD: 10}, operator)
+	if err != nil {
+		t.Fatal(err)
+	}
+	task, err := store.AddSessionTask(tbg, "default", se.ID, tasks.SessionTaskInput{Title: "work", Kind: tasks.KindTask, Acceptance: "rubric: work is complete"}, operator)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.ApproveSession(tbg, "default", se.ID, operator); err != nil {
+		t.Fatal(err)
+	}
+	mc := &MissionRun{Store: store, ProfileID: "default", Session: se.ID}
+	c := New(tbg, Config{Missions: mc})
+	t.Cleanup(c.Close)
+	w := &worker{id: "w1", cost: 0.5, task: &missionBind{session: se.ID, task: task}}
+	if _, err := db.Exec(`CREATE TRIGGER fail_session_spend BEFORE UPDATE OF spent_usd ON task_sessions BEGIN SELECT RAISE(ABORT, 'transient persistence failure'); END`); err != nil {
+		t.Fatal(err)
+	}
+	if c.recordSpend(tbg, mc, w) {
+		t.Fatal("failed write was reported as charged")
+	}
+	if w.task.spent != 0 {
+		t.Fatalf("failed write advanced charged amount to %v", w.task.spent)
+	}
+	if _, err := db.Exec(`DROP TRIGGER fail_session_spend`); err != nil {
+		t.Fatal(err)
+	}
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() { defer wg.Done(); c.recordSpend(tbg, mc, w) }()
+	}
+	wg.Wait()
+	got, err := store.GetSession(tbg, "default", se.ID, operator)
+	if err != nil || !spendNear(got.SpentUSD, 0.5) || !spendNear(w.task.spent, 0.5) {
+		t.Fatalf("retry must charge once: session %+v, charged %v, error %v", got, w.task.spent, err)
+	}
+	w.cost = 0.8
+	if !c.recordSpend(tbg, mc, w) {
+		t.Fatal("later incremental charge missing")
+	}
+	got, err = store.GetSession(tbg, "default", se.ID, operator)
+	if err != nil || !spendNear(got.SpentUSD, 0.8) {
+		t.Fatalf("incremental charge: %+v %v", got, err)
+	}
 }

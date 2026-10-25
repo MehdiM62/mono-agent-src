@@ -31,8 +31,15 @@ func boundNumber(raw string) int64 {
 	return n
 }
 
-// boundSession reads boundSessionEnv: 0 when it is not set.
-func (d Deps) boundSession() int64 { return boundNumber(d.Getenv(boundSessionEnv)) }
+// boundSession reads boundSessionEnv. A task without its session is a damaged
+// binding (-1), not an unbound Personal-board caller.
+func (d Deps) boundSession() int64 {
+	session := boundNumber(d.Getenv(boundSessionEnv))
+	if session == 0 && d.boundTask() != 0 {
+		return -1
+	}
+	return session
+}
 
 // boundTaskEnv narrows boundSessionEnv to one task: what a mission worker's process holds.
 const boundTaskEnv = "MONOAGENT_TASK_ID"

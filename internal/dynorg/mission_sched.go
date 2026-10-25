@@ -102,8 +102,12 @@ type missionBind struct {
 	executor string
 	verifier bool // the worker verifies the task in Review; it holds no claim
 
+	// spendMu serializes durable charges from streaming, watcher and finish
+	// callbacks. spent advances only after the corresponding write commits.
+	spendMu sync.Mutex
+	spent   float64
+
 	// guarded by missionState.mu
-	spent        float64   // worker cost already added to the session
 	stopped      string    // why the mission ended the run ("" = it was not)
 	timedOut     bool      // the run was cut at TaskTimeout (VerifierTimeout for a verifier)
 	workingSince time.Time // when the watcher first saw it working

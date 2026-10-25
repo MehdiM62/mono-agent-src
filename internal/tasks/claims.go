@@ -463,6 +463,15 @@ func (s *Store) handBack(ctx context.Context, profileID string, session, id int6
 		if err := s.checkScope(ctx, x, profileID, id, session, actor); err != nil {
 			return err
 		}
+		if session != 0 && to == StatusReview {
+			se, err := s.sessionTx(ctx, x, profileID, session)
+			if err != nil {
+				return err
+			}
+			if err := writableBy(se, actor, "finish a task"); err != nil {
+				return err
+			}
+		}
 		cur, err := s.heldBy(ctx, x, profileID, id, actor)
 		if err != nil {
 			return err

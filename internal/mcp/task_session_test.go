@@ -195,6 +195,7 @@ func TestTaskSessionBoundServerActsOnlyInItsSession(t *testing.T) {
 	setup := newTaskFixture(t, taskSetup{})
 	a, ta := setup.sessionWith(true, false, "in a")
 	b, tb := setup.sessionWith(true, false, "in b")
+	personal := setup.add("default", "personal", true)
 	t.Setenv("MONOAGENT_TASK_SESSION", strconv.FormatInt(a.ID, 10))
 	f := &taskFixture{t: t, Server: setup.server(taskSetup{}, "bound"), DBPath: setup.DBPath, Side: setup.Side, Store: setup.Store}
 	for _, c := range []struct {
@@ -209,6 +210,7 @@ func TestTaskSessionBoundServerActsOnlyInItsSession(t *testing.T) {
 		{"task_add", map[string]any{"title": "x", "session": b.ID, "acceptance": "y"}},
 		{"task_claim", map[string]any{"next": true}},
 		{"task_add", map[string]any{"title": "personal"}},
+		{"task_get", map[string]any{"id": personal.ID}},
 		{"task_list", map[string]any{}},
 	} {
 		if _, err := f.call(c.name, c.args); err == nil {
@@ -223,5 +225,92 @@ func TestTaskSessionBoundServerActsOnlyInItsSession(t *testing.T) {
 	}
 	if tk, _, _ := setup.Store.Get(opCtx, "default", tb[0].ID); tk.Claim != nil || tk.Status != tasks.StatusReady {
 		t.Fatalf("the other session's task moved: %+v", tk)
+	}
+}
+
+// A damaged worker binding must not become an unrestricted server. The CLI
+// uses the same -1 sentinel for invalid, nonempty environment labels.
+func TestMalformedTaskBindingsStayBound(t *testing.T) {
+	for _, raw := range []string{"garbled", "0", "-2", "1x", "9223372036854775808"} {
+		t.Run(raw, func(t *testing.T) {
+			t.Setenv(boundSessionEnv, raw)
+			t.Setenv(boundTaskEnv, raw)
+			if boundSession() != -1 || boundTask() != -1 {
+				t.Fatalf("invalid bindings became unbound: session=%d task=%d", boundSession(), boundTask())
+			}
+			t.Setenv(boundRoleEnv, "verifier")
+			if !boundVerifier() {
+				t.Fatal("damaged task binding removed verifier restrictions")
+			}
+		})
+	}
+	for raw, want := range map[string]int64{"": 0, "  ": 0, "5": 5, " #5 ": 5} {
+		if got := taskBindingNumber(raw); got != want {
+			t.Fatalf("%q: got %d, want %d", raw, got, want)
+		}
+	}
+}
+
+func TestMalformedTaskBindingRefusesPickingAndAdding(t *testing.T) {
+	setup := newTaskFixture(t, taskSetup{})
+	se, ts := setup.sessionWith(true, false, "untouched")
+	t.Setenv(boundSessionEnv, strconv.FormatInt(se.ID, 10))
+	t.Setenv(boundTaskEnv, "garbled")
+	f := &taskFixture{t: t, Server: setup.server(taskSetup{}, "damaged-task"), DBPath: setup.DBPath, Side: setup.Side, Store: setup.Store}
+	for _, c := range []struct {
+		name string
+		args map[string]any
+	}{
+		{"task_claim", map[string]any{"next": true, "session": se.ID}},
+		{"task_claim", map[string]any{"id": ts[0].ID}},
+		{"task_add", map[string]any{"title": "extra", "session": se.ID, "acceptance": "done"}},
+	} {
+		if _, err := f.call(c.name, c.args); err == nil {
+			t.Errorf("%s with damaged task binding was allowed", c.name)
+		}
+	}
+	if tk, _, _ := setup.Store.Get(opCtx, "default", ts[0].ID); tk.Claim != nil || tk.Status != tasks.StatusReady {
+		t.Fatalf("task changed: %+v", tk)
+	}
+	t.Setenv(boundTaskEnv, "")
+	t.Setenv(boundSessionEnv, "garbled")
+	if _, err := f.call("task_claim", map[string]any{"id": ts[0].ID}); err == nil {
+		t.Fatal("damaged session binding permitted claim")
+	}
+	if _, err := f.call("task_session_get", map[string]any{"id": se.ID}); err == nil {
+		t.Fatal("damaged session binding permitted reading a session")
+	}
+}
+
+func TestTaskBoundServerWithoutSessionFailsClosed(t *testing.T) {
+	f := newTaskFixture(t, taskSetup{})
+	personal := f.add("default", "personal", true)
+	t.Setenv(boundSessionEnv, "")
+	for _, raw := range []string{strconv.FormatInt(personal.ID, 10), "garbled", "-1"} {
+		t.Setenv(boundTaskEnv, raw)
+		if boundSession() != -1 {
+			t.Fatalf("task binding %q without session became unbound", raw)
+		}
+		for _, c := range []struct {
+			name string
+			args map[string]any
+		}{
+			{"task_get", map[string]any{"id": personal.ID}},
+			{"task_list", map[string]any{}},
+			{"task_next", map[string]any{}},
+			{"task_claim", map[string]any{"id": personal.ID}},
+			{"task_add", map[string]any{"title": "forbidden"}},
+		} {
+			if _, err := f.call(c.name, c.args); err == nil {
+				t.Errorf("task binding %q without session allowed %s", raw, c.name)
+			}
+		}
+	}
+	t.Setenv(boundTaskEnv, "")
+	if _, err := f.call("task_get", map[string]any{"id": personal.ID}); err != nil {
+		t.Fatalf("unbound get: %v", err)
+	}
+	if _, err := f.call("task_list", map[string]any{}); err != nil {
+		t.Fatalf("unbound list: %v", err)
 	}
 }

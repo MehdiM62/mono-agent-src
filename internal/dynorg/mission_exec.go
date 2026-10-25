@@ -63,6 +63,14 @@ func (c *Conductor) missionPrepare(ctx context.Context, req SpawnRequest, parent
 	if t.SessionID == 0 {
 		return nil, req, fmt.Errorf("task #%d is on the personal board, not in a mission", t.ID)
 	}
+	// org_spawn also accepts task_id, so enforce the conversation binding here,
+	// below every tool route, before a task can be claimed or a worker started.
+	if c.cfg.Mission != nil {
+		if _, err := c.sessionOf(ctx, mc, t.SessionID); err != nil {
+			return nil, req, err
+		}
+	}
+
 	own, err := mc.Store.SessionTask(ctx, mc.ProfileID, t.SessionID, t.ID, missionActor())
 	if err != nil {
 		return nil, req, err
@@ -365,23 +373,26 @@ func (c *Conductor) chargeSession(w *worker) {
 // whether it added anything. Only this process records spend: a worker could otherwise hide
 // its cost.
 func (c *Conductor) recordSpend(ctx context.Context, mc *MissionRun, w *worker) bool {
+	// Hold only this worker's accounting lock across persistence. Advancing
+	// spent before the write commits would lose a failed charge permanently;
+	// dropping the lock around the write would double-charge concurrent reports.
+	w.task.spendMu.Lock()
 	c.mu.Lock()
 	cost := w.cost + w.liveCost
 	c.mu.Unlock()
-	c.msched.mu.Lock()
 	delta := cost - w.task.spent
-	if delta > 0 {
-		w.task.spent = cost
-	}
-	c.msched.mu.Unlock()
 	if delta <= 0 {
+		w.task.spendMu.Unlock()
 		return false
 	}
 	note := fmt.Sprintf("%s on task #%d", w.id, w.task.task.ID)
 	if _, err := mc.Store.AddSessionSpend(ctx, mc.ProfileID, w.task.session, delta, note, operatorActor()); err != nil {
+		w.task.spendMu.Unlock()
 		c.notice("mission.spend", fmt.Sprintf("The cost of %s ($%.4f) could not be added to the session: %v", w.id, delta, err), chatevents.SeverityWarning)
 		return false
 	}
+	w.task.spent = cost
+	w.task.spendMu.Unlock()
 	return true
 }
 

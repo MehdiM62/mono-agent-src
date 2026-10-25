@@ -304,6 +304,7 @@ func TestSessionBoundAgentEnvironment(t *testing.T) {
 	var d sessionDoc
 	mustTaskJSON(t, db, "default", &d, "", "session", "approve", id(one))
 	mustTaskJSON(t, db, "default", &d, "", "session", "approve", id(two))
+	personal := opsAdd(t, db, "personal")
 	setenv(t, "MONOAGENT_TASK_SESSION", id(one))
 	// bound to session one: it works there, and nowhere else
 	var got sessionTaskDoc
@@ -319,6 +320,7 @@ func TestSessionBoundAgentEnvironment(t *testing.T) {
 		{"add", "x", "--as", "w"},
 		{"session", "stop", id(two), "--as", "w"},
 		{"session", "show", id(two), "--as", "w"},
+		{"show", id(personal), "--as", "w"},
 		{"show", id(t2), "--as", "w"},
 	} {
 		if _, _, err := runTask(t, db, "default", true, "", args...); err == nil {
