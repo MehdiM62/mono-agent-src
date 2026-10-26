@@ -76,7 +76,7 @@ func DefaultSettings() Settings {
 		MaxConcurrent:   2,
 		MaxDepth:        2,
 		MeshVisible:     true,
-		MeshAccept:      "project",
+		MeshAccept:      "subtree", // not "project": that trusts any local process that claims the project
 	}
 }
 

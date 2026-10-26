@@ -38,6 +38,14 @@ type Host struct {
 	Poll  time.Duration
 	Logf  func(format string, args ...any)
 
+	// Mesh, when set, keeps the sessions visible on monomind's mesh and hands waiting
+	// messages to the next turn (see Mesh). MeshEvery is how often it is brought up
+	// to date (default 15 s); a session idle for MeshIdle (default 6 h) leaves.
+	Mesh      Mesh
+	MeshEvery time.Duration
+	MeshIdle  time.Duration
+	meshPrev  map[meshKey]MeshSession // what the mesh was last told, kept for a session whose records do not read
+
 	mu   sync.Mutex // serializes session changes between the loop and the turn watchers
 	live map[string]Turn
 	wg   sync.WaitGroup
@@ -147,9 +155,23 @@ func (h *Host) Tick() error {
 				h.end(c, CmdFailed, "could not record the session: "+err.Error())
 				return err
 			}
-			h.mu.Unlock() // admission can take seconds; do not hold up the turn watchers meanwhile
-			t, err := h.L.Start(c.ProfileID, c.ConversationID, c.TurnID, c.Message, c.Attachments)
-			h.mu.Lock()
+			message, commit := c.Message, func() {}
+			if h.Mesh != nil {
+				if ms, ok := h.meshSessionFor(c.ProfileID, c.ConversationID); ok {
+					block, done := h.Mesh.Inbox(ms)
+					switch {
+					case block == "":
+						done() // what was looked at was all out of scope: consume it, or it hides what comes after
+					case len(block)+2+len(message) <= MaxMessageBytes:
+						// Peer content goes ahead of the person's message, sealed as data, but never
+						// at the cost of the message: a block that would not fit stays unread.
+						message, commit = block+"\n\n"+message, done
+					}
+				}
+			}
+			t, err := h.unlocked(func() (Turn, error) { // admission can take seconds; do not hold up the turn watchers meanwhile
+				return h.L.Start(c.ProfileID, c.ConversationID, c.TurnID, message, c.Attachments)
+			})
 			if err != nil {
 				h.settle(x)
 				h.end(c, CmdFailed, err.Error())
@@ -161,6 +183,7 @@ func (h *Host) Tick() error {
 				h.end(c, CmdFailed, "could not record the session: "+err.Error())
 				return err
 			}
+			_, _ = h.unlocked(func() (Turn, error) { commit(); return nil, nil }) // the turn has the messages and is recorded: mark them read, without holding up the watchers
 			h.live[k] = t
 			h.watch(x, t)
 			h.end(c, CmdDone, "")
@@ -220,6 +243,14 @@ func (h *Host) Run(ctx context.Context) error {
 	if poll <= 0 {
 		poll = 500 * time.Millisecond
 	}
+	if h.Mesh != nil {
+		meshDone := make(chan struct{})
+		go func() {
+			defer close(meshDone)
+			h.meshLoop(ctx)
+		}()
+		defer func() { <-meshDone; h.Mesh.Close() }()
+	}
 	tk := time.NewTicker(poll)
 	defer tk.Stop()
 	for {
@@ -236,3 +267,120 @@ func (h *Host) Run(ctx context.Context) error {
 
 // Wait blocks until every turn watcher has finished (tests).
 func (h *Host) Wait() { h.wg.Wait() }
+
+// meshLoop brings the mesh up to date now and every MeshEvery until ctx ends.
+func (h *Host) meshLoop(ctx context.Context) {
+	every := h.MeshEvery
+	if every <= 0 {
+		every = 15 * time.Second
+	}
+	for {
+		h.meshSync(ctx)
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(every):
+		}
+	}
+}
+
+// meshSync tells the mesh which sessions to show: those whose settings make them
+// visible and that are not stopped, are doing something, or were touched within
+// MeshIdle. What it says about a session is generic (its state and access level),
+// never anything from its prompts.
+func (h *Host) meshSync(ctx context.Context) {
+	idle := h.MeshIdle
+	if idle <= 0 {
+		idle = 6 * time.Hour
+	}
+	sessions, err := h.Store.ListSessions("")
+	if err != nil {
+		h.logf("coder host: mesh: %v", err)
+		return
+	}
+	children := map[string][]string{}
+	for _, x := range sessions {
+		if x.Parent != "" {
+			children[x.Parent] = append(children[x.Parent], x.ConversationID)
+		}
+	}
+	var want []MeshSession
+	next := map[meshKey]MeshSession{}
+	for _, x := range sessions {
+		active := x.State == StateRunning || x.State == StateWaitingUser || x.State == StatePaused
+		if x.State == StateStopped {
+			continue
+		}
+		if t, err := time.Parse(timeLayout, x.UpdatedAt); !active && (err != nil || h.Store.now().Sub(t) > idle) {
+			continue
+		}
+		key := meshKey{x.ProfileID, x.ConversationID}
+		settings, err := h.Store.GetSettings(x.ProfileID, x.ConversationID)
+		if err != nil {
+			// A settings row that does not read must not freeze the others, and must not make
+			// this session leave and come back under a new address: it stays as it was.
+			h.logf("coder host: mesh: %s: %v", x.ConversationID, err)
+			if prev, ok := h.meshPrev[key]; ok {
+				want, next[key] = append(want, prev), prev
+			}
+			continue
+		}
+		if !settings.MeshVisible {
+			continue
+		}
+		cwd, _, ok, err := h.Store.ConversationInfo(x.ProfileID, x.ConversationID)
+		if err != nil {
+			if prev, ok := h.meshPrev[key]; ok {
+				want, next[key] = append(want, prev), prev
+			}
+			continue
+		}
+		if !ok || cwd == "" {
+			continue
+		}
+		started, _ := time.Parse(timeLayout, x.CreatedAt)
+		related := append([]string{}, children[x.ConversationID]...)
+		if x.Parent != "" {
+			related = append(related, x.Parent)
+		}
+		ms := MeshSession{
+			ProfileID: x.ProfileID, ConversationID: x.ConversationID, Cwd: cwd, Started: started.Local(),
+			Task: string(x.State), Alias: settings.MeshAlias, // nothing about its work, its folder's path or its access level
+			Accept: settings.MeshAccept, Related: related,
+		}
+		next[key] = ms
+		want = append(want, ms)
+	}
+	h.meshPrev = next
+	h.Mesh.Sync(ctx, want)
+}
+
+// meshSessionFor is the mesh's view of one session as it is right now, for reading
+// its inbox with the scope it has now and not the one of the last pass.
+func (h *Host) meshSessionFor(profileID, conversationID string) (MeshSession, bool) {
+	settings, err := h.Store.GetSettings(profileID, conversationID)
+	if err != nil || !settings.MeshVisible || settings.MeshAccept == "none" {
+		return MeshSession{}, false
+	}
+	related := []string{}
+	if sessions, err := h.Store.ListSessions(profileID); err == nil {
+		for _, x := range sessions {
+			switch {
+			case x.Parent == conversationID && x.State != StateStopped:
+				related = append(related, x.ConversationID)
+			case x.ConversationID == conversationID && x.Parent != "":
+				if p, ok, err := h.Store.GetSession(profileID, x.Parent); err == nil && ok && p.State != StateStopped {
+					related = append(related, x.Parent)
+				}
+			}
+		}
+	}
+	return MeshSession{ProfileID: profileID, ConversationID: conversationID, Accept: settings.MeshAccept, Related: related}, true
+}
+
+// unlocked runs f without h.mu (which the caller holds) and takes it back, also if f panics.
+func (h *Host) unlocked(f func() (Turn, error)) (Turn, error) {
+	h.mu.Unlock()
+	defer h.mu.Lock()
+	return f()
+}

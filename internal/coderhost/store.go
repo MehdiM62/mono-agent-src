@@ -289,3 +289,27 @@ func (s *Store) ListSessions(profileID string) ([]Session, error) {
 	}
 	return out, rows.Err()
 }
+
+// ConversationInfo is a conversation's folder and access level as the coder
+// conversation row has them. ok is false when there is no such conversation. An
+// access the row does not carry is read from its mode: a coder conversation
+// without one is the full level.
+func (s *Store) ConversationInfo(profileID, conversationID string) (cwd, access string, ok bool, err error) {
+	var mode string
+	e := s.db.QueryRow(`SELECT cwd, access, mode FROM ai_chat_conversations WHERE id = ? AND profile_id = ?`, conversationID, profileID).Scan(&cwd, &access, &mode)
+	if errors.Is(e, sql.ErrNoRows) {
+		return "", "", false, nil
+	}
+	if e != nil {
+		return "", "", false, e
+	}
+	switch access {
+	case "scoped", "coding", "workspace", "full":
+	default:
+		access = "scoped"
+		if mode == "coder" {
+			access = "full"
+		}
+	}
+	return cwd, access, true, nil
+}

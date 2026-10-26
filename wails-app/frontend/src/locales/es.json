@@ -1289,7 +1289,7 @@
         "meshAccept": "Acepta mensajes de",
         "accept": {
           "none": "Nadie",
-          "project": "Este proyecto",
+          "project": "Este proyecto (cualquier proceso local que lo declare)",
           "subtree": "Su principal y sus hijas"
         },
         "loadFailed": "No se pudieron leer los ajustes de la sesión.",
