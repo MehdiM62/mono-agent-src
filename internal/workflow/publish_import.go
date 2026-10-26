@@ -119,15 +119,23 @@ func (h *HybridWorkflowStore) importLocked(ctx context.Context, tx *sql.Tx, id s
 	default:
 		return res, "", err
 	}
+	if wf.Version < 0 || wf.Version > 1_000_000 {
+		wf.Version = 0 // a file cannot push the version counter out of range
+	}
 	res.Workflow = wf
+	if rows != nil && wf.ProfileID != rows.ProfileID {
+		// The owner of a workflow is not the file's to change: its runs use the owner's vault.
+		return res, "the file names a different profile than the workflow's owner", nil
+	}
 	if rows != nil {
 		rowsDef, err := definitionHash(rows)
 		if err != nil {
 			return res, "", err
 		}
 		if rowsDef == fileDef {
-			// Same definition; the active flag is not part of it, so follow the file's.
-			if rows.IsActive != wf.IsActive {
+			// Same definition; the active flag is not part of it. A file may switch a workflow
+			// off, never on: starting it is an operator's act.
+			if rows.IsActive && !wf.IsActive {
 				if _, err := tx.ExecContext(ctx, `UPDATE workflows SET is_active = ?, updated_at = ? WHERE id = ?`,
 					boolToInt(wf.IsActive), time.Now().UTC(), id); err != nil {
 					return res, "", err
@@ -142,6 +150,9 @@ func (h *HybridWorkflowStore) importLocked(ctx context.Context, tx *sql.Tx, id s
 	note := ImportNote
 	if rows == nil {
 		note = ""
+		wf.IsActive = false // a workflow that appears from a file starts inactive
+	} else {
+		wf.IsActive = wf.IsActive && rows.IsActive
 	}
 	if _, err := writeDefinitionRows(ctx, tx, wf, true, wf.Version, note); err != nil {
 		return res, "", err

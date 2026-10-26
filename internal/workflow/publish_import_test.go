@@ -214,26 +214,69 @@ func TestImportDoesNotLetARestoredDefinitionRunAsApproved(t *testing.T) {
 	}
 }
 
-// An edit that only flips the active flag reaches the rows too, and is not skipped afterwards.
-func TestImportFollowsAnActivationOnlyEdit(t *testing.T) {
+// A file may switch a workflow off but never on: an activation-only edit is ignored, a
+// deactivation-only edit reaches the rows, and neither touches approvals.
+func TestImportOnlyHonoursAFileSwitchingAWorkflowOff(t *testing.T) {
 	ctx := context.Background()
 	h, s, _, _ := guardedRig(t)
 	handEdit(t, h, "wf-g", func(w *Workflow) { w.IsActive = true })
 	if _, err := h.ImportFile(ctx, "wf-g", nil); err != nil {
 		t.Fatal(err)
 	}
-	rows, _ := s.GetWorkflow(ctx, "wf-g")
-	if !rows.IsActive {
-		t.Fatal("the rows still say inactive")
+	if rows, _ := s.GetWorkflow(ctx, "wf-g"); rows.IsActive {
+		t.Fatal("a file switched a workflow on")
+	}
+	if got, _ := h.GetWorkflow(ctx, "wf-g"); got.IsActive {
+		t.Fatal("a read served the file's active flag")
+	}
+	if err := h.SetWorkflowActive(ctx, "wf-g", true); err != nil {
+		t.Fatal(err)
+	}
+	handEdit(t, h, "wf-g", func(w *Workflow) { w.IsActive = false })
+	if _, err := h.ImportFile(ctx, "wf-g", nil); err != nil {
+		t.Fatal(err)
+	}
+	if rows, _ := s.GetWorkflow(ctx, "wf-g"); rows.IsActive {
+		t.Fatal("a file could not switch a workflow off")
 	}
 	if approvals(t, s, "wf-g") != 1 {
-		t.Fatal("an activation changed approvals")
+		t.Fatal("an activation change touched approvals")
 	}
-	file, _ := h.files.GetWorkflow(ctx, "wf-g")
-	fh, _ := ReviewHash(file)
-	rh, _ := ReviewHash(rows)
-	if fh != rh {
-		t.Fatal("file and rows have different review hashes")
+}
+
+// The owner of a workflow is not the file's to change: a file naming another profile is declined
+// and reads keep the rows' profile; a file that appears for a profile starts inactive.
+func TestImportKeepsTheOwnerProfileAndStartsNewFilesInactive(t *testing.T) {
+	ctx := context.Background()
+	h, s, _, _ := guardedRig(t)
+	if _, err := s.db.Exec(`INSERT INTO profiles (id, name) VALUES ('victim', 'Victim')`); err != nil {
+		t.Fatal(err)
+	}
+	handEdit(t, h, "wf-g", func(w *Workflow) { w.ProfileID = "victim" })
+	if res, err := h.ImportFile(ctx, "wf-g", nil); err != nil || res.Imported {
+		t.Fatalf("%+v %v", res, err)
+	}
+	got, err := h.GetWorkflow(ctx, "wf-g")
+	if err != nil || got.ProfileID != "default" {
+		t.Fatalf("a read served profile %q (%v)", got.ProfileID, err)
+	}
+	if rows, _ := s.GetWorkflow(ctx, "wf-g"); rows.ProfileID != "default" {
+		t.Fatalf("rows moved to %q", rows.ProfileID)
+	}
+	fresh := mirrorWF("wf-new-file", "nf-trig", "nf-set")
+	fresh.ProfileID, fresh.IsActive = "victim", true
+	if err := h.files.SaveWorkflow(ctx, fresh); err != nil {
+		t.Fatal(err)
+	}
+	res, err := h.ImportFile(ctx, "wf-new-file", nil)
+	if err != nil || !res.Created {
+		t.Fatalf("%+v %v", res, err)
+	}
+	if rows, _ := s.GetWorkflow(ctx, "wf-new-file"); rows.IsActive {
+		t.Fatal("a workflow created from a file started active")
+	}
+	if got, _ := h.GetWorkflow(ctx, "wf-new-file"); got.IsActive {
+		t.Fatal("a read served the file's active flag")
 	}
 }
 

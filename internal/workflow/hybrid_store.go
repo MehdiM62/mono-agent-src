@@ -581,5 +581,20 @@ func (h *HybridWorkflowStore) reconciledFile(ctx context.Context, id string) (*W
 			}
 		}
 	}
-	return parseWorkflowFile(raw)
+	wf, err := parseWorkflowFile(raw)
+	if err != nil || wf.ID != id {
+		return nil, err
+	}
+	// What the file cannot decide comes from the rows: whose workflow it is, whether it is on, and
+	// its version. (A workflow with no rows has none of these on record.)
+	var active int
+	var profile string
+	var version int
+	switch err := h.sql.db.QueryRowContext(ctx, `SELECT profile_id, is_active, version FROM workflows WHERE id = ?`, id).Scan(&profile, &active, &version); {
+	case err == nil:
+		wf.ProfileID, wf.IsActive, wf.Version = profile, active != 0, version
+	case !errors.Is(err, sql.ErrNoRows):
+		return nil, err
+	}
+	return wf, nil
 }
