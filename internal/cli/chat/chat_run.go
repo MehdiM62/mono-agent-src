@@ -29,10 +29,11 @@ import (
 func runChat(cfg *Deps, cmd *cobra.Command, args []string, f *chatFlags) (retErr error) {
 	runtime, model, effort, resume, canvasID, historyID, timeoutS, budget, tools, noHistory, promptStdin, conversationID, turnID, instanceID, mode, coderCwd, newWorkspace, coderRoot, profileFold, attach := f.runtime, f.model, f.effort, f.resume, f.canvasID, f.historyID, f.timeoutS, f.budget, f.tools, f.noHistory, f.promptStdin, f.conversationID, f.turnID, f.instanceID, f.mode, f.coderCwd, f.newWorkspace, f.coderRoot, f.profileFold, f.attach
 	// The coder host hands a turn the token of its mission confirmation in the
-	// environment, not in the arguments; it is taken out of the environment here, before
-	// anything this turn starts can inherit it. There is no flag that confirms a mission.
-	missionToken := os.Getenv(coderhost.MissionTokenEnv)
-	_ = os.Unsetenv(coderhost.MissionTokenEnv)
+	// environment, not in the arguments; the binary moves it out of the environment before
+	// it can start any process (coderhost.StashMissionToken, called first in main's run), and
+	// it is taken here (and cleared, should a caller not have stashed it) before anything this
+	// turn starts can inherit it. There is no flag that confirms a mission.
+	missionToken := coderhost.TakeMissionToken()
 	prompt := strings.Join(args, " ")
 	if promptStdin {
 		p, perr := readPromptStdin(cmd.InOrStdin())

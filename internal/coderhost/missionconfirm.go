@@ -5,12 +5,15 @@ import (
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/monoes/mono-agent/internal/secrets"
@@ -45,6 +48,35 @@ const MissionConfirmGrace = time.Minute
 // token in (see MissionConfirm.Token).
 const MissionTokenEnv = "MONOAGENT_MISSION_TOKEN"
 
+var (
+	stashMu      sync.Mutex
+	stashedToken string
+)
+
+// StashMissionToken moves the host's confirmation token out of the process
+// environment into memory. The binary calls it before anything else can start a
+// subprocess (the account guard, the update and tool probes), so no child of this
+// process inherits it; the chat command then takes it with TakeMissionToken.
+func StashMissionToken() {
+	stashMu.Lock()
+	defer stashMu.Unlock()
+	if v := os.Getenv(MissionTokenEnv); v != "" {
+		stashedToken = v
+	}
+	_ = os.Unsetenv(MissionTokenEnv)
+}
+
+// TakeMissionToken returns the stashed token (stashing it first if it is still in
+// the environment) and forgets it, so a token is handed out once.
+func TakeMissionToken() string {
+	StashMissionToken()
+	stashMu.Lock()
+	defer stashMu.Unlock()
+	t := stashedToken
+	stashedToken = ""
+	return t
+}
+
 const confirmPrefix = "coder-mission-confirm/"
 
 // wantsMissionMark is stored in the error column of a pending send the person
@@ -64,6 +96,7 @@ type MissionConfirm struct {
 	ConversationID string `json:"conversation"`
 	TurnID         string `json:"turn"`
 	Command        int64  `json:"command"`
+	CommandCreated string `json:"commandCreated"` // the command row's created_at, as stored: binds the record to that row, not to an id a later row could reuse
 	Session        int64  `json:"session"`
 	Nonce          string `json:"nonce"`
 	Expires        string `json:"expires"`
@@ -96,7 +129,7 @@ func (c MissionConfirm) name() string {
 // mac authenticates every field of the record but the MAC itself.
 func (c MissionConfirm) mac(key []byte) string {
 	m := hmac.New(sha256.New, key)
-	for _, f := range []string{c.ProfileID, c.ConversationID, c.TurnID, strconv.FormatInt(c.Command, 10), strconv.FormatInt(c.Session, 10), c.Nonce, c.Expires} {
+	for _, f := range []string{c.ProfileID, c.ConversationID, c.TurnID, strconv.FormatInt(c.Command, 10), strconv.FormatInt(c.Session, 10), c.Nonce, c.Expires, c.CommandCreated} {
 		fmt.Fprintf(m, "%d:%s;", len(f), f) // length-prefixed: no two field splits give the same input
 	}
 	return hex.EncodeToString(m.Sum(nil))
@@ -114,13 +147,9 @@ func (s *Store) Confirm(cmd Command, session int64) (MissionConfirm, error) {
 	if HostMade(cmd.TurnID) {
 		return MissionConfirm{}, errHostMade
 	}
-	got, ok, err := s.GetCommand(cmd.ID)
+	got, err := s.pendingMissionSend(cmd)
 	if err != nil {
 		return MissionConfirm{}, err
-	}
-	if !ok || got.Kind != KindSend || got.Status != CmdPending || !got.WantsMission || got.ProfileID != cmd.ProfileID ||
-		got.ConversationID != cmd.ConversationID || got.TurnID != cmd.TurnID || cmd.TurnID == "" {
-		return MissionConfirm{}, errors.New("coder host: a confirmation belongs to a pending send queued as a mission")
 	}
 	key, err := s.confirmKey(cmd.ProfileID)
 	if err != nil {
@@ -130,15 +159,44 @@ func (s *Store) Confirm(cmd Command, session int64) (MissionConfirm, error) {
 	if _, err := rand.Read(nonce); err != nil {
 		return MissionConfirm{}, err
 	}
-	c := MissionConfirm{ProfileID: cmd.ProfileID, ConversationID: cmd.ConversationID, TurnID: cmd.TurnID, Command: cmd.ID, Session: session,
+	c := MissionConfirm{ProfileID: cmd.ProfileID, ConversationID: cmd.ConversationID, TurnID: cmd.TurnID, Command: cmd.ID, Session: session, CommandCreated: got.CreatedAt,
 		Nonce: hex.EncodeToString(nonce), Expires: s.now().Add(MissionConfirmTTL).UTC().Format(timeLayout)}
 	c.Mac = c.mac(key)
 	b, _ := json.Marshal(c)
 	// Expired confirmations of any command are swept as a new one is written.
 	s.sweepConfirms()
-	_, err = s.db.Exec(`INSERT INTO configs (name, config_data, created_at, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-		ON CONFLICT(name) DO UPDATE SET config_data = excluded.config_data, updated_at = excluded.updated_at`, c.name(), string(b))
-	return c, err
+	confirmBeforeInsert()
+	if _, err = s.db.Exec(`INSERT INTO configs (name, config_data, created_at, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+		ON CONFLICT(name) DO UPDATE SET config_data = excluded.config_data, updated_at = excluded.updated_at`, c.name(), string(b)); err != nil {
+		return c, err
+	}
+	// A cancel that landed between the check above and the insert found no record to
+	// revoke. Check again now that the record exists: a command still pending here is
+	// ended only after the record is in place, and that end revokes it; one that is no
+	// longer pending left no one to revoke, so the record goes here.
+	if _, err := s.pendingMissionSend(cmd); err != nil {
+		s.dropConfirm(c.name())
+		return MissionConfirm{}, err
+	}
+	return c, nil
+}
+
+// confirmBeforeInsert runs between Confirm's check and its insert. A test sets
+// it to end the command in that window.
+var confirmBeforeInsert = func() {}
+
+// pendingMissionSend returns the stored command when it is this profile's
+// pending send, for this conversation and turn, marked as a mission.
+func (s *Store) pendingMissionSend(cmd Command) (Command, error) {
+	got, ok, err := s.GetCommand(cmd.ID)
+	if err != nil {
+		return Command{}, err
+	}
+	if !ok || got.Kind != KindSend || got.Status != CmdPending || !got.WantsMission || got.ProfileID != cmd.ProfileID ||
+		got.ConversationID != cmd.ConversationID || got.TurnID != cmd.TurnID || cmd.TurnID == "" {
+		return Command{}, errors.New("coder host: a confirmation belongs to a pending send queued as a mission")
+	}
+	return got, nil
 }
 
 func (c MissionConfirm) live(now time.Time) bool {
@@ -152,14 +210,32 @@ func (s *Store) sweepConfirms() {
 		return
 	}
 	var dead []string
+	type liveRec struct {
+		name string
+		cmd  int64
+	}
+	var live []liveRec
 	for rows.Next() {
 		var name, raw string
 		var c MissionConfirm
-		if rows.Scan(&name, &raw) == nil && (json.Unmarshal([]byte(raw), &c) != nil || !c.live(s.now())) {
+		if rows.Scan(&name, &raw) != nil {
+			continue
+		}
+		if json.Unmarshal([]byte(raw), &c) != nil || !c.live(s.now()) {
 			dead = append(dead, name)
+		} else {
+			live = append(live, liveRec{name, c.Command})
 		}
 	}
 	rows.Close()
+	// A record whose command is gone (deleted) or ended unstarted is dead too,
+	// whatever its expiry says.
+	for _, r := range live {
+		var status string
+		if e := s.db.QueryRow(`SELECT status FROM coder_session_commands WHERE id = ?`, r.cmd).Scan(&status); e == sql.ErrNoRows || (e == nil && status == CmdFailed) {
+			dead = append(dead, r.name)
+		}
+	}
 	for _, n := range dead {
 		s.dropConfirm(n)
 	}
@@ -190,6 +266,12 @@ func (s *Store) readConfirm(profileID, conversationID, turnID string, commandID 
 	}
 	key, err := s.confirmKey(profileID)
 	if err != nil || !hmac.Equal([]byte(c.mac(key)), []byte(c.Mac)) {
+		return MissionConfirm{}, "", false
+	}
+	// The record belongs to the command row it was written for: the same id on a
+	// row created at another time is a different command.
+	var created string
+	if s.db.QueryRow(`SELECT created_at FROM coder_session_commands WHERE id = ?`, commandID).Scan(&created) != nil || created != c.CommandCreated {
 		return MissionConfirm{}, "", false
 	}
 	return c, raw, true
