@@ -260,7 +260,7 @@ func (s *WorkflowFileStore) readRaw(id string) ([]byte, bool, error) {
 	if err != nil {
 		return nil, false, err
 	}
-	data, err := os.ReadFile(path)
+	data, err := readRegularFile(path)
 	if os.IsNotExist(err) {
 		return nil, false, nil
 	}
@@ -297,7 +297,7 @@ func (s *WorkflowFileStore) GetWorkflow(ctx context.Context, id string) (*Workfl
 	if err != nil {
 		return nil, err
 	}
-	data, err := os.ReadFile(path)
+	data, err := readRegularFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil
@@ -346,7 +346,7 @@ func (s *WorkflowFileStore) cachedWorkflow(e os.DirEntry) (*Workflow, error) {
 	if ok && c.size == info.Size() && c.modTime.Equal(info.ModTime()) {
 		return c.wf, nil
 	}
-	data, err := os.ReadFile(path)
+	data, err := readRegularFile(path)
 	if err != nil {
 		return nil, err
 	}

@@ -66,7 +66,7 @@ func (h *HybridWorkflowStore) FileDrift(ctx context.Context) (unreadable, pendin
 		if e.IsDir() || !ok || strings.HasSuffix(id, ".ai-backup") {
 			continue
 		}
-		raw, rerr := os.ReadFile(filepath.Join(h.files.dir, e.Name()))
+		raw, rerr := readRegularFile(filepath.Join(h.files.dir, e.Name()))
 		if rerr != nil {
 			continue
 		}

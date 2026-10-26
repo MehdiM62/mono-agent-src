@@ -41,6 +41,11 @@ func (h *HybridWorkflowStore) ImportFile(ctx context.Context, id string, accept 
 	if h.files == nil {
 		return none, nil
 	}
+	// Look at the file before the write lock is taken: only a plain, bounded file is worth the lock.
+	pre := regularFileInfo(h.files, id)
+	if pre == nil {
+		return none, nil
+	}
 	tx, err := h.sql.db.BeginTx(ctx, nil)
 	if err != nil {
 		return none, err
@@ -49,7 +54,7 @@ func (h *HybridWorkflowStore) ImportFile(ctx context.Context, id string, accept 
 	if err := lockPublication(ctx, tx, id); err != nil {
 		return none, err
 	}
-	res, _, err := h.importLocked(ctx, tx, id, accept, 0, false)
+	res, _, err := h.importLocked(ctx, tx, id, accept, 0, false, pre)
 	if err != nil {
 		return none, err
 	}
@@ -62,7 +67,7 @@ func (h *HybridWorkflowStore) ImportFile(ctx context.Context, id string, accept 
 // importLocked is ImportFile inside a transaction that already holds the write lock. An open change
 // other than skipIntent makes it do nothing; force imports even bytes already reconciled. declined
 // says why nothing was read from the file ("" when it was).
-func (h *HybridWorkflowStore) importLocked(ctx context.Context, tx *sql.Tx, id string, accept func(*Workflow) bool, skipIntent int64, force bool) (res ImportResult, declined string, err error) {
+func (h *HybridWorkflowStore) importLocked(ctx context.Context, tx *sql.Tx, id string, accept func(*Workflow) bool, skipIntent int64, force bool, pre os.FileInfo) (res ImportResult, declined string, err error) {
 	var open int
 	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM workflow_publications WHERE workflow_id = ? AND id != ?`, id, skipIntent).Scan(&open); err != nil {
 		if isNoTable(err) {
@@ -73,15 +78,15 @@ func (h *HybridWorkflowStore) importLocked(ctx context.Context, tx *sql.Tx, id s
 	if open > 0 {
 		return res, "a change is in progress", nil
 	}
-	before, err := statFile(h.files, id)
-	if err != nil || before == nil {
-		return res, "no file", nil
+	before := regularFileInfo(h.files, id)
+	if before == nil || (pre != nil && !os.SameFile(pre, before)) {
+		return res, "the file is not the plain file that was looked at", nil
 	}
 	raw, existed, err := h.files.readRaw(id)
 	if err != nil || !existed {
 		return res, "no file", nil
 	}
-	if after, err := statFile(h.files, id); err != nil || after == nil || !after.same(before) {
+	if after := regularFileInfo(h.files, id); after == nil || !os.SameFile(before, after) || after.Size() != before.Size() || !after.ModTime().Equal(before.ModTime()) {
 		return res, "the file changed while it was read", nil
 	}
 	sha := shaHex(append([]byte{}, raw...))
@@ -190,7 +195,7 @@ func (h *HybridWorkflowStore) ResolveUnresolved(ctx context.Context, id, keep st
 	}
 	switch keep {
 	case KeepFile:
-		res, declined, err := h.importLocked(ctx, tx, id, nil, intentID, true)
+		res, declined, err := h.importLocked(ctx, tx, id, nil, intentID, true, nil)
 		if err != nil {
 			return err
 		}
@@ -236,25 +241,18 @@ func (h *HybridWorkflowStore) recordFileState(ctx context.Context, tx *sql.Tx, i
 	return err
 }
 
-type importStamp struct {
-	size    int64
-	modTime time.Time
-}
-
-func (a *importStamp) same(b *importStamp) bool {
-	return a.size == b.size && a.modTime.Equal(b.modTime)
-}
-
-func statFile(s *WorkflowFileStore, id string) (*importStamp, error) {
+// regularFileInfo is the workflow file's info when it is a plain file (not a link, pipe or device)
+// within the size bound, else nil. It never opens the file.
+func regularFileInfo(s *WorkflowFileStore, id string) os.FileInfo {
 	path, err := s.filePath(id)
 	if err != nil {
-		return nil, err
+		return nil
 	}
-	info, err := os.Stat(path)
-	if err != nil {
-		return nil, err
+	info, err := os.Lstat(path)
+	if err != nil || !info.Mode().IsRegular() || info.Size() > maxWorkflowFileBytes {
+		return nil
 	}
-	return &importStamp{size: info.Size(), modTime: info.ModTime()}, nil
+	return info
 }
 
 // graphIDProblem says what is wrong with the node and connection ids of a workflow read from a
