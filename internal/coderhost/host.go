@@ -333,12 +333,19 @@ func (h *Host) Tick() error {
 	return nil
 }
 
+// endBetweenSteps runs between end's two steps; a test places a confirmation there.
+var endBetweenSteps = func() {}
+
 func (h *Host) end(c Command, status, errText string) {
-	if status == CmdFailed && c.Kind == KindSend {
-		h.Store.Revoke(c.ProfileID, c.ConversationID, c.TurnID, c.ID) // a send that did not start leaves no live confirmation
-	}
+	// The status moves first and the record is revoked after: a confirmation written
+	// while this runs either sees the command no longer pending and refuses, or is in
+	// place before the revoke.
 	if err := h.Store.SetCommand(c.ID, status, errText); err != nil {
 		h.logf("coder host: recording command %d: %v", c.ID, err)
+	}
+	endBetweenSteps()
+	if status == CmdFailed && c.Kind == KindSend {
+		h.Store.Revoke(c.ProfileID, c.ConversationID, c.TurnID, c.ID) // a send that did not start leaves no live confirmation
 	}
 }
 

@@ -340,6 +340,8 @@ func (s *Store) ConversationExists(profileID, conversationID string) (bool, erro
 // a command it had read just before the delete. It returns how many rows it removed.
 func (s *Store) SweepOrphans() (int, error) {
 	total := 0
+	// The records of the mission sends that go are revoked once they are gone.
+	defer s.revokeCommands(s.pendingMissionIDs(`NOT EXISTS (SELECT 1 FROM ai_chat_conversations c WHERE c.id = coder_session_commands.conversation_id AND c.profile_id = coder_session_commands.profile_id)`))
 	for _, q := range []string{
 		`DELETE FROM coder_session_commands WHERE status = 'pending' AND NOT EXISTS (SELECT 1 FROM ai_chat_conversations c WHERE c.id = coder_session_commands.conversation_id AND c.profile_id = coder_session_commands.profile_id)`,
 		`DELETE FROM coder_sessions WHERE NOT EXISTS (SELECT 1 FROM ai_chat_conversations c WHERE c.id = coder_sessions.conversation_id AND c.profile_id = coder_sessions.profile_id)`,
