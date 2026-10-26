@@ -186,13 +186,18 @@ func (h *HybridWorkflowStore) ResolveUnresolved(ctx context.Context, id, keep st
 	if err := lockPublication(ctx, tx, id); err != nil {
 		return err
 	}
-	var intentID int64
-	if err := tx.QueryRowContext(ctx, `SELECT id FROM workflow_publications WHERE workflow_id = ? AND state = 'unresolved'`, id).Scan(&intentID); err != nil {
+	in, err := scanIntent(tx.QueryRowContext(ctx, `SELECT `+intentColumns+` FROM workflow_publications WHERE workflow_id = ?`, id))
+	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return fmt.Errorf("workflow %s has no unresolved change", id)
+			return fmt.Errorf("workflow %s has no unfinished change", id)
 		}
 		return err
 	}
+	// An unresolved change, or one whose owner is gone but that recovery could not settle.
+	if in.State == "pending" && in.live() {
+		return fmt.Errorf("workflow %s: the change is still being made by process %d", id, in.OwnerPID)
+	}
+	intentID := in.ID
 	switch keep {
 	case KeepFile:
 		res, declined, err := h.importLocked(ctx, tx, id, nil, intentID, true, nil)

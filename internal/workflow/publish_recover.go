@@ -58,11 +58,15 @@ const dropIntentSQL = `DELETE FROM workflow_publications WHERE id = ?`
 // activation changes the rows but not the definition hash).
 func (h *HybridWorkflowStore) resolveIntent(ctx context.Context, tx *sql.Tx, in *intent) (unresolved bool, err error) {
 	raw, existed, err := h.files.readRaw(in.WorkflowID)
-	if errors.Is(err, ErrFileTooLarge) {
-		// Nobody can read it, so nobody can tell which change it belongs to: leave it for the
-		// operator (ResolveUnresolved keep-rows replaces it from the rows).
-		_, err = tx.ExecContext(ctx, `UPDATE workflow_publications SET state = 'unresolved', note = ? WHERE id = ?`,
-			"the workflow file is larger than "+fmt.Sprint(maxWorkflowFileBytes)+" bytes and was left as it is", in.ID)
+	if err != nil && ctx.Err() == nil {
+		// Nobody can read it (too large, a pipe, a directory, no permission), so nobody can tell
+		// which change it belongs to: leave it for the operator rather than failing every
+		// later publication of this workflow (ResolveUnresolved keep-rows replaces it from the rows).
+		why := "the workflow file cannot be read (" + err.Error() + ") and was left as it is"
+		if errors.Is(err, ErrFileTooLarge) {
+			why = "the workflow file is larger than " + fmt.Sprint(maxWorkflowFileBytes) + " bytes and was left as it is"
+		}
+		_, err = tx.ExecContext(ctx, `UPDATE workflow_publications SET state = 'unresolved', note = ? WHERE id = ?`, why, in.ID)
 		return true, err
 	}
 	if err != nil {

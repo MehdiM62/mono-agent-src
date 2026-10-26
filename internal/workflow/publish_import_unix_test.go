@@ -48,3 +48,50 @@ func TestImportNeverBlocksOnAPipeOrLink(t *testing.T) {
 		t.Fatal("a pipe was read as a workflow file")
 	}
 }
+
+// A pipe where the workflow's file was leaves an abandoned change that nobody can read the file of:
+// recovery marks it unresolved (it does not fail every later save), and the operator can resolve a
+// stuck change that is still marked pending but has no live owner.
+func TestUnreadableFileUnderAnAbandonedChangeIsResolvable(t *testing.T) {
+	ctx := context.Background()
+	h, s, _, _ := guardedRig(t)
+	path := filepath.Join(h.files.dir, "wf-g.json")
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := syscall.Mkfifo(path, 0o600); err != nil {
+		t.Skip(err)
+	}
+	if _, err := s.db.Exec(`INSERT INTO workflow_publications (workflow_id, kind, state, owner_pid, started_at)
+		VALUES ('wf-g', 'save', 'pending', 0, ?)`, time.Now().UTC()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.RecoverPublications(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var state string
+	if err := s.db.QueryRow(`SELECT state FROM workflow_publications`).Scan(&state); err != nil || state != "unresolved" {
+		t.Fatalf("state %q %v", state, err)
+	}
+	if err := h.ResolveUnresolved(ctx, "wf-g", KeepRows); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := h.GetWorkflow(ctx, "wf-g"); err != nil || got == nil || openIntentCount(t, s) != 0 {
+		t.Fatalf("after resolving: %v %v", got, err)
+	}
+	// A pending change with no live owner that recovery has not touched yet is resolvable too.
+	if _, err := s.db.Exec(`INSERT INTO workflow_publications (workflow_id, kind, state, owner_pid, started_at)
+		VALUES ('wf-g', 'save', 'pending', 0, ?)`, time.Now().UTC()); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.ResolveUnresolved(ctx, "wf-g", KeepRows); err != nil {
+		t.Fatalf("a stuck pending change: %v", err)
+	}
+	if _, err := s.db.Exec(`INSERT INTO workflow_publications (workflow_id, kind, state, owner_pid, started_at)
+		VALUES ('wf-g', 'save', 'pending', ?, ?)`, os.Getpid(), time.Now().UTC()); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.ResolveUnresolved(ctx, "wf-g", KeepRows); err == nil {
+		t.Fatal("a change that is still being made must not be resolved from under its owner")
+	}
+}
