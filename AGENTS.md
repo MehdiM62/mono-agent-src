@@ -1718,7 +1718,7 @@ one (an agent's `release` can put back into Ready only a task it holds),
 unless the user delegates two abilities (below). The operator commands
 (`board`, `edit`, `move`, `approve`, `archive`, `unarchive`, `add --ready`,
 `agents allow`, `agents deny`, `session approve`, `session resume`,
-`session archive`, `session budget` and `undepend`) refuse an agent: a caller counts as an
+`session close`, `session archive`, `session budget` and `undepend`) refuse an agent: a caller counts as an
 agent when an agent-context environment variable such as `CLAUDECODE` is
 set, or `--as` is given, or `MONOAGENT_ACTOR` is set, and the refusal is
 exit 3 with code `operator_only`. Ask the user; do not look for a way
@@ -1801,7 +1801,7 @@ to the task as its worker never verifies it, and the agent identity of the last 
 `agent:<client>` name without the `#<4 hex>` suffix) cannot; an agent verifies only while the
 session runs. The identity check is a name check, so an unbound agent that picks another name
 passes it; workers the conductor starts are bound. Only
-the user approves, resumes, sets the budget, caps, access level and auto-close
+the user approves, resumes, closes (`session close`), sets the budget, caps, access level and auto-close
 (`session budget`), archives (`session archive`) and removes dependencies
 (`undepend`); an agent may pause and stop a session (stop releases every claim).
 Setting `MONOAGENT_TASK_SESSION=N` binds a process to session N: its agent may act in
@@ -1848,7 +1848,9 @@ reads) does the next closing step each call: it lists tasks that are not done or
 (blocked ones with their notes); with everything settled it adds the Integration check
 task if the plan has none; when that is settled it lists writer branches still to
 `org_merge` (one at a time); then it attaches the final report to the integration task
-(artifact `final-report`), emits `mission.report` and closes the session as done. Each
+(artifact `final-report`) and emits `mission.report` (once, with `closeProposed`): it
+only PROPOSES the close (`ready_to_close`), the session stays running and the operator
+closes it (`session close`, or the Close button). A second call writes nothing more. Each
 mission worker's exec is capped by the session's remaining `budget_usd`.
 Worker and verifier briefs fence foreign text in a per-brief random delimiter
 (`<<<DATA-xxxxxxxx` ... `DATA-xxxxxxxx>>>`). One task gets at most 6 workers per turn and 12
@@ -1885,9 +1887,10 @@ message, and bounded by the session's `max_tasks` and budget.
 **Who closes what in a mission.** Workers finish a task to Review; the verifier marks it
 verified; a verified task unlocks its dependents (it counts as done for them). The
 operator closes tasks to Done, or the session's `auto_close_verified` does when the
-operator turned it on. The conductor closes the SESSION only through the one guarded
-operator close (`mission_finish`): every task done or verified, none blocked, no writer
-branch left to merge, and the integration check done or verified. Writers run in
+operator turned it on. Only the operator closes the SESSION (`session close`, or the Close button, at any time).
+`mission_finish` proposes the close when every task is done or verified, none blocked, no
+writer branch is left to merge, and the integration check is done or verified; it never
+changes the session's state, and a mission the operator never closes stays running. Writers run in
 parallel only with `orgWriters` set to `isolated` (the operator's setting); `shared`
 takes turns.
 

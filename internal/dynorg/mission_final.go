@@ -24,11 +24,12 @@ import (
 //  3. the integration task is still open: it is the unfinished list (run it, verify it);
 //  4. everything is done or verified: writer branches not merged yet are listed (the lead
 //     org_merges them, one at a time, then calls again); with none left the final report is
-//     attached to the integration task as an artifact, mission.report is emitted and the
-//     session is closed as done.
+//     attached to the integration task as an artifact and mission.report is emitted (once):
+//     the close is PROPOSED, the session stays running and the operator closes it.
 //
-// The close is made as the operator's process (as the spend record is), but only on those
-// conditions, which verifiers other than the executors established.
+// The conductor never closes a session: only the operator does (task session close, or the
+// Close button). Its proposal rests on conditions that verifiers other than the executors
+// established.
 
 // ToolMissionFinish integrates and closes a mission.
 const ToolMissionFinish = "mission_finish"
@@ -48,7 +49,7 @@ func missionRunToolSpecs() []monomind.ToolSpec {
 	return []monomind.ToolSpec{
 		{Name: ToolMissionVerify, Description: "Start the verifier of a task that a worker handed to review: another agent, on another model when one is ready, read only, bound to that one task. It checks the task's acceptance and records its own verdict (pass: the task is verified; fail: it goes back to Ready with the note, up to the retry cap, then it is blocked for the operator). org_wait for it. You never record a verdict yourself.",
 			Schema: obj(map[string]any{"session": session, "task_id": intProp("A task in Review (not blocked, not verified).")}, "task_id")},
-		{Name: ToolMissionFinish, Description: "Integrate and close the mission. Call it when mission_next has nothing left to start. It lists any task that is not done or verified (blocked ones with the verifiers' failure notes) and stops there. When every task is, it creates the integration check task if the plan has none, then waits for it; then it lists writer branches you have not org_merge'd (merge them one at a time and call again); then it writes the final report (an artifact, and the mission.report card) and closes the session as done.",
+		{Name: ToolMissionFinish, Description: "Integrate the mission and propose its close. Call it when mission_next has nothing left to start. It lists any task that is not done or verified (blocked ones with the verifiers' failure notes) and stops there. When every task is, it creates the integration check task if the plan has none, then waits for it; then it lists writer branches you have not org_merge'd (merge them one at a time and call again); then it writes the final report (an artifact, and the mission.report card) and proposes the close: the session stays running and ONLY the operator closes it (task session close, or the Close button). When it says ready_to_close, do not call it again.",
 			Schema: obj(map[string]any{"session": session})},
 	}
 }
@@ -77,10 +78,13 @@ type Unfinished struct {
 	FailureNotes []string `json:"failure_notes_untrusted,omitempty"`
 }
 
-// FinishView is mission_finish's result.
+// FinishView is mission_finish's result. Finished is true only once the operator has closed
+// the session; a mission that is ready has ReadyToClose and CloseProposed instead.
 type FinishView struct {
 	Session         SessionView  `json:"session"`
 	Finished        bool         `json:"finished"`
+	ReadyToClose    bool         `json:"ready_to_close,omitempty"`
+	CloseProposed   bool         `json:"close_proposed,omitempty"`
 	Unfinished      []Unfinished `json:"unfinished,omitempty"`
 	IntegrationTask int64        `json:"integration_task,omitempty"`
 	CreatedTask     bool         `json:"created_integration_task,omitempty"`
@@ -212,7 +216,7 @@ func (c *Conductor) missionFinishStep(ctx context.Context, mc *MissionRun, sid i
 		v.Next = "The integration check ran before the tree last changed (" + why + "), so it was sent back to Ready: run it with mission_next, verify it with mission_verify, then call mission_finish again."
 		return v, nil
 	}
-	return c.closeMission(ctx, mc, se, plan, v)
+	return c.proposeMissionClose(ctx, mc, se, plan, v)
 }
 
 func untrustedNote(who string) string {
@@ -254,19 +258,25 @@ func (c *Conductor) createIntegration(ctx context.Context, mc *MissionRun, sid i
 	}, missionActor())
 }
 
-// closeMission writes the final report and closes the session as done.
-func (c *Conductor) closeMission(ctx context.Context, mc *MissionRun, se tasks.Session, plan tasks.SessionPlan, v FinishView) (FinishView, error) {
+// proposeMissionClose writes the final report and proposes the close to the operator: the
+// session stays running. A repeat call writes nothing more and says it is still waiting.
+func (c *Conductor) proposeMissionClose(ctx context.Context, mc *MissionRun, se tasks.Session, plan tasks.SessionPlan, v FinishView) (FinishView, error) {
 	rep, payload := c.finalReport(ctx, mc, se, plan)
-	closed, err := c.operatorClose(ctx, mc, se.ID, rep, "mission_finish: every task is done or verified and the checks passed")
+	proposed, err := c.proposeClose(ctx, mc, se.ID, rep)
 	if err != nil {
 		return v, err
 	}
-	payload.State = string(closed.State)
+	v.ReadyToClose, v.CloseProposed = true, true
+	if !proposed {
+		v.Next = "The mission is ready and the operator has not closed it yet; it is still waiting for the operator. Do not call mission_finish again: give the user a short summary and stop."
+		return v, nil
+	}
+	payload.State, payload.CloseProposed = string(se.State), true
 	if c.cfg.Emit != nil {
 		c.cfg.Emit.Emit(chatevents.EventMissionReport, payload)
 	}
-	v.Session, v.Finished, v.Report = sessionView(closed), true, boundText(rep, 4000)
-	v.Next = "The session is closed as done and the final report is on the conversation: give the user a short summary of what was built and how it was checked."
+	v.Report = boundText(rep, 4000)
+	v.Next = "The mission is ready; the operator closes it (task session close " + fmt.Sprint(se.ID) + " or the Close button); do not call mission_finish again. The final report is on the conversation: give the user a short summary of what was built and how it was checked."
 	return v, nil
 }
 
