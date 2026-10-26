@@ -121,7 +121,7 @@ func TestExecLauncherStartsADetachedTurnAndStopsItsGroup(t *testing.T) {
 	argsLog := filepath.Join(dir, "args.log")
 	promptLog := filepath.Join(dir, "prompt.txt")
 	bin := filepath.Join(dir, "fake-monoagentcli")
-	script := "#!/bin/sh\necho \"$*\" >> '" + argsLog + "'\nif [ \"$4\" = \"chat\" ] && [ \"$5\" = \"history\" ]; then exit 0; fi\n" +
+	script := "#!/bin/sh\necho \"$*\" >> '" + argsLog + "'\nif [ \"$6\" = \"chat\" ] && [ \"$7\" = \"history\" ]; then exit 0; fi\n" +
 		"cat > '" + promptLog + "'\necho '{\"level\":\"warn\",\"error\":\"a library log line, not a refusal\"}'\necho '{\"admitted\":true,\"existed\":false,\"turn\":{\"id\":\"t1\"}}'\n" +
 		"(trap '' TERM; exec sleep 60) &\necho $! > '" + filepath.Join(dir, "child.pid") + "'\nwait\n"
 	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {

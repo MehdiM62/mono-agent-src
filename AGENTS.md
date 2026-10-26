@@ -1823,7 +1823,8 @@ one click; implied once the conversation has an open session) gives the lead
 marked as a mission, and a confirmation record bound to that command and signed under a key
 derived from the profile's vault key is written under the reserved `coder-mission-confirm/`
 config prefix, which only the operator writes or reads. The host passes the chat child the
-record's token in `MONOAGENT_MISSION_TOKEN`; the child verifies the signature and consumes
+record's token over an inherited pipe (never the environment or arguments; the child reads
+it once and closes it); the child verifies the signature and consumes
 the record. A mission send with no live record fails with "mission confirmation expired or
 missing: send again" and never runs as a plain turn; the record is revoked when the command
 is cancelled, expires or fails.)
@@ -1867,8 +1868,18 @@ per task yet** (which tasks would become sessions, and how a budget is split, ar
 plan). A lead that wants a goal with its own schedule uses the master verbs on its own conversation (`coder
 sessions spawn`, below): one child per goal, not per task. When a master of children also has an open task
 session, each check-in digest carries one line with the session's state and its counts (done of total, in
-review, verified, blocked): numbers and a state word, never a title, goal or task text. A mission's own
-conversation gets no check-in unless it is a master with children.
+review, verified, blocked): numbers and a state word, never a title, goal or task text. A mission's lead
+without children (role `solo`, or a master whose children are all stopped: treated as a lead on purpose) is
+checked in on all the same, by the same scheduler and limits, while its conversation is bound to a **running**
+task session with open work. Open work is counted from disjoint statuses: tasks in inbox, ready or in progress,
+plus tasks in review that no verifier has passed and that are not blocked (a task keeps its verified flag once
+closed, so done and verified are never added). A blocked task waits for the operator and a verified one for the
+operator's close, so neither counts: nothing a lead does hastens them. The digest is the mission line alone. This
+is on by default for every unattended solo session bound to a running mission; `unattended` off disables it. A
+draft session (waiting for the person's plan approval) or a paused one is never woken, a child never is (its
+master is), and a queued check-in is dropped when it runs if the mission has stopped being running with open
+work. A lead that adds tasks to itself can keep itself woken, but only up to `checkin_limit` check-ins per person
+message, and bounded by the session's `max_tasks` and budget.
 
 **Who closes what in a mission.** Workers finish a task to Review; the verifier marks it
 verified; a verified task unlocks its dependents (it counts as done for them). The
@@ -2511,7 +2522,7 @@ monoagentcli --profile work coder host stop                        # the host on
   row (a failed or interrupted one counts) with no message from a person, the master waits for one (the pane
   says so, within about 15 seconds). A queued check-in lives 15
   minutes and is checked again when it runs. The digest holds only the host's records (conversation ids, state
-  and turn-status words, counts, ages), never text an agent wrote (for a master with an open task session: its state word and task counts, and a change in them counts as a change for `skip_if_unchanged`). Host-made turns carry the turn-id prefix
+  and turn-status words, counts, ages), never text an agent wrote (for a master with an open task session: its state word and task counts, and a change in them counts as a change for `skip_if_unchanged`; also a solo session bound to a running task session with open work gets check-ins, with only that line). Host-made turns carry the turn-id prefix
   `checkin-`; the limit counts it, so a later path that starts turns without a person must use its own prefix.
   `child_question` and `budget_80` are accepted settings that do not fire yet.
 - **Autonomy** (`autonomy_preset`, `autonomy_classes`, operator only): when a session meets a gap
@@ -2625,7 +2636,8 @@ monoagentcli --profile work coder host stop                        # the host on
      after 30 minutes and never for `risky_action` or `missing_credential`.
   4. *Missions:* confirm a mission (`coder sessions send --mission <conv> TEXT`), approve its plan, close the
      app mid-run: workers and the board survive and the next turn resumes from `mission_status`; a check-in of a
-     master with children shows the mission line; a draft session starts no worker for a check-in turn.
+     master with children shows the mission line; a mission lead without children is checked in on while its task session
+     is running with open work and never while it is a draft or paused; a draft session starts no worker for a check-in turn.
   5. *Autonomy producer (ask the master, in its chat, to run these in its turn; none of it is verified live):*
      `coder sessions park --class risky_action --question "delete the build dir?"` parks on the caller's own
      session (the session goes to `waiting_user`; `questions list <conv>` shows it, answerer `user` for a master
