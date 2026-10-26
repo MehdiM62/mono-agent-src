@@ -306,3 +306,26 @@ func TestCrashNodeIdClaimedWhileAChangeWasOpenIsRefusedAtTheCommit(t *testing.T)
 		t.Fatalf("the first owner lost its node: %+v", got)
 	}
 }
+
+// After an outside edit made a crash unresolved, choosing the rows puts the file back and frees the
+// workflow for the next save.
+func TestCrashUnresolvedChangeCanBeResolvedByTheOperator(t *testing.T) {
+	r := newCrashRig(t)
+	cmd, _ := r.pauseHelper(t, "after-rename")
+	if err := os.WriteFile(filepath.Join(r.root, "workflows", "wf-c.json"), []byte(`{"id":"wf-c","name":"by hand"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_ = cmd.Process.Kill()
+	_ = cmd.Wait()
+	if _, err := r.h.GetWorkflow(context.Background(), "wf-c"); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.h.ResolveUnresolved(context.Background(), "wf-c", KeepRows); err != nil {
+		t.Fatal(err)
+	}
+	r.assertConsistent(t)
+	cur, _ := r.h.GetWorkflow(context.Background(), "wf-c")
+	if err := r.h.SaveWorkflow(context.Background(), cur); err != nil {
+		t.Fatalf("a save after the resolution: %v", err)
+	}
+}

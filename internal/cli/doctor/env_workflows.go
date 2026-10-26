@@ -48,4 +48,11 @@ func addWorkflowPublicationHooks(env *health.Env) {
 		}
 		return store.RecoverPublications(ctx)
 	}
+	env.ResolveWorkflowPublication = func(ctx context.Context, id, keep string) error {
+		store, err := open()
+		if err != nil || store == nil || env.DB == nil {
+			return err
+		}
+		return store.ResolveUnresolved(ctx, id, keep)
+	}
 }

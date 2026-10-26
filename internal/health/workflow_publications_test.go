@@ -63,3 +63,20 @@ func TestWorkflowPublicationsRowIsRegistered(t *testing.T) {
 		t.Fatal("the fix is not registered")
 	}
 }
+
+func TestWorkflowPublicationsUnresolvedOffersTheResolution(t *testing.T) {
+	info := &WorkflowPublicationsInfo{Open: []OpenWorkflowPublication{{WorkflowID: "wf-3", Kind: "save", State: "unresolved"}}}
+	res := checkWorkflowPublications(context.Background(), publicationsEnv(info, nil))
+	if len(res.Children) != 1 || res.Children[0].FixID != "workflows.publications.resolve:wf-3:keep-rows" {
+		t.Fatalf("%+v", res.Children)
+	}
+	var got [2]string
+	env := &Env{ResolveWorkflowPublication: func(_ context.Context, id, keep string) error { got = [2]string{id, keep}; return nil }}
+	fix, ok := Default().Fix(res.Children[0].FixID)
+	if !ok {
+		t.Fatal("the parameterized fix does not resolve")
+	}
+	if err := fix.Apply(context.Background(), env, func(string) {}); err != nil || got != [2]string{"wf-3", "keep-rows"} {
+		t.Fatalf("%v %v", got, err)
+	}
+}

@@ -13,6 +13,8 @@ const (
 	CheckWorkflowPublications = "workflows.publications"
 
 	FixWorkflowPublicationsRecover = "workflows.publications.recover"
+	// FixWorkflowPublicationsResolve is parameterized: "<workflow id>:keep-rows" or "<workflow id>:keep-file".
+	FixWorkflowPublicationsResolve = "workflows.publications.resolve"
 )
 
 // WorkflowPublicationsInfo is what the check reads (all local).
@@ -45,7 +47,20 @@ func workflowPublicationChecks() []Check {
 func workflowPublicationFixes() []Fix {
 	return []Fix{{FixInfo: FixInfo{ID: FixWorkflowPublicationsRecover,
 		Label: "Put workflow files back in step with the database", Safety: SafetyAuto},
-		Apply: fixWorkflowPublications}}
+		Apply: fixWorkflowPublications},
+		{FixInfo: FixInfo{ID: FixWorkflowPublicationsResolve, Label: "Resolve the unfinished change of {arg}",
+			Safety: SafetyConfirm, Command: "monoagentcli doctor fix workflows.publications.resolve:{arg}"},
+			ApplyArg: fixWorkflowPublicationResolve}}
+}
+
+func fixWorkflowPublicationResolve(ctx context.Context, env *Env, arg string, progress func(string)) error {
+	i := strings.LastIndex(arg, ":")
+	if i <= 0 || env.ResolveWorkflowPublication == nil {
+		return fmt.Errorf("use workflows.publications.resolve:<workflow id>:keep-rows or :keep-file")
+	}
+	id, keep := arg[:i], arg[i+1:]
+	progress("resolving " + id + " (" + keep + ")")
+	return env.ResolveWorkflowPublication(ctx, id, keep)
 }
 
 func checkWorkflowPublications(ctx context.Context, env *Env) Result {
@@ -65,7 +80,9 @@ func checkWorkflowPublications(ctx context.Context, env *Env) Result {
 			unresolved++
 			child.Status = StatusWarn
 			child.Summary = "the file changed while a change was in progress; choose which to keep"
-			child.Detail = o.Note
+			child.Detail = o.Note + "\nkeep the committed rows (rewrites the file): monoagentcli doctor fix workflows.publications.resolve:" + o.WorkflowID + ":keep-rows" +
+				"\nkeep the file as it is (the rows follow it): monoagentcli doctor fix workflows.publications.resolve:" + o.WorkflowID + ":keep-file"
+			child.FixID = FixWorkflowPublicationsResolve + ":" + o.WorkflowID + ":keep-rows"
 		case o.OwnerGone:
 			stale++
 			child.Status = StatusWarn

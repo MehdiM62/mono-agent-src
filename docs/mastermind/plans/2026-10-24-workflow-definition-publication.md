@@ -385,12 +385,12 @@ Decisions on section 5:
 1. **Hand edits stay supported.** An edit that changes the definition is imported by content: the rows
    follow the file, a version with the note `edited outside the app` is recorded, and the file is never
    rewritten. An edit that does not change the definition (re-serialisation, profile stamping) only
-   updates the remembered bytes. The daemon keeps reading the file as before.
-2. **Approvals are not explicitly revoked on import.** The conservative option: today an outside edit
-   leaves the new definition unapproved because approvals are keyed by definition hash, and an edit that
-   returns to an earlier approved definition counts as approved. That is kept. Explicit revocation on
-   every outside edit (this plan's 3.6) would change that and is left to the owner. `apply-fix` and
-   save-draft still revoke, now inside the commit.
+   updates the remembered bytes and the active flag. The daemon keeps reading the file as before.
+2. **Approvals are revoked on a definition-changing outside import.** (Reversed after review: an
+   earlier draft kept hash-keyed approvals, which let approve A, edit to B, restore A run A as approved
+   with no operator action.) The import deletes the workflow's approvals in the same transaction. This is
+   a visible change and is in the CHANGELOG and `ref workflow`. `apply-fix` and save-draft also revoke,
+   inside the commit.
 3. **`doctor`** shows `workflows.publications` and offers a fix that runs the recovery every command
    that opens the store runs anyway; plain `doctor` changes nothing. `unresolved` rows are only reported.
 4. **Durability.** See the note in section 7 on `synchronous=FULL`.
@@ -408,3 +408,15 @@ Not done: skipping pending ids in profile stamping (a stamp that lands in the wi
 there `unresolved` instead of rolled back, which is safe but louder); the three package-level test
 seams in guarded_save.go are kept (non-tagged tests use them) next to the tagged failpoints; Windows
 liveness is lease-only (30 s) as designed.
+
+## 8. After review (Codex, 9 findings)
+
+Recovery always rolls back a surviving intent (the commit removes its intent in the same transaction as
+the rows, so hash equality proves nothing). The file step is fenced: the ownership check and the rename
+happen in one transaction holding the write lock, and the new bytes are staged before the lock is taken;
+a writer that still finds its intent gone repairs the file from the committed rows. File reads repeat
+until no change started during them (`publication_gen` from `sqlite_sequence`). Node and connection id
+ownership is rechecked inside the commit. A guarded save with an empty hash is refused. The importer
+follows the active flag of a same-definition file, and `ResolveUnresolved` (doctor fix
+`workflows.publications.resolve:<id>:keep-rows|keep-file`) ends an unresolved change. Intents carry the
+profile of the workflow they create.

@@ -59,10 +59,10 @@ func TestImportFollowsAnOutsideEditAndRecordsIt(t *testing.T) {
 	if !bytes.Equal(onDisk, fileBytes(t, h, "wf-g")) {
 		t.Fatal("the import rewrote the file")
 	}
-	// The edited definition has no approval of its own; the earlier approval is still there.
+	// An outside edit cannot be attributed to a person: every earlier approval goes with it.
 	cur, _ := h.GetWorkflow(ctx, "wf-g")
 	hash, _ := definitionHash(cur)
-	if ok, _ := h.DefinitionApproved(ctx, "wf-g", hash); ok || approvals(t, s, "wf-g") != 1 {
+	if ok, _ := h.DefinitionApproved(ctx, "wf-g", hash); ok || approvals(t, s, "wf-g") != 0 {
 		t.Fatalf("approvals after an outside edit: approved=%v rows=%d", ok, approvals(t, s, "wf-g"))
 	}
 	// Seen again, nothing more happens.
@@ -191,5 +191,87 @@ func TestImportInsideAFailingSavesWindowNeverSeesTheProposal(t *testing.T) {
 	}
 	if again, err := h.ImportFile(ctx, "wf-g", nil); err != nil || again.Imported {
 		t.Fatalf("after the rollback: %+v %v", again, err)
+	}
+}
+
+// Approve A, edit outside to B (imported), put A back outside (imported): A is not approved again
+// by the history alone.
+func TestImportDoesNotLetARestoredDefinitionRunAsApproved(t *testing.T) {
+	ctx := context.Background()
+	h, s, _, _ := guardedRig(t)
+	handEdit(t, h, "wf-g", func(w *Workflow) { w.Nodes[1].Config = map[string]interface{}{"k": "B"} })
+	if _, err := h.ImportFile(ctx, "wf-g", nil); err != nil {
+		t.Fatal(err)
+	}
+	handEdit(t, h, "wf-g", func(w *Workflow) { w.Nodes[1].Config = map[string]interface{}{"k": "v"} }) // back to A
+	if res, err := h.ImportFile(ctx, "wf-g", nil); err != nil || !res.Imported {
+		t.Fatalf("%+v %v", res, err)
+	}
+	cur, _ := h.GetWorkflow(ctx, "wf-g")
+	hash, _ := definitionHash(cur)
+	if ok, _ := h.DefinitionApproved(ctx, "wf-g", hash); ok || approvals(t, s, "wf-g") != 0 {
+		t.Fatal("the restored definition counts as approved")
+	}
+}
+
+// An edit that only flips the active flag reaches the rows too, and is not skipped afterwards.
+func TestImportFollowsAnActivationOnlyEdit(t *testing.T) {
+	ctx := context.Background()
+	h, s, _, _ := guardedRig(t)
+	handEdit(t, h, "wf-g", func(w *Workflow) { w.IsActive = true })
+	if _, err := h.ImportFile(ctx, "wf-g", nil); err != nil {
+		t.Fatal(err)
+	}
+	rows, _ := s.GetWorkflow(ctx, "wf-g")
+	if !rows.IsActive {
+		t.Fatal("the rows still say inactive")
+	}
+	if approvals(t, s, "wf-g") != 1 {
+		t.Fatal("an activation changed approvals")
+	}
+	file, _ := h.files.GetWorkflow(ctx, "wf-g")
+	fh, _ := ReviewHash(file)
+	rh, _ := ReviewHash(rows)
+	if fh != rh {
+		t.Fatal("file and rows have different review hashes")
+	}
+}
+
+// An unresolved change ends when the operator chooses: the file is rewritten from the rows, or the
+// rows follow the file; either way the intent goes in the same transaction.
+func TestResolveUnresolvedEitherWay(t *testing.T) {
+	ctx := context.Background()
+	for _, keep := range []string{KeepRows, KeepFile} {
+		h, s, _, _ := guardedRig(t)
+		handEdit(t, h, "wf-g", func(w *Workflow) { w.Nodes[1].Config = map[string]interface{}{"k": "by-hand"} })
+		if _, err := s.db.Exec(`INSERT INTO workflow_publications (workflow_id, kind, state, owner_pid, started_at)
+			VALUES ('wf-g', 'save', 'unresolved', 0, ?)`, time.Now().UTC()); err != nil {
+			t.Fatal(err)
+		}
+		if n, _ := h.RecoverPublications(ctx); n != 0 {
+			t.Fatal("recovery touched an unresolved change")
+		}
+		if err := h.ResolveUnresolved(ctx, "wf-g", keep); err != nil {
+			t.Fatalf("%s: %v", keep, err)
+		}
+		if openIntentCount(t, s) != 0 {
+			t.Fatalf("%s: the intent is still there", keep)
+		}
+		f, _ := h.files.GetWorkflow(ctx, "wf-g")
+		want := "v"
+		if keep == KeepFile {
+			want = "by-hand"
+		}
+		if f.Nodes[1].Config["k"] != want || sqlConfig(t, s, "wf-g", "g-set") != want {
+			t.Fatalf("%s: file %v rows %v, want %s in both", keep, f.Nodes[1].Config["k"], sqlConfig(t, s, "wf-g", "g-set"), want)
+		}
+		if err := h.ResolveUnresolved(ctx, "wf-g", keep); err == nil {
+			t.Fatalf("%s: resolving twice must be refused", keep)
+		}
+		// Saves work again.
+		cur, _ := h.GetWorkflow(ctx, "wf-g")
+		if err := h.SaveWorkflow(ctx, cur); err != nil {
+			t.Fatalf("%s: a save after the resolution: %v", keep, err)
+		}
 	}
 }
