@@ -13,6 +13,7 @@ from nodes (triggers, HTTP, databases, AI, comms, services), run them on
 schedule/webhook/manual, and manage everything from the CLI or an optional
 desktop GUI (`wails-app/`).
 
+- A workflow's JSON file and database rows are published together (`workflow.HybridWorkflowStore.Publish`: intent row, file, then rows plus version; recovery rolls back an unfinished change). A hand edit of an existing workflow's file is imported as a new version and removes the workflow's earlier approvals. A file with no stored copy that appears after the store was first used is neither imported, served nor listed: `doctor` shows it (profile, node types, sha) and `doctor fix workflows.publications.adopt:<id>:<profile>:<sha>` adopts it inactive; create workflows with `workflow import`/`save`/templates, not by writing files. `doctor` also lists unfinished or unresolved changes.
 - All state lives in `~/.monoagent/` (SQLite + JSON workflow files). Every
   command works from any directory — there is no per-project setup. One
   exception: `monoagentcli init` also copies skill files into

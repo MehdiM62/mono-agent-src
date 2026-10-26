@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 )
@@ -144,6 +145,9 @@ func (e *WorkflowEngine) RestoreActiveWorkflows(ctx context.Context) error {
 			e.logger.Warn().Str("workflow_id", wf.ID).Err(err).Msg("engine: restore: failed to load workflow")
 			continue
 		}
+		if !full.IsActive {
+			continue // the listing said active but the workflow itself is not: arm nothing
+		}
 		if err := e.triggerMgr.ActivateWorkflow(ctx, full); err != nil {
 			failed++
 			e.logger.Warn().Str("workflow_id", wf.ID).Err(err).Msg("engine: restore: failed to activate triggers")
@@ -170,14 +174,14 @@ func (e *WorkflowEngine) DeleteWorkflow(ctx context.Context, id string) error {
 		return fmt.Errorf("engine: delete workflow: %w", err)
 	}
 
+	// The store first: if it refuses (the database is busy), the triggers must stay as they were.
+	if err := e.store.DeleteWorkflow(ctx, id); err != nil {
+		return fmt.Errorf("engine: delete workflow: %w", err)
+	}
 	if existing.IsActive {
 		e.triggerMgr.DeactivateWorkflow(id)
 	}
 	e.triggerMgr.unregisterStoredAppHooks(ctx, id, workflowProfile(existing))
-
-	if err := e.store.DeleteWorkflow(ctx, id); err != nil {
-		return fmt.Errorf("engine: delete workflow: %w", err)
-	}
 	if db := e.store.RawDB(); db != nil {
 		if err := DeleteWorkflowState(ctx, db, id); err != nil {
 			e.logger.Warn().Err(err).Str("workflow_id", id).Msg("engine: delete workflow: state not removed")
@@ -214,7 +218,9 @@ func (e *WorkflowEngine) ActivateWorkflow(ctx context.Context, id string) error 
 		// `if existing.IsActive`, so the trigger would survive deletion.
 		e.triggerMgr.DeactivateWorkflow(id)
 		// Revert the active flag so the DB stays consistent.
-		_ = e.store.SetWorkflowActive(ctx, id, false)
+		if rerr := e.store.SetWorkflowActive(context.WithoutCancel(ctx), id, false); rerr != nil {
+			err = errors.Join(err, fmt.Errorf("the flag could not be reverted: %w", rerr))
+		}
 		return fmt.Errorf("engine: activate workflow: register triggers: %w", err)
 	}
 
@@ -235,14 +241,14 @@ func (e *WorkflowEngine) DeactivateWorkflow(ctx context.Context, id string) erro
 		return fmt.Errorf("engine: deactivate workflow: %w", err)
 	}
 
+	// The store first: if it refuses (the database is busy), the triggers must stay as they were.
+	if err := e.store.SetWorkflowActive(ctx, id, false); err != nil {
+		return fmt.Errorf("engine: deactivate workflow: %w", err)
+	}
 	e.triggerMgr.DeactivateWorkflow(id)
 	// Hooks another process (the daemon) registered: this one has no
 	// trigger entry for them.
 	e.triggerMgr.unregisterStoredAppHooks(ctx, id, workflowProfile(existing))
-
-	if err := e.store.SetWorkflowActive(ctx, id, false); err != nil {
-		return fmt.Errorf("engine: deactivate workflow: %w", err)
-	}
 
 	e.logger.Info().Str("workflow_id", id).Msg("engine: workflow deactivated")
 	return nil
@@ -277,4 +283,16 @@ func (e *WorkflowEngine) GetExecution(ctx context.Context, id string) (*Workflow
 		return nil, fmt.Errorf("engine: get execution: %w", ErrExecutionNotFound)
 	}
 	return exec, nil
+}
+
+// UnfinishedChange reports an unresolved or stuck change of a workflow ("" when none), for the
+// commands that deactivate it: they switch it off in the database only and say so.
+func (e *WorkflowEngine) UnfinishedChange(ctx context.Context, id string) string {
+	if u, ok := e.store.(interface {
+		UnfinishedChange(context.Context, string) (string, error)
+	}); ok {
+		state, _ := u.UnfinishedChange(ctx, id)
+		return state
+	}
+	return ""
 }

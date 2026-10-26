@@ -184,11 +184,20 @@ func (d Deps) newDeactivateCmd() *cobra.Command {
 			if err := engine.DeactivateWorkflow(ctx, args[0]); err != nil {
 				return fmt.Errorf("deactivate workflow: %w", err)
 			}
+			unfinished := engine.UnfinishedChange(ctx, args[0])
 			if d.JSONOutput() {
-				return json.NewEncoder(os.Stdout).Encode(map[string]interface{}{"id": args[0], "is_active": false})
+				out := map[string]interface{}{"id": args[0], "is_active": false}
+				if unfinished != "" {
+					out["file_left_as_is"] = true
+					out["unfinished_change"] = unfinished
+				}
+				return json.NewEncoder(os.Stdout).Encode(out)
 			}
 
 			fmt.Fprintf(os.Stdout, "Workflow %s deactivated.\n", args[0])
+			if unfinished != "" {
+				fmt.Fprintln(os.Stdout, "Deactivated in the database; the file was left as it is. Run `monoagentcli doctor` to settle the unfinished change.")
+			}
 			return nil
 		},
 	}
@@ -436,11 +445,8 @@ func (d Deps) newCreateCmd() *cobra.Command {
 			ctx := context.Background()
 			// Same persistence as import: file store plus the SQLite rows
 			// that `workflow run --json` and executions read.
-			if err := d.CreateWorkflow(ctx, store, wf, false); err != nil {
+			if err := d.CreateWorkflow(operator.ApprovingContext(ctx), store, wf, false); err != nil {
 				return fmt.Errorf("create workflow: %w", err)
-			}
-			if err := operator.ApproveWorkflow(ctx, store, wf.ID); err != nil {
-				fmt.Fprintf(os.Stderr, "warning: recording this workflow as yours failed, so its runs count as an AI's until you save or activate it again: %v\n", err)
 			}
 
 			if d.JSONOutput() {
