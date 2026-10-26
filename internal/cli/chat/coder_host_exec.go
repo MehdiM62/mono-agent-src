@@ -89,7 +89,10 @@ func (l *execLauncher) Start(profileID, conversationID, turnID, message string, 
 	cmd := exec.Command(l.bin, l.args(profileID, rest...)...)
 	if missionToken != "" {
 		// In the child's environment, not its arguments (which any process of the user lists):
-		// the child verifies the operator's signed record and consumes it, and drops the variable.
+		// the child verifies the operator's signed record and consumes it, and drops the variable
+		// from its own environment. The variable stays in the environment block the process was
+		// started with (readable by the same user until it exits); the token is single use and
+		// dead once the record is consumed.
 		cmd.Env = append(os.Environ(), coderhost.MissionTokenEnv+"="+missionToken)
 	}
 	cmd.Dir = filepath.Dir(l.logDir)

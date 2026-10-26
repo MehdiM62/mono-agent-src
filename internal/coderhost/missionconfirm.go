@@ -53,10 +53,15 @@ var (
 	stashedToken string
 )
 
-// StashMissionToken moves the host's confirmation token out of the process
+// StashMissionToken moves the host's confirmation token out of the Go
 // environment into memory. The binary calls it before anything else can start a
 // subprocess (the account guard, the update and tool probes), so no child of this
 // process inherits it; the chat command then takes it with TakeMissionToken.
+// Limit: os.Unsetenv clears Go's copy, not the environment block the kernel gave
+// the process at exec, so the token stays readable from that block
+// (/proc/<pid>/environ on Linux, `ps eww` on macOS) by a process of the same user
+// until the child exits. What bounds that is that the token is single use: it is
+// dead once ConsumeConfirm has run, early in the turn.
 func StashMissionToken() {
 	stashMu.Lock()
 	defer stashMu.Unlock()
@@ -67,7 +72,9 @@ func StashMissionToken() {
 }
 
 // TakeMissionToken returns the stashed token (stashing it first if it is still in
-// the environment) and forgets it, so a token is handed out once.
+// the environment) and forgets it, so a token is handed out once. This is about
+// what this process's own children inherit; see StashMissionToken for what the
+// process environment still shows.
 func TakeMissionToken() string {
 	StashMissionToken()
 	stashMu.Lock()
@@ -170,10 +177,14 @@ func (s *Store) Confirm(cmd Command, session int64) (MissionConfirm, error) {
 		ON CONFLICT(name) DO UPDATE SET config_data = excluded.config_data, updated_at = excluded.updated_at`, c.name(), string(b)); err != nil {
 		return c, err
 	}
-	// A cancel that landed between the check above and the insert found no record to
-	// revoke. Check again now that the record exists: a command still pending here is
-	// ended only after the record is in place, and that end revokes it; one that is no
-	// longer pending left no one to revoke, so the record goes here.
+	confirmAfterInsert()
+	// Every way a command ends unstarted (host.end, CancelPendingSends, ExpireSends,
+	// SweepOrphans) first moves its status off pending and only then revokes. So a
+	// command that is still pending here is ended after the record is in place, and that
+	// end's revoke finds the record; one that is no longer pending had its end begin
+	// before this check, and the record goes here. What is not guaranteed: a record is
+	// never read as valid for a command that is not pending (PeekConfirm checks), and a
+	// record of a command that ended is also dropped by the next sweep.
 	if _, err := s.pendingMissionSend(cmd); err != nil {
 		s.dropConfirm(c.name())
 		return MissionConfirm{}, err
@@ -181,9 +192,11 @@ func (s *Store) Confirm(cmd Command, session int64) (MissionConfirm, error) {
 	return c, nil
 }
 
-// confirmBeforeInsert runs between Confirm's check and its insert. A test sets
-// it to end the command in that window.
+// confirmBeforeInsert runs between Confirm's check and its insert, and
+// confirmAfterInsert between its insert and its recheck. A test sets them to end
+// the command in those windows.
 var confirmBeforeInsert = func() {}
+var confirmAfterInsert = func() {}
 
 // pendingMissionSend returns the stored command when it is this profile's
 // pending send, for this conversation and turn, marked as a mission.
@@ -229,10 +242,12 @@ func (s *Store) sweepConfirms() {
 	}
 	rows.Close()
 	// A record whose command is gone (deleted) or ended unstarted is dead too,
-	// whatever its expiry says.
+	// whatever its expiry says. A command that is done keeps its record: the chat
+	// child admits itself (and the host marks the command done) before it consumes
+	// the record, so a starting child must not be cut off.
 	for _, r := range live {
 		var status string
-		if e := s.db.QueryRow(`SELECT status FROM coder_session_commands WHERE id = ?`, r.cmd).Scan(&status); e == sql.ErrNoRows || (e == nil && status == CmdFailed) {
+		if e := s.db.QueryRow(`SELECT status FROM coder_session_commands WHERE id = ?`, r.cmd).Scan(&status); e == sql.ErrNoRows || (e == nil && status != CmdPending && status != CmdDone) {
 			dead = append(dead, r.name)
 		}
 	}
@@ -284,11 +299,18 @@ func (s *Store) PeekConfirm(c Command) (MissionConfirm, bool) {
 	if HostMade(c.TurnID) || !c.WantsMission {
 		return MissionConfirm{}, false
 	}
+	// Only a command that is still pending starts a turn, whatever the record says.
+	var status string
+	if s.db.QueryRow(`SELECT status FROM coder_session_commands WHERE id = ?`, c.ID).Scan(&status) != nil || status != CmdPending {
+		return MissionConfirm{}, false
+	}
 	mc, _, ok := s.readConfirm(c.ProfileID, c.ConversationID, c.TurnID, c.ID)
 	return mc, ok
 }
 
-// ConsumeConfirm is the chat child's check: the token must be the one of a
+// ConsumeConfirm is the chat child's check. It does not look at the command's
+// status: the child consumes after it has admitted itself, and by then the host
+// may already have marked the command done. The check: the token must be the one of a
 // genuine record (MAC and nonce) for this turn, in the mission state (session)
 // the operator confirmed, and the record is deleted in the same statement that
 // proves it still holds, so a second start, a restart or a concurrent child gets
@@ -339,8 +361,12 @@ func (s *Store) pendingMissionIDs(where string, args ...any) []Command {
 	return out
 }
 
+// revokeCommands is called after the commands' status was moved off pending. The
+// ids were read before that update, so a command queued and confirmed in between
+// is not among them; the sweep drops its record too.
 func (s *Store) revokeCommands(cmds []Command) {
 	for _, c := range cmds {
 		s.Revoke(c.ProfileID, c.ConversationID, c.TurnID, c.ID)
 	}
+	s.sweepConfirms()
 }

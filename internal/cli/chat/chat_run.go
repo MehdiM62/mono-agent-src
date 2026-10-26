@@ -31,8 +31,9 @@ func runChat(cfg *Deps, cmd *cobra.Command, args []string, f *chatFlags) (retErr
 	// The coder host hands a turn the token of its mission confirmation in the
 	// environment, not in the arguments; the binary moves it out of the environment before
 	// it can start any process (coderhost.StashMissionToken, called first in main's run), and
-	// it is taken here (and cleared, should a caller not have stashed it) before anything this
-	// turn starts can inherit it. There is no flag that confirms a mission.
+	// it is taken here (and cleared from Go's environment, should a caller not have stashed it)
+	// before anything this turn starts can inherit it. The process's original environment block
+	// still shows it until exit; the token is dead once the confirmation is consumed. There is no flag that confirms a mission.
 	missionToken := coderhost.TakeMissionToken()
 	prompt := strings.Join(args, " ")
 	if promptStdin {

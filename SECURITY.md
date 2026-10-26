@@ -1702,8 +1702,13 @@ that works a task acts on them. The defences:
   under a reserved config prefix that only the operator writes, deletes or reads, is single
   use, and is revoked when its command is cancelled, expires, fails or is deleted with its
   conversation. A send marked as a mission never runs plain: without a live record it
-  fails. The token reaches the child in its environment, and the binary clears it before
-  it starts any process of its own. The limit of the MAC: the same user with keychain
+  fails. The token reaches the child in its environment; the binary moves it out of
+  its own (Go) environment before it starts any process of its own, so nothing the child
+  starts inherits it. That does not erase the environment block the process was given at
+  start: on Linux `/proc/<pid>/environ` and on macOS `ps eww` still show the token to a
+  process of the same user until the child exits. What bounds this is that the token is
+  single use and is dead once the child has consumed the record, early in the turn; the
+  window is from the host's start of the child until that point. The limit of the MAC: the same user with keychain
   access (the key comes out of the OS keychain, or the file keyring that stands in for
   it, and the database is a file that user owns) can sign a record, so none of this stops
   such a process; the guard is against agent turns going through the CLI, which refuses
