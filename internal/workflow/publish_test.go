@@ -781,3 +781,29 @@ func TestDeactivateWorksUnderAnUnresolvedChangeButActivateDoesNot(t *testing.T) 
 		t.Fatalf("a live change reported as %q", state)
 	}
 }
+
+// A new workflow saved without the operator's approval starts inactive whatever the caller said;
+// the operator's own save (with approval) keeps the flag it names.
+func TestANewWorkflowStartsInactiveUnlessTheOperatorCreatesIt(t *testing.T) {
+	ctx := context.Background()
+	h, s, _, _ := guardedRig(t)
+	agent := mirrorWF("wf-by-agent", "a-trig", "a-set")
+	agent.IsActive = true
+	if err := h.SaveWorkflow(ctx, agent); err != nil {
+		t.Fatal(err)
+	}
+	if rows, _ := s.GetWorkflow(ctx, "wf-by-agent"); rows.IsActive {
+		t.Fatal("a new workflow saved without approval is active")
+	}
+	if f, _ := h.files.GetWorkflow(ctx, "wf-by-agent"); f.IsActive {
+		t.Fatal("its file says active")
+	}
+	op := mirrorWF("wf-by-operator", "o-trig", "o-set")
+	op.IsActive = true
+	if err := h.SaveWorkflow(WithApproval(ctx), op); err != nil {
+		t.Fatal(err)
+	}
+	if rows, _ := s.GetWorkflow(ctx, "wf-by-operator"); !rows.IsActive {
+		t.Fatal("the operator's create lost its flag")
+	}
+}

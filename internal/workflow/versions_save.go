@@ -138,6 +138,10 @@ func (h *HybridWorkflowStore) saveDefinitionAs(ctx context.Context, w *Workflow,
 				// The active flag the caller read earlier may be stale (another process may have switched
 				// the workflow off or on since): a save never changes it. Only SetWorkflowActive does.
 				c.IsActive = cur.IsActive
+			} else if !approvalFrom(ctx) {
+				// A new workflow starts inactive unless the operator creates it (see WithApproval): an
+				// agent's save cannot make a workflow that the daemon arms by itself.
+				c.IsActive = false
 			}
 			return &c, nil
 		},
@@ -145,7 +149,7 @@ func (h *HybridWorkflowStore) saveDefinitionAs(ctx context.Context, w *Workflow,
 	if err != nil {
 		return err
 	}
-	w.Version, w.UpdatedAt = published.Version, published.UpdatedAt
+	w.Version, w.UpdatedAt, w.IsActive = published.Version, published.UpdatedAt, published.IsActive
 	for i := range w.Connections {
 		w.Connections[i].ID = published.Connections[i].ID
 	}
