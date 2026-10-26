@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"time"
 )
@@ -100,11 +99,7 @@ func (h *HybridWorkflowStore) resolveIntent(ctx context.Context, tx *sql.Tx, in 
 	// Neither the file before nor the file the change wrote: an edit from outside landed in the
 	// window. Keep a copy, leave the file alone, and let a person choose.
 	dir := h.files.quarantineDir()
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return false, err
-	}
-	name := fmt.Sprintf("%s.%d.json", in.WorkflowID, time.Now().UnixNano())
-	if err := os.WriteFile(filepath.Join(dir, name), raw, 0o600); err != nil {
+	if _, err := h.files.quarantine(in.WorkflowID, raw); err != nil {
 		return false, err
 	}
 	_, err = tx.ExecContext(ctx, `UPDATE workflow_publications SET state = 'unresolved', note = ? WHERE id = ?`,

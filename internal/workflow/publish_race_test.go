@@ -368,3 +368,30 @@ func TestCrashBackfillDuringACreationLeavesNoStub(t *testing.T) {
 		t.Fatal("rows of the abandoned creation survived")
 	}
 }
+
+// An edit that lands after a change was planned and before its rename is not overwritten: the
+// change is abandoned, the edit stays, a copy is kept, and the operator is asked.
+func TestCrashAnEditBeforeTheRenameIsNotOverwritten(t *testing.T) {
+	r := newCrashRig(t)
+	cmd, release := r.pauseHelper(t, "before-fence")
+	edited := []byte(`{"id":"wf-c","name":"by hand"}`)
+	if err := os.WriteFile(filepath.Join(r.root, "workflows", "wf-c.json"), edited, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	release()
+	err := cmd.Wait()
+	if ee, ok := err.(*exec.ExitError); !ok || ee.ExitCode() != 3 {
+		t.Fatalf("the change should have been refused: %v", err)
+	}
+	if !bytes.Equal(r.fileOnDisk(t), edited) {
+		t.Fatal("the edit was overwritten")
+	}
+	kept, _ := filepath.Glob(filepath.Join(r.root, "workflow-quarantine", "wf-c.*.json"))
+	if len(kept) != 1 {
+		t.Fatalf("quarantined copies: %v", kept)
+	}
+	var state string
+	if err := r.s.db.QueryRow(`SELECT state FROM workflow_publications`).Scan(&state); err != nil || state != "unresolved" {
+		t.Fatalf("state %q %v", state, err)
+	}
+}

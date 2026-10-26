@@ -71,6 +71,7 @@ type pubPlan struct {
 	data         []byte
 	targetSHA    string
 	targetHash   string
+	prevSHA      string // sha of the file as read when the change was planned ("" when absent)
 }
 
 // profileID is the profile the workflow belongs to, kept on the intent so a profile's deletion can
@@ -193,8 +194,25 @@ func (h *HybridWorkflowStore) publishOnce(ctx context.Context, p Publication) (*
 	var prev []byte
 	var existed bool
 	if h.files != nil {
+		if path, perr := h.files.filePath(p.WorkflowID); perr == nil {
+			if info, lerr := os.Lstat(path); lerr == nil && !info.Mode().IsRegular() {
+				return nil, fmt.Errorf("%w: %s is not a plain file; move it aside and try again", ErrFileSyncFailed, path)
+			}
+		}
 		if prev, existed, err = h.files.readRaw(p.WorkflowID); err != nil {
 			return nil, fmt.Errorf("%w: %v", ErrFileSyncFailed, err)
+		}
+		plan.prevSHA = ""
+		if existed {
+			plan.prevSHA = shaHex(append([]byte{}, prev...))
+			// Bytes the importer did not take in (a half-written edit, a file it declined) are about
+			// to be replaced by this publication: keep a copy rather than lose them silently.
+			var known string
+			if qerr := tx.QueryRowContext(ctx, `SELECT file_sha FROM workflow_file_state WHERE workflow_id = ?`, p.WorkflowID).Scan(&known); qerr != nil || known != plan.prevSHA {
+				if _, qerr := h.files.quarantine(p.WorkflowID, prev); qerr != nil {
+					return nil, fmt.Errorf("%w: keeping a copy of the file that is being replaced: %v", ErrFileSyncFailed, qerr)
+				}
+			}
 		}
 	}
 	if h.files == nil || (p.KeepFileless && !existed && p.Kind != PubDelete) {
@@ -461,6 +479,11 @@ func (h *HybridWorkflowStore) publishFile(ctx context.Context, p Publication, pl
 	}
 	fileWriteMu.Lock()
 	defer fileWriteMu.Unlock()
+	// Compare-and-swap: the file must still be the one this change was planned against. An edit that
+	// landed since stays where it is; the abort that follows keeps a copy and hands it to the operator.
+	if err := h.checkFileUnchanged(p.WorkflowID, pl.prevSHA); err != nil {
+		return err
+	}
 	err = failpoint("before-rename")
 	if err == nil && guardedFileFault != nil {
 		err = guardedFileFault()
@@ -605,4 +628,28 @@ func WithApproval(ctx context.Context) context.Context {
 func approvalFrom(ctx context.Context) bool {
 	v, _ := ctx.Value(approvalKey{}).(bool)
 	return v
+}
+
+// checkFileUnchanged fails when the workflow's file is not the plain file with the bytes (or the
+// absence) the change was planned against.
+func (h *HybridWorkflowStore) checkFileUnchanged(id, wantSHA string) error {
+	path, err := h.files.filePath(id)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrFileSyncFailed, err)
+	}
+	if info, lerr := os.Lstat(path); lerr == nil && !info.Mode().IsRegular() {
+		return fmt.Errorf("%w: %s is not a plain file", ErrFileSyncFailed, path)
+	}
+	raw, there, err := h.files.readRaw(id)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrFileSyncFailed, err)
+	}
+	now := ""
+	if there {
+		now = shaHex(append([]byte{}, raw...))
+	}
+	if now != wantSHA {
+		return fmt.Errorf("%w: the file changed while this change was being made", ErrFileSyncFailed)
+	}
+	return nil
 }

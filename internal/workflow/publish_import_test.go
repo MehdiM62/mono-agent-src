@@ -390,19 +390,40 @@ func TestPublicationDoesNotBuildOnAFileTheImporterDeclined(t *testing.T) {
 	if err := os.Symlink(target, path); err != nil {
 		t.Fatal(err)
 	}
-	if err := h.SetWorkflowActive(ctx, "wf-g", true); err != nil {
+	// The importer declined the link, and the publication refuses to replace it: it will not
+	// build on its target and will not silently turn it into a plain file either.
+	if err := h.SetWorkflowActive(ctx, "wf-g", true); !errors.Is(err, ErrFileSyncFailed) {
+		t.Fatalf("%v", err)
+	}
+	if info, err := os.Lstat(path); err != nil || info.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("the link was touched: %v", err)
+	}
+	if sqlConfig(t, s, "wf-g", "g-set") != "B" || openIntentCount(t, s) != 0 {
+		t.Fatal("the refused change left something behind")
+	}
+}
+
+// A hand edit the importer cannot take in (here cut off mid-write) is not lost when the next save
+// replaces the file: a copy is kept in the quarantine folder.
+func TestSaveKeepsACopyOfADeclinedHandEdit(t *testing.T) {
+	ctx := context.Background()
+	h, s, _, nodes := guardedRig(t)
+	half := []byte(`{"id":"wf-g","name":"half","nodes":[`)
+	if err := os.WriteFile(filepath.Join(h.files.dir, "wf-g.json"), half, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if info, err := os.Lstat(path); err != nil || !info.Mode().IsRegular() {
-		t.Fatalf("the link was not replaced by a plain file: %v", err)
+	if err := h.SaveWorkflowNodes(ctx, "wf-g", nodes); err != nil {
+		t.Fatal(err)
 	}
-	if sqlConfig(t, s, "wf-g", "g-set") != "B" {
-		t.Fatal("the linked definition was published")
+	kept, _ := filepath.Glob(filepath.Join(filepath.Dir(h.files.dir), "workflow-quarantine", "wf-g.*.json"))
+	if len(kept) != 1 {
+		t.Fatalf("quarantined copies: %v", kept)
 	}
-	now, _ := h.GetWorkflow(ctx, "wf-g")
-	hash, _ := definitionHash(now)
-	if ok, _ := h.DefinitionApproved(ctx, "wf-g", hash); ok && now.Nodes[1].Config["k"] != "B" {
-		t.Fatal("the approved definition came back through the link")
+	if b, _ := os.ReadFile(kept[0]); !bytes.Equal(b, half) {
+		t.Fatal("the copy is not the edit")
+	}
+	if sqlConfig(t, s, "wf-g", "g-set") != "edited" {
+		t.Fatal("the save did not land")
 	}
 }
 

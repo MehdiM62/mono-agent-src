@@ -502,3 +502,31 @@ func (s *WorkflowFileStore) installRaw(id, tmp string) error {
 	defer s.invalidate(path)
 	return installStaged(tmp, path)
 }
+
+// quarantineKeep is how many quarantined copies are kept per workflow.
+const quarantineKeep = 20
+
+// quarantine keeps a copy of bytes that are about to be, or have been, set aside: written whole and
+// flushed (with its folder), under the quarantine folder beside the workflows folder. The oldest
+// copies of the same workflow beyond quarantineKeep are removed.
+func (s *WorkflowFileStore) quarantine(id string, data []byte) (string, error) {
+	dir := s.quarantineDir()
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", err
+	}
+	final := filepath.Join(dir, fmt.Sprintf("%s.%d.json", id, time.Now().UnixNano()))
+	tmp, err := stageFile(final, data)
+	if err != nil {
+		return "", err
+	}
+	if err := installStaged(tmp, final); err != nil {
+		return "", err
+	}
+	if old, _ := filepath.Glob(filepath.Join(dir, id+".*.json")); len(old) > quarantineKeep {
+		sort.Strings(old) // the name carries the time, oldest first
+		for _, f := range old[:len(old)-quarantineKeep] {
+			_ = os.Remove(f)
+		}
+	}
+	return final, nil
+}
