@@ -307,6 +307,11 @@ func (h *HybridWorkflowStore) plan(ctx context.Context, tx *sql.Tx, p Publicatio
 	}
 	t := pl.target
 	t.ID = p.WorkflowID
+	if pl.cur != nil && pl.cur.ProfileID != "" {
+		// The owner is the rows': a save does not move a workflow, and the file must say what the
+		// rows say (the rows were the ones retagged if the two ever differed).
+		t.ProfileID = pl.cur.ProfileID
+	}
 	for i := range t.Nodes {
 		if t.Nodes[i].ID == "" {
 			t.Nodes[i].ID = newID()

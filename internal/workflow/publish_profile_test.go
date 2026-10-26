@@ -58,3 +58,23 @@ func TestPublishRefusesAProfileThatDoesNotExist(t *testing.T) {
 		t.Fatalf("a file was written: %v", statErr)
 	}
 }
+
+// A save cannot move a workflow to another profile: the rows keep their owner and the file written
+// says the same, so the two always agree.
+func TestPublishKeepsTheOwnerProfile(t *testing.T) {
+	ctx := context.Background()
+	h, s, _, _ := guardedRig(t)
+	if _, err := s.db.Exec(`INSERT INTO profiles (id, name) VALUES ('thief', 'Thief')`); err != nil {
+		t.Fatal(err)
+	}
+	cur, _ := h.GetWorkflow(ctx, "wf-g")
+	cur.ProfileID = "thief"
+	if err := h.SaveWorkflow(ctx, cur); err != nil {
+		t.Fatal(err)
+	}
+	rows, _ := s.GetWorkflow(ctx, "wf-g")
+	file, _ := h.files.GetWorkflow(ctx, "wf-g")
+	if rows.ProfileID != "default" || file.ProfileID != "default" {
+		t.Fatalf("rows %q file %q", rows.ProfileID, file.ProfileID)
+	}
+}

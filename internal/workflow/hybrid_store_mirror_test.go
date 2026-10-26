@@ -77,6 +77,9 @@ func TestHybridMirrorKeepsProfile(t *testing.T) {
 	if err := h.SaveWorkflow(ctx, w); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := s.db.Exec(`INSERT INTO profiles (id, name) VALUES ('work', 'Work')`); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := s.db.Exec(`UPDATE workflows SET profile_id = 'work' WHERE id = 'wf-p'`); err != nil {
 		t.Fatal(err)
 	}
