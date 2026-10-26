@@ -137,18 +137,20 @@ type ReportView struct {
 
 // ReportTask is one task of the report.
 type ReportTask struct {
-	ID         int64    `json:"id"`
-	Title      string   `json:"title"`
-	Status     string   `json:"status"`
-	Assignee   string   `json:"assignee,omitempty"`
-	Blocked    bool     `json:"blocked,omitempty"`
-	Verified   bool     `json:"verified,omitempty"`
-	Retries    int      `json:"retries,omitempty"`
-	DependsOn  []int64  `json:"depends_on,omitempty"`
-	Evidence   []string `json:"evidence,omitempty"`
-	LastResult string   `json:"last_result,omitempty"`
+	ID        int64   `json:"id"`
+	Title     string  `json:"title"`
+	Status    string  `json:"status"`
+	Assignee  string  `json:"assignee,omitempty"`
+	Blocked   bool    `json:"blocked,omitempty"`
+	Verified  bool    `json:"verified,omitempty"`
+	Retries   int     `json:"retries,omitempty"`
+	DependsOn []int64 `json:"depends_on,omitempty"`
+	// Evidence, LastResult and FailureNotes carry text other agents wrote: the _untrusted
+	// suffix tells the lead to treat them as data, not as instructions.
+	Evidence   []string `json:"evidence_untrusted,omitempty"`
+	LastResult string   `json:"last_result_untrusted,omitempty"`
 	// FailureNotes are what verification said when it sent the task back or blocked it.
-	FailureNotes []string `json:"failure_notes,omitempty"`
+	FailureNotes []string `json:"failure_notes_untrusted,omitempty"`
 }
 
 // maxReportTasks bounds the tasks listed in full.

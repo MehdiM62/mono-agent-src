@@ -49,6 +49,9 @@ type MissionRun struct {
 	// MaxVerifyAttempts is how many verifier runs of one task may end without a verdict
 	// before the task is blocked for the operator (default 2).
 	MaxVerifyAttempts int
+	// MaxSpawnsPerTask is how many workers one task may get in a Conductor's turn
+	// (default 6), whatever the failure counter says.
+	MaxSpawnsPerTask int
 }
 
 func (m *MissionRun) poll() time.Duration { return orDur(m.Poll, 2*time.Second) }
@@ -101,6 +104,9 @@ type missionBind struct {
 	actor    tasks.Actor // what the worker's process acts as: bound to the session and the task
 	executor string
 	verifier bool // the worker verifies the task in Review; it holds no claim
+	// verifyBranch is, for a verifier, the unmerged branch of the executor it checks
+	// (mission_verify_tree.go).
+	verifyBranch string
 
 	// spendMu serializes durable charges from streaming, watcher and finish
 	// callbacks. spent advances only after the corresponding write commits.
@@ -128,14 +134,18 @@ type missionState struct {
 	owned    map[int64]ownedClaim // task -> the claim this Conductor holds
 	pending  map[int64]bool       // tasks claimed whose worker is not registered yet
 	failures map[int64]int        // task -> crashed or timed-out runs this turn
-	warned   map[int64]bool       // sessions the 90 percent notice went out for
-	halted   map[int64]bool       // sessions the 100 percent halt went out for
+	starts   map[int64]int        // task -> workers started for it this turn
+	// leadRenewed: task -> when the watcher last renewed the lead's claim on it
+	leadRenewed map[int64]time.Time
+	warned      map[int64]bool // sessions the 90 percent notice went out for
+	halted      map[int64]bool // sessions the 100 percent halt went out for
 }
 
 func (m *missionState) init() {
 	if m.sessions == nil {
 		m.sessions, m.owned, m.pending = map[int64]bool{}, map[int64]ownedClaim{}, map[int64]bool{}
 		m.failures, m.warned, m.halted = map[int64]int{}, map[int64]bool{}, map[int64]bool{}
+		m.starts, m.leadRenewed = map[int64]int{}, map[int64]time.Time{}
 	}
 }
 
@@ -402,11 +412,8 @@ func (c *Conductor) activeWriters(ctx context.Context, mc *MissionRun, sid int64
 // cannotStart is why a ready task may not start now ("" = it may): the agent cap, the
 // concurrency cap, a task that keeps failing, or a writer on the same files.
 func (c *Conductor) cannotStart(mc *MissionRun, t tasks.Task, exec, access string, writers []writerClaim) string {
-	c.msched.mu.Lock()
-	failed := c.msched.failures[t.ID]
-	c.msched.mu.Unlock()
-	if failed >= mc.attempts() {
-		return fmt.Sprintf("its worker failed %d times this turn: read its comments, then replan it or do it yourself", failed)
+	if why := c.failureCap(mc, t); why != "" {
+		return why
 	}
 	if exec != ExecLead {
 		c.mu.Lock()
@@ -419,15 +426,7 @@ func (c *Conductor) cannotStart(mc *MissionRun, t tasks.Task, exec, access strin
 			return fmt.Sprintf("%d workers run already (the concurrency cap)", n)
 		}
 	}
-	if isWriter(exec, access) {
-		mine := TaskFiles(t.Notes)
-		for _, w := range writers {
-			if w.task != t.ID && filesOverlap(mine, w.files) {
-				return fmt.Sprintf("it touches files that writer #%d works on (or declares none): it waits", w.task)
-			}
-		}
-	}
-	return ""
+	return writerOverlap(t, exec, access, writers)
 }
 
 // runningTasks lists the workers on a session's tasks.
@@ -461,6 +460,7 @@ func (c *Conductor) missionBudget(ctx context.Context, se tasks.Session) string 
 		return fmt.Sprintf("the session has spent its budget ($%.2f of $%.2f): the mission is halted until the operator raises it", se.SpentUSD, se.BudgetUSD)
 	case frac >= budgetWarnAt:
 		c.msched.mu.Lock()
+		c.msched.init()
 		first := !c.msched.warned[se.ID]
 		c.msched.warned[se.ID] = true
 		c.msched.mu.Unlock()

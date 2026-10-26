@@ -47,8 +47,19 @@ func (c *Conductor) operatorClose(ctx context.Context, mc *MissionRun, sid int64
 	if integration == nil {
 		return tasks.Session{}, &closeRefusal{"the plan has no integration check task"}
 	}
+	for _, t := range plan.Tasks {
+		if t.Kind == tasks.KindEpic {
+			continue
+		}
+		if who, bad := c.verdictUntrusted(ctx, mc, sid, t); bad {
+			return tasks.Session{}, &closeRefusal{fmt.Sprintf("task #%d was judged by %q, not by its verifier (%s)", t.ID, who, verdictByUnexpectedActor)}
+		}
+	}
 	if m := c.mergesRemaining(ctx, mc, sid, plan.Tasks); len(m) > 0 {
 		return tasks.Session{}, &closeRefusal{fmt.Sprintf("%d writer branch(es) are not merged yet", len(m))}
+	}
+	if why := c.integrationStale(ctx, mc, sid, plan, *integration); why != "" {
+		return tasks.Session{}, &closeRefusal{why}
 	}
 	art := tasks.ArtifactInput{Kind: "report", Ref: "final-report", Note: report}
 	if _, err := mc.Store.AddArtifact(ctx, mc.ProfileID, sid, integration.ID, art, operatorActor()); err != nil {

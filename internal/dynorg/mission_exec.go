@@ -120,6 +120,9 @@ func (c *Conductor) missionPrepare(ctx context.Context, req SpawnRequest, parent
 		write := true // a task worker carries the task out: it edits, whatever words its brief has
 		req.NeedsWrite = &write
 	}
+	if why := c.startRefusal(ctx, mc, se, t, own.Events, exec, req.Access); why != "" {
+		return nil, req, fmt.Errorf("task #%d does not start now: %s", t.ID, why)
+	}
 	req.Brief = buildTaskBrief(se, t, deps, name, req.Brief)
 	if len(req.Files) == 0 {
 		req.Files = TaskFiles(t.Notes)
@@ -167,7 +170,11 @@ func (c *Conductor) missionUnclaim(b *missionBind, why string) {
 func (c *Conductor) missionStarted(b *missionBind, label string) {
 	mc, _ := c.missions()
 	c.msched.mu.Lock()
+	c.msched.init()
 	delete(c.msched.pending, b.task.ID)
+	if label != missionLeadName {
+		c.msched.starts[b.task.ID]++
+	}
 	c.msched.mu.Unlock()
 	_, _ = mc.Store.SetAssignee(context.WithoutCancel(c.ctx), mc.ProfileID, b.session, b.task.ID, label, b.actor)
 }
@@ -207,7 +214,10 @@ func (c *Conductor) release(sid, taskID int64, name string, held *tasks.Claim, w
 }
 
 // missionEnv binds a task worker's process to its session and task: the task commands it
-// runs then act in that session on that one task, as that name, and nowhere else.
+// runs then act in that session on that one task, as that name. The binding is a convention
+// of the environment, not a sandbox: a shell-capable worker can unset the variables and act
+// as an unbound agent. What the store refuses by role, and the checks the Conductor makes
+// afterwards (a verdict by an unexpected actor is not trusted), do not rely on it.
 func missionEnv(w *worker, env map[string]string) {
 	if w.task == nil {
 		return
@@ -251,6 +261,7 @@ func (c *Conductor) missionFinish(w *worker, outcome, report, errText string) {
 	defer cancel()
 	c.recordSpend(ctx, mc, w)
 	if b.verifier {
+		c.removeVerifierTree(w)
 		c.verifierFinished(ctx, mc, w, outcome, errText)
 		return
 	}

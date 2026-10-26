@@ -240,6 +240,10 @@ func branchName(turn, worker string) string { return BranchPrefix + turn + "/" +
 // addWorktree gives a writing worker its own worktree and branch. When it
 // can't, the worker keeps the write lease and the journal says why.
 func (c *Conductor) addWorktree(w *worker) {
+	if w.task != nil && w.task.verifier {
+		c.addVerifierTree(w)
+		return
+	}
 	if c.iso == nil || !writes(w.staff.Access) || !treeID.MatchString(w.id) {
 		return
 	}
@@ -354,6 +358,10 @@ func (c *Conductor) Merge(ctx context.Context, id string) (MergeResult, error) {
 	var branch string
 	if stored != nil {
 		branch = stored.branch
+		if !validBranch(branch) { // a store-sourced ref goes to git only in the shape of our own branches
+			c.mu.Unlock()
+			return MergeResult{}, fmt.Errorf("the stored branch %q of %s is not one of ours (monoagent/<turn>/<worker>): nothing was merged", boundText(branch, 80), id)
+		}
 	} else {
 		branch = w.branch
 		w.merging = true // claimed with the running check: no follow-up starts now

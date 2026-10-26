@@ -167,6 +167,7 @@ type worker struct {
 	// (worktree.go): it runs in workDir, inside worktree, on branch.
 	// merging is set while org_merge commits and merges its branch.
 	worktree, branch, workDir string
+	verifyTree                string // a verifier's detached checkout of the executor's branch
 	merging                   bool
 	merged                    bool // org_merge brought its branch into the chat folder
 	// task is the mission task it works, if any (mission_exec.go).

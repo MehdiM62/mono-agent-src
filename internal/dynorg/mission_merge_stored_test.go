@@ -134,3 +134,30 @@ func TestOrgMergeInANewTurnRefusesClearlyAndRecordsNothing(t *testing.T) {
 		t.Fatalf("recorded %d", n)
 	}
 }
+
+// The branch the store holds is data: a hostile ref (an option, a path, a branch that is not a
+// writer's) never reaches git.
+func TestOrgMergeRefusesAStoredBranchThatIsNotOurs(t *testing.T) {
+	for _, ref := range []string{"--upload-pack=x", "../x", "main", "refs/heads/main", "monoagent/t1/../x", "monoagent/t1"} {
+		t.Run(ref, func(t *testing.T) {
+			repo := newRepo(t)
+			r := newRig(t, rigOpts{})
+			a := r.add(spec{title: "a", files: "a.go"})
+			r.approve()
+			r.verdicts(func(int64) (bool, string) { return true, "ok" })
+			w := r.isolatedWriter(a, ref)
+			if _, err := r.verify(a.ID); err != nil {
+				t.Fatal(err)
+			}
+			r.verified(a.ID)
+			head := gitT(t, repo, "rev-parse", "HEAD")
+			c2 := r.isolatedConductor(repo, "t2")
+			if _, err := r.mergeTool(c2, w.id); err == nil || !strings.Contains(err.Error(), "not one of ours") {
+				t.Fatalf("merge of %q: %v", ref, err)
+			}
+			if gitT(t, repo, "rev-parse", "HEAD") != head || r.mergeArtifacts(a.ID) != 0 {
+				t.Fatal("a refused merge changed something")
+			}
+		})
+	}
+}
