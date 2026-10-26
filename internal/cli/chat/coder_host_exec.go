@@ -320,7 +320,7 @@ func (t *execTurn) Wait() error   { <-t.done; return t.err }
 func (t *execTurn) Stop() {
 	t.once.Do(func() {
 		_ = terminateGroup(t.pid) // t is this process's child: its pid is not reused before cmd.Wait reaps it
-		grace := hostTurnGrace // read here: the goroutine below can outlive a test that swaps it
+		grace := hostTurnGrace    // read here: the goroutine below can outlive a test that swaps it
 		go func() {
 			select {
 			case <-t.done:
