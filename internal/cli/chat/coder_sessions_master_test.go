@@ -257,7 +257,7 @@ func TestSessionTokenFiltersTheReadVerbsToTheCallersTree(t *testing.T) {
 }
 
 func TestEnvHandlingKeepsSessionTokensOutOfHostsAndTurns(t *testing.T) {
-	env := []string{"A=1", coderhost.SessionTokenEnv + "=mst-x", coderhost.MissionTokenEnv + "=1.n", "MONOAGENT_SESSION_TOKENX=keep", "B=2"}
+	env := []string{"A=1", coderhost.SessionTokenEnv + "=mst-x", coderhost.MissionFDEnv + "=3", "MONOAGENT_SESSION_TOKENX=keep", "B=2"}
 	if got := turnEnv(env); strings.Join(got, ",") != "A=1,MONOAGENT_SESSION_TOKENX=keep,B=2" {
 		t.Fatalf("turnEnv = %v", got)
 	}
