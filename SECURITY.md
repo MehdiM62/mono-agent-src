@@ -1800,7 +1800,7 @@ injected text and a confused script inside the rules; it is not a sandbox agains
 - **Spawn and run limits.** Depth 2, `max_children` per master, 6 spawns per 10 minutes
   per master, 5 pending slots per child shared by everything a master queues except a stop (sends, pause,
   resume) and 2 master stops apart, queued sends that expire (6 hours; a master's sends, not its pause or resume,
-  after 15 minutes), 50 waiting sends and 50 waiting control commands per conversation. `max_concurrent` (default 2) caps the children of one master that run a turn at once (only turns this host started are counted); further sends wait, in order, and a held send can expire like any other (15 minutes for a master's) and then fails with the expiry reason.
+  after 15 minutes), 50 waiting sends and 50 waiting control commands per conversation. `max_concurrent` (default 2) caps the children of one master that run a turn at once (only turns this host started are counted); further sends wait (in order within a chat; across chats the freed slot goes to the master's oldest waiting send), and a held send can expire like any other (15 minutes for a master's, 6 hours for others including `answer-d-` notes) and then fails with the expiry reason.
 - **Check-ins and the streak.** After `checkin_limit` (default 48) host-made turns (`checkin-`, `answer-`,
   `master-`) in a row with no message from a person, a session waits for one. A new path that starts turns
   without a person must use its own prefix and be counted, or it would reset the limit.

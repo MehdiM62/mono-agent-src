@@ -43,7 +43,9 @@ var (
 	sqlTable      = regexp.MustCompile(`(?i)\b(?:FROM|INTO|UPDATE|JOIN)\s+([a-z_][a-z_0-9]*)`)
 	sqlCmdWrit    = regexp.MustCompile(`(?i)(?:UPDATE|INSERT\s+(?:OR\s+\w+\s+)?INTO|DELETE\s+FROM)\s+coder_session_commands`)
 	sqlSessionNew = regexp.MustCompile(`(?i)INSERT\s+(?:OR\s+\w+\s+)?INTO\s+coder_sessions\b`)
-	sqlSession    = regexp.MustCompile(`(?i)UPDATE\s+coder_sessions\s+SET\s+([a-z_]+)`)
+	sqlSession    = regexp.MustCompile(`(?is)UPDATE\s+coder_sessions\s+SET\s+(.*?)(?:\bWHERE\b|$)`)
+	sqlAssign     = regexp.MustCompile(`(?i)(?:^|,)\s*([a-z_]+)\s*=`)
+	sqlFormat     = regexp.MustCompile(`(?i)\b(?:FROM|INTO|UPDATE|JOIN)\s+%[a-z]`)
 )
 
 func nonTestFiles(t *testing.T, patterns ...string) []string {
@@ -154,9 +156,14 @@ func checkSQL(t *testing.T, file, s string) {
 		t.Errorf("%s: inserts a coder_sessions row; the store creates sessions", file)
 	}
 	for _, m := range sqlSession.FindAllStringSubmatch(s, -1) {
-		if m[1] != "state" {
-			t.Errorf("%s: updates coder_sessions.%s; only state is the autonomy paths' to move", file, m[1])
+		for _, a := range sqlAssign.FindAllStringSubmatch(m[1], -1) {
+			if a[1] != "state" && a[1] != "updated_at" {
+				t.Errorf("%s: updates coder_sessions.%s; only state (and updated_at) are the autonomy paths' to move", file, a[1])
+			}
 		}
+	}
+	if looksLikeSQL(s) && sqlFormat.MatchString(s) {
+		t.Errorf("%s: SQL built with a format verb in the table position; write the table name out", file)
 	}
 }
 
@@ -169,16 +176,16 @@ func looksLikeSQL(s string) bool {
 // listed. A new one fails here until it is reviewed against the no-approval
 // rule and added, with the test above or its own, covering it.
 func TestEveryCommandQueueingSiteIsKnown(t *testing.T) {
-	want := map[string]bool{
-		"checkin.go:checkinOne":            true, // Enqueue: a host check-in (checkin- turn id)
-		"children_control.go:SendToChild":  true, // Enqueue: a master's send (master- turn id, issuer)
-		"children_control.go:ControlChild": true, // Enqueue: pause/resume/stop by a master
-		"children.go:Spawn":                true, // Enqueue: a master's first message to a new child
-		"parked_deliver.go:deliver":        true, // Enqueue: an answer note (answer- turn id)
+	want := map[string]int{ // call sites per function
+		"checkin.go:checkinOne":            1, // Enqueue: a host check-in (checkin- turn id)
+		"children_control.go:SendToChild":  1, // Enqueue: a master's send (master- turn id, issuer)
+		"children_control.go:ControlChild": 1, // Enqueue: pause/resume/stop by a master
+		"children.go:Spawn":                1, // Enqueue: a master's first message to a new child
+		"parked_deliver.go:deliver":        1, // Enqueue: an answer note (answer- turn id)
 	}
 	// Only the parked-question code may deliver an answer, apply a default or write the ledger.
 	ownedByParked := map[string]bool{"deliver": true, "applyDefault": true, "Record": true, "redeliver": true}
-	got := map[string]bool{}
+	got := map[string]int{}
 	for _, file := range nonTestFiles(t, "*.go") {
 		f := parse(t, file)
 		for _, d := range f.Decls {
@@ -190,7 +197,7 @@ func TestEveryCommandQueueingSiteIsKnown(t *testing.T) {
 				// every selector, so a method value (f := s.Enqueue) counts as a call
 				if sel, ok := n.(*ast.SelectorExpr); ok {
 					if sel.Sel.Name == "Enqueue" {
-						got[file+":"+fd.Name.Name] = true
+						got[file+":"+fd.Name.Name]++
 					}
 					if ownedByParked[sel.Sel.Name] && !strings.HasPrefix(file, "parked") && !strings.HasPrefix(file, "ledger") {
 						t.Errorf("%s:%s uses %s, which only the parked-question code may", file, fd.Name.Name, sel.Sel.Name)
@@ -200,13 +207,15 @@ func TestEveryCommandQueueingSiteIsKnown(t *testing.T) {
 			})
 		}
 	}
-	for k := range got {
-		if !want[k] {
+	for k, n := range got {
+		if want[k] == 0 {
 			t.Errorf("new Enqueue call site %s: review it against the no-approval rule and list it", k)
+		} else if n != want[k] {
+			t.Errorf("%s has %d Enqueue call sites, the list says %d: review the new one and update the list", k, n, want[k])
 		}
 	}
 	for k := range want {
-		if !got[k] {
+		if got[k] == 0 {
 			t.Errorf("listed call site %s is gone: update the list", k)
 		}
 	}

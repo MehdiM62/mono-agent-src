@@ -2510,11 +2510,14 @@ monoagentcli --profile work coder host stop                        # the host on
   `max_children`, `max_concurrent`, `max_depth`, `mesh_visible`, `mesh_alias`, `mesh_accept`. `get` lists which
   are operator-only and the values each allows. `max_concurrent` (1 to 10,
   default 2) is the most children of one master that run a turn at once: a send to a further child, from a person
-  or a master, stays pending in order and starts when a sibling's turn ends. Only turns this host started (or
+  or a master, stays pending and starts when a slot frees. Sends keep their order within a chat; across chats
+  the freed slot goes to the oldest waiting send of that master (a master's send that its paused or stopped
+  master holds does not reserve one). Only turns this host started (or
   adopted when it restarted) are counted. A held send can still expire like any other (15 minutes for a master's
-  or an `answer-m-` note, 6 hours for the rest) and then fails with the expiry reason; an expired answer note
+  or an `answer-m-` note, 6 hours for the rest, `answer-d-` and `answer-p-` notes included) and then fails with the expiry reason; an expired answer note
   gives its question back without counting as a failed answer. If the count or the master's settings cannot be
-  read the cap holds and the send is tried again on the next pass; a stop or pause on a held chat still runs. The autonomy settings are acted on (below). `max_children` and `max_depth` hold when a child is linked.
+  read (a database error, not just no stored settings) the cap holds, the send is tried again on the next pass
+  and the host logs it at most once an hour per master; a stop or pause on a held chat still runs. The autonomy settings are acted on (below). `max_children` and `max_depth` hold when a child is linked.
 - **Masters and children:** `sessions settings set <conv> --role master`, then `--role child --parent <master>`
   for each child (the master must be a master with room under its `max_children`; depth is 2; a session with
   children cannot change role).
@@ -2564,7 +2567,7 @@ monoagentcli --profile work coder host stop                        # the host on
   confirm a mission, approve a plan, resolve an HIL gate, approve a task session or change an operator-only
   setting, access or budget. Two layers check it. The behavioural backstop is
   `coderhost/autonomy_noapproval_test.go`: it runs every preset x class x override x reversibility x answerer
-  (plus failed-start variants) with a genuinely signed mission confirmation in place, starts the notes with a
+  (plus failed-start variants: the reopen path is covered there for failed starts only; expiry has its own test) with a genuinely signed mission confirmation in place, starts the notes with a
   fake launcher, asserts that turns of each origin (`answer-p-`, `answer-m-`, `answer-d-`) really started, none
   with a token, that only the person's own mission send had one, and that nothing outside the queue, the
   questions, the ledger, the host-turn and turn-cap tables (`coder_session_commands`, `_questions`, `_decisions`,

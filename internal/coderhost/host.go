@@ -62,7 +62,8 @@ type Host struct {
 	live map[string]Turn
 	wg   sync.WaitGroup
 
-	capHeld map[string][2]string // chats whose sends the max_concurrent cap held on the last pass (profile, conversation); Tick only
+	capLogged map[string]time.Time // when each unreadable cap was last logged
+	capHeld   map[string][2]string // chats whose sends the max_concurrent cap held on the last pass (profile, conversation); Tick only
 }
 
 func key(profileID, conversationID string) string { return profileID + "\x00" + conversationID }
@@ -219,9 +220,9 @@ func (h *Host) Tick() error {
 			// max_concurrent: a master's children run only so many turns at once; the rest wait, in order.
 			if x.Role == "child" && x.Parent != "" {
 				if running == nil {
-					running = h.runningChildren()
+					running = h.runningChildren(cmds)
 				}
-				if h.childSlotFull(x, running) {
+				if h.childSlotFull(x, k, running) {
 					heldNow[k] = [2]string{c.ProfileID, c.ConversationID}
 					blocked[k] = true
 					continue
@@ -316,7 +317,7 @@ func (h *Host) Tick() error {
 			_, _ = h.unlocked(func() (Turn, error) { commit(); return nil, nil }) // the turn has the messages and is recorded: mark them read, without holding up the watchers
 			h.live[k] = t
 			if running != nil {
-				running.started(x)
+				running.started(x, k)
 			}
 			h.watch(x, t)
 			h.end(c, CmdDone, "")

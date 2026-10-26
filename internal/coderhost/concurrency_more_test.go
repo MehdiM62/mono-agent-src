@@ -90,7 +90,7 @@ func TestMaxConcurrentHoldsMasterAndAnswerSendsAndNeverAMastersCheckin(t *testin
 		t.Fatalf("started %q: the master's send (queued first) takes the slot", got)
 	}
 	// A master is not a child: neither the cap nor an unreadable count holds it.
-	if h.childSlotFull(Session{Role: "master"}, &childRunning{err: errors.New("x")}) {
+	if h.childSlotFull(Session{Role: "master"}, "", &childRunning{err: errors.New("x")}) {
 		t.Fatal("a master was held")
 	}
 }
@@ -189,7 +189,7 @@ func TestMaxConcurrentFailsClosedWhenTheMastersSettingsDoNotRead(t *testing.T) {
 		t.Fatalf("started %q once the settings read again", startedConvs(l))
 	}
 	// an unreadable count holds a child too, and only a child
-	if !h.childSlotFull(Session{ProfileID: "p", Role: "child", Parent: "m"}, &childRunning{err: errors.New("x")}) {
+	if !h.childSlotFull(Session{ProfileID: "p", Role: "child", Parent: "m"}, "k", &childRunning{err: errors.New("x")}) {
 		t.Fatal("a child was not held when the count could not be read")
 	}
 }
