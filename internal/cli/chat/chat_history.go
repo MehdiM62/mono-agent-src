@@ -41,7 +41,7 @@ func chatStoreErr(err error) error {
 	case errors.Is(err, ai.ErrConversationNotFound), errors.Is(err, ai.ErrTurnNotFound):
 		return clicore.NotFound("%v", err)
 	case errors.Is(err, ai.ErrTurnActive):
-		return clicore.InvalidInput("%v: stop the turn before deleting the conversation (for a coder session: `coder sessions stop <conversation-id>`)", err)
+		return clicore.InvalidInput("%v: stop the turn before deleting the conversation (a coder session: `coder sessions stop <conversation-id>`; a turn whose process is gone: `chat history reconcile`)", err)
 	case errors.Is(err, ai.ErrTurnOwnedByOtherInstance):
 		return clicore.InvalidInput("%v", err)
 	}
