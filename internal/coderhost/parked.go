@@ -320,6 +320,9 @@ func (s *Store) Answer(profileID string, id int64, answer string, scope CallerSc
 		if n, _ := s.reopenCount(q.ID); n >= MaxAnswerReopens {
 			return q, Command{}, ErrAnswerKeepsFailing
 		}
+		if n, _ := s.expiredReopenCount(q.ID); n >= MaxExpiredReopens {
+			return q, Command{}, ErrAnswerKeepsFailing
+		}
 		// A paused master's note is held by the host until it resumes; a stopped one's is cancelled.
 		if m, ok, err := s.GetSession(q.ProfileID, scope.ConversationID()); err != nil {
 			return q, Command{}, err
@@ -365,6 +368,12 @@ func (s *Store) claimQuestion(q Question, status, answer, by string) error {
 func (s *Store) reopenCount(id int64) (int, error) {
 	var n int
 	err := s.db.QueryRow(`SELECT reopen_count FROM coder_session_questions WHERE id = ?`, id).Scan(&n)
+	return n, err
+}
+
+func (s *Store) expiredReopenCount(id int64) (int, error) {
+	var n int
+	err := s.db.QueryRow(`SELECT expired_reopens FROM coder_session_questions WHERE id = ?`, id).Scan(&n)
 	return n, err
 }
 

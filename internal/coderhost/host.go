@@ -157,6 +157,12 @@ func (h *Host) Tick() error {
 	var running *childRunning    // built on the first send to a child (max_concurrent)
 	for _, c := range cmds {
 		k := key(c.ProfileID, c.ConversationID)
+		// cmds was read before the pass began: an earlier command of this pass (a stop, which fails the
+		// chat's earlier sends, or a master's stop) may have ended this one. Act only on a command that is
+		// still pending, and let an unreadable row wait for the next pass.
+		if cur, ok, err := h.Store.GetCommand(c.ID); err != nil || !ok || cur.Status != CmdPending {
+			continue
+		}
 		if h.RequireConversations {
 			// A command read just before its conversation was deleted must not bring the session
 			// back, nor start a turn on nothing.
@@ -196,6 +202,10 @@ func (h *Host) Tick() error {
 			// master that is still unattended, as it was when it was queued.
 			if strings.HasPrefix(c.TurnID, CheckinTurnPrefix) {
 				if reason := h.checkinStillAllowed(x, h.Store.now()); reason != "" {
+					if h.holdOnReadError(reason, k) {
+						blocked[k] = true
+						continue
+					}
 					h.end(c, CmdFailed, reason)
 					continue
 				}
@@ -205,6 +215,10 @@ func (h *Host) Tick() error {
 			// session that is still a child.
 			if strings.HasPrefix(c.TurnID, MasterTurnPrefix) || c.Issuer != "" {
 				if reason := h.masterSendStillAllowed(x); reason != "" {
+					if h.holdOnReadError(reason, k) {
+						blocked[k] = true
+						continue
+					}
 					h.end(c, CmdFailed, reason)
 					continue
 				}
@@ -213,6 +227,10 @@ func (h *Host) Tick() error {
 			// person's own answer is not held back.
 			if answerGated(c.TurnID) {
 				if reason := h.answerStillAllowed(x); reason != "" {
+					if h.holdOnReadError(reason, k) {
+						blocked[k] = true
+						continue
+					}
 					h.end(c, CmdFailed, reason)
 					continue
 				}
@@ -563,20 +581,23 @@ func (h *Host) checkinIfDue() {
 func (h *Host) checkinStillAllowed(x Session, now time.Time) string {
 	kids, err := h.liveChildren(x.ProfileID, x.ConversationID)
 	if err != nil {
-		return "the session's children do not read"
+		return readFailed + "the session's children do not read: " + err.Error()
 	}
 	if reason := h.checkinTargetStillValid(x, kids); reason != "" {
 		return reason
 	}
 	settings, err := h.Store.GetSettings(x.ProfileID, x.ConversationID)
 	if err != nil {
-		return "the session's settings do not read"
+		return readFailed + "the session's settings do not read: " + err.Error()
 	}
 	if !withinActiveHours(settings.ActiveHours, now) {
 		return "outside the session's active hours"
 	}
 	streak, _, _, err := h.Store.CheckinStreak(x.ProfileID, x.ConversationID)
-	if err != nil || streak >= settings.CheckinLimit {
+	if err != nil {
+		return readFailed + "the session's turns do not read: " + err.Error()
+	}
+	if streak >= settings.CheckinLimit {
 		return "the session has had its check-ins in a row; it waits for a person"
 	}
 	return ""
@@ -587,10 +608,13 @@ func (h *Host) checkinStillAllowed(x Session, now time.Time) string {
 func (h *Host) answerStillAllowed(x Session) string {
 	settings, err := h.Store.GetSettings(x.ProfileID, x.ConversationID)
 	if err != nil {
-		return "the session's settings do not read"
+		return readFailed + "the session's settings do not read: " + err.Error()
 	}
 	streak, _, _, err := h.Store.CheckinStreak(x.ProfileID, x.ConversationID)
-	if err != nil || streak >= settings.CheckinLimit {
+	if err != nil {
+		return readFailed + "the session's turns do not read: " + err.Error()
+	}
+	if streak >= settings.CheckinLimit {
 		return "the session has had its host-made turns in a row; it waits for a person"
 	}
 	return ""
@@ -606,10 +630,13 @@ func (h *Host) masterSendStillAllowed(x Session) string {
 	}
 	settings, err := h.Store.GetSettings(x.ProfileID, x.ConversationID)
 	if err != nil {
-		return "the session's settings do not read"
+		return readFailed + "the session's settings do not read: " + err.Error()
 	}
 	streak, _, _, err := h.Store.CheckinStreak(x.ProfileID, x.ConversationID)
-	if err != nil || streak >= settings.CheckinLimit {
+	if err != nil {
+		return readFailed + "the session's turns do not read: " + err.Error()
+	}
+	if streak >= settings.CheckinLimit {
 		return "the session has had its host-made turns in a row; it waits for a person"
 	}
 	return ""

@@ -3,6 +3,7 @@ package coderhost
 import (
 	"encoding/json"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -126,11 +127,34 @@ func (r *childRunning) started(x Session, k string) {
 	}
 }
 
+// readFailed starts the reason of a re-check that could not read what it needs (a database
+// error): the command is held for the next pass, not failed. Only a real "not allowed" fails it.
+const readFailed = "\x00read: "
+
+// holdOnReadError says whether reason is a failed read, and if so logs it (at most once an
+// hour for a chat) so the command can wait for the next pass.
+func (h *Host) holdOnReadError(reason, chat string) bool {
+	if !strings.HasPrefix(reason, readFailed) {
+		return false
+	}
+	now := h.Store.now()
+	what := "read:" + chat
+	if last, ok := h.capLogged[what]; !ok || now.Sub(last) >= time.Hour {
+		if h.capLogged == nil {
+			h.capLogged = map[string]time.Time{}
+		}
+		h.capLogged[what] = now
+		h.logf("coder host: a queued send is held because %s; trying again on the next pass", strings.TrimPrefix(reason, readFailed))
+	}
+	return true
+}
+
 // pendingOrdered is Pending with the commands of the chats the cap held on the last
 // pass (except a stop) moved to the end, in id order among themselves: a pile of
 // held sends (up to 50 a chat) must not fill the window and hide a stop or another
 // chat's send behind them. A stop goes ahead because it cancels the chat's earlier
-// sends whichever order they are looked at in; a pause or resume stays in its place
+// sends; Tick re-reads each command's status before acting, so a send the stop already
+// failed is skipped even though this pass loaded it. A pause or resume stays in its place
 // among the chat's own sends.
 func (h *Host) pendingOrdered() ([]Command, error) {
 	if len(h.capHeld) == 0 {
