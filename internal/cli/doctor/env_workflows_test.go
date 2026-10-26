@@ -63,7 +63,7 @@ func TestWorkflowPublicationHooksReadAndRecover(t *testing.T) {
 		t.Fatal(err)
 	}
 	info, err = env.WorkflowPublications(ctx)
-	if err != nil || len(info.Open) != 1 || !info.Open[0].OwnerGone || len(info.Unreadable) != 1 || info.Unreadable[0] != "broken" {
+	if err != nil || len(info.Open) != 1 || !info.Open[0].OwnerGone || info.MoreAdoptable != 1 {
 		t.Fatalf("seeded tree: %+v %v", info, err)
 	}
 	// Reading changed nothing.

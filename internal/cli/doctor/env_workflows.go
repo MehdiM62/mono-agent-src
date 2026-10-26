@@ -2,6 +2,7 @@ package doctor
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -44,7 +45,11 @@ func addWorkflowPublicationHooks(env *health.Env) {
 		if info.ImportedInactive, err = store.ImportedInactive(ctx); err != nil {
 			return info, err
 		}
-		info.Adoptable, err = store.AdoptableFiles(ctx)
+		var shown []workflow.AdoptableFile
+		shown, info.MoreAdoptable, err = store.AdoptableFiles(ctx)
+		for _, a := range shown {
+			info.Adoptable = append(info.Adoptable, health.AdoptableWorkflowFile{ID: a.ID, ProfileID: a.ProfileID, SHA12: a.SHA12, NodeTypes: a.NodeTypes, Triggers: a.Triggers})
+		}
 		return info, err
 	}
 	env.RecoverWorkflowPublications = func(ctx context.Context) (int, error) {
@@ -61,11 +66,14 @@ func addWorkflowPublicationHooks(env *health.Env) {
 		}
 		return store.ResolveUnresolved(ctx, id, keep)
 	}
-	env.AdoptWorkflowFile = func(ctx context.Context, id string) error {
+	env.AdoptWorkflowFile = func(ctx context.Context, id, profile, sha12 string) error {
 		store, err := open()
-		if err != nil || store == nil || env.DB == nil {
+		if err != nil {
 			return err
 		}
-		return store.AdoptFile(ctx, id)
+		if store == nil || env.DB == nil {
+			return fmt.Errorf("there is no workflow folder or database to adopt into")
+		}
+		return store.AdoptFile(ctx, id, profile, sha12)
 	}
 }

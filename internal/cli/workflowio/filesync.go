@@ -40,14 +40,20 @@ func SyncFileWorkflowsToSQL(ctx context.Context, db *sql.DB, dir string) ([]stri
 	}
 	store := workflow.NewHybridWorkflowStore(files, workflow.NewSQLiteWorkflowStore(db))
 	_, _ = store.RecoverPublications(ctx)
-	// Remember which files are older versions' (once, for everyone); later file-only arrivals wait to be adopted.
-	if err := store.ClaimLegacyFiles(ctx); err != nil {
-		return nil, err
-	}
 	store.SweepStaleTemp()
 	// Unfinished changes are settled before any file is rewritten (the stamp rewrites legacy files).
 	if err := StampFileWorkflows(ctx, db, dir); err != nil {
 		return nil, err
+	}
+	// The files older versions left become workflows now, once; a file with no rows that appears
+	// later is not imported by anything (an operator adopts it).
+	claimed, err := store.ClaimLegacyFiles(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var synced []string
+	for _, w := range claimed {
+		synced = append(synced, w.ID)
 	}
 	// A file of a profile that no longer exists (deleted, or copied from one) must not come back
 	// as a row of a profile that is gone.
@@ -55,7 +61,6 @@ func SyncFileWorkflowsToSQL(ctx context.Context, db *sql.DB, dir string) ([]stri
 		var n int
 		return wf.ProfileID == "" || (db.QueryRowContext(ctx, `SELECT COUNT(*) FROM profiles WHERE id = ?`, wf.ProfileID).Scan(&n) == nil && n > 0)
 	}
-	var synced []string
 	for _, e := range entries {
 		name, ok := strings.CutSuffix(e.Name(), ".json")
 		if e.IsDir() || !ok {
@@ -69,9 +74,6 @@ func SyncFileWorkflowsToSQL(ctx context.Context, db *sql.DB, dir string) ([]stri
 		// approved now that it has a row, if its definition is unchanged.
 		if err := workflow.ApproveBackfilledFile(ctx, db, res.Workflow); err != nil {
 			continue
-		}
-		if res.Created && !res.Workflow.IsActive {
-			log.Printf("workflow file %s was imported as a new workflow and is inactive: activate it to use it", res.Workflow.ID)
 		}
 		synced = append(synced, res.Workflow.ID)
 	}

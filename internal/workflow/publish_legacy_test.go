@@ -2,7 +2,6 @@ package workflow
 
 import (
 	"context"
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"sync"
@@ -20,33 +19,35 @@ func dropFile(t *testing.T, h *HybridWorkflowStore, id string, active bool) {
 	}
 }
 
-// A file-only workflow that older versions saved (it exists when the legacy set is recorded) keeps
-// its active flag, before and after the claim.
-func TestLegacyFileOnlyWorkflowStaysActive(t *testing.T) {
+func markerCount(t *testing.T, s *SQLiteWorkflowStore) int {
+	t.Helper()
+	var n int
+	_ = s.db.QueryRow(`SELECT COUNT(*) FROM settings WHERE key = ?`, legacyDoneKey).Scan(&n)
+	return n
+}
+
+// The workflow files older versions left become workflows when the store is first used, as they
+// always did (the active flag is kept), and the claim is recorded once.
+func TestFilesOlderVersionsLeftAreTakenInOnceAndKeepTheirFlag(t *testing.T) {
 	ctx := context.Background()
-	h, s := newHybridForTest(t) // nothing has used the store yet: the legacy set is not recorded
+	h, s := newHybridForTest(t) // nothing has used the store yet
 	dropFile(t, h, "wf-old", true)
-	res, err := h.ImportFile(ctx, "wf-old", nil) // the first use records the set, and wf-old is in it
-	if err != nil || !res.Created {
-		t.Fatalf("%+v %v", res, err)
+	if got, err := h.GetWorkflow(ctx, "wf-old"); err != nil || got == nil || !got.IsActive {
+		t.Fatalf("a read of an older version's file: %+v %v", got, err)
 	}
-	if rows, _ := s.GetWorkflow(ctx, "wf-old"); !rows.IsActive {
-		t.Fatal("a legacy file-only workflow lost its active flag")
+	if rows, _ := s.GetWorkflow(ctx, "wf-old"); rows == nil || !rows.IsActive {
+		t.Fatalf("rows: %+v", rows)
 	}
-	if post, _ := postMarkerFile(ctx, s.db, "wf-old"); post {
-		t.Fatal("wf-old is not in the legacy set")
+	if markerCount(t, s) != 1 {
+		t.Fatal("the claim was not recorded")
 	}
 }
 
-// A file-only workflow that appears after the legacy set was recorded is neither imported nor served
-// by anything that merely reads: it can name any profile, so it waits for an operator to adopt it,
-// and is then created inactive.
-func TestFileThatAppearsAfterTheMarkerWaitsToBeAdopted(t *testing.T) {
+// A file with no rows that appears after the claim is not imported, not served and not listed; an
+// operator adopts it by naming the file they looked at, and it starts inactive.
+func TestFileThatAppearsAfterTheClaimWaitsToBeAdopted(t *testing.T) {
 	ctx := context.Background()
-	h, s, _, _ := guardedRig(t)
-	if err := h.ClaimLegacyFiles(ctx); err != nil {
-		t.Fatal(err)
-	}
+	h, s, _, _ := guardedRig(t) // used already: the claim is recorded
 	dropFile(t, h, "wf-dropped", true)
 	if res, err := h.ImportFile(ctx, "wf-dropped", nil); err != nil || res.Imported {
 		t.Fatalf("the importer took in a dropped file: %+v %v", res, err)
@@ -54,16 +55,26 @@ func TestFileThatAppearsAfterTheMarkerWaitsToBeAdopted(t *testing.T) {
 	if got, err := h.GetWorkflow(ctx, "wf-dropped"); err != nil || got != nil {
 		t.Fatalf("a read served a dropped file: %+v %v", got, err)
 	}
-	list, _ := h.ListAllProfilesWorkflows(ctx)
-	for _, w := range list {
+	for _, w := range mustList(t, h) {
 		if w.ID == "wf-dropped" {
 			t.Fatal("a listing shows a dropped file")
 		}
 	}
-	if got, _ := h.AdoptableFiles(ctx); len(got) != 1 || got[0] != "wf-dropped" {
-		t.Fatalf("adoptable: %v", got)
+	shown, more, err := h.AdoptableFiles(ctx)
+	if err != nil || len(shown) != 1 || more != 0 || shown[0].ID != "wf-dropped" || shown[0].ProfileID != "default" || len(shown[0].SHA12) != 12 {
+		t.Fatalf("adoptable: %+v %d %v", shown, more, err)
 	}
-	if err := h.AdoptFile(ctx, "wf-dropped"); err != nil {
+	a := shown[0]
+	if len(a.Triggers) != 1 || a.Triggers[0] != "trigger.manual" {
+		t.Fatalf("triggers: %v", a.Triggers)
+	}
+	if err := h.AdoptFile(ctx, "wf-dropped", a.ProfileID, "000000000000"); err == nil {
+		t.Fatal("adopted a file other than the one that was looked at")
+	}
+	if err := h.AdoptFile(ctx, "wf-dropped", "some-other-profile", a.SHA12); err == nil {
+		t.Fatal("adopted into a profile the file does not name")
+	}
+	if err := h.AdoptFile(ctx, "wf-dropped", a.ProfileID, a.SHA12); err != nil {
 		t.Fatal(err)
 	}
 	rows, _ := s.GetWorkflow(ctx, "wf-dropped")
@@ -72,78 +83,180 @@ func TestFileThatAppearsAfterTheMarkerWaitsToBeAdopted(t *testing.T) {
 	}
 	var note string
 	_ = s.db.QueryRow(`SELECT note FROM workflow_versions WHERE workflow_id = 'wf-dropped'`).Scan(&note)
-	if note != ImportNewFileNote {
-		t.Fatalf("note %q", note)
+	if note != ImportNewFileNote || approvals(t, s, "wf-dropped") != 0 {
+		t.Fatalf("note %q, approvals %d", note, approvals(t, s, "wf-dropped"))
 	}
 	if got, _ := h.ImportedInactive(ctx); len(got) != 1 || got[0] != "wf-dropped" {
 		t.Fatalf("doctor list: %v", got)
 	}
-	if got, _ := h.GetWorkflow(ctx, "wf-dropped"); got == nil || got.IsActive {
-		t.Fatalf("after adopting: %+v", got)
+}
+
+// Adopting never replaces a stored workflow and never starts one: a workflow that has rows is
+// refused (it would be an outside-edit import with revoked approvals), and a file that says
+// is_active:true is adopted inactive.
+func TestAdoptRefusesAStoredWorkflowAndAlwaysStartsInactive(t *testing.T) {
+	ctx := context.Background()
+	h, s, _, _ := guardedRig(t)
+	handEdit(t, h, "wf-g", func(w *Workflow) { w.Nodes[1].Config = map[string]interface{}{"k": "changed"} })
+	sha := shaHex(fileBytes(t, h, "wf-g"))[:12]
+	if err := h.AdoptFile(ctx, "wf-g", "default", sha); err == nil {
+		t.Fatal("a workflow that has rows was adopted")
 	}
-	// A profile that does not exist cannot be adopted into.
-	ghost := mirrorWF("wf-ghost-file", "gh-trig", "gh-set")
-	ghost.ProfileID = "no-such-profile"
-	if err := h.files.SaveWorkflow(ctx, ghost); err != nil {
+	if sqlConfig(t, s, "wf-g", "g-set") == "changed" || approvals(t, s, "wf-g") != 1 {
+		t.Fatal("adopting acted as an outside-edit import")
+	}
+	dropFile(t, h, "wf-active-file", true)
+	shown, _, _ := h.AdoptableFiles(ctx)
+	if len(shown) != 1 {
+		t.Fatalf("%+v", shown)
+	}
+	if err := h.AdoptFile(ctx, "wf-active-file", shown[0].ProfileID, shown[0].SHA12); err != nil {
 		t.Fatal(err)
 	}
-	if err := h.AdoptFile(ctx, "wf-ghost-file"); err == nil {
-		t.Fatal("adopted into a profile that does not exist")
+	if rows, _ := s.GetWorkflow(ctx, "wf-active-file"); rows.IsActive {
+		t.Fatal("an adopted workflow started active")
 	}
 }
 
-// A grandfathered id is released when its workflow is deleted: a file recreated under it later is a
-// new file, not an older version's.
-func TestDeletingAWorkflowReleasesItsLegacyId(t *testing.T) {
+// An id that once had a workflow gets no special standing: after its rows are gone (deleted, or its
+// profile deleted) a file recreated under it is just a file.
+func TestARecreatedFileForAGoneWorkflowIsNotServed(t *testing.T) {
 	ctx := context.Background()
 	h, s := newHybridForTest(t)
 	dropFile(t, h, "wf-gone", true)
-	if _, err := h.ImportFile(ctx, "wf-gone", nil); err != nil {
-		t.Fatal(err)
-	}
-	if post, _ := postMarkerFile(ctx, s.db, "wf-gone"); post {
-		t.Fatal("setup: wf-gone should be legacy")
+	if got, _ := h.GetWorkflow(ctx, "wf-gone"); got == nil {
+		t.Fatal("setup: the older version's file should be taken in")
 	}
 	if err := h.DeleteWorkflow(ctx, "wf-gone"); err != nil {
 		t.Fatal(err)
-	}
-	if post, _ := postMarkerFile(ctx, s.db, "wf-gone"); !post {
-		t.Fatal("a deleted workflow's id is still grandfathered")
 	}
 	dropFile(t, h, "wf-gone", true)
 	if got, _ := h.GetWorkflow(ctx, "wf-gone"); got != nil {
 		t.Fatalf("a recreated file was served: %+v", got)
 	}
+	// The same when the rows go some other way (a profile delete removes them directly).
+	dropFile(t, h, "wf-gone2", true)
+	if got, _ := h.GetWorkflow(ctx, "wf-gone2"); got != nil {
+		t.Fatalf("a file that appeared after the claim was served: %+v", got)
+	}
+	if rows, _ := s.GetWorkflow(ctx, "wf-gone"); rows != nil {
+		t.Fatal("rows came back")
+	}
+	for _, w := range mustList(t, h) {
+		if w.ID == "wf-gone" || w.ID == "wf-gone2" {
+			t.Fatalf("a listing shows %s", w.ID)
+		}
+	}
 }
 
-// An unreadable marker fails closed.
-func TestUnreadableLegacyMarkerFailsClosed(t *testing.T) {
+// Nothing is served from a file with no rows even when the claim never got recorded (a busy or
+// broken database): the store fails closed.
+func TestAFailedClaimServesNothingFromAFileWithNoRows(t *testing.T) {
 	ctx := context.Background()
-	_, s, _, _ := guardedRig(t)
-	if _, err := s.db.Exec(`INSERT INTO settings (key, value) VALUES (?, 'not json') ON CONFLICT(key) DO UPDATE SET value = excluded.value`, legacyFilesKey); err != nil {
-		t.Fatal(err)
+	h, _ := newHybridForTest(t)
+	h.claimMu.Lock()
+	h.claimed = true // pretend the claim ran: it did not, and there is no marker
+	h.claimMu.Unlock()
+	dropFile(t, h, "wf-x", true)
+	if got, err := h.GetWorkflow(ctx, "wf-x"); err != nil || got != nil {
+		t.Fatalf("served %+v (%v)", got, err)
 	}
-	if post, err := postMarkerFile(ctx, s.db, "wf-g"); err != nil || !post {
-		t.Fatalf("post=%v err=%v", post, err)
+	for _, w := range mustList(t, h) {
+		if w.ID == "wf-x" {
+			t.Fatal("listed")
+		}
 	}
 }
 
-// Any process that uses the store claims the legacy set, not only the CLI's sync: reading is enough.
-func TestFirstUseOfTheStoreRecordsTheLegacySet(t *testing.T) {
+// An edit-import of a workflow with no rows returns before the write lock or the file is touched:
+// the sync calls it for every file on every command.
+func TestImportOfAFileWithNoRowsDoesNotTakeTheWriteLock(t *testing.T) {
 	ctx := context.Background()
 	h, s, _, _ := guardedRig(t)
-	if _, err := h.GetWorkflow(ctx, "wf-g"); err != nil {
+	dropFile(t, h, "wf-nolock", true)
+	release := holdWriteLock(t, s)
+	defer release()
+	quickly(t, "the import", func() {
+		if res, err := h.ImportFile(ctx, "wf-nolock", nil); err != nil || res.Imported {
+			t.Errorf("%+v %v", res, err)
+		}
+	})
+}
+
+// Many processes claim at once: the files are taken in once, the claim is recorded once, and a file
+// that appears afterwards is not taken in by a later claim.
+func TestLegacyClaimIsRecordedOnceByWhoeverGetsThereFirst(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	first, err := storage.NewDatabase(filepath.Join(root, "claim.db"))
+	if err != nil {
 		t.Fatal(err)
 	}
-	var n int
-	_ = s.db.QueryRow(`SELECT COUNT(*) FROM settings WHERE key = ?`, legacyFilesKey).Scan(&n)
+	defer first.Close()
+	if err := first.ApplyMigrations(); err != nil {
+		t.Fatal(err)
+	}
+	files, err := NewWorkflowFileStore(filepath.Join(root, "workflows"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	seed := NewHybridWorkflowStore(files, NewSQLiteWorkflowStore(first.DB))
+	dropFile(t, seed, "wf-a", true)
+	dropFile(t, seed, "wf-b", false)
+
+	var wg sync.WaitGroup
+	errs := make(chan error, 8)
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			db, err := storage.NewDatabase(filepath.Join(root, "claim.db"))
+			if err != nil {
+				errs <- err
+				return
+			}
+			defer db.Close()
+			_, err = NewHybridWorkflowStore(files, NewSQLiteWorkflowStore(db.DB)).ClaimLegacyFiles(ctx)
+			errs <- err
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	dropFile(t, seed, "wf-c", true)
+	if _, err := seed.ClaimLegacyFiles(ctx); err != nil { // a later claim does nothing
+		t.Fatal(err)
+	}
+	var n, active int
+	_ = first.DB.QueryRow(`SELECT COUNT(*) FROM settings WHERE key = ?`, legacyDoneKey).Scan(&n)
 	if n != 1 {
-		t.Fatalf("%d markers after a read", n)
+		t.Fatalf("%d markers", n)
 	}
-	dropFile(t, h, "wf-late", true)
-	if got, _ := h.GetWorkflow(ctx, "wf-late"); got != nil {
-		t.Fatal("a file that appeared after the first use was served")
+	for id, want := range map[string]int{"wf-a": 1, "wf-b": 0} {
+		if err := first.DB.QueryRow(`SELECT is_active FROM workflows WHERE id = ?`, id).Scan(&active); err != nil || active != want {
+			t.Fatalf("%s: active %d (%v), want %d", id, active, err, want)
+		}
 	}
+	if err := first.DB.QueryRow(`SELECT COUNT(*) FROM workflows WHERE id = 'wf-c'`).Scan(&n); err != nil || n != 0 {
+		t.Fatalf("a file that appeared after the claim got rows (%d, %v)", n, err)
+	}
+}
+
+func mustList(t *testing.T, h *HybridWorkflowStore) []*Workflow {
+	t.Helper()
+	all, err := h.ListAllProfilesWorkflows(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := make([]*Workflow, len(all))
+	for i := range all {
+		out[i] = &all[i]
+	}
+	return out
 }
 
 // Listings say what the rows say: a file cannot move a workflow to another profile or switch it on,
@@ -178,69 +291,5 @@ func TestListingsTakeOwnerAndActiveFlagFromTheRows(t *testing.T) {
 	}
 	if mine, _ := h.ListWorkflows(ctx, "victim"); len(mine) != 0 {
 		t.Fatalf("the victim profile lists %d workflows", len(mine))
-	}
-}
-
-// Many processes claim at once: one list is written, once, and a later claim never widens it.
-func TestLegacyClaimIsRecordedOnceByWhoeverGetsThereFirst(t *testing.T) {
-	ctx := context.Background()
-	root := t.TempDir()
-	first, err := storage.NewDatabase(filepath.Join(root, "claim.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer first.Close()
-	if err := first.ApplyMigrations(); err != nil {
-		t.Fatal(err)
-	}
-	files, err := NewWorkflowFileStore(filepath.Join(root, "workflows"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	seed := NewHybridWorkflowStore(files, NewSQLiteWorkflowStore(first.DB))
-	dropFile(t, seed, "wf-a", true)
-	dropFile(t, seed, "wf-b", false)
-
-	var wg sync.WaitGroup
-	errs := make(chan error, 8)
-	for i := 0; i < 8; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			db, err := storage.NewDatabase(filepath.Join(root, "claim.db"))
-			if err != nil {
-				errs <- err
-				return
-			}
-			defer db.Close()
-			errs <- NewHybridWorkflowStore(files, NewSQLiteWorkflowStore(db.DB)).ClaimLegacyFiles(ctx)
-		}()
-	}
-	wg.Wait()
-	close(errs)
-	for err := range errs {
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-	dropFile(t, seed, "wf-c", true)
-	if err := seed.ClaimLegacyFiles(ctx); err != nil { // a later claim must not widen the set
-		t.Fatal(err)
-	}
-	var n int
-	var raw string
-	if err := first.DB.QueryRow(`SELECT COUNT(*), COALESCE(MAX(value), '') FROM settings WHERE key = ?`, legacyFilesKey).Scan(&n, &raw); err != nil || n != 1 {
-		t.Fatalf("%d markers (%v)", n, err)
-	}
-	var ids []string
-	_ = json.Unmarshal([]byte(raw), &ids)
-	if len(ids) != 2 {
-		t.Fatalf("the legacy set is %v, want wf-a and wf-b only", ids)
-	}
-	if post, _ := postMarkerFile(ctx, first.DB, "wf-c"); !post {
-		t.Fatal("a file dropped after the claim counts as legacy")
-	}
-	if post, _ := postMarkerFile(ctx, first.DB, "wf-a"); post {
-		t.Fatal("a legacy file counts as new")
 	}
 }

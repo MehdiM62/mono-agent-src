@@ -87,18 +87,46 @@ func TestWorkflowPublicationsUnresolvedNamesBothChoicesAndPicksNone(t *testing.T
 }
 
 func TestWorkflowPublicationsOffersToAdoptANewFile(t *testing.T) {
-	info := &WorkflowPublicationsInfo{Adoptable: []string{"wf-new"}}
+	info := &WorkflowPublicationsInfo{Adoptable: []AdoptableWorkflowFile{
+		{ID: "wf-new", ProfileID: "default", SHA12: "0123456789ab", NodeTypes: []string{"core.set", "trigger.manual"}, Triggers: []string{"trigger.manual"}},
+	}}
 	res := checkWorkflowPublications(context.Background(), publicationsEnv(info, nil))
-	if len(res.Children) != 1 || res.Children[0].FixID != "workflows.publications.adopt:wf-new" {
+	if len(res.Children) != 1 || res.Children[0].FixID != "workflows.publications.adopt:wf-new:default:0123456789ab" {
 		t.Fatalf("%+v", res.Children)
 	}
-	var got string
-	env := &Env{AdoptWorkflowFile: func(_ context.Context, id string) error { got = id; return nil }}
-	fix, ok := Default().Fix(res.Children[0].FixID)
-	if !ok {
-		t.Fatal("the fix is not registered")
+	for _, want := range []string{`"default"`, "0123456789ab", `"trigger.manual"`, `"core.set"`} {
+		if !strings.Contains(res.Children[0].Summary, want) {
+			t.Errorf("the row does not show %s: %q", want, res.Children[0].Summary)
+		}
 	}
-	if err := fix.Apply(context.Background(), env, func(string) {}); err != nil || got != "wf-new" {
-		t.Fatalf("%q %v", got, err)
+	var got [3]string
+	env := &Env{AdoptWorkflowFile: func(_ context.Context, id, profile, sha string) error { got = [3]string{id, profile, sha}; return nil }}
+	fix, ok := Default().Fix(res.Children[0].FixID)
+	if !ok || !fix.Optional {
+		t.Fatalf("the fix is missing or not optional: %v %+v", ok, fix.FixInfo)
+	}
+	if err := fix.Apply(context.Background(), env, func(string) {}); err != nil || got != [3]string{"wf-new", "default", "0123456789ab"} {
+		t.Fatalf("%v %v", got, err)
+	}
+	if bad, _ := Default().Fix("workflows.publications.adopt:wf-new"); bad.Apply != nil {
+		if err := bad.Apply(context.Background(), env, func(string) {}); err == nil {
+			t.Fatal("an adopt without a profile and sha was accepted")
+		}
+	}
+}
+
+// What a file calls itself cannot spoof the report: names are printed escaped, a long list is cut.
+func TestWorkflowPublicationsEscapesAndCapsWhatFilesSay(t *testing.T) {
+	evil := AdoptableWorkflowFile{ID: "wf-x", ProfileID: "default", SHA12: "0123456789ab",
+		NodeTypes: []string{"core.set\n\x1b[31mFAKE OK"}, Triggers: []string{"trigger.manual\nok: nothing to see"}}
+	info := &WorkflowPublicationsInfo{Adoptable: []AdoptableWorkflowFile{evil}, MoreAdoptable: 7}
+	res := checkWorkflowPublications(context.Background(), publicationsEnv(info, nil))
+	for _, c := range res.Children {
+		if strings.ContainsAny(c.Summary, "\n\x1b") {
+			t.Fatalf("a control character reached the report: %q", c.Summary)
+		}
+	}
+	if last := res.Children[len(res.Children)-1]; !strings.Contains(last.Summary, "7 more") {
+		t.Fatalf("the cap is not reported: %q", last.Summary)
 	}
 }

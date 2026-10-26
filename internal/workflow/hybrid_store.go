@@ -82,8 +82,7 @@ func (h *HybridWorkflowStore) fileWorkflows(ctx context.Context) ([]*Workflow, e
 
 // overlayRows makes a listing of workflow files say what the rows say about each: whose workflow it
 // is, whether it is on, and its version. A file cannot give itself another owner or switch itself on
-// (the daemon arms triggers from these listings). A file with no rows that is not one of the older
-// versions' (see ClaimLegacyFiles) is left out until an operator adopts it. Listed workflows are
+// (the daemon arms triggers from these listings). A file with no rows is left out. Listed workflows are
 // copies: the file store's cache is not touched.
 func (h *HybridWorkflowStore) overlayRows(ctx context.Context, files []*Workflow) ([]*Workflow, error) {
 	type rowInfo struct {
@@ -108,20 +107,14 @@ func (h *HybridWorkflowStore) overlayRows(ctx context.Context, files []*Workflow
 	if err := rs.Err(); err != nil {
 		return nil, err
 	}
-	legacy, recorded, err := legacyMarker(ctx, h.sql.db)
-	if err != nil {
-		return nil, err
-	}
 	out := make([]*Workflow, 0, len(files))
 	for _, wf := range files {
 		r, ok := rows[wf.ID]
-		if !ok && recorded && !legacy[wf.ID] {
-			continue
+		if !ok {
+			continue // a file with no stored copy is not a workflow (see ClaimLegacyFiles)
 		}
 		c := *wf
-		if ok {
-			c.ProfileID, c.IsActive, c.Version = r.profile, r.active, r.version
-		}
+		c.ProfileID, c.IsActive, c.Version = r.profile, r.active, r.version
 		out = append(out, &c)
 	}
 	return out, nil
@@ -634,15 +627,9 @@ func (h *HybridWorkflowStore) reconciledFile(ctx context.Context, id string) (*W
 			return nil, err
 		}
 		if n == 0 {
-			// No rows: a legacy file is served as it always was. One that appeared since the legacy set
-			// was recorded is not served and not imported: it waits to be adopted by an operator.
-			post, perr := postMarkerFile(ctx, h.sql.db, id)
-			if perr != nil {
-				return nil, perr
-			}
-			if post {
-				return nil, nil
-			}
+			// No stored copy: nothing is served from the file alone (older versions' files were
+			// taken in when the store was first used; later ones wait to be adopted).
+			return nil, nil
 		}
 		if n > 0 {
 			if _, err := h.ImportFile(ctx, id, nil); err != nil && !errors.Is(err, ErrSharedIDs) {

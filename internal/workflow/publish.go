@@ -139,10 +139,14 @@ func (h *HybridWorkflowStore) Publish(ctx context.Context, p Publication) (*Work
 			if retry && !errors.Is(err, ErrPublicationBusy) {
 				err = errors.Join(ErrPublicationBusy, err) // still callable as "busy" for the caller
 			}
+			if err != nil && ctx.Err() != nil && !errors.Is(err, ErrPublicationBusy) && (retry || errors.Is(err, context.DeadlineExceeded)) {
+				err = errors.Join(ErrPublicationBusy, err) // ran out of time: still recognizable as "busy"
+			}
 			if p.Kind == PubDelete {
 				return w, err
 			}
-			return w, h.saved(ctx, p.WorkflowID, err)
+			// The hook (grant tiers) must run even if the bounded context is spent.
+			return w, h.saved(context.WithoutCancel(ctx), p.WorkflowID, err)
 		}
 		select {
 		case <-ctx.Done():
@@ -419,7 +423,7 @@ func (h *HybridWorkflowStore) applyRows(ctx context.Context, tx *sql.Tx, p Publi
 		if _, err := tx.ExecContext(ctx, deleteWorkflowRowSQL, p.WorkflowID); err != nil {
 			return fmt.Errorf("removing workflow %s: %w", p.WorkflowID, err)
 		}
-		return pruneLegacy(ctx, tx, p.WorkflowID)
+		return nil
 	}
 	if id := pl.profileID(); id != "" && pl.profileKnown {
 		var n int

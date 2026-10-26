@@ -15,7 +15,9 @@ const (
 	FixWorkflowPublicationsRecover = "workflows.publications.recover"
 	// FixWorkflowPublicationsResolve is parameterized: "<workflow id>:keep-rows" or "<workflow id>:keep-file".
 	FixWorkflowPublicationsResolve = "workflows.publications.resolve"
-	// FixWorkflowPublicationsAdopt is parameterized: "<workflow id>".
+	// FixWorkflowPublicationsAdopt is parameterized: "<workflow id>:<profile id>:<sha12>". It is
+	// Optional, so no "fix everything" path (doctor --fix --yes, setup --yes, the app's Fix issues
+	// button) ever runs it: it only runs when named.
 	FixWorkflowPublicationsAdopt = "workflows.publications.adopt"
 )
 
@@ -29,9 +31,16 @@ type WorkflowPublicationsInfo struct {
 	Pending    []string
 	// ImportedInactive lists workflows that appeared as outside files and were imported inactive.
 	ImportedInactive []string
-	// Adoptable lists workflow files that appeared after the first sync and are neither imported nor
-	// used until an operator adopts them.
-	Adoptable []string
+	// Adoptable lists (up to a cap) workflow files with no stored copy: they are neither imported nor
+	// used until an operator adopts them. MoreAdoptable counts the rest.
+	Adoptable     []AdoptableWorkflowFile
+	MoreAdoptable int
+}
+
+// AdoptableWorkflowFile is what an operator needs to see before adopting a file.
+type AdoptableWorkflowFile struct {
+	ID, ProfileID, SHA12 string
+	NodeTypes, Triggers  []string
 }
 
 // OpenWorkflowPublication is one unfinished change.
@@ -59,13 +68,14 @@ func workflowPublicationFixes() []Fix {
 			Safety: SafetyConfirm, Command: "monoagentcli doctor fix workflows.publications.resolve:{arg}"},
 			ApplyArg: fixWorkflowPublicationResolve},
 		{FixInfo: FixInfo{ID: FixWorkflowPublicationsAdopt, Label: "Adopt the workflow file {arg} as a new, inactive workflow",
-			Safety: SafetyConfirm, Command: "monoagentcli doctor fix workflows.publications.adopt:{arg}"},
+			Safety: SafetyConfirm, Optional: true, Command: "monoagentcli doctor fix workflows.publications.adopt:{arg}"},
 			ApplyArg: func(ctx context.Context, env *Env, arg string, progress func(string)) error {
-				if env.AdoptWorkflowFile == nil {
-					return fmt.Errorf("not available here")
+				parts := strings.Split(arg, ":")
+				if env.AdoptWorkflowFile == nil || len(parts) != 3 {
+					return fmt.Errorf("use workflows.publications.adopt:<workflow id>:<profile id>:<sha> exactly as `doctor` prints it")
 				}
-				progress("adopting " + arg)
-				return env.AdoptWorkflowFile(ctx, arg)
+				progress("adopting " + parts[0])
+				return env.AdoptWorkflowFile(ctx, parts[0], parts[1], parts[2])
 			}}}
 }
 
@@ -118,10 +128,17 @@ func checkWorkflowPublications(ctx context.Context, env *Env) Result {
 		res.Children = append(res.Children, Result{ID: CheckWorkflowPublications + ".pending." + rowID(id), Title: id,
 			Status: StatusInfo, Summary: "edited outside the app; it is picked up by the next command that opens the workflows"})
 	}
-	for _, id := range info.Adoptable {
-		res.Children = append(res.Children, Result{ID: CheckWorkflowPublications + ".adopt." + rowID(id), Title: id,
-			Status: StatusInfo, Summary: "a new workflow file appeared by itself; it is not used until you adopt it (it starts inactive)",
-			FixID: FixWorkflowPublicationsAdopt + ":" + id})
+	for _, a := range info.Adoptable {
+		arg := a.ID + ":" + a.ProfileID + ":" + a.SHA12
+		res.Children = append(res.Children, Result{ID: CheckWorkflowPublications + ".adopt." + rowID(a.ID), Title: a.ID,
+			Status: StatusInfo,
+			Summary: fmt.Sprintf("a workflow file with no stored copy: profile %q, sha %s, nodes %s, triggers %s; it is not used until you adopt it (inactive, unapproved)",
+				a.ProfileID, a.SHA12, quotedList(a.NodeTypes), quotedList(a.Triggers)),
+			FixID: FixWorkflowPublicationsAdopt + ":" + arg, FixCommand: "monoagentcli doctor fix " + FixWorkflowPublicationsAdopt + ":" + arg})
+	}
+	if info.MoreAdoptable > 0 {
+		res.Children = append(res.Children, Result{ID: CheckWorkflowPublications + ".adopt.more", Title: "more files",
+			Status: StatusInfo, Summary: fmt.Sprintf("and %d more workflow file(s) with no stored copy (or with names that are not safe to print)", info.MoreAdoptable)})
 	}
 	for _, id := range info.ImportedInactive {
 		res.Children = append(res.Children, Result{ID: CheckWorkflowPublications + ".imported." + rowID(id), Title: id,
@@ -146,6 +163,18 @@ func checkWorkflowPublications(ctx context.Context, env *Env) Result {
 		res.Status, res.Summary = StatusInfo, fmt.Sprintf("%d change(s) in progress or waiting", len(res.Children))
 	}
 	return res
+}
+
+// quotedList prints names escaped, so a name from a file cannot move the cursor or fake a line.
+func quotedList(names []string) string {
+	if len(names) == 0 {
+		return "none"
+	}
+	q := make([]string, len(names))
+	for i, n := range names {
+		q[i] = fmt.Sprintf("%q", n)
+	}
+	return strings.Join(q, ", ")
 }
 
 func fixWorkflowPublications(ctx context.Context, env *Env, progress func(string)) error {

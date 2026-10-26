@@ -66,6 +66,10 @@ func (h *HybridWorkflowStore) FileDrift(ctx context.Context) (unreadable, pendin
 		if e.IsDir() || !ok || strings.HasSuffix(id, ".ai-backup") {
 			continue
 		}
+		var stored int
+		if qerr := h.sql.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM workflows WHERE id = ?`, id).Scan(&stored); qerr == nil && stored == 0 {
+			continue // a file with no stored copy is reported as adoptable, not read here
+		}
 		raw, rerr := readRegularFile(filepath.Join(h.files.dir, e.Name()))
 		if rerr != nil {
 			continue

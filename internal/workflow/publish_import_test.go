@@ -132,16 +132,16 @@ func TestImportCreatesRowsForAFileThatHasNone(t *testing.T) {
 	if err := h.files.SaveWorkflow(ctx, mirrorWF("wf-file-only", "f-trig", "f-set")); err != nil {
 		t.Fatal(err)
 	}
-	res, err := h.ImportFile(ctx, "wf-file-only", nil)
-	if err != nil || !res.Imported || !res.Created {
-		t.Fatalf("%+v %v", res, err)
+	// The first use of the store takes in the files older versions left.
+	if _, err := h.ImportFile(ctx, "wf-file-only", nil); err != nil {
+		t.Fatal(err)
 	}
 	if got, _ := s.GetWorkflow(ctx, "wf-file-only"); got == nil || len(got.Nodes) != 2 {
 		t.Fatalf("rows: %+v", got)
 	}
 }
 
-func TestImportRefusesIdsOwnedByAnotherWorkflow(t *testing.T) {
+func TestAdoptRefusesIdsOwnedByAnotherWorkflow(t *testing.T) {
 	ctx := context.Background()
 	h, _, _, _ := guardedRig(t)
 	clash := mirrorWF("wf-clash", "g-trig", "c-set")
@@ -149,7 +149,11 @@ func TestImportRefusesIdsOwnedByAnotherWorkflow(t *testing.T) {
 	if err := h.files.SaveWorkflow(ctx, clash); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := h.ImportFile(ctx, "wf-clash", nil); !errors.Is(err, ErrSharedIDs) {
+	shown, _, _ := h.AdoptableFiles(ctx)
+	if len(shown) != 1 {
+		t.Fatalf("%+v", shown)
+	}
+	if err := h.AdoptFile(ctx, "wf-clash", shown[0].ProfileID, shown[0].SHA12); !errors.Is(err, ErrSharedIDs) {
 		t.Fatalf("%v", err)
 	}
 }
@@ -278,7 +282,11 @@ func TestImportKeepsTheOwnerProfileAndANewFileWaitsToBeAdopted(t *testing.T) {
 	if got, _ := h.GetWorkflow(ctx, "wf-new-file"); got != nil {
 		t.Fatal("a read served a file nobody adopted")
 	}
-	if err := h.AdoptFile(ctx, "wf-new-file"); err != nil {
+	shown, _, _ := h.AdoptableFiles(ctx)
+	if len(shown) != 1 || shown[0].ProfileID != "victim" {
+		t.Fatalf("adoptable: %+v", shown)
+	}
+	if err := h.AdoptFile(ctx, "wf-new-file", "victim", shown[0].SHA12); err != nil {
 		t.Fatal(err)
 	}
 	if rows, _ := s.GetWorkflow(ctx, "wf-new-file"); rows == nil || rows.IsActive || rows.ProfileID != "victim" {

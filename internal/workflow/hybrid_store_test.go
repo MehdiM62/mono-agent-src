@@ -85,11 +85,14 @@ func TestHybridWorkflowStore_NodeCounts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewWorkflowFileStore: %v", err)
 	}
-	sqlStore, _ := newMigratedStore(t)
+	sqlStore, rawDB := newMigratedStore(t)
+	if _, err := rawDB.Exec(`INSERT INTO profiles (id, name) VALUES ('p1', 'p1')`); err != nil {
+		t.Fatal(err)
+	}
 	store := NewHybridWorkflowStore(files, sqlStore)
 	ctx := context.Background()
 
-	// A file-backed workflow, saved with its nodes.
+	// A file-backed workflow, saved with its nodes (an older version's file: taken in on first use).
 	fileWF := &Workflow{
 		ID: "from-file", Name: "from-file", ProfileID: "p1",
 		Nodes: []WorkflowNode{testNode("a", "trigger.manual"), testNode("b", "gemini.chat_session")},
