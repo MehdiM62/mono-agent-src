@@ -3674,9 +3674,19 @@ monoagentcli --profile P aitask fail <id> --reason TEXT                   # the 
   session the root refuses a `--profile` other than the task's or given twice, `--db-path`, `--config-dir`, `--output-dir`,
   `--log-file`, `--all-profiles` and `workflow validate --file`; the agent hands the result back with
   `aitask complete --result-json JSON` or `--result FILE` from the task's own work folder (any other path is refused); on every
-  other kind the access level is recorded and hashed but `qa` is not enforced on the turn. A confined turn (first or follow-up)
+  other kind the access level is the conversation's real level (below). A confined turn (first or follow-up)
   refuses to start (`confinement_unenforceable`, exit 3) on a monomind older than `monomind.MinConfinedMonomindVersion` (2.27.0),
   because the allow-list rests on monomind's shell scanner and older versions can be bypassed; the global minimum is unchanged.
+- Access levels (`--access`, a kind's `DefaultAccess`): a confined kind keeps its confined profile whatever the level.
+  Its conversation row is still created as a full-access coder conversation (`--mode coder`); the narrowing is applied per
+  turn, keyed by the task, so a conversation of a confined kind that is resumed outside the task flow is not narrowed.
+  Only a kind that is not confined has its conversation level set from the task's access: such a conversation is created at the level it asked for: `coding` -> `chat history create --access coding`,
+  `workspace` -> `--access workspace`; `qa` has no read-only profile to run in outside a confined kind, so it is refused
+  (`access_unenforceable`, no conversation made) instead of running with a shell. A kind's `MaxAccess` (default: its
+  `DefaultAccess`) is the most a submit may ask for; a higher `--access` is refused (`access_above_kind`), a lower one is
+  allowed, and the ceiling is part of the capabilities hash. `--unattended` with a full-access level is still refused.
+  `start` checks the rule again, so a queued `qa` task of a kind that has since stopped being confined is refused.
+  Raising a task conversation's level later stays the operator's (`chat history set-access`).
 - The extension's kinds (`internal/aitask/kinds_extension.go`): `extension-fill` ("Fill with coder": multi-page forms, uploads, custom widgets; result `{summary, fields:[{label,value,source,generated}], stopped_before_submit}` and a result without `stopped_before_submit: true` is refused) and `extension-ask` ("Ask coder": `{summary, answer, suggested_actions}`; default access `qa`). The side panel queues them through the bridge request `coder.task` -> `aitask submit-page --kind extension-fill|extension-ask --tab N --stdin-json` (operator-only; it only ever QUEUES, the person presses Start in the app; the goal carries nothing the page wrote). They are browser-capable confined kinds that run as the `apply` browser kind on the one tab that was queued: the tab, browser and origin are the queue record (`posting/target.json`), `browser --tab/--browser` naming anything else is refused (`tab_pinned`), a tab that has left its origin stops the turn (`tab_moved`) and `aitask start` refuses it too (`tab_moved`, `tab_gone`, `tab_unknown`); the pin is by top-level ORIGIN only (scheme, host and port): a page of the same origin, a path change or a link within the site is still the queued tab; form submits wait for a person on local pages too; the pin also covers approved `browser fill|upload --hil` items, a session whose task or apply token cannot be established is refused (never run unscoped), and uploads come only from the task's `document/` folder; `extension-fill` may run `browser a11y|screenshot|wait|click|type|fill|upload`, `extension-ask` only `browser a11y|screenshot|wait`. `stopped_before_submit` is the agent's own statement: what backs it is that allow-list and the held approvals, and a control that is not a form button is not held.
   They run as confined, claude-only turns like `application-apply` (`confinedVerbs`), need monomind 2.27.0 or newer, and hand the result back with `aitask complete --result-json`.
 - Context goes to `<conversation folder>/.monoagent/context/<task>/<class>/` with a README that says it is data, never
@@ -3737,6 +3747,25 @@ result via `aitask complete --result-json`); they are never unattended, treat co
 | `workflow-generate` | the brief | `{summary, workflow:{name, description?, is_active:false, nodes, connections}, validation}` | CONFINED: `workflow search/templates list|show/get`, `node list/schema`, `ref`; the agent writes nothing. `Kind.Check` recomputes the verdict with the `workflow validate` validator; `workflow save-draft <task>` (operator) saves it as a new inactive, unapproved draft |
 | `recording-analyze` | recording id + title | `{recordingId, summary, suggestions[≤12], risks?}` | CONFINED: `record show` only; `Kind.Check` verifies the recording is in the profile; changes nothing |
 | `failed-run-fix` | workflow id, execution id, failing node ids, redacted error | `{summary, diagnosis, workflowId, executionId, fix:{kind:workflow-edit\|advice\|none, description, edits?:[{node, config}]}}` | CONFINED: `workflow get/list/search/executions/execution`; `Kind.Check` plans the edits against the workflow now (`internal/workflowfix`); `workflow apply-fix <task> [--dry-run] [--allow-active]` (operator) applies them |
+
+### Agent API and client mode
+
+An agent that has no access to the user's database finishes and reads its own AI task through the daemon's API
+(`internal/httpapi/handlers_aitask.go`): `GET /profiles/{profile}/agent/v1/aitask/kinds`, `GET …/aitask/{id}` and
+`…/{id}/result` (scope read), `POST …/{id}/complete|fail|cancel` (scope write). They call the same `internal/aitask`
+service as the commands, so validation, the kind's schema and check, and the single terminal state are the same. They take
+scoped agent tokens only (never the profile's own bearer), and act on a task only for a token bound to it:
+`agent-mode token create --name N --scope write --task ID --conversation ID` (operator-only; migration 127). A bound token reaches those routes and no other route of the API (every other route refuses it), and both credentials (the bearer and the task token) are hidden by value in stored results, failure reasons and error answers. `complete`,
+`fail` and `cancel` also need the task's own token in the `X-Aitask-Token` header, as the commands need
+`MONOAGENT_AITASK_TOKEN`; the API checks its hash but not the holder's process tree (`Service.Remote`). The result of
+`complete` is the request body, the bytes `--result FILE` reads. Every call is audited under the token's name.
+
+Client mode: with `MONOAGENT_API_URL` and `MONOAGENT_API_TOKEN` both set (`agent-mode env` prints them), `monoagentcli`
+runs `aitask kinds|status|result|complete|fail|cancel` through that API (`internal/agentclient`) and never opens the local
+database or key store. The URL must be https, or http to 127.0.0.1, [::1] or localhost; redirects are not followed; `complete` takes `--result-json` or `--result -` there, not a file. Every other command is classified in `clientModeClasses` (`cmd/monoagentcli/client_mode_table.go`):
+local-safe ones (`help`, `version`, `ref`) run as ever; the rest exit 3 with code `not_available_in_agent_mode`, are never
+forwarded and never pass an operator check. A new command, or a new subcommand of a mapped or local-safe one, fails
+`TestEveryCommandIsClassifiedForClientMode` until it is classified. The token variables are never printed.
 
 # monomind:start instructions:opencode
 # Monomind
