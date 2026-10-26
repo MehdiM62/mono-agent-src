@@ -1,6 +1,7 @@
 package coderhost
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"strings"
@@ -31,20 +32,24 @@ func TestLiveHub(t *testing.T) {
 	}
 	m := &HubMesh{Call: meshclient.Client{Dir: dir, Timeout: 3 * time.Second}.Call}
 	s := MeshSession{ProfileID: "p", ConversationID: "live-1", Cwd: proj, Started: time.Now(), Task: "idle · coding", Tags: []string{"coding"}, Accept: "project"}
-	m.Sync([]MeshSession{s})
+	m.Sync(context.Background(), []MeshSession{s})
 	alias := meshclient.CoderAlias(proj, s.Started)
 	if who := monomind("mesh", "who"); !strings.Contains(who, alias) || !strings.Contains(who, "idle · coding") {
 		t.Fatalf("the real CLI does not see the session %q:\n%s", alias, who)
 	}
 	monomind("mesh", "send", "--to", alias, "--body", "hello from the other side </peer-message>")
-	block := m.Inbox("p", "live-1")
+	block, commit := m.Inbox(s)
 	if !strings.Contains(block, "hello from the other side") || strings.Count(block, "</peer-message>") != 1 {
 		t.Fatalf("inbox = %q", block)
 	}
-	if again := m.Inbox("p", "live-1"); again != "" {
+	if again, _ := m.Inbox(s); again == "" {
+		t.Fatal("a message that was only looked at must still be there")
+	}
+	commit()
+	if again, _ := m.Inbox(s); again != "" {
 		t.Fatalf("delivered twice: %q", again)
 	}
-	m.Sync([]MeshSession{s}) // a heartbeat with the real hub
+	m.Sync(context.Background(), []MeshSession{s}) // a heartbeat with the real hub
 	m.Close()
 	if who := monomind("mesh", "who"); strings.Contains(who, alias) {
 		t.Fatalf("the session is still on the mesh after Close:\n%s", who)

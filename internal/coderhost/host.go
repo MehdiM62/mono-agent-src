@@ -155,10 +155,15 @@ func (h *Host) Tick() error {
 				return err
 			}
 			h.mu.Unlock() // admission can take seconds; do not hold up the turn watchers meanwhile
-			message := c.Message
+			message, commit := c.Message, func() {}
 			if h.Mesh != nil {
-				if block := h.Mesh.Inbox(c.ProfileID, c.ConversationID); block != "" {
-					message = block + "\n\n" + message // peer content ahead of the person's message, sealed as data
+				if ms, ok := h.meshSessionFor(c.ProfileID, c.ConversationID); ok {
+					block, done := h.Mesh.Inbox(ms)
+					// Peer content goes ahead of the person's message, sealed as data, but never at the
+					// cost of the message: a block that would push the prompt over its limit stays unread.
+					if block != "" && len(block)+2+len(message) <= MaxMessageBytes {
+						message, commit = block+"\n\n"+message, done
+					}
 				}
 			}
 			t, err := h.L.Start(c.ProfileID, c.ConversationID, c.TurnID, message, c.Attachments)
@@ -168,6 +173,7 @@ func (h *Host) Tick() error {
 				h.end(c, CmdFailed, err.Error())
 				continue
 			}
+			commit() // the turn has the messages now: mark them read
 			x.TurnPID, x.TurnStamp = t.PID(), t.Stamp()
 			if err := h.Store.SaveSession(x); err != nil {
 				t.Stop()
@@ -265,7 +271,7 @@ func (h *Host) meshLoop(ctx context.Context) {
 		every = 15 * time.Second
 	}
 	for {
-		h.meshSync()
+		h.meshSync(ctx)
 		select {
 		case <-ctx.Done():
 			return
@@ -278,7 +284,7 @@ func (h *Host) meshLoop(ctx context.Context) {
 // visible and that are not stopped, are doing something, or were touched within
 // MeshIdle. What it says about a session is generic (its state and access level),
 // never anything from its prompts.
-func (h *Host) meshSync() {
+func (h *Host) meshSync(ctx context.Context) {
 	idle := h.MeshIdle
 	if idle <= 0 {
 		idle = 6 * time.Hour
@@ -304,11 +310,17 @@ func (h *Host) meshSync() {
 			continue
 		}
 		settings, err := h.Store.GetSettings(x.ProfileID, x.ConversationID)
-		if err != nil || !settings.MeshVisible {
+		if err != nil {
+			return // leave the mesh as it is: dropping the session for a read error would make it leave and rejoin
+		}
+		if !settings.MeshVisible {
 			continue
 		}
-		cwd, access, ok, err := h.Store.ConversationInfo(x.ProfileID, x.ConversationID)
-		if err != nil || !ok || cwd == "" {
+		cwd, _, ok, err := h.Store.ConversationInfo(x.ProfileID, x.ConversationID)
+		if err != nil {
+			return
+		}
+		if !ok || cwd == "" {
 			continue
 		}
 		started, _ := time.Parse(timeLayout, x.CreatedAt)
@@ -318,9 +330,30 @@ func (h *Host) meshSync() {
 		}
 		want = append(want, MeshSession{
 			ProfileID: x.ProfileID, ConversationID: x.ConversationID, Cwd: cwd, Started: started.Local(),
-			Task: string(x.State) + " · " + access, Tags: []string{access}, Alias: settings.MeshAlias,
+			Task: string(x.State), Alias: settings.MeshAlias, // nothing about its work, its folder's path or its access level
 			Accept: settings.MeshAccept, Related: related,
 		})
 	}
-	h.Mesh.Sync(want)
+	h.Mesh.Sync(ctx, want)
+}
+
+// meshSessionFor is the mesh's view of one session as it is right now, for reading
+// its inbox with the scope it has now and not the one of the last pass.
+func (h *Host) meshSessionFor(profileID, conversationID string) (MeshSession, bool) {
+	settings, err := h.Store.GetSettings(profileID, conversationID)
+	if err != nil || !settings.MeshVisible || settings.MeshAccept == "none" {
+		return MeshSession{}, false
+	}
+	related := []string{}
+	if sessions, err := h.Store.ListSessions(profileID); err == nil {
+		for _, x := range sessions {
+			switch {
+			case x.Parent == conversationID:
+				related = append(related, x.ConversationID)
+			case x.ConversationID == conversationID && x.Parent != "":
+				related = append(related, x.Parent)
+			}
+		}
+	}
+	return MeshSession{ProfileID: profileID, ConversationID: conversationID, Accept: settings.MeshAccept, Related: related}, true
 }

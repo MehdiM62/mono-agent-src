@@ -1331,7 +1331,7 @@
         "meshAccept": "Accepts messages from",
         "accept": {
           "none": "Nobody",
-          "project": "This project",
+          "project": "This project (any local process claiming it)",
           "subtree": "Its master and children"
         },
         "loadFailed": "Could not read the session settings.",

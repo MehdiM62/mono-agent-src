@@ -185,7 +185,7 @@ func newCoderHostRunCmd(cfg *Deps) *cobra.Command {
 				Logf:  logf,
 			}
 			if meshEnabled() {
-				h.Mesh = &coderhost.HubMesh{StartHub: startMeshHub, Logf: logf}
+				h.Mesh = &coderhost.HubMesh{StartHub: func(ctx context.Context) error { return startMeshHub(ctx, hostDir(cfg)) }, Logf: logf}
 			}
 			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
@@ -266,12 +266,14 @@ func meshEnabled() bool {
 
 // startMeshHub starts monomind's hub: any `monomind mesh` command starts it on first
 // use, and it keeps running by itself. Without monomind there is no mesh.
-var startMeshHub = func() error {
+var startMeshHub = func(ctx context.Context, dir string) error {
 	bin, err := monomind.Find()
 	if err != nil {
 		return err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
-	return exec.CommandContext(ctx, bin, "mesh", "who").Run()
+	cmd := monomind.CommandContext(ctx, bin, "mesh", "who") // node and environment pinned as for every monomind call
+	cmd.Dir = dir                                           // the host's own folder, not a project: no project's version files choose what runs
+	return cmd.Run()
 }
