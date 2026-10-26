@@ -557,8 +557,11 @@ func TestAStopForAnAdoptedTurnSurvivesAnUnreadableStartTime(t *testing.T) {
 		}
 		return oldStamp(p)
 	}
-	signalRetryInterval, hostTurnGrace = 10*time.Millisecond, 5*time.Second
+	signalRetryInterval, hostTurnGrace = 10*time.Millisecond, 200*time.Millisecond
 	t.Cleanup(func() { stampOf, signalRetryInterval, hostTurnGrace = oldStamp, oldInt, oldGrace })
+	// Cleanups run last-in first-out: this one runs before the restore above, so the stop
+	// goroutine has read the swapped variables for the last time when they are put back.
+	t.Cleanup(turn.(*adoptedTurn).bg.Wait)
 	turn.Stop()
 	waitUntil(t, "the adopted turn to be stopped despite the unreadable start time", func() bool { return !turnAlive(pid) })
 }
