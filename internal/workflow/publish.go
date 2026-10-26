@@ -156,6 +156,13 @@ func (h *HybridWorkflowStore) publishOnce(ctx context.Context, p Publication) (*
 		if err := h.recoverID(ctx, p.WorkflowID); err != nil {
 			return nil, fmt.Errorf("%w: workflow %s: %v", ErrFileInconsistent, p.WorkflowID, err)
 		}
+		// A file edited outside the store is reconciled first (recorded as a version, approvals
+		// removed) so that no change builds on it, or records its bytes as reconciled, unseen.
+		if p.Kind != PubImport {
+			if _, err := h.ImportFile(ctx, p.WorkflowID, nil); err != nil && !errors.Is(err, ErrSharedIDs) {
+				return nil, err
+			}
+		}
 	}
 	tx, done, err := h.beginDurable(ctx)
 	if err != nil {

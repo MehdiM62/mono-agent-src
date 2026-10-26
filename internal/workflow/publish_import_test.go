@@ -275,3 +275,30 @@ func TestResolveUnresolvedEitherWay(t *testing.T) {
 		}
 	}
 }
+
+// Approve A, save B, put A back outside the store, then activate: the activation must not consume
+// the outside file unseen. It is imported first, which removes the old approval of A.
+func TestPublishReconcilesAnOutsideEditBeforeBuildingOnIt(t *testing.T) {
+	ctx := context.Background()
+	h, s, _, _ := guardedRig(t)
+	cur, _ := h.GetWorkflow(ctx, "wf-g")
+	cur.Nodes[1].Config = map[string]interface{}{"k": "B"}
+	if err := h.SaveWorkflow(ctx, cur); err != nil {
+		t.Fatal(err)
+	}
+	handEdit(t, h, "wf-g", func(w *Workflow) { w.Nodes[1].Config = map[string]interface{}{"k": "v"} }) // A again
+	if err := h.SetWorkflowActive(ctx, "wf-g", true); err != nil {
+		t.Fatal(err)
+	}
+	now, _ := h.GetWorkflow(ctx, "wf-g")
+	hash, _ := definitionHash(now)
+	if ok, _ := h.DefinitionApproved(ctx, "wf-g", hash); ok || approvals(t, s, "wf-g") != 0 {
+		t.Fatal("the restored definition still counts as approved after an activation")
+	}
+	if n := versionCount(t, s, "wf-g"); n < 3 {
+		t.Fatalf("the outside edit was not recorded as a version (%d versions)", n)
+	}
+	if res, _ := h.ImportFile(ctx, "wf-g", nil); res.Imported {
+		t.Fatal("the bytes were left unreconciled")
+	}
+}
