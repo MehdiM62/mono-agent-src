@@ -1338,7 +1338,8 @@
         "saveFailed": "Not saved: {{error}}",
         "saved": "Saved.",
         "checkinLimit": "Check-ins in a row",
-        "checkinLimitWhy": "After this many check-ins with no message from you, the master waits for one."
+        "checkinLimitWhy": "After this many check-ins with no message from you, the master waits for one.",
+        "checkinWaiting": "Waiting for you: {{count}} scheduled check-ins ran with no message from you. Write to this chat to let them continue."
       }
     }
   },

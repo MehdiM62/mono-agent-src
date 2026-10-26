@@ -45,6 +45,20 @@ describe('SessionSettings', () => {
     expect(screen.getByTestId('pane-unattended')).toBeVisible()
   })
 
+  it('says when a master is waiting for a person at its check-in limit, and only then', async () => {
+    api.getCoderSessionSettings.mockResolvedValue(view({ role: 'master', checkin: { streak: 48, limit: 48, waiting: true } }))
+    await shown()
+    expect(screen.getByTestId('pane-checkin-waiting')).toHaveTextContent('Waiting for you: 48 scheduled check-ins ran with no message from you')
+    cleanup()
+    api.getCoderSessionSettings.mockResolvedValue(view({ role: 'master', checkin: { streak: 3, limit: 48, waiting: false } }))
+    await shown()
+    expect(screen.queryByTestId('pane-checkin-waiting')).toBeNull()
+    cleanup()
+    api.getCoderSessionSettings.mockResolvedValue(view()) // not a master: no check-in state at all
+    await shown()
+    expect(screen.queryByTestId('pane-checkin-waiting')).toBeNull()
+  })
+
   it('turns unattended off through the CLI and shows the stored answer', async () => {
     api.setCoderSessionSettings.mockResolvedValue(view({ unattended: false }))
     await shown()

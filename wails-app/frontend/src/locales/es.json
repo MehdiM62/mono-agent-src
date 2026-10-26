@@ -1296,7 +1296,8 @@
         "saveFailed": "No se guardó: {{error}}",
         "saved": "Guardado.",
         "checkinLimit": "Revisiones seguidas",
-        "checkinLimitWhy": "Tras tantas revisiones sin un mensaje tuyo, el principal espera uno."
+        "checkinLimitWhy": "Tras tantas revisiones sin un mensaje tuyo, el principal espera uno.",
+        "checkinWaiting": "Esperando por ti: se hicieron {{count}} revisiones programadas sin un mensaje tuyo. Escribe en este chat para que continúen."
       }
     }
   },

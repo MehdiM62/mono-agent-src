@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/monoes/mono-agent/internal/ai"
+	"github.com/monoes/mono-agent/internal/ai/chatevents"
 	"github.com/monoes/mono-agent/internal/coderhost"
 	"github.com/monoes/mono-agent/internal/daemonhb"
 	"github.com/monoes/mono-agent/internal/storage"
@@ -688,5 +689,50 @@ func TestSessionRoleSetsTheMasterChildStructureWithTheStoreRules(t *testing.T) {
 	agent.RequireOperator = func(what string) error { return errors.New("operator only: " + what) }
 	if _, code := runSessionsCLI(t, agent, "settings", "set", k, "--role", "solo"); code == 0 {
 		t.Fatal("a non-operator changed a role")
+	}
+}
+
+func TestSettingsViewSaysWhenAMasterWaitsAtItsCheckinLimit(t *testing.T) {
+	dbPath := newChatCLITestDB(t)
+	store := openTestChatStore(t, dbPath)
+	conv, _ := store.CreateConversationMode("default", "agent", "general", "claude", "", "", ai.ModeCoder, t.TempDir())
+	solo, _ := store.CreateConversationMode("default", "agent", "general", "claude", "", "", ai.ModeCoder, t.TempDir())
+	cfg := testDeps(&testConfig{DBPath: dbPath, ProfileID: "default", JSONOutput: true})
+	get := func(id string) sessionSettingsView {
+		out, code := runSessionsCLI(t, cfg, "settings", "get", id)
+		var v sessionSettingsView
+		decodeChatJSON(t, out, &v)
+		if code != 0 {
+			t.Fatalf("get %s: exit %d %s", id, code, out)
+		}
+		return v
+	}
+	turn := func(id string) {
+		t.Helper()
+		if _, _, err := store.CreateTurn(conv.ID, "default", id, "host-x", "digest"); err != nil {
+			t.Fatal(err)
+		}
+		store.FinalizeTurn("default", conv.ID, id, chatevents.StatusCompleted, "", nil, true)
+	}
+	if v := get(conv.ID); v.Checkin != nil {
+		t.Fatalf("a session that is not a master has no check-in state: %+v", v.Checkin)
+	}
+	if _, code := runSessionsCLI(t, cfg, "settings", "set", conv.ID, "--role", "master", "--patch", `{"checkin_limit": 2}`); code != 0 {
+		t.Fatal("could not make a master")
+	}
+	turn("checkin-1")
+	if v := get(conv.ID); v.Checkin == nil || v.Checkin.Streak != 1 || v.Checkin.Limit != 2 || v.Checkin.Waiting {
+		t.Fatalf("after one: %+v", v.Checkin)
+	}
+	turn("checkin-2")
+	if v := get(conv.ID); v.Checkin == nil || v.Checkin.Streak != 2 || !v.Checkin.Waiting {
+		t.Fatalf("at the limit: %+v", v.Checkin)
+	}
+	turn("person-1") // a person wrote to it
+	if v := get(conv.ID); v.Checkin == nil || v.Checkin.Streak != 0 || v.Checkin.Waiting {
+		t.Fatalf("after a person wrote: %+v", v.Checkin)
+	}
+	if v := get(solo.ID); v.Checkin != nil {
+		t.Fatalf("a solo session has none: %+v", v.Checkin)
 	}
 }

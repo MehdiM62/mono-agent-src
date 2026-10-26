@@ -21,6 +21,16 @@ type sessionSettingsView struct {
 	OperatorOnly   []string            `json:"operatorOnly"`
 	Allowed        map[string][]string `json:"allowed"`
 	Changed        []string            `json:"changed,omitempty"`
+	// Checkin is set for a master: how many scheduled check-ins ran in a row with no message
+	// from a person between them, against its limit. Waiting says it has reached it and
+	// will not be checked in on again until someone writes to it.
+	Checkin *checkinView `json:"checkin,omitempty"`
+}
+
+type checkinView struct {
+	Streak  int  `json:"streak"`
+	Limit   int  `json:"limit"`
+	Waiting bool `json:"waiting"`
 }
 
 func newCoderSessionsSettingsCmd(cfg *Deps) *cobra.Command {
@@ -72,6 +82,11 @@ func sessionSettingsFrom(cfg *Deps, profileID string, conv ai.Conversation, chan
 		return v, err
 	} else if ok {
 		v.Role, v.Unattended = x.Role, x.Unattended
+	}
+	if v.Role == "master" {
+		if streak, _, _, err := cs.CheckinStreak(profileID, conv.ID); err == nil {
+			v.Checkin = &checkinView{Streak: streak, Limit: settings.CheckinLimit, Waiting: streak >= settings.CheckinLimit}
+		}
 	}
 	return v, nil
 }

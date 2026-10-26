@@ -57,6 +57,11 @@ function UnattendedRow({ session: { data, error, busy, save }, access }) {
         {access ? ` · ${t(`bubbles.pane.level.${access}`)}` : ''}
       </button>
       <span style={{ ...label, flexBasis: '100%', minWidth: 0 }}>{t('bubbles.pane.session.unattendedWhy')}</span>
+      {data?.checkin?.waiting && (
+        <div role="status" data-testid="pane-checkin-waiting" style={{ flexBasis: '100%', fontFamily: mono, fontSize: 10, color: '#fbbf24' }}>
+          {t('bubbles.pane.session.checkinWaiting', { count: data.checkin.streak })}
+        </div>
+      )}
       <Err>{error}</Err>
     </div>
   )
