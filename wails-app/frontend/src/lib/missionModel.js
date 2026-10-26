@@ -26,7 +26,7 @@ export function missionItems(turns) {
     list.forEach((e, i) => {
       const p = e.payload || {}
       if (e.type === 'mission.propose') {
-        items.push({ type: 'propose', id: `${key}:${i}`, payload: p })
+        items.push({ type: 'propose', id: `${key}:${i}`, payload: p, at: e.at })
         return
       }
       if (p.sessionId == null) return
@@ -39,6 +39,23 @@ export function missionItems(turns) {
       items.push({ type: e.type === 'mission.plan' ? 'plan' : 'report', id: sig, payload: p })
     })
     if (items.length) out[key] = items
+  })
+  return out
+}
+
+// startedProposals: the ids of the proposals that were taken up. items is
+// the flat list of cards in transcript order; a proposal is started when it
+// was confirmed in this view, when a plan card follows it, or when this
+// conversation has an open session created after it. A later, separate
+// proposal is therefore still offered.
+export function startedProposals(items, confirmed, sessions, conversationId) {
+  const out = new Set()
+  const open = (sessions || []).filter(s => s.conversation_id === conversationId && !isTerminal(s))
+  items.forEach((it, i) => {
+    if (it.type !== 'propose') return
+    const at = Date.parse(it.at)
+    if (confirmed?.has(it.id) || items.slice(i + 1).some(x => x.type === 'plan')
+      || (!Number.isNaN(at) && open.some(s => Date.parse(s.created_at) > at))) out.add(it.id)
   })
   return out
 }

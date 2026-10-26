@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { missionItems, sessionOf, stripFor, stripActions, workingOn, isTerminal, integrationTasks, hasFinalReport, pickReportTask } from './missionModel.js'
+import { missionItems, sessionOf, stripFor, stripActions, workingOn, isTerminal, integrationTasks, hasFinalReport, pickReportTask, startedProposals } from './missionModel.js'
 
 const plan = (sessionId, round = 0) => ({ type: 'mission.plan', payload: { sessionId, title: 'T', round } })
 const propose = (title) => ({ type: 'mission.propose', payload: { title, goal: 'g' } })
@@ -85,5 +85,25 @@ describe('pickReportTask', () => {
     expect(pickReportTask(tasks, { 3: [] })).toEqual({ taskId: 3, hasReport: false })
     expect(pickReportTask([tasks[0]], {})).toBeNull()
     expect(pickReportTask(null, null)).toBeNull()
+  })
+})
+
+describe('startedProposals', () => {
+  const P = (id, at) => ({ type: 'propose', id, at, payload: {} })
+  const L = (id) => ({ type: 'plan', id, payload: {} })
+  const sess = (state, created_at, extra = {}) => ({ id: 1, state, created_at, conversation_id: 'c', ...extra })
+  it('a plan after a proposal starts it, a later proposal stays open', () => {
+    const got = startedProposals([P('a'), L('p'), P('b')], new Set(), [], 'c')
+    expect([...got]).toEqual(['a'])
+  })
+  it('a confirmed proposal is started', () => {
+    expect([...startedProposals([P('a')], new Set(['a']), [], 'c')]).toEqual(['a'])
+  })
+  it('an open session of this conversation created after the proposal starts it; other chats and finished ones do not', () => {
+    const items = [P('a', '2026-10-25T10:00:00Z')]
+    expect(startedProposals(items, new Set(), [sess('running', '2026-10-25T10:05:00Z')], 'c').has('a')).toBe(true)
+    expect(startedProposals(items, new Set(), [sess('stopped', '2026-10-25T10:05:00Z')], 'c').has('a')).toBe(false)
+    expect(startedProposals(items, new Set(), [sess('running', '2026-10-25T10:05:00Z', { conversation_id: 'x' })], 'c').has('a')).toBe(false)
+    expect(startedProposals(items, new Set(), [sess('running', '2026-10-25T09:00:00Z')], 'c').has('a')).toBe(false)
   })
 })

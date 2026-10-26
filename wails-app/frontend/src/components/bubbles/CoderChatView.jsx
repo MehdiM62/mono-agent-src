@@ -2,6 +2,7 @@ import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ArrowDown, Loader } from 'lucide-react'
 import { api, notify } from '../../services/api.js'
+import { sessionsApi } from '../../services/taskSessions.js'
 import { ChatArtifactCard } from '../chat/ChatArtifactCard.jsx'
 import { openArtifact as revalidateAndOpenArtifact } from '../chat/chatArtifacts.js'
 import { useResolvedArtifacts } from '../chat/useResolvedArtifacts.js'
@@ -24,7 +25,7 @@ import AgentSetupLink from '../AgentSetupLink.jsx'
 import MissionCards from './mission/MissionCards.jsx'
 import MissionStrip from './mission/MissionStrip.jsx'
 import MissionTemplates from './mission/MissionTemplates.jsx'
-import { missionItems } from '../../lib/missionModel.js'
+import { missionItems, startedProposals } from '../../lib/missionModel.js'
 import '../chat/chat.css'
 
 const mono = 'var(--font-mono)'
@@ -62,17 +63,28 @@ export function CoderChatView({ conv, isDraft, access, accessState = 'ready', on
   const turnList = conv.messages.filter(m => m.role === 'turn').map(m => ({ key: m.turnId, state: m.state }))
   if (conv.streaming) turnList.push({ key: conv.activeTurnId, state: conv.liveTurn })
   const missionByTurn = missionItems(turnList)
-  const allMission = Object.values(missionByTurn).flat()
+  const allMission = turnList.flatMap(tn => missionByTurn[tn.key] || [])
   const reported = allMission.some(i => i.type === 'report')
-  const planned = allMission.some(i => i.type === 'plan')
+  const proposals = allMission.filter(i => i.type === 'propose').length
   const [confirmed, setConfirmed] = useState(() => new Set())
+  // The conversation's sessions, read only while it has a proposal, to tell a
+  // proposal that was started (a session opened after it) from one still open.
+  const [sessionList, setSessionList] = useState([])
+  const turnCount = turnList.length
+  useEffect(() => {
+    if (!proposals || !conv.conversationId) return undefined
+    let live = true
+    sessionsApi.list(true).then(d => { if (live && !d?.error) setSessionList(d?.sessions || []) }).catch(() => {})
+    return () => { live = false }
+  }, [proposals, turnCount, conv.conversationId])
+  const started = startedProposals(allMission, confirmed, sessionList, conv.conversationId)
   const confirmMission = useCallback(async (id, p) => {
     const ok = await conv.send(t('bubbles.mission.confirmMessage', { title: p.title }), [], { mission: true })
     if (ok) setConfirmed(set => new Set(set).add(id))
   }, [conv, t])
   const missionCards = (turnId) => missionByTurn[turnId] && (
     <MissionCards items={missionByTurn[turnId]} conversationId={conv.conversationId} busy={conv.streaming}
-      started={planned || confirmed.size > 0} onConfirm={(id, p) => confirmMission(id, p)} onNavigate={onNavigate} />
+      started={started} onConfirm={(id, p) => confirmMission(id, p)} onNavigate={onNavigate} />
   )
   const streamsIncrementally = useStreamsIncrementally(runtime, access === 'scoped')
   const scroll = useChatScroll(`${conv.messages.length}:${conv.liveTurn.lastSeq}:${hil.asks.length}`)

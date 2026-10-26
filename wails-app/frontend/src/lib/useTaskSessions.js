@@ -16,6 +16,7 @@ export function useTaskSessions(active, selectedId) {
   const [listError, setListError] = useState(false) // the latest list read failed
   const [notice, setNotice] = useState(null) // {error, code}
   const seq = useRef(0)
+  const shownFor = useRef(null) // the session the events belong to
   const visible = usePageVisible()
 
   const reload = useCallback(async () => {
@@ -40,7 +41,10 @@ export function useTaskSessions(active, selectedId) {
   const selected = sessions.find(s => s.id === selectedId) || null
   const rev = selected?.rev
   useEffect(() => {
-    if (!selectedId) { setEvents([]); return undefined }
+    // Another session starts with no events (never A's under B); a late
+    // answer for a session no longer chosen is dropped.
+    if (shownFor.current !== selectedId) { shownFor.current = selectedId; setEvents([]) }
+    if (!selectedId) return undefined
     let live = true
     sessionsApi.show(selectedId, 30).then(r => { if (live && !r?.error) setEvents(r?.events || []) })
     return () => { live = false }
