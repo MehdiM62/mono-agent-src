@@ -386,3 +386,33 @@ func TestStagingFailureLeavesNoTempFile(t *testing.T) {
 		t.Fatalf("temp files left behind: %v", left)
 	}
 }
+
+// Missing node ids are generated before the file and the rows are written (so both carry the same
+// ones), and repeated ids are refused before anything is recorded.
+func TestPublishNormalizesNodeIDsAndRefusesRepeats(t *testing.T) {
+	ctx := context.Background()
+	h, s, _, nodes := guardedRig(t)
+	nodes = append(nodes, WorkflowNode{Type: "core.set", Name: "new", Config: map[string]interface{}{"k": "n"}})
+	if err := h.SaveWorkflowNodes(ctx, "wf-g", nodes); err != nil {
+		t.Fatal(err)
+	}
+	f, _ := h.files.GetWorkflow(ctx, "wf-g")
+	r, _ := s.GetWorkflow(ctx, "wf-g")
+	if len(f.Nodes) != 3 || len(r.Nodes) != 3 || f.Nodes[2].ID == "" {
+		t.Fatalf("file %d rows %d nodes, id %q", len(f.Nodes), len(r.Nodes), f.Nodes[2].ID)
+	}
+	fh, _ := definitionHash(f)
+	rh, _ := definitionHash(r)
+	if fh != rh {
+		t.Fatal("file and rows disagree after generating an id")
+	}
+	dup := append([]WorkflowNode(nil), r.Nodes...)
+	dup[1].ID = dup[0].ID
+	before := fileBytes(t, h, "wf-g")
+	if err := h.SaveWorkflowNodes(ctx, "wf-g", dup); !errors.Is(err, ErrInvalidGraph) {
+		t.Fatalf("%v", err)
+	}
+	if !bytes.Equal(before, fileBytes(t, h, "wf-g")) || openIntentCount(t, s) != 0 {
+		t.Fatal("a refused definition touched the file or left an intent")
+	}
+}

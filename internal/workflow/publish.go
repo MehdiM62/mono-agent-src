@@ -21,6 +21,9 @@ const (
 // ErrPublicationBusy: another publication of this workflow is open.
 var ErrPublicationBusy = errors.New("another change to this workflow is in progress")
 
+// ErrInvalidGraph: the definition has nodes or connections whose ids repeat.
+var ErrInvalidGraph = errors.New("the workflow has repeated node or connection ids")
+
 // ErrPublicationLost: the publication was rolled back by another process before it committed
 // (its file was put back), so nothing was changed.
 var ErrPublicationLost = errors.New("the change was rolled back by another process before it committed")
@@ -273,10 +276,20 @@ func (h *HybridWorkflowStore) plan(ctx context.Context, tx *sql.Tx, p Publicatio
 	}
 	t := pl.target
 	t.ID = p.WorkflowID
+	for i := range t.Nodes {
+		if t.Nodes[i].ID == "" {
+			t.Nodes[i].ID = newID()
+		}
+	}
 	for i := range t.Connections {
 		if t.Connections[i].ID == "" {
 			t.Connections[i].ID = newID()
 		}
+	}
+	// Ids are what the rows are keyed by: a repeated one would collapse in the rows while staying
+	// twice in the file, so the two stores would never agree.
+	if why := graphIDProblem(t); why != "" {
+		return nil, fmt.Errorf("%w: %s", ErrInvalidGraph, why)
 	}
 	// The file and the version snapshot are written with normalized handles, so the hash, the
 	// version and the approval must be worked out from the normalized definition too.
