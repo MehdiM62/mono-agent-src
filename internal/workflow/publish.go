@@ -301,6 +301,9 @@ func (h *HybridWorkflowStore) plan(ctx context.Context, tx *sql.Tx, p Publicatio
 		var n int
 		_ = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM profiles WHERE id = ?`, id).Scan(&n)
 		pl.profileKnown = n > 0
+		if n == 0 {
+			return nil, fmt.Errorf("saving workflow %s: %w (the profile %s does not exist)", p.WorkflowID, ErrNoProfile, id)
+		}
 	}
 	t := pl.target
 	t.ID = p.WorkflowID

@@ -41,3 +41,20 @@ func TestPublishRefusesToCommitIntoAProfileDeletedMeanwhile(t *testing.T) {
 }
 
 const removeProfileSQL = `DELETE FROM profiles WHERE id = ?`
+
+// A change is refused outright for a profile that does not exist (deleted, or never created), so a
+// workflow cannot be recreated for a profile that is gone.
+func TestPublishRefusesAProfileThatDoesNotExist(t *testing.T) {
+	h, s, _, _ := guardedRig(t)
+	w := mirrorWF("wf-ghost", "g-trig", "g-set2")
+	w.ProfileID = "no-such-profile"
+	if err := h.SaveWorkflow(context.Background(), w); !errors.Is(err, ErrNoProfile) {
+		t.Fatalf("%v", err)
+	}
+	if got, _ := s.GetWorkflow(context.Background(), "wf-ghost"); got != nil || openIntentCount(t, s) != 0 {
+		t.Fatal("something was left behind")
+	}
+	if _, statErr := os.Stat(filepath.Join(h.files.dir, "wf-ghost.json")); !os.IsNotExist(statErr) {
+		t.Fatalf("a file was written: %v", statErr)
+	}
+}

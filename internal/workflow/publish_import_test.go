@@ -275,11 +275,11 @@ func TestImportKeepsTheOwnerProfileAndStartsNewFilesInactive(t *testing.T) {
 	if err != nil || !res.Created {
 		t.Fatalf("%+v %v", res, err)
 	}
-	if rows, _ := s.GetWorkflow(ctx, "wf-new-file"); rows.IsActive {
-		t.Fatal("a workflow created from a file started active")
-	}
-	if got, _ := h.GetWorkflow(ctx, "wf-new-file"); got.IsActive {
-		t.Fatal("a read served the file's active flag")
+	// A file with no rows keeps its own flag (older versions saved active workflows as files), but
+	// the rows and what a read serves agree.
+	rows, _ := s.GetWorkflow(ctx, "wf-new-file")
+	if got, _ := h.GetWorkflow(ctx, "wf-new-file"); got.IsActive != rows.IsActive {
+		t.Fatal("a read and the rows disagree about the active flag")
 	}
 }
 
