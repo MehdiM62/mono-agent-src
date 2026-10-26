@@ -179,10 +179,11 @@ func newCoderHostRunCmd(cfg *Deps) *cobra.Command {
 				fmt.Fprintf(cmd.ErrOrStderr(), time.Now().Format(time.RFC3339)+" "+f+"\n", a...)
 			}
 			h := &coderhost.Host{
-				Store: coderhost.NewStore(db.DB),
-				L:     &execLauncher{bin: exe, dbPath: cfg.DBPath(), instance: info.Instance, logDir: filepath.Join(hostDir(cfg), "turns"), logf: logf},
-				Poll:  poll,
-				Logf:  logf,
+				Store:                coderhost.NewStore(db.DB),
+				L:                    &execLauncher{bin: exe, dbPath: cfg.DBPath(), instance: info.Instance, logDir: filepath.Join(hostDir(cfg), "turns"), logf: logf},
+				Poll:                 poll,
+				Logf:                 logf,
+				RequireConversations: true,
 			}
 			if meshEnabled() {
 				h.Mesh = &coderhost.HubMesh{StartHub: func(ctx context.Context) error { return startMeshHub(ctx, hostDir(cfg)) }, Logf: logf}

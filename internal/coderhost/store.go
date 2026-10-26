@@ -279,6 +279,32 @@ func (s *Store) EnsureSession(profileID, conversationID string) (Session, error)
 	return x, err
 }
 
+// ConversationExists says whether the conversation a command or session names is still there.
+func (s *Store) ConversationExists(profileID, conversationID string) (bool, error) {
+	var n int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM ai_chat_conversations WHERE id = ? AND profile_id = ?`, conversationID, profileID).Scan(&n)
+	return n > 0, err
+}
+
+// SweepOrphans removes the sessions and waiting commands whose conversation is gone. Deleting a
+// conversation does this itself, in its transaction; this catches a row the host re-created from
+// a command it had read just before the delete. It returns how many rows it removed.
+func (s *Store) SweepOrphans() (int, error) {
+	total := 0
+	for _, q := range []string{
+		`DELETE FROM coder_session_commands WHERE status = 'pending' AND NOT EXISTS (SELECT 1 FROM ai_chat_conversations c WHERE c.id = coder_session_commands.conversation_id AND c.profile_id = coder_session_commands.profile_id)`,
+		`DELETE FROM coder_sessions WHERE NOT EXISTS (SELECT 1 FROM ai_chat_conversations c WHERE c.id = coder_sessions.conversation_id AND c.profile_id = coder_sessions.profile_id)`,
+	} {
+		res, err := s.db.Exec(q)
+		if err != nil {
+			return total, err
+		}
+		n, _ := res.RowsAffected()
+		total += int(n)
+	}
+	return total, nil
+}
+
 // SaveSession writes a session's state and current turn.
 func (s *Store) SaveSession(x Session) error {
 	if x.TurnPID < 0 || x.TurnPID == 1 {

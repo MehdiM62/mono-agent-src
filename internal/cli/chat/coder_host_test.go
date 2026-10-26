@@ -775,3 +775,52 @@ func TestSessionsListCountsSendsWaitingBehindAPause(t *testing.T) {
 		t.Fatalf("list = %s", out)
 	}
 }
+
+// Deleting the children of a master lets it go solo again, and a refused delete says how to stop the session.
+func TestDeletingChildConversationsLetsTheMasterGoSolo(t *testing.T) {
+	dbPath := newChatCLITestDB(t)
+	store := openTestChatStore(t, dbPath)
+	mk := func() string {
+		c, _ := store.CreateConversationMode("default", "agent", "general", "claude", "", "", ai.ModeCoder, t.TempDir())
+		return c.ID
+	}
+	m, k := mk(), mk()
+	cfg := testDeps(&testConfig{DBPath: dbPath, ProfileID: "default", JSONOutput: true})
+	set := func(args ...string) int {
+		_, code := runSessionsCLI(t, cfg, append([]string{"settings", "set"}, args...)...)
+		return code
+	}
+	if set(m, "--role", "master") != 0 || set(k, "--role", "child", "--parent", m) != 0 {
+		t.Fatal("could not link")
+	}
+	if set(m, "--role", "solo") == 0 {
+		t.Fatal("a master with a child went solo")
+	}
+	if _, code := runChatHistory(t, dbPath, "default", "delete", k); code != 0 {
+		t.Fatal("delete failed")
+	}
+	if set(m, "--role", "solo") != 0 {
+		t.Fatal("a master whose only child was deleted cannot go solo: the child's row was left behind")
+	}
+	out, _ := runSessionsCLI(t, cfg, "list")
+	if strings.Contains(out, k) {
+		t.Fatalf("a deleted conversation is still listed: %s", out)
+	}
+}
+
+func TestDeleteRefusedForARunningTurnNamesTheStopCommand(t *testing.T) {
+	dbPath := newChatCLITestDB(t)
+	store := openTestChatStore(t, dbPath)
+	c, _ := store.CreateConversationMode("default", "agent", "general", "claude", "", "", ai.ModeCoder, t.TempDir())
+	store.CreateTurn(c.ID, "default", "t1", "host-1a2b3c4d", "hi")
+	cmd := newChatCmd(testDeps(&testConfig{DBPath: dbPath, ProfileID: "default", JSONOutput: true}))
+	cmd.SetArgs([]string{"history", "delete", c.ID})
+	cmd.SilenceErrors, cmd.SilenceUsage = true, true
+	err := cmd.Execute()
+	if err == nil || exitCodeFor(err) != 3 || !strings.Contains(err.Error(), "coder sessions stop") {
+		t.Fatalf("err = %v", err)
+	}
+	if _, gerr := store.GetConversation(c.ID, "default"); gerr != nil {
+		t.Fatal("a refused delete removed the conversation")
+	}
+}

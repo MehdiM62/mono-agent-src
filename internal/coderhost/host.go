@@ -47,6 +47,11 @@ type Host struct {
 	MeshIdle  time.Duration
 	meshPrev  map[meshKey]MeshSession // what the mesh was last told, kept for a session whose records do not read
 
+	// RequireConversations makes the host check that the conversation of a command still exists, and
+	// sweep away sessions and commands of deleted ones. `coder host run` sets it; unit tests that
+	// use sessions without conversation rows leave it off.
+	RequireConversations bool
+
 	// CheckinEvery is how often masters are looked at (default 30 s); the interval
 	// each master asks for is its own setting.
 	CheckinEvery time.Duration
@@ -140,6 +145,16 @@ func (h *Host) Tick() error {
 	blocked := map[string]bool{} // an earlier send for the chat is still waiting: later sends keep their order
 	for _, c := range cmds {
 		k := key(c.ProfileID, c.ConversationID)
+		if h.RequireConversations {
+			// A command read just before its conversation was deleted must not bring the session
+			// back, nor start a turn on nothing.
+			if ok, err := h.Store.ConversationExists(c.ProfileID, c.ConversationID); err != nil {
+				return err
+			} else if !ok {
+				h.end(c, CmdFailed, "the conversation was deleted")
+				continue
+			}
+		}
 		x, err := h.Store.EnsureSession(c.ProfileID, c.ConversationID)
 		if err != nil {
 			return err
@@ -424,6 +439,13 @@ func (h *Host) unlocked(f func() (Turn, error)) (Turn, error) {
 
 // checkinIfDue runs a check-in pass when CheckinEvery has passed since the last.
 func (h *Host) checkinIfDue() {
+	if h.RequireConversations {
+		if n, err := h.Store.SweepOrphans(); err != nil {
+			h.logf("coder host: sweeping sessions of deleted conversations: %v", err)
+		} else if n > 0 {
+			h.logf("coder host: removed %d row(s) of deleted conversations", n)
+		}
+	}
 	every := h.CheckinEvery
 	if every <= 0 {
 		every = 30 * time.Second
