@@ -5,6 +5,7 @@ package workflow
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -25,14 +26,16 @@ type crashRig struct {
 	hash string
 }
 
-func openRigStore(t testing.TB, root string) (*HybridWorkflowStore, *SQLiteWorkflowStore, func()) {
+func openRigStore(t testing.TB, root string, migrate bool) (*HybridWorkflowStore, *SQLiteWorkflowStore, func()) {
 	t.Helper()
 	db, err := storage.NewDatabase(filepath.Join(root, "rig.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.ApplyMigrations(); err != nil {
-		t.Fatal(err)
+	if migrate {
+		if err := db.ApplyMigrations(); err != nil {
+			t.Fatal(err)
+		}
 	}
 	files, err := NewWorkflowFileStore(filepath.Join(root, "workflows"))
 	if err != nil {
@@ -45,7 +48,7 @@ func openRigStore(t testing.TB, root string) (*HybridWorkflowStore, *SQLiteWorkf
 func newCrashRig(t *testing.T) *crashRig {
 	t.Helper()
 	root := t.TempDir()
-	h, s, closeDB := openRigStore(t, root)
+	h, s, closeDB := openRigStore(t, root, true)
 	t.Cleanup(closeDB)
 	ctx := context.Background()
 	if err := h.SaveWorkflow(ctx, mirrorWF("wf-c", "c-trig", "c-set")); err != nil {
@@ -70,6 +73,7 @@ func (r *crashRig) startHelper(t *testing.T, action string, env ...string) *exec
 	t.Helper()
 	cmd := exec.Command(os.Args[0], "-test.run=^TestHelperPublish$", "-test.count=1")
 	cmd.Env = append(os.Environ(), append([]string{"WF_HELPER_ROOT=" + r.root, "WF_HELPER_ACTION=" + action, "WF_HELPER_HASH=" + r.hash}, env...)...)
+	cmd.Stdout, cmd.Stderr = &bytes.Buffer{}, &bytes.Buffer{}
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
@@ -123,7 +127,7 @@ func TestHelperPublish(t *testing.T) {
 	if root == "" {
 		t.Skip("child process body")
 	}
-	h, _, closeDB := openRigStore(t, root)
+	h, _, closeDB := openRigStore(t, root, false) // the parent migrated it
 	defer closeDB()
 	ctx := context.Background()
 	cur, err := h.GetWorkflow(ctx, "wf-c")
@@ -145,6 +149,7 @@ func TestHelperPublish(t *testing.T) {
 		t.Fatalf("unknown action")
 	}
 	if err := act(ctx, h, cur); err != nil {
+		fmt.Fprintln(os.Stderr, "REFUSED:", err)
 		os.Exit(3)
 	}
 }

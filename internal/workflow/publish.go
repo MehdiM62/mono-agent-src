@@ -360,6 +360,20 @@ func (h *HybridWorkflowStore) publishFile(ctx context.Context, p Publication, pl
 	if err := failpoint("before-fence"); err != nil {
 		return err
 	}
+	// The slow part (writing and flushing the new bytes) happens before the lock is taken; under
+	// the lock only the rename and the folder flush remain.
+	staged := ""
+	if p.Kind != PubDelete {
+		var err error
+		if staged, err = h.files.stageRaw(p.WorkflowID, pl.data); err != nil {
+			return fmt.Errorf("%w: %v", ErrFileSyncFailed, err)
+		}
+		defer func() {
+			if staged != "" {
+				_ = os.Remove(staged)
+			}
+		}()
+	}
 	tx, done, err := h.beginDurable(ctx)
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrFileSyncFailed, err)
@@ -383,7 +397,8 @@ func (h *HybridWorkflowStore) publishFile(ctx context.Context, p Publication, pl
 		if p.Kind == PubDelete {
 			err = h.files.removeFile(p.WorkflowID)
 		} else {
-			err = h.files.writeRaw(p.WorkflowID, pl.data)
+			err = h.files.installRaw(p.WorkflowID, staged)
+			staged = "" // installed, or removed by installRaw
 		}
 	}
 	if err == nil {

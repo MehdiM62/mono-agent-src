@@ -3,6 +3,7 @@
 package workflow
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -64,8 +65,11 @@ func (r *crashRig) race(t *testing.T, round int, a, b string) (winners int) {
 		case err == nil:
 			winners++
 		default:
+			if ee, ok := err.(*exec.ExitError); ok && ee.ExitCode() == 3 {
+				t.Logf("refused: %s", tailOf(c.Stdout.(*bytes.Buffer).String()+c.Stderr.(*bytes.Buffer).String()))
+			}
 			if ee, ok := err.(*exec.ExitError); !ok || ee.ExitCode() != 3 {
-				t.Fatalf("a writer failed: %v", err)
+				t.Fatalf("a writer failed: %v\n%s", err, tailOf(c.Stdout.(*bytes.Buffer).String()))
 			}
 		}
 	}
@@ -267,4 +271,11 @@ func TestCrashListingAfterADeadWritersRenameDoesNotReturnTheProposal(t *testing.
 		}
 	}
 	r.assertConsistent(t)
+}
+
+func tailOf(s string) string {
+	if len(s) > 1500 {
+		return s[len(s)-1500:]
+	}
+	return s
 }

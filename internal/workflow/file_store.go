@@ -191,15 +191,25 @@ func (s *WorkflowFileStore) renderWorkflow(wf *Workflow) ([]byte, error) {
 // are flushed, the temp file is renamed over path, and the folder is flushed. The temp file is
 // removed on every failure.
 func writeFileAtomic(path string, data []byte) (err error) {
-	dir := filepath.Dir(path)
-	if err := statedir.MkdirAll(dir); err != nil {
-		return err
-	}
-	f, err := os.CreateTemp(dir, "."+filepath.Base(path)+".*.tmp")
+	tmp, err := stageFile(path, data)
 	if err != nil {
 		return err
 	}
-	tmp := f.Name()
+	return installStaged(tmp, path)
+}
+
+// stageFile writes data to a fresh, flushed temp file beside path and returns its name; the caller
+// installs it with installStaged or removes it.
+func stageFile(path string, data []byte) (tmp string, err error) {
+	dir := filepath.Dir(path)
+	if err := statedir.MkdirAll(dir); err != nil {
+		return "", err
+	}
+	f, err := os.CreateTemp(dir, "."+filepath.Base(path)+".*.tmp")
+	if err != nil {
+		return "", err
+	}
+	tmp = f.Name()
 	defer func() {
 		if err != nil {
 			_ = os.Remove(tmp)
@@ -207,19 +217,26 @@ func writeFileAtomic(path string, data []byte) (err error) {
 	}()
 	if _, err = f.Write(data); err != nil {
 		f.Close()
-		return err
+		return "", err
 	}
 	if err = f.Sync(); err != nil {
 		f.Close()
-		return err
+		return "", err
 	}
 	if err = f.Close(); err != nil {
+		return "", err
+	}
+	return tmp, nil
+}
+
+// installStaged renames a staged temp file over path and flushes the folder; the temp file is
+// removed when that fails.
+func installStaged(tmp, path string) error {
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
 		return err
 	}
-	if err = os.Rename(tmp, path); err != nil {
-		return err
-	}
-	return syncDir(dir)
+	return syncDir(filepath.Dir(path))
 }
 
 // syncDir flushes a directory's entries (the rename) to disk. Platforms that cannot open a
@@ -457,4 +474,24 @@ func (s *WorkflowFileStore) writeRaw(id string, data []byte) error {
 // removeFile removes the workflow's file; a missing file is fine.
 func (s *WorkflowFileStore) removeFile(id string) error {
 	return s.restoreRaw(id, nil, false)
+}
+
+// stageRaw prepares data as the workflow's next file (see stageFile).
+func (s *WorkflowFileStore) stageRaw(id string, data []byte) (string, error) {
+	path, err := s.filePath(id)
+	if err != nil {
+		return "", err
+	}
+	return stageFile(path, data)
+}
+
+// installRaw makes a staged file the workflow's file.
+func (s *WorkflowFileStore) installRaw(id, tmp string) error {
+	path, err := s.filePath(id)
+	if err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	defer s.invalidate(path)
+	return installStaged(tmp, path)
 }
