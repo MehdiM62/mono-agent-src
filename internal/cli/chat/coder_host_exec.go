@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -28,6 +29,12 @@ import (
 type execLauncher struct {
 	bin, dbPath, instance, logDir string
 	logf                          func(string, ...any)
+	// tokens mints the session token a turn gets in its environment (nil: none), and revoke drops
+	// a session's tokens when its turn ends.
+	tokens func(profileID, conversationID, turnID string) (string, error)
+	revoke func(profileID, conversationID string)
+	// bind names the turn's process for its token, right after the turn starts.
+	bind func(profileID, conversationID, turnID string, pid int, stamp string) error
 }
 
 // hostID is what makes a host-owned name safe to put in a file name and a flag.
@@ -41,6 +48,15 @@ func (l *execLauncher) args(profileID string, rest ...string) []string {
 }
 
 func (l *execLauncher) Start(profileID, conversationID, turnID, message string, attachments []string, missionToken string) (coderhost.Turn, error) {
+	return l.start(profileID, conversationID, turnID, message, attachments, missionToken, 0)
+}
+
+// StartCapped is Start under a spend cap in USD (the session's budget left).
+func (l *execLauncher) StartCapped(profileID, conversationID, turnID, message string, attachments []string, missionToken string, capUSD float64) (coderhost.Turn, error) {
+	return l.start(profileID, conversationID, turnID, message, attachments, missionToken, capUSD)
+}
+
+func (l *execLauncher) start(profileID, conversationID, turnID, message string, attachments []string, missionToken string, capUSD float64) (coderhost.Turn, error) {
 	if !hostID.MatchString(conversationID) || !hostID.MatchString(turnID) {
 		return nil, fmt.Errorf("conversation and turn ids must be letters, digits, '.', '_' and '-'")
 	}
@@ -83,19 +99,37 @@ func (l *execLauncher) Start(profileID, conversationID, turnID, message string, 
 	for _, a := range attachments {
 		rest = append(rest, "--attach="+a)
 	}
+	if capUSD > 0 {
+		rest = append(rest, "--budget-usd="+strconv.FormatFloat(capUSD, 'f', 6, 64))
+	}
 	if missionToken != "" && !hostID.MatchString(missionToken) {
 		return nil, fmt.Errorf("the mission confirmation is not a valid token")
 	}
 	cmd := exec.Command(l.bin, l.args(profileID, rest...)...)
+	// The environment is the host's without any token of a session that started the host, plus this
+	// turn's own: a turn must never inherit another session's identity (the host can have been
+	// started from a master's shell). Tokens go in the environment, not the arguments (which any
+	// process of the user lists).
+	cmd.Env = turnEnv(os.Environ())
 	if missionToken != "" {
-		// In the child's environment, not its arguments (which any process of the user lists):
 		// the child verifies the operator's signed record and consumes it, and drops the variable.
-		cmd.Env = append(os.Environ(), coderhost.MissionTokenEnv+"="+missionToken)
+		cmd.Env = append(cmd.Env, coderhost.MissionTokenEnv+"="+missionToken)
+	}
+	if l.tokens != nil {
+		tok, err := l.tokens(profileID, conversationID, turnID)
+		if err != nil {
+			os.Remove(promptPath)
+			return nil, fmt.Errorf("could not mint the session token: %w", err)
+		}
+		cmd.Env = append(cmd.Env, coderhost.SessionTokenEnv+"="+tok)
 	}
 	cmd.Dir = filepath.Dir(l.logDir)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = prompt, logFile, logFile
 	if err := clicore.DetachStart(cmd); err != nil {
 		os.Remove(promptPath)
+		if l.revoke != nil {
+			l.revoke(profileID, conversationID)
+		}
 		return nil, err
 	}
 	if runtime.GOOS != "windows" {
@@ -112,12 +146,21 @@ func (l *execLauncher) Start(profileID, conversationID, turnID, message string, 
 	t := &execTurn{pid: cmd.Process.Pid, stamp: stamp, done: make(chan struct{})}
 	go func() {
 		t.err = cmd.Wait()
+		if l.revoke != nil {
+			l.revoke(profileID, conversationID) // before done closes: a session that sees its turn end has no token left
+		}
 		os.Remove(promptPath) // before done closes: whoever sees the turn end sees no prompt left
 		close(t.done)
 	}()
 	if stamp == "" {
 		t.stopAndWait()
 		return nil, errors.New("could not identify the turn's process (its start time is unreadable), so it was stopped")
+	}
+	if l.bind != nil {
+		if err := l.bind(profileID, conversationID, turnID, t.pid, coderhost.ProcStamp(t.pid)); err != nil {
+			t.stopAndWait()
+			return nil, fmt.Errorf("could not bind the session token to the turn: %w", err)
+		}
 	}
 	if err := awaitAdmission(logPath, offset, t.done); err != nil {
 		t.stopAndWait()
@@ -413,3 +456,34 @@ func hostHeldTurns(cfg *Deps) (skip func(ai.Turn) bool, closeFn func()) {
 
 // isHostInstance is the owner id a host-run turn carries (see hostID).
 func isHostInstance(owner string) bool { return strings.HasPrefix(owner, "host-") }
+
+// turnEnv is the environment a turn starts with: the host's without any session or mission token.
+func turnEnv(env []string) []string {
+	return withoutEnv(env, coderhost.SessionTokenEnv, coderhost.MissionTokenEnv)
+}
+
+// withoutEnv returns env without the named variables.
+func withoutEnv(env []string, names ...string) []string {
+	out := make([]string, 0, len(env))
+outer:
+	for _, kv := range env {
+		for _, n := range names {
+			if hasEnvName(kv, n) {
+				continue outer
+			}
+		}
+		out = append(out, kv)
+	}
+	return out
+}
+
+// hasEnvName says whether the KEY=value entry kv is the variable n (names are case-insensitive on Windows).
+func hasEnvName(kv, n string) bool {
+	if len(kv) <= len(n) || kv[len(n)] != '=' {
+		return false
+	}
+	if runtime.GOOS == "windows" {
+		return strings.EqualFold(kv[:len(n)], n)
+	}
+	return kv[:len(n)] == n
+}

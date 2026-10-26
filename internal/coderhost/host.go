@@ -2,6 +2,7 @@ package coderhost
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -162,6 +163,12 @@ func (h *Host) Tick() error {
 		if err != nil {
 			return err
 		}
+		// A command a master queued is run only while the target is still that master's child:
+		// a session re-parented or released in between is not the master's to command.
+		if c.Issuer != "" && x.Parent != c.Issuer {
+			h.end(c, CmdFailed, "the session is no longer a child of the master that sent this")
+			continue
+		}
 		switch c.Kind {
 		case KindSend:
 			if blocked[k] || h.live[k] != nil || x.State == StatePaused {
@@ -174,8 +181,17 @@ func (h *Host) Tick() error {
 			}
 			// A check-in is queued by the host, not typed by a person: it is only run for a
 			// master that is still unattended, as it was when it was queued.
-			if strings.HasPrefix(c.TurnID, "checkin-") {
+			if strings.HasPrefix(c.TurnID, CheckinTurnPrefix) {
 				if reason := h.checkinStillAllowed(x, h.Store.now()); reason != "" {
+					h.end(c, CmdFailed, reason)
+					continue
+				}
+			}
+			// A message a master sent to a child counts with the check-ins: after CheckinLimit
+			// host-made turns in a row the child waits for a person, and it is only run for a
+			// session that is still a child.
+			if strings.HasPrefix(c.TurnID, MasterTurnPrefix) {
+				if reason := h.masterSendStillAllowed(x); reason != "" {
 					h.end(c, CmdFailed, reason)
 					continue
 				}
@@ -217,10 +233,24 @@ func (h *Host) Tick() error {
 					}
 				}
 			}
+			capUSD, capped, berr := h.Store.TurnCap(c.ProfileID, c.ConversationID)
+			if berr == nil && capped {
+				if _, ok := h.L.(BudgetLauncher); !ok {
+					berr = errors.New("this launcher cannot start a turn under a spend cap")
+				}
+			}
+			if berr != nil {
+				h.settle(x)
+				h.end(c, CmdFailed, berr.Error())
+				continue
+			}
 			t, err := h.unlocked(func() (Turn, error) { // admission can take seconds; do not hold up the turn watchers meanwhile
 				// The token is the one of the confirmation record looked up above (never anything
 				// in the command row, the message or the mesh block); the child verifies the
 				// record's MAC and consumes it.
+				if capped {
+					return h.L.(BudgetLauncher).StartCapped(c.ProfileID, c.ConversationID, c.TurnID, message, c.Attachments, token, capUSD)
+				}
 				return h.L.Start(c.ProfileID, c.ConversationID, c.TurnID, message, c.Attachments, token)
 			})
 			if err != nil {
@@ -243,6 +273,10 @@ func (h *Host) Tick() error {
 			// stopped the session, not just the turn that happened to run.
 			dropped, err := h.Store.CancelPendingSends(c.ProfileID, c.ConversationID, c.ID, "cancelled by a stop")
 			if err != nil {
+				return err
+			}
+			// The master was stopped: what it had queued for its children is not run either.
+			if err := h.Store.CancelChildMasterSends(c.ProfileID, c.ConversationID, "the master was stopped"); err != nil {
 				return err
 			}
 			t := h.live[k]
@@ -480,6 +514,30 @@ func (h *Host) checkinStillAllowed(x Session, now time.Time) string {
 	streak, _, _, err := h.Store.CheckinStreak(x.ProfileID, x.ConversationID)
 	if err != nil || streak >= settings.CheckinLimit {
 		return "the session has had its check-ins in a row; it waits for a person"
+	}
+	return ""
+}
+
+// masterSendStillAllowed re-checks, when a master's message to a child is about to
+// run, that the session is still a child of a master that has not been stopped
+// and has not had CheckinLimit host-made turns in a row without a person. It
+// returns why not, or "".
+func (h *Host) masterSendStillAllowed(x Session) string {
+	if x.Role != "child" || x.Parent == "" {
+		return "the session is no longer a child session"
+	}
+	if p, ok, err := h.Store.GetSession(x.ProfileID, x.Parent); err != nil || !ok || p.State == StateStopped {
+		return "the session's master is gone or stopped"
+	} else if p.State == StatePaused {
+		return "the session's master is paused"
+	}
+	settings, err := h.Store.GetSettings(x.ProfileID, x.ConversationID)
+	if err != nil {
+		return "the session's settings do not read"
+	}
+	streak, _, _, err := h.Store.CheckinStreak(x.ProfileID, x.ConversationID)
+	if err != nil || streak >= settings.CheckinLimit {
+		return "the session has had its host-made turns in a row; it waits for a person"
 	}
 	return ""
 }

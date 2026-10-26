@@ -31,8 +31,8 @@ var coderCommandDocs = []cmdDoc{
 	},
 	{
 		Name:     "coder sessions",
-		Short:    "Coder sessions the host carries on: list, send, stop, pause, resume, command, settings",
-		Usage:    "monoagentcli [--profile P] coder sessions list|send|stop|pause|resume|command|settings",
+		Short:    "Coder sessions the host carries on: list, send, stop, pause, resume, spawn, status, command, settings",
+		Usage:    "monoagentcli [--profile P] coder sessions list|send|stop|pause|resume|spawn|status|command|settings",
 		Examples: []string{"monoagentcli --profile work coder sessions list --json"},
 	},
 	{
@@ -43,7 +43,7 @@ var coderCommandDocs = []cmdDoc{
 	},
 	{
 		Name:  "coder sessions send",
-		Short: "Queue a message for a coder conversation; the host starts the turn when the session is free (the operator only)",
+		Short: "Queue a message for a coder conversation; the host starts the turn when the session is free (the operator only; with a master's session token: a descendant only, as a master-made turn)",
 		Usage: "monoagentcli [--profile P] coder sessions send CONVERSATION MESSAGE [--turn ID] [--attach FILE]... [--mission] [--no-host]",
 		Flags: `  --turn string          Turn id (default: a new one)
   --attach stringArray   A file to attach to the turn (repeatable, at most 10)
@@ -71,6 +71,22 @@ var coderCommandDocs = []cmdDoc{
 		Short:    "Lift a pause (the operator only)",
 		Usage:    "monoagentcli [--profile P] coder sessions resume CONVERSATION",
 		Examples: []string{"monoagentcli --profile work coder sessions resume <conv>"},
+	},
+	{
+		Name:  "coder sessions spawn",
+		Short: "A master session creates a child session below itself (needs the session token of a master's turn; limits: max_children, max_depth, spawn rate, access never above the master's and never full, budget carved from the master's)",
+		Usage: "monoagentcli [--profile P] coder sessions spawn [--message TEXT] [--access coding|workspace] [--cwd DIR] [--budget-usd N]",
+		Flags: `  --message string     The child's first message
+  --access string      coding or workspace, at most the master's (default: the master's, capped at workspace)
+  --cwd string         A folder inside the master's (default: the master's)
+  --budget-usd float   Spend cap for the child, carved out of the master's remaining budget`,
+		Examples: []string{`monoagentcli --profile work coder sessions spawn --message "write the parser tests" --budget-usd 2`},
+	},
+	{
+		Name:     "coder sessions status",
+		Short:    "A master's view of its own session or a descendant, or its whole subtree without a conversation (needs the session token of a coder turn)",
+		Usage:    "monoagentcli [--profile P] coder sessions status [CONVERSATION]",
+		Examples: []string{"monoagentcli --profile work coder sessions status --json"},
 	},
 	{
 		Name:     "coder sessions command",
@@ -140,11 +156,12 @@ var coderCommandDocs = []cmdDoc{
 	{
 		Name:  "coder sessions settings set",
 		Short: "Change settings with a JSON object naming only the settings to change (the operator only)",
-		Usage: "monoagentcli [--profile P] coder sessions settings set CONVERSATION [--patch JSON] [--unattended true|false] [--role solo|master|child] [--parent MASTER]",
+		Usage: "monoagentcli [--profile P] coder sessions settings set CONVERSATION [--patch JSON] [--unattended true|false] [--role solo|master|child] [--parent MASTER] [--budget-usd N]",
 		Flags: `  --patch string       JSON object with the settings to change; a name that is not a setting is refused
   --unattended string  true or false: false turns off the host's own scheduled check-ins for the session (a message you send runs either way)
   --role string        solo, master or child (a child needs --parent: a master with room for it)
-  --parent string      The master conversation, with --role child`,
+  --parent string      The master conversation, with --role child
+  --budget-usd float   The session's spend cap in USD that its children are carved from (0 = none)`,
 		Examples: []string{
 			`monoagentcli --profile work coder sessions settings set <conv> --patch '{"checkin_minutes": 30, "checkin_limit": 12}'`,
 			"monoagentcli --profile work coder sessions settings set <conv> --role master",

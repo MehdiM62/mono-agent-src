@@ -2529,6 +2529,28 @@ monoagentcli --profile work coder host stop                        # the host on
   presence; a running turn still registers itself through monomind under its own name. A block that would not
   fit under the 256 KiB prompt limit stays unread; a fresh message from an unknown sender is left alone for up to
   10 minutes while a relative has not joined the mesh.
+- **Master tools (child sessions):** every turn the host starts gets a **session token** in
+  `MONOAGENT_SESSION_TOKEN`; it names that session (profile, conversation, turn) and is valid only while that
+  turn is the session's current one (24 h at most; only its hash is stored, in `coder_session_tokens`). Only
+  the host mints one and signs the row (HMAC under the profile's vault key); it also names the turn's process, and
+  a call counts only from that process or a descendant of it (Linux; elsewhere the signature and the turn only).
+  The turn keeps it in its environment so its shell and MCP server can call the master tools.
+  With a token, `sessions send|stop|pause|resume` and `sessions settings set --patch` act **only on descendants**
+  of that session (the parent links are walked up in the database from the target; a peer, an ancestor, the
+  session itself or an unrelated one is refused), `sessions spawn [--message M] [--access coding|workspace]
+  [--cwd DIR] [--budget-usd N]` creates a child and `sessions status [CONV]` reads the subtree. A bad token is a
+  refusal, never a fall-back to the operator path; without a token these verbs stay operator-only. The same
+  verbs exist as MCP tools `session_spawn|list|status|send|pause|resume|stop|set` (the mutating ones need
+  `--allow-mutations`). `settings set` through a token may change only `checkin_minutes`, `skip_if_unchanged`,
+  `checkin_triggers`, `silent_minutes`, `active_hours`, `mesh_visible`, `mesh_alias` (`AgentAdjustable`, an
+  allowlist; a test fails for a setting in neither list); limits, autonomy, mesh_accept, role, access, unattended
+  and budget are the operator's. A spawn needs a **master** with room under `max_children`, `max_depth` (a
+  master is level 1, a child level 2) and a rate of 6 per 10 minutes; the child runs the master's runtime,
+  model and folder (or a folder inside it), at most the master's access capped at `workspace` and never `full`
+  (an operator raises that), and its `--budget-usd` is carved out of the master's cap (`settings set
+  --budget-usd`, operator only; a capped master must give its child a positive amount that fits). Each turn of a capped session runs under what it has left (budget, less what its turns cost in the journal, less what it carved for its children) as `--budget-usd`; a send with nothing left fails with the reason. Cost comes from the runtimes' own reports (a runtime that reports none counts as $0, and kilo cannot enforce a cap at all). A command a master queues records the master as its issuer and runs only while the target is still that master's child; at most 5 master sends wait per child and they expire after 15 minutes. With a token `list`, `settings get` and `command` show only the caller's own tree. A master's message is **not a person's send**: its turn
+  id starts with `master-`, it can carry no mission confirmation, and, like `checkin-`, it counts toward the
+  host-made turns in a row (`checkin_limit`) after which the child waits for a person.
 - **Good to know:** the host and the turns it starts keep the environment of the terminal that started the host.
   `host stop` leaves turns running: `sessions stop <conv>` first if you want them ended. Queued sends only
   expire while a host runs. `send` prints `hostStarted: true` unless you pass `--no-host`.
