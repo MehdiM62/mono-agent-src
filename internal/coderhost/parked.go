@@ -35,11 +35,8 @@ const (
 	questionStatusDefault = "defaulted"
 )
 
-// CallerScope says who is answering. TODO(P4): the master's side is the
-// descendant-token mechanism of phase P4, which does not exist on this branch;
-// when it lands, its verified token should produce a CallerScope with Role()
-// "master" and ConversationID() the master's own conversation. Until then only
-// OperatorScope exists, so nothing can answer as a master.
+// CallerScope says who is answering. The operator's is OperatorScope; a master's is made from
+// its verified session token (AnswerAsMaster), never from an argument.
 type CallerScope interface {
 	Role() string           // WhoUser or WhoMaster
 	ConversationID() string // the master's own conversation; "" for the operator
@@ -143,10 +140,9 @@ func (s *Store) answererNow(q Question) (string, error) {
 // asked. def is what the host applies after ParkTimeout, only where the
 // policy's fallback is take_default.
 //
-// TRUST: class and reversible come from the caller and the policy trusts them. Today the
-// caller is host or operator code. Before any model-facing tool can park a question or
-// record a decision, the producer must take the class from a host- or master-validated
-// source (a model that can label a risky action as "ambiguity" would get it decided).
+// TRUST: class and reversible come from the caller and the policy trusts them. A model-facing
+// caller goes through ParkOwn (producer.go), which validates the class and never lets a hard
+// class be reversible.
 func (s *Store) Park(profileID, conversationID, class, question string, options []string, def string, reversible bool) (Question, error) {
 	if profileID == "" || conversationID == "" || len(conversationID) > maxConversationLen {
 		return Question{}, errors.New("coder host: a question needs a profile and a conversation")
