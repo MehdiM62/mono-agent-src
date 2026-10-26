@@ -108,6 +108,9 @@ func (h *Host) settle(x Session) {
 	x.TurnID, x.TurnPID, x.TurnStamp = "", 0, ""
 	if x.State != StatePaused {
 		x.State = StateIdle
+		if h.Store.OpenParked(x.ProfileID, x.ConversationID) > 0 {
+			x.State = StateWaitingUser // a parked question outlives the turn that was running when it was parked
+		}
 	}
 	if err := h.Store.SaveSession(x); err != nil {
 		h.logf("coder host: saving %s: %v", x.ConversationID, err)
@@ -131,6 +134,7 @@ func (h *Host) watch(x Session, t Turn) {
 // Tick makes one pass over the waiting commands. A command that cannot run yet
 // (a send to a busy or paused session) stays pending, in order.
 func (h *Host) Tick() error {
+	h.Store.ReopenFailedAnswers() // an answer note that did not run (stop, expiry, a failed check) gives its question back
 	h.Store.DropUnstartedCaps()
 	if err := h.Store.ExpireSends(); err != nil {
 		return err
@@ -195,6 +199,14 @@ func (h *Host) Tick() error {
 			// session that is still a child.
 			if strings.HasPrefix(c.TurnID, MasterTurnPrefix) || c.Issuer != "" {
 				if reason := h.masterSendStillAllowed(x); reason != "" {
+					h.end(c, CmdFailed, reason)
+					continue
+				}
+			}
+			// An answer note from a master or an applied default counts with the check-ins too: a
+			// person's own answer is not held back.
+			if answerGated(c.TurnID) {
+				if reason := h.answerStillAllowed(x); reason != "" {
 					h.end(c, CmdFailed, reason)
 					continue
 				}
@@ -282,7 +294,7 @@ func (h *Host) Tick() error {
 			x.TurnPID, x.TurnStamp = t.PID(), t.Stamp()
 			if err := h.Store.SaveSession(x); err != nil {
 				t.Stop()
-				h.end(c, CmdFailed, "could not record the session: "+err.Error())
+				h.end(c, CmdFailed, startedMarker+" but could not record the session: "+err.Error())
 				return err
 			}
 			_, _ = h.unlocked(func() (Turn, error) { commit(); return nil, nil }) // the turn has the messages and is recorded: mark them read, without holding up the watchers
@@ -318,6 +330,9 @@ func (h *Host) Tick() error {
 		case KindResume:
 			if x.State == StatePaused {
 				x.State = StateIdle
+				if h.Store.OpenParked(x.ProfileID, x.ConversationID) > 0 {
+					x.State = StateWaitingUser // a parked question outlives a pause
+				}
 				if h.live[k] != nil {
 					x.State = StateRunning
 				}
@@ -518,6 +533,7 @@ func (h *Host) checkinIfDue() {
 	if now := h.Store.now(); now.Sub(h.lastCheckin) >= every {
 		h.lastCheckin = now
 		h.checkinPass(now)
+		h.parkedPass()
 	}
 }
 
@@ -538,6 +554,20 @@ func (h *Host) checkinStillAllowed(x Session, now time.Time) string {
 	streak, _, _, err := h.Store.CheckinStreak(x.ProfileID, x.ConversationID)
 	if err != nil || streak >= settings.CheckinLimit {
 		return "the session has had its check-ins in a row; it waits for a person"
+	}
+	return ""
+}
+
+// answerStillAllowed re-checks, when an answer note from a master or a default is
+// about to run, that the session has not had CheckinLimit host-made turns in a row.
+func (h *Host) answerStillAllowed(x Session) string {
+	settings, err := h.Store.GetSettings(x.ProfileID, x.ConversationID)
+	if err != nil {
+		return "the session's settings do not read"
+	}
+	streak, _, _, err := h.Store.CheckinStreak(x.ProfileID, x.ConversationID)
+	if err != nil || streak >= settings.CheckinLimit {
+		return "the session has had its host-made turns in a row; it waits for a person"
 	}
 	return ""
 }

@@ -2481,8 +2481,8 @@ monoagentcli --profile work coder host stop                        # the host on
   not a setting is refused): `checkin_minutes`, `skip_if_unchanged`, `checkin_triggers`, `silent_minutes`,
   `active_hours` (`HH:MM-HH:MM`, local time), `checkin_limit`, `autonomy_preset`, `autonomy_classes`,
   `max_children`, `max_concurrent`, `max_depth`, `mesh_visible`, `mesh_alias`, `mesh_accept`. `get` lists which
-  are operator-only and the values each allows. The autonomy settings and `max_concurrent` are stored,
-  validated and shown; nothing acts on them yet. `max_children` and `max_depth` hold when a child is linked.
+  are operator-only and the values each allows. `max_concurrent` is stored,
+  validated and shown; nothing acts on it yet. The autonomy settings are acted on (below). `max_children` and `max_depth` hold when a child is linked.
 - **Masters and children:** `sessions settings set <conv> --role master`, then `--role child --parent <master>`
   for each child (the master must be a master with room under its `max_children`; depth is 2; a session with
   children cannot change role).
@@ -2498,6 +2498,35 @@ monoagentcli --profile work coder host stop                        # the host on
   and turn-status words, counts, ages), never text an agent wrote. Host-made turns carry the turn-id prefix
   `checkin-`; the limit counts it, so a later path that starts turns without a person must use its own prefix.
   `child_question` and `budget_80` are accepted settings that do not fire yet.
+- **Autonomy** (`autonomy_preset`, `autonomy_classes`, operator only): when a session meets a gap
+  (`ambiguity`, `scope_growth`, `risky_action`, `verification_failed`, `missing_credential`, `child_conflict`),
+  the policy says only WHO answers: `user`, `master` or `model`, and what happens when nobody does
+  (`park` or `take_default`). `ask-always`: the user. `ask-on-risk` (default): the model settles reversible
+  `ambiguity`, `scope_growth` and `verification_failed`; the master (the user, without one) gets the rest.
+  `decide-and-log`: the model also settles irreversible ones and `child_conflict`. Code enforces, whatever the
+  preset or override: `risky_action` and `missing_credential` are never answered by the model and never take
+  a default (a settings write that says so is refused), a missing master becomes the user, and an answer is
+  only text: it cannot raise access or a budget, change a setting or pass a send gate.
+  `sessions decisions list|show|revert <conv>` is the ledger of decisions made without a person
+  (revert only marks the row; it starts no turn). A question nobody present can answer is parked
+  (`sessions questions list [<conv>]`) and the session goes to `waiting_user` (other sessions carry on; a
+  message you send still runs); `sessions questions answer <conv> <id> <text>` (operator) answers it when the
+  policy names the user; the host then sends it with a turn id `answer-...`, which is host-made like
+  `checkin-`: counted by the check-in limit and never a mission confirmation. After 30 minutes a question with
+  a default and a `take_default` fallback gets that default (a ledger row, made by the model). Answering as a
+  master needs the session token of a later phase and is not possible yet. The gap class and `reversible`
+  flag come from whoever parks the question or records the decision: before any model-facing tool is added,
+  the producer must take the class from a host- or master-validated source, or a model could label a risky
+  action "ambiguity". A default is not applied while the check-in limit is reached or the session is stopped. A master's answer and
+  an applied default are held to the check-in limit too (refused, or failed when they run); every `answer-` turn,
+  including a person's own answer, counts in the streak on purpose (the safe direction). A master's answer is
+  queued with the master as issuer, so it runs only while the session is still that master's child. A paused master's
+  answer is held until it resumes; a stopped master cannot answer. If the note that carried an answer or a default
+  fails, is cancelled or expires before it runs, the question is open again (the host does this on every pass) and
+  a default's ledger row becomes `not_applied`. Notes still waiting count toward the check-in limit. A command that failed after its turn
+  started does not reopen the question (the model may have read it). A question whose note failed twice is left
+  for a person: no default, no master answer; a default is also held for 30 minutes after a failure and never
+  taken when the session's budget is used up.
 - **Mesh** (needs monomind 2.29+; the host does not check the version, it just tries `monomind mesh who` to
   start the hub): with `mesh_visible` (default on) the host keeps the session on monomind's mesh between turns
   (until it has been idle for 6 hours), as `coder-<folder>-<start time>` (or `mesh_alias`), with a state word as

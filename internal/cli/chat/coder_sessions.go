@@ -30,6 +30,7 @@ func newCoderSessionsCmd(cfg *Deps) *cobra.Command {
 		newCoderSessionsControlCmd(cfg, coderhost.KindStop, "Stop the session's running turn"),
 		newCoderSessionsControlCmd(cfg, coderhost.KindPause, "Start no new turn until resumed (a running turn finishes)"),
 		newCoderSessionsControlCmd(cfg, coderhost.KindResume, "Lift a pause"))
+	cmd.AddCommand(newCoderSessionsDecisionsCmd(cfg), newCoderSessionsQuestionsCmd(cfg))
 	return cmd
 }
 

@@ -12,8 +12,8 @@ import (
 
 func TestHostMadeRecognisesEveryPrefix(t *testing.T) {
 	for id, want := range map[string]bool{
-		"checkin-ab12": true, "master-ab12": true,
-		"t-1234": false, "": false, "Master-1": false, "xmaster-1": false, "checkin": false, "master": false,
+		"checkin-ab12": true, "master-ab12": true, "answer-ab12": true,
+		"t-1234": false, "": false, "Master-1": false, "xmaster-1": false, "checkin": false, "master": false, "answer": false, "Answer-1": false,
 	} {
 		if got := HostMade(id); got != want {
 			t.Errorf("HostMade(%q) = %v, want %v", id, got, want)
