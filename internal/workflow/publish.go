@@ -55,14 +55,16 @@ type Publication struct {
 }
 
 type pubPlan struct {
-	cur        *Workflow
-	target     *Workflow
-	graph      bool
-	baseHash   string
-	version    int
-	data       []byte
-	targetSHA  string
-	targetHash string
+	cur    *Workflow
+	target *Workflow
+	graph  bool
+	// profileKnown: the workflow's profile had a row when the change was planned.
+	profileKnown bool
+	baseHash     string
+	version      int
+	data         []byte
+	targetSHA    string
+	targetHash   string
 }
 
 // profileID is the profile the workflow belongs to, kept on the intent so a profile's deletion can
@@ -257,6 +259,11 @@ func (h *HybridWorkflowStore) plan(ctx context.Context, tx *sql.Tx, p Publicatio
 	if pl.target, err = p.Build(pl.cur); err != nil {
 		return nil, err
 	}
+	if id := pl.profileID(); id != "" {
+		var n int
+		_ = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM profiles WHERE id = ?`, id).Scan(&n)
+		pl.profileKnown = n > 0
+	}
 	t := pl.target
 	t.ID = p.WorkflowID
 	for i := range t.Connections {
@@ -324,7 +331,7 @@ func (h *HybridWorkflowStore) applyRows(ctx context.Context, tx *sql.Tx, p Publi
 		}
 		return nil
 	}
-	if id := pl.profileID(); id != "" {
+	if id := pl.profileID(); id != "" && pl.profileKnown {
 		var n int
 		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM profiles WHERE id = ?`, id).Scan(&n); err != nil {
 			return err
