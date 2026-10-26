@@ -7,6 +7,8 @@
 --   of the token is stored, and it names one profile, conversation and turn. pid and
 --   stamp are the turn's process (set by the host right after it starts the turn) and
 --   mac signs the whole row under a key derived from the profile's vault key.
+-- coder_session_turn_caps: the spend cap each turn of a budgeted session ran under (a turn whose runtime
+--   reported no cost counts as having spent that cap).
 -- coder_session_commands.issuer: the master that queued a command ('' = a person or the host).
 -- coder_session_spawns: one row per child a session created, for the spawn rate limit.
 ALTER TABLE coder_sessions ADD COLUMN budget_usd REAL NOT NULL DEFAULT 0;
@@ -35,3 +37,11 @@ CREATE TABLE IF NOT EXISTS coder_session_spawns (
 );
 
 CREATE INDEX IF NOT EXISTS idx_coder_session_spawns_parent ON coder_session_spawns(profile_id, parent, id);
+
+CREATE TABLE IF NOT EXISTS coder_session_turn_caps (
+    profile_id      TEXT NOT NULL,
+    conversation_id TEXT NOT NULL,
+    turn_id         TEXT NOT NULL,
+    cap_usd         REAL NOT NULL,
+    PRIMARY KEY (profile_id, conversation_id, turn_id)
+);

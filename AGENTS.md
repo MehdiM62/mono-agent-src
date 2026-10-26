@@ -2467,8 +2467,8 @@ monoagentcli --profile work coder host stop                        # the host on
 ```
 
 - **Operator only (exit 3, `operator_only`):** `sessions send|stop|pause|resume`, `sessions settings set`,
-  `host run|stop`. An agent can neither start a full-access turn nor steer a session; reading (`list`,
-  `command`, `settings get`, `host status`) is open. A queued send expires after 6 hours; at most 50 sends and
+  `host run|stop`. An agent can neither start a full-access turn nor steer a session; reading `list`, `command` and
+  `settings get` is the operator's, or an agent's own tree with its session token; `host status` is open. A queued send expires after 6 hours; at most 50 sends and
   50 control commands wait per conversation; a message is at most 256 KiB.
 - **State:** `idle`, `running` and `paused` (no new turn starts; a running one finishes). `waiting_user` and
   `stopped` exist in the schema and nothing sets them yet. Sends to a busy or paused conversation wait, in order. `stop` ends the running turn **and drops the sends queued before
@@ -2513,7 +2513,7 @@ monoagentcli --profile work coder host stop                        # the host on
   `MONOAGENT_SESSION_TOKEN`; it names that session (profile, conversation, turn) and is valid only while that
   turn is the session's current one (24 h at most; only its hash is stored, in `coder_session_tokens`). Only
   the host mints one and signs the row (HMAC under the profile's vault key); it also names the turn's process, and
-  a call counts only from that process or a descendant of it (Linux; elsewhere the signature and the turn only).
+  a call counts only from that process or a descendant of it (Linux; elsewhere the signature and the turn only). A tool that daemonises (`nohup`, `setsid`, a double fork) or runs in a container/another pid namespace is outside the tree and is refused with a distinct reason ("not inside the session's turn process tree"); nothing is loosened for it. A host started from inside a session's turn binds no tokens (it logs a warning).
   The turn keeps it in its environment so its shell and MCP server can call the master tools.
   With a token, `sessions send|stop|pause|resume` and `sessions settings set --patch` act **only on descendants**
   of that session (the parent links are walked up in the database from the target; a peer, an ancestor, the
@@ -2528,7 +2528,7 @@ monoagentcli --profile work coder host stop                        # the host on
   master is level 1, a child level 2) and a rate of 6 per 10 minutes; the child runs the master's runtime,
   model and folder (or a folder inside it), at most the master's access capped at `workspace` and never `full`
   (an operator raises that), and its `--budget-usd` is carved out of the master's cap (`settings set
-  --budget-usd`, operator only; a capped master must give its child a positive amount that fits). Each turn of a capped session runs under what it has left (budget, less what its turns cost in the journal, less what it carved for its children) as `--budget-usd`; a send with nothing left fails with the reason. Cost comes from the runtimes' own reports (a runtime that reports none counts as $0, and kilo cannot enforce a cap at all). A command a master queues records the master as its issuer and runs only while the target is still that master's child; at most 5 master sends wait per child and they expire after 15 minutes. With a token `list`, `settings get` and `command` show only the caller's own tree. A master's message is **not a person's send**: its turn
+  --budget-usd`, operator only; a capped master must give its child a positive amount that fits). Each turn of a capped session runs under what it has left (budget, less what its turns cost, less what it carved for its children) as `--budget-usd`, which is a ceiling for **that turn**; the total holds because the next turn starts with what is left. A turn's cost is the largest total it journaled; a turn whose runtime reported no cost counts as having spent its whole cap, so such a runtime cannot spend more than the budget; carving a child's budget is limited by what the master has left now. A send with nothing left (under $0.000001) fails with the reason. Cost comes from the runtimes' own reports (a runtime that reports none counts as $0, and kilo cannot enforce a cap at all). A command a master queues records the master as its issuer and runs only while the target is still that master's child; at most 5 master sends wait per child and they expire after 15 minutes. With a token `list`, `settings get` and `command` show only the caller's own tree; without one they need the operator (an agent that lost or dropped the variable reads nothing). A master's message is **not a person's send**: its turn
   id starts with `master-`, it can carry no mission confirmation, and, like `checkin-`, it counts toward the
   host-made turns in a row (`checkin_limit`) after which the child waits for a person.
 - **Good to know:** the host and the turns it starts keep the environment of the terminal that started the host.

@@ -150,7 +150,7 @@ func TestAMasterCommandRunsOnlyWhileTheTargetIsStillItsChild(t *testing.T) {
 	}
 }
 
-func TestAPausedMastersChildDoesNotRunItsSendsAndAStoppedMasterCancelsThem(t *testing.T) {
+func TestAPausedMastersSendsAreHeldAndAStoppedMasterCancelsThem(t *testing.T) {
 	h, l, st := newHost(t)
 	m, _ := master(t, st, "coding")
 	a := spawn(t, st, m)
@@ -159,12 +159,19 @@ func TestAPausedMastersChildDoesNotRunItsSendsAndAStoppedMasterCancelsThem(t *te
 	st.SaveSession(x)
 	c, _ := st.SendToChild(m, a, "while paused")
 	_ = h.Tick()
-	if got, _, _ := st.GetCommand(c.ID); got.Status != CmdFailed || !strings.Contains(got.Error, "paused") || len(l.started) != 0 {
-		t.Fatalf("command = %+v started = %v", got, l.started)
+	if got, _, _ := st.GetCommand(c.ID); got.Status != CmdPending || len(l.started) != 0 {
+		t.Fatalf("a paused master's send was not held: %+v started = %v", got, l.started)
 	}
-	// stopping the master drops what it had queued for its children (the child is paused, so they wait)
-	x.State = StateIdle
+	x.State = StateIdle // resumed
 	st.SaveSession(x)
+	_ = h.Tick()
+	if got, _, _ := st.GetCommand(c.ID); got.Status != CmdDone || len(l.started) != 1 {
+		t.Fatalf("after the resume: %+v started = %v", got, l.started)
+	}
+	waitFor(t, "the turn to be live", func() bool { return l.turn(c.TurnID) != nil })
+	l.turn(c.TurnID).end()
+	waitFor(t, "the turn to settle", func() bool { return state(t, st, a).State == StateIdle })
+	// stopping the master drops what it had queued for its children (the child is paused, so they wait)
 	ca := state(t, st, a)
 	ca.State = StatePaused
 	st.SaveSession(ca)

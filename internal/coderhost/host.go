@@ -162,7 +162,7 @@ func (h *Host) Tick() error {
 		}
 		// A command a master queued is run only while the target is still that master's child:
 		// a session re-parented or released in between is not the master's to command.
-		if c.Issuer != "" && x.Parent != c.Issuer {
+		if c.Issuer != "" && !h.Store.IsDescendant(c.ProfileID, c.Issuer, c.ConversationID) { // the predicate authorize uses
 			h.end(c, CmdFailed, "the session is no longer a child of the master that sent this")
 			continue
 		}
@@ -188,6 +188,12 @@ func (h *Host) Tick() error {
 			// host-made turns in a row the child waits for a person, and it is only run for a
 			// session that is still a child.
 			if strings.HasPrefix(c.TurnID, MasterTurnPrefix) {
+				// A paused master's messages are held, in order, like a paused chat's: they run when
+				// it resumes (a stop cancels them; they expire like check-ins).
+				if p, ok, err := h.Store.GetSession(x.ProfileID, x.Parent); err == nil && ok && p.State == StatePaused {
+					blocked[k] = true
+					continue
+				}
 				if reason := h.masterSendStillAllowed(x); reason != "" {
 					h.end(c, CmdFailed, reason)
 					continue
@@ -254,6 +260,11 @@ func (h *Host) Tick() error {
 				h.settle(x)
 				h.end(c, CmdFailed, err.Error())
 				continue
+			}
+			if capped {
+				if err := h.Store.RecordTurnCap(c.ProfileID, c.ConversationID, c.TurnID, capUSD); err != nil {
+					h.logf("coder host: recording the cap of turn %s: %v", c.TurnID, err)
+				}
 			}
 			x.TurnPID, x.TurnStamp = t.PID(), t.Stamp()
 			if err := h.Store.SaveSession(x); err != nil {
@@ -521,8 +532,6 @@ func (h *Host) masterSendStillAllowed(x Session) string {
 	}
 	if p, ok, err := h.Store.GetSession(x.ProfileID, x.Parent); err != nil || !ok || p.State == StateStopped {
 		return "the session's master is gone or stopped"
-	} else if p.State == StatePaused {
-		return "the session's master is paused"
 	}
 	settings, err := h.Store.GetSettings(x.ProfileID, x.ConversationID)
 	if err != nil {

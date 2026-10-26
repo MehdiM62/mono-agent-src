@@ -188,7 +188,12 @@ func newCoderHostRunCmd(cfg *Deps) *cobra.Command {
 			h := &coderhost.Host{
 				Store: store,
 				L: &execLauncher{bin: exe, dbPath: cfg.DBPath(), instance: info.Instance, logDir: filepath.Join(hostDir(cfg), "turns"), logf: logf,
-					tokens: store.IssueSessionToken, revoke: store.RevokeSessionTokens, bind: store.BindSessionToken},
+					tokens: store.IssueSessionToken, revoke: store.RevokeSessionTokens, bind: func(p, c, turn string, pid int, stamp string) error {
+						if store.HostInsideTurn() {
+							return coderhost.ErrHostInsideTurn
+						}
+						return store.BindSessionToken(p, c, turn, pid, stamp)
+					}},
 				Poll:                 poll,
 				Logf:                 logf,
 				RequireConversations: true,

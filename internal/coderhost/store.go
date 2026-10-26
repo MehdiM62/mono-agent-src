@@ -152,16 +152,6 @@ func (s *Store) Enqueue(c Command) (Command, error) {
 	if waiting >= MaxPendingPerChat {
 		return c, ErrQueueFull
 	}
-	if c.Kind == KindSend && strings.HasPrefix(c.TurnID, MasterTurnPrefix) {
-		var masters int
-		if err := s.db.QueryRow(`SELECT COUNT(*) FROM coder_session_commands WHERE profile_id = ? AND conversation_id = ? AND status = 'pending' AND kind = 'send' AND substr(turn_id, 1, ?) = ?`,
-			c.ProfileID, c.ConversationID, len(MasterTurnPrefix), MasterTurnPrefix).Scan(&masters); err != nil {
-			return c, err
-		}
-		if masters >= MaxPendingMaster {
-			return c, ErrQueueFull
-		}
-	}
 	if c.WantsMission && (c.Kind != KindSend || HostMade(c.TurnID)) {
 		return c, errors.New("coder host: only a person's send can ask for a mission")
 	}
@@ -170,10 +160,21 @@ func (s *Store) Enqueue(c Command) (Command, error) {
 		mark = wantsMissionMark // lives in the error column while the command is pending
 	}
 	now := s.stamp()
+	// Everything a master queues for a child (sends, stop, pause, resume) shares MaxPendingMaster
+	// slots, taken by the INSERT itself so concurrent callers cannot pass the cap together; the rest
+	// of MaxPendingPerChat stays for a person's.
+	masterMade := c.Issuer != "" || (c.Kind == KindSend && strings.HasPrefix(c.TurnID, MasterTurnPrefix))
 	res, err := s.db.Exec(`INSERT INTO coder_session_commands (profile_id, conversation_id, kind, turn_id, message, attachments, status, error, created_at, updated_at, issuer)
-		VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)`, c.ProfileID, c.ConversationID, string(c.Kind), c.TurnID, c.Message, string(att), mark, now, now, c.Issuer)
+		SELECT ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?
+		WHERE ? = 0 OR (SELECT COUNT(*) FROM coder_session_commands WHERE profile_id = ? AND conversation_id = ? AND status = 'pending'
+			AND (issuer != '' OR (kind = 'send' AND substr(turn_id, 1, ?) = ?))) < ?`,
+		c.ProfileID, c.ConversationID, string(c.Kind), c.TurnID, c.Message, string(att), mark, now, now, c.Issuer,
+		boolInt(masterMade), c.ProfileID, c.ConversationID, len(MasterTurnPrefix), MasterTurnPrefix, MaxPendingMaster)
 	if err != nil {
 		return c, err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return c, ErrQueueFull
 	}
 	c.ID, _ = res.LastInsertId()
 	c.Status, c.CreatedAt, c.UpdatedAt = CmdPending, now, now
@@ -542,4 +543,11 @@ func (s *Store) CheckinStreak(profileID, conversationID string) (streak int, las
 		streak++
 	}
 	return streak, lastTurnAt, lastFailed, rows.Err()
+}
+
+func boolInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }
