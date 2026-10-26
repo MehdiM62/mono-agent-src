@@ -496,3 +496,27 @@ func TestReadingAnOutsideEditedFileReconcilesItFirst(t *testing.T) {
 		t.Fatal("the rows were not brought up to the file")
 	}
 }
+
+// Choosing the rows replaces the file, but first keeps a copy of whatever the file holds now.
+func TestResolveKeepRowsKeepsACopyOfTheCurrentFile(t *testing.T) {
+	ctx := context.Background()
+	h, s, _, _ := guardedRig(t)
+	late := []byte(`{"id":"wf-g","name":"edited after the flag"}`)
+	if err := os.WriteFile(filepath.Join(h.files.dir, "wf-g.json"), late, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.db.Exec(`INSERT INTO workflow_publications (workflow_id, kind, state, owner_pid, started_at)
+		VALUES ('wf-g', 'save', 'unresolved', 0, ?)`, time.Now().UTC()); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.ResolveUnresolved(ctx, "wf-g", KeepRows); err != nil {
+		t.Fatal(err)
+	}
+	kept, _ := filepath.Glob(filepath.Join(filepath.Dir(h.files.dir), "workflow-quarantine", "wf-g.*.json"))
+	if len(kept) != 1 {
+		t.Fatalf("copies: %v", kept)
+	}
+	if b, _ := os.ReadFile(kept[0]); !bytes.Equal(b, late) {
+		t.Fatal("the copy is not the file that was replaced")
+	}
+}

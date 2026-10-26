@@ -82,7 +82,7 @@ func checkWorkflowPublications(ctx context.Context, env *Env) Result {
 			child.Summary = "the file changed while a change was in progress; choose which to keep"
 			child.Detail = o.Note + "\nkeep the committed rows (rewrites the file): monoagentcli doctor fix workflows.publications.resolve:" + o.WorkflowID + ":keep-rows" +
 				"\nkeep the file as it is (the rows follow it): monoagentcli doctor fix workflows.publications.resolve:" + o.WorkflowID + ":keep-file"
-			child.FixID = FixWorkflowPublicationsResolve + ":" + o.WorkflowID + ":keep-rows"
+			// No default fix: either choice discards something, so the person picks (see Detail).
 		case o.OwnerGone:
 			stale++
 			child.Status = StatusWarn

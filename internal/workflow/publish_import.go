@@ -220,6 +220,13 @@ func (h *HybridWorkflowStore) ResolveUnresolved(ctx context.Context, id, keep st
 		}
 	case KeepRows:
 		rows, err := getWorkflowFrom(ctx, tx, id)
+		// Whatever is in the file now is about to be replaced: keep a copy of it (it may be an edit
+		// that arrived after the copy taken when the change was flagged).
+		if cur, there, rerr := h.files.readRaw(id); rerr == nil && there {
+			if _, qerr := h.files.quarantine(id, cur); qerr != nil {
+				return fmt.Errorf("keeping a copy of the file first: %w", qerr)
+			}
+		}
 		switch {
 		case err == nil:
 			data, rerr := h.files.renderWorkflow(rows)

@@ -64,15 +64,20 @@ func TestWorkflowPublicationsRowIsRegistered(t *testing.T) {
 	}
 }
 
-func TestWorkflowPublicationsUnresolvedOffersTheResolution(t *testing.T) {
+func TestWorkflowPublicationsUnresolvedNamesBothChoicesAndPicksNone(t *testing.T) {
 	info := &WorkflowPublicationsInfo{Open: []OpenWorkflowPublication{{WorkflowID: "wf-3", Kind: "save", State: "unresolved"}}}
 	res := checkWorkflowPublications(context.Background(), publicationsEnv(info, nil))
-	if len(res.Children) != 1 || res.Children[0].FixID != "workflows.publications.resolve:wf-3:keep-rows" {
-		t.Fatalf("%+v", res.Children)
+	if len(res.Children) != 1 || res.Children[0].FixID != "" {
+		t.Fatalf("an unresolved change must not default to a destructive fix: %+v", res.Children)
+	}
+	for _, want := range []string{"resolve:wf-3:keep-rows", "resolve:wf-3:keep-file"} {
+		if !strings.Contains(res.Children[0].Detail, want) {
+			t.Errorf("the detail does not offer %s: %q", want, res.Children[0].Detail)
+		}
 	}
 	var got [2]string
 	env := &Env{ResolveWorkflowPublication: func(_ context.Context, id, keep string) error { got = [2]string{id, keep}; return nil }}
-	fix, ok := Default().Fix(res.Children[0].FixID)
+	fix, ok := Default().Fix("workflows.publications.resolve:wf-3:keep-rows")
 	if !ok {
 		t.Fatal("the parameterized fix does not resolve")
 	}
