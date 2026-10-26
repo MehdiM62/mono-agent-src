@@ -2647,7 +2647,7 @@ monoagentcli --profile work coder host stop                        # the host on
      risky_action ...` and `record` of an irreversible ambiguity (under `ask-on-risk`) are refused; `--reversible`
      with `risky_action` is refused; 21 open questions are refused. Run without the session token (operator
      terminal) both verbs are refused. A child asks the same, and its master answers with `questions answer
-     <child-conv> <id> TEXT` from its turn (turn id `answer-m-`, `answeredBy` `master:<conv>`).
+     <child-conv> <id> TEXT` from its turn (turn id `answer-m-`, `answeredBy` `master:<conv>`). A master can read the parked questions of its whole subtree but answers only those of its direct children (a grandchild's goes to the grandchild's own master).
 - **Good to know:** the host and the turns it starts keep the environment of the terminal that started the host.
   `host stop` leaves turns running: `sessions stop <conv>` first if you want them ended. Queued sends only
   expire while a host runs. `send` prints `hostStarted: true` unless you pass `--no-host`.

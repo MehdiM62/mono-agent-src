@@ -13,8 +13,9 @@ import (
 
 // `coder sessions decisions|questions`: the ledger of decisions made for a session
 // without asking a person, and the questions parked while nobody could answer.
-// Reading is open; reverting a decision and answering a question are the
-// operator's.
+// Reads need the operator or a session token (a token sees only its own tree);
+// reverting a decision is the operator's; answering a question is the operator's
+// or the direct master's.
 
 // notYourSession is the one refusal for a read of a session outside the caller's own tree.
 const notYourSession = "not your session or one of your child sessions"
@@ -167,7 +168,7 @@ func newQuestionsListCmd(cfg *Deps) *cobra.Command {
 	var all bool
 	cmd := &cobra.Command{
 		Use:   "list [CONVERSATION]",
-		Short: "List parked questions (every conversation of the profile without an argument), with who may answer each",
+		Short: "List parked questions (every conversation of the profile without an argument; under a session token only the caller's own tree), with who may answer each",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			conv := ""
