@@ -69,6 +69,41 @@ const SessionTokenTTL = 24 * time.Hour
 // presented by a process that is not the turn's.
 var ErrSessionToken = errors.New("invalid session token: this call is not from a running coder session")
 
+// ErrNotInTurnTree is ErrSessionToken for a token that is genuine but presented by a process outside the
+// turn's process tree: a daemonised or `nohup`/`setsid`-detached tool, a caller in another pid namespace
+// (a container), or an unreadable chain. It is told apart so a refusal can be logged and explained;
+// nothing is loosened.
+var ErrNotInTurnTree = fmt.Errorf("%w (the caller is not inside the session's turn process tree: detached, or in another pid namespace)", ErrSessionToken)
+
+// ErrVaultKey is ErrSessionToken for a session token that could not be checked because the profile's
+// vault key was unavailable (the check fails closed).
+var ErrVaultKey = fmt.Errorf("%w (the vault key is unavailable)", ErrSessionToken)
+
+// ErrHostInsideTurn: the host itself runs inside a session's turn (it was started from a master's
+// shell), so it must not bind session tokens: every turn it started would be a descendant of that one.
+var ErrHostInsideTurn = errors.New("coder host: the host runs inside a coder session's turn; start it from a terminal")
+
+// HostInsideTurn says whether this process is a descendant of a bound session turn.
+func (s *Store) HostInsideTurn() bool {
+	chain, _ := callerChain()
+	in := map[int]bool{}
+	for _, p := range chain {
+		in[p] = true
+	}
+	rows, err := s.db.Query(`SELECT pid FROM coder_session_tokens WHERE pid > 1`)
+	if err != nil {
+		return false
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var pid int
+		if rows.Scan(&pid) == nil && in[pid] {
+			return true
+		}
+	}
+	return false
+}
+
 // Caller is who a token names.
 type Caller struct {
 	ProfileID      string
@@ -129,6 +164,9 @@ func (s *Store) BindSessionToken(profileID, conversationID, turnID string, pid i
 	if pid <= 1 {
 		return fmt.Errorf("coder host: %d is not a turn's pid", pid)
 	}
+	if ancestrySupported && stamp == "" {
+		return errors.New("coder host: a turn's process needs a start stamp to bind a token to it")
+	}
 	key, err := s.tokenKey(profileID)
 	if err != nil {
 		return err
@@ -167,14 +205,17 @@ func (s *Store) VerifySessionToken(tok string) (Caller, error) {
 		return Caller{}, ErrSessionToken
 	}
 	key, err := s.tokenKey(c.ProfileID)
-	if err != nil || !hmac.Equal([]byte(tokenMAC(key, c.ProfileID, c.ConversationID, c.TurnID, h, expires, pid, stamp)), []byte(mac)) {
+	if err != nil {
+		return Caller{}, ErrVaultKey
+	}
+	if !hmac.Equal([]byte(tokenMAC(key, c.ProfileID, c.ConversationID, c.TurnID, h, expires, pid, stamp)), []byte(mac)) {
 		return Caller{}, ErrSessionToken
 	}
 	if exp, perr := time.Parse(timeLayout, expires); perr != nil || !s.now().Before(exp) {
 		return Caller{}, ErrSessionToken
 	}
 	if ancestrySupported && !descendsFrom(pid, stamp) {
-		return Caller{}, ErrSessionToken
+		return Caller{}, ErrNotInTurnTree
 	}
 	return c, nil
 }

@@ -51,12 +51,19 @@ func (l *execLauncher) Start(profileID, conversationID, turnID, message string, 
 	return l.start(profileID, conversationID, turnID, message, attachments, missionToken, 0)
 }
 
+// minTurnCap is the smallest spend cap a turn is started under (coderhost's own minimum): with less
+// left the session's budget is used up.
+const minTurnCap = 1e-6
+
 // StartCapped is Start under a spend cap in USD (the session's budget left).
 func (l *execLauncher) StartCapped(profileID, conversationID, turnID, message string, attachments []string, missionToken string, capUSD float64) (coderhost.Turn, error) {
 	return l.start(profileID, conversationID, turnID, message, attachments, missionToken, capUSD)
 }
 
 func (l *execLauncher) start(profileID, conversationID, turnID, message string, attachments []string, missionToken string, capUSD float64) (coderhost.Turn, error) {
+	if capUSD != 0 && capUSD < minTurnCap {
+		return nil, fmt.Errorf("the session's budget is used up (under $%g left)", minTurnCap)
+	}
 	if !hostID.MatchString(conversationID) || !hostID.MatchString(turnID) {
 		return nil, fmt.Errorf("conversation and turn ids must be letters, digits, '.', '_' and '-'")
 	}
@@ -157,7 +164,15 @@ func (l *execLauncher) start(profileID, conversationID, turnID, message string, 
 		return nil, errors.New("could not identify the turn's process (its start time is unreadable), so it was stopped")
 	}
 	if l.bind != nil {
-		if err := l.bind(profileID, conversationID, turnID, t.pid, coderhost.ProcStamp(t.pid)); err != nil {
+		if err := l.bind(profileID, conversationID, turnID, t.pid, coderhost.ProcStamp(t.pid)); errors.Is(err, coderhost.ErrHostInsideTurn) {
+			// the host runs inside a session's turn: no token is bound, so the master tools refuse in this turn
+			if l.revoke != nil {
+				l.revoke(profileID, conversationID)
+			}
+			if l.logf != nil {
+				l.logf("WARNING: %v; turn %s runs without a usable session token", err, turnID)
+			}
+		} else if err != nil {
 			t.stopAndWait()
 			return nil, fmt.Errorf("could not bind the session token to the turn: %w", err)
 		}

@@ -223,12 +223,16 @@ func (s *Store) SetBudget(profileID, conversationID string, usd float64) error {
 // two spawns cannot both take the last of it. A parent without a cap hands out any
 // amount (0 = none); a parent with one hands out a positive amount that fits.
 func (s *Store) carveBudget(profileID, parent, child string, usd float64) error {
+	spent, err := s.Spent(profileID, parent) // read first, and part of the statement's guard: what the master has spent is not its to give
+	if err != nil {
+		return err
+	}
 	res, err := s.db.Exec(`UPDATE coder_sessions SET budget_usd = ?, updated_at = ?
 		WHERE profile_id = ? AND conversation_id = ? AND parent_conversation_id = ?
 		AND ( (SELECT budget_usd FROM coder_sessions WHERE profile_id = ? AND conversation_id = ?) <= 0
 		   OR ( ? > 0 AND ? <= (SELECT budget_usd FROM coder_sessions WHERE profile_id = ? AND conversation_id = ?)
-		        - COALESCE((SELECT SUM(budget_usd) FROM coder_sessions WHERE profile_id = ? AND parent_conversation_id = ? AND conversation_id != ?), 0) + 1e-9 ) )`,
-		usd, s.stamp(), profileID, child, parent, profileID, parent, usd, usd, profileID, parent, profileID, parent, child)
+		        - ? - COALESCE((SELECT SUM(budget_usd) FROM coder_sessions WHERE profile_id = ? AND parent_conversation_id = ? AND conversation_id != ?), 0) + 1e-9 ) )`,
+		usd, s.stamp(), profileID, child, parent, profileID, parent, usd, usd, profileID, parent, spent, profileID, parent, child)
 	return s.applied(res, err, "")
 }
 
@@ -354,8 +358,12 @@ func (s *Store) checkBudget(c Caller, usd float64) error {
 	if err != nil {
 		return err
 	}
-	if usd <= 0 || usd > have-carved+1e-9 {
-		return fmt.Errorf("%w: the master has $%.2f of its $%.2f budget left to give; ask for an amount up to that", ErrLimit, math.Max(have-carved, 0), have)
+	spent, err := s.Spent(c.ProfileID, c.ConversationID)
+	if err != nil {
+		return err
+	}
+	if left := have - carved - spent; usd <= 0 || usd > left+1e-9 {
+		return fmt.Errorf("%w: the master has $%.2f of its $%.2f budget left to give; ask for an amount up to that", ErrLimit, math.Max(left, 0), have)
 	}
 	return nil
 }

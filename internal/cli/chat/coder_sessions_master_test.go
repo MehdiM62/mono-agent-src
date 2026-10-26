@@ -242,9 +242,17 @@ func TestSessionTokenFiltersTheReadVerbsToTheCallersTree(t *testing.T) {
 		t.Fatalf("command oracle: (%d %q) vs (%d %q)", c1, o1, c2, o2)
 	}
 	// without a token (an operator) everything stays readable
+	// without a token an AGENT reads nothing (dropping the variable is no way around the filter);
+	// the operator's terminal sees everything
 	t.Setenv(coderhost.SessionTokenEnv, "")
-	if out, _ := runSessionsCLI(t, m.cfg, "list"); !strings.Contains(out, other.ID) {
-		t.Fatalf("operator list = %s", out)
+	for _, args := range [][]string{{"list"}, {"settings", "get", kid.ConversationID}, {"command", fmt.Sprint(mine.ID)}} {
+		if out, code := runSessionsCLI(t, m.cfg, args...); code == 0 {
+			t.Errorf("%v with no token in an agent context was allowed: %s", args, out)
+		}
+	}
+	operator := testDeps(&testConfig{DBPath: m.dbPath, ProfileID: "default", JSONOutput: true})
+	if out, code := runSessionsCLI(t, operator, "list"); code != 0 || !strings.Contains(out, other.ID) {
+		t.Fatalf("operator list = %d %s", code, out)
 	}
 }
 
@@ -305,5 +313,34 @@ func TestExecLauncherPassesTheBudgetCapAndBindsTheTokenToTheTurnProcess(t *testi
 	l.bind = func(string, string, string, int, string) error { return errors.New("no") }
 	if _, err := l.Start("p", "c1", "t3", "hi", nil, ""); err == nil {
 		t.Fatal("a turn whose token could not be bound was started")
+	}
+}
+
+func TestAHostInsideASessionTurnStartsTurnsWithoutABoundTokenAndTinyCapsAreRefused(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell script")
+	}
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "fake-monoagentcli")
+	script := "#!/bin/sh\ncat > /dev/null\necho '{\"admitted\":true,\"existed\":false,\"turn\":{\"id\":\"t1\"}}'\nsleep 5\n"
+	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	var logs []string
+	revoked := 0
+	l := &execLauncher{bin: bin, dbPath: "/db/x.db", instance: "host-test", logDir: filepath.Join(dir, "turns"),
+		logf:   func(f string, a ...any) { logs = append(logs, fmt.Sprintf(f, a...)) },
+		bind:   func(string, string, string, int, string) error { return coderhost.ErrHostInsideTurn },
+		revoke: func(string, string) { revoked++ }}
+	turn, err := l.Start("p", "c1", "t1", "hi", nil, "")
+	if err != nil {
+		t.Fatalf("the turn must still run: %v", err)
+	}
+	defer turn.Stop()
+	if revoked != 1 || len(logs) != 1 || !strings.Contains(logs[0], "WARNING") {
+		t.Fatalf("revoked %d, logs %v", revoked, logs)
+	}
+	if _, err := l.StartCapped("p", "c1", "t2", "hi", nil, "", 5e-7); err == nil || !strings.Contains(err.Error(), "used up") {
+		t.Fatalf("a 0.0000005 cap: %v", err)
 	}
 }

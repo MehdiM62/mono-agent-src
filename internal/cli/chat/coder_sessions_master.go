@@ -179,11 +179,16 @@ func masterSet(cfg *Deps, cmd *cobra.Command, target, patch string, others bool)
 	return printQueueJSON(cmd, map[string]any{"conversationId": target, "changed": keys, "settings": next, "agentAdjustable": coderhost.AgentAdjustable})
 }
 
-// visibleToToken is the filter a session token puts on the read verbs: nil without a token,
-// otherwise a function that says whether a conversation is the caller's own session or one of its
-// descendants. A bad token is a refusal.
+// visibleToToken is the filter a session token puts on the read verbs: with a token, a function that
+// says whether a conversation is the caller's own session or one of its descendants (a bad token is a
+// refusal). Without a token the caller must be the operator (the same check the operator verbs use):
+// an agent that has no token, or has lost it, reads nothing, so dropping the variable is no way
+// around the filter. The operator's terminal sees everything (nil filter).
 func visibleToToken(cfg *Deps) (func(conv string) bool, error) {
 	if sessionTokenFromEnv() == "" {
+		if err := clicore.RequireOperator(cfg.RequireOperator, "read coder sessions without a session token"); err != nil {
+			return nil, err
+		}
 		return nil, nil
 	}
 	mc, err := openMasterCall(cfg)
