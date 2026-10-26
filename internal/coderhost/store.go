@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 )
 
@@ -507,7 +506,7 @@ func (s *Store) CheckinStreak(profileID, conversationID string) (streak int, las
 		if first {
 			lastTurnAt, _ = time.Parse(time.RFC3339Nano, upd)
 		}
-		if !strings.HasPrefix(id, "checkin-") {
+		if !HostMade(id) {
 			break
 		}
 		if first {

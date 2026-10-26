@@ -88,6 +88,8 @@ var startHostProcess = func(cfg *Deps) error {
 	defer logFile.Close()
 	cmd := exec.Command(exe, "--db-path", cfg.DBPath(), "--profile", cfg.ProfileID(), "coder", "host", "run")
 	cmd.Stdout, cmd.Stderr = logFile, logFile
+	// A host started from a session's shell must not carry that session's identity.
+	cmd.Env = withoutEnv(os.Environ(), coderhost.SessionTokenEnv)
 	return clicore.DetachStart(cmd)
 }
 
@@ -178,9 +180,11 @@ func newCoderHostRunCmd(cfg *Deps) *cobra.Command {
 			logf := func(f string, a ...any) {
 				fmt.Fprintf(cmd.ErrOrStderr(), time.Now().Format(time.RFC3339)+" "+f+"\n", a...)
 			}
+			store := coderhost.NewStore(db.DB)
 			h := &coderhost.Host{
-				Store:                coderhost.NewStore(db.DB),
-				L:                    &execLauncher{bin: exe, dbPath: cfg.DBPath(), instance: info.Instance, logDir: filepath.Join(hostDir(cfg), "turns"), logf: logf},
+				Store: store,
+				L: &execLauncher{bin: exe, dbPath: cfg.DBPath(), instance: info.Instance, logDir: filepath.Join(hostDir(cfg), "turns"), logf: logf,
+					tokens: store.IssueSessionToken, revoke: store.RevokeSessionTokens},
 				Poll:                 poll,
 				Logf:                 logf,
 				RequireConversations: true,

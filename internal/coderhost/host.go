@@ -171,8 +171,17 @@ func (h *Host) Tick() error {
 			}
 			// A check-in is queued by the host, not typed by a person: it is only run for a
 			// master that is still unattended, as it was when it was queued.
-			if strings.HasPrefix(c.TurnID, "checkin-") {
+			if strings.HasPrefix(c.TurnID, CheckinTurnPrefix) {
 				if reason := h.checkinStillAllowed(x, h.Store.now()); reason != "" {
+					h.end(c, CmdFailed, reason)
+					continue
+				}
+			}
+			// A message a master sent to a child counts with the check-ins: after CheckinLimit
+			// host-made turns in a row the child waits for a person, and it is only run for a
+			// session that is still a child.
+			if strings.HasPrefix(c.TurnID, MasterTurnPrefix) {
+				if reason := h.masterSendStillAllowed(x); reason != "" {
 					h.end(c, CmdFailed, reason)
 					continue
 				}
@@ -473,6 +482,28 @@ func (h *Host) checkinStillAllowed(x Session, now time.Time) string {
 	streak, _, _, err := h.Store.CheckinStreak(x.ProfileID, x.ConversationID)
 	if err != nil || streak >= settings.CheckinLimit {
 		return "the session has had its check-ins in a row; it waits for a person"
+	}
+	return ""
+}
+
+// masterSendStillAllowed re-checks, when a master's message to a child is about to
+// run, that the session is still a child of a master that has not been stopped
+// and has not had CheckinLimit host-made turns in a row without a person. It
+// returns why not, or "".
+func (h *Host) masterSendStillAllowed(x Session) string {
+	if x.Role != "child" || x.Parent == "" {
+		return "the session is no longer a child session"
+	}
+	if p, ok, err := h.Store.GetSession(x.ProfileID, x.Parent); err != nil || !ok || p.State == StateStopped {
+		return "the session's master is gone or stopped"
+	}
+	settings, err := h.Store.GetSettings(x.ProfileID, x.ConversationID)
+	if err != nil {
+		return "the session's settings do not read"
+	}
+	streak, _, _, err := h.Store.CheckinStreak(x.ProfileID, x.ConversationID)
+	if err != nil || streak >= settings.CheckinLimit {
+		return "the session has had its host-made turns in a row; it waits for a person"
 	}
 	return ""
 }

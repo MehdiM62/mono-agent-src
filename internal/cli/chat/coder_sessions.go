@@ -26,6 +26,7 @@ func newCoderSessionsCmd(cfg *Deps) *cobra.Command {
 			"only limit, so `list` shows it.",
 	}
 	cmd.AddCommand(newCoderSessionsListCmd(cfg), newCoderSessionsSendCmd(cfg), newCoderSessionsCommandCmd(cfg), newCoderSessionsSettingsCmd(cfg),
+		newCoderSessionsSpawnCmd(cfg), newCoderSessionsStatusCmd(cfg),
 		newCoderSessionsControlCmd(cfg, coderhost.KindStop, "Stop the session's running turn"),
 		newCoderSessionsControlCmd(cfg, coderhost.KindPause, "Start no new turn until resumed (a running turn finishes)"),
 		newCoderSessionsControlCmd(cfg, coderhost.KindResume, "Lift a pause"))
@@ -126,6 +127,9 @@ func newCoderSessionsSendCmd(cfg *Deps) *cobra.Command {
 		Short: "Queue a message; the host starts the turn when the session is free",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if sessionTokenFromEnv() != "" { // a master's turn: its descendants only
+				return masterSend(cfg, cmd, args[0], args[1], attach, mission)
+			}
 			if err := clicore.RequireOperator(cfg.RequireOperator, "send to a coder session, which starts a full-access turn"); err != nil {
 				return err
 			}
@@ -184,6 +188,9 @@ func newCoderSessionsControlCmd(cfg *Deps, kind coderhost.Kind, short string) *c
 		Short: short,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if sessionTokenFromEnv() != "" { // a master's turn: its descendants only
+				return masterControl(cfg, cmd, args[0], kind)
+			}
 			if err := clicore.RequireOperator(cfg.RequireOperator, string(kind)+" a coder session"); err != nil {
 				return err
 			}

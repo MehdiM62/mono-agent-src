@@ -33,6 +33,10 @@ func runChat(cfg *Deps, cmd *cobra.Command, args []string, f *chatFlags) (retErr
 	// anything this turn starts can inherit it. There is no flag that confirms a mission.
 	missionToken := os.Getenv(coderhost.MissionTokenEnv)
 	_ = os.Unsetenv(coderhost.MissionTokenEnv)
+	// The session token (coderhost.SessionTokenEnv) is NOT taken out of the environment, unlike the
+	// mission token: that one is a single-use proof for this process alone, while the session
+	// token is the identity the turn's own shell and MCP server present to the master tools, so the
+	// agent runtime must pass it on. It is valid only for this turn (see coderhost/sessiontoken.go).
 	prompt := strings.Join(args, " ")
 	if promptStdin {
 		p, perr := readPromptStdin(cmd.InOrStdin())

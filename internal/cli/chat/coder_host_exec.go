@@ -28,6 +28,10 @@ import (
 type execLauncher struct {
 	bin, dbPath, instance, logDir string
 	logf                          func(string, ...any)
+	// tokens mints the session token a turn gets in its environment (nil: none), and revoke drops
+	// a session's tokens when its turn ends.
+	tokens func(profileID, conversationID, turnID string) (string, error)
+	revoke func(profileID, conversationID string)
 }
 
 // hostID is what makes a host-owned name safe to put in a file name and a flag.
@@ -87,15 +91,30 @@ func (l *execLauncher) Start(profileID, conversationID, turnID, message string, 
 		return nil, fmt.Errorf("the mission confirmation is not a valid token")
 	}
 	cmd := exec.Command(l.bin, l.args(profileID, rest...)...)
+	// The environment is the host's without any token of a session that started the host, plus this
+	// turn's own: a turn must never inherit another session's identity (the host can have been
+	// started from a master's shell). Tokens go in the environment, not the arguments (which any
+	// process of the user lists).
+	cmd.Env = withoutEnv(os.Environ(), coderhost.SessionTokenEnv, coderhost.MissionTokenEnv)
 	if missionToken != "" {
-		// In the child's environment, not its arguments (which any process of the user lists):
 		// the child verifies the operator's signed record and consumes it, and drops the variable.
-		cmd.Env = append(os.Environ(), coderhost.MissionTokenEnv+"="+missionToken)
+		cmd.Env = append(cmd.Env, coderhost.MissionTokenEnv+"="+missionToken)
+	}
+	if l.tokens != nil {
+		tok, err := l.tokens(profileID, conversationID, turnID)
+		if err != nil {
+			os.Remove(promptPath)
+			return nil, fmt.Errorf("could not mint the session token: %w", err)
+		}
+		cmd.Env = append(cmd.Env, coderhost.SessionTokenEnv+"="+tok)
 	}
 	cmd.Dir = filepath.Dir(l.logDir)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = prompt, logFile, logFile
 	if err := clicore.DetachStart(cmd); err != nil {
 		os.Remove(promptPath)
+		if l.revoke != nil {
+			l.revoke(profileID, conversationID)
+		}
 		return nil, err
 	}
 	if runtime.GOOS != "windows" {
@@ -112,6 +131,9 @@ func (l *execLauncher) Start(profileID, conversationID, turnID, message string, 
 	t := &execTurn{pid: cmd.Process.Pid, stamp: stamp, done: make(chan struct{})}
 	go func() {
 		t.err = cmd.Wait()
+		if l.revoke != nil {
+			l.revoke(profileID, conversationID) // before done closes: a session that sees its turn end has no token left
+		}
 		os.Remove(promptPath) // before done closes: whoever sees the turn end sees no prompt left
 		close(t.done)
 	}()
@@ -413,3 +435,18 @@ func hostHeldTurns(cfg *Deps) (skip func(ai.Turn) bool, closeFn func()) {
 
 // isHostInstance is the owner id a host-run turn carries (see hostID).
 func isHostInstance(owner string) bool { return strings.HasPrefix(owner, "host-") }
+
+// withoutEnv returns env without the named variables.
+func withoutEnv(env []string, names ...string) []string {
+	out := make([]string, 0, len(env))
+outer:
+	for _, kv := range env {
+		for _, n := range names {
+			if strings.HasPrefix(kv, n+"=") {
+				continue outer
+			}
+		}
+		out = append(out, kv)
+	}
+	return out
+}

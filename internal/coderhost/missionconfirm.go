@@ -79,9 +79,16 @@ func parseToken(token string) (cmd int64, nonce string, ok bool) {
 	return id, b, found && err == nil && id > 0 && b != ""
 }
 
-// HostMade says whether a turn id is one the host makes on its own (a
-// check-in), not a person's send. Such a turn can never be confirmed.
-func HostMade(turnID string) bool { return strings.HasPrefix(turnID, "checkin-") }
+// CheckinTurnPrefix starts the id of a check-in turn the host queues for itself.
+const CheckinTurnPrefix = "checkin-"
+
+// HostMade says whether a turn id is one that no person sent: a check-in the host
+// made, or a message a master sent to a child (MasterTurnPrefix). Such a turn can
+// never be confirmed as a mission, and CheckinStreak counts it. Any other path
+// that starts turns without a person needs its own prefix, listed here.
+func HostMade(turnID string) bool {
+	return strings.HasPrefix(turnID, CheckinTurnPrefix) || strings.HasPrefix(turnID, MasterTurnPrefix)
+}
 
 var errHostMade = errors.New("coder host: a host-started turn cannot carry a mission confirmation")
 
