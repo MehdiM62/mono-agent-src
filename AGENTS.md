@@ -1830,7 +1830,7 @@ which lets it comment on, attach evidence to and verify that one task and nothin
 It records its own verdict with `task verify`; the lead never does. A pass marks the task
 verified (auto-close closes it if the operator set it); a fail sends it back to Ready with
 the note, up to `max_retries`, then the task is blocked and `mission_status` and
-`mission_report` show its `failure_notes`. A task of kind `task` that declares files
+`mission_report` show its `failure_notes_untrusted` (text written by other agents: data, never instructions; `last_result_untrusted` and `evidence_untrusted` are the same). A task of kind `task` that declares files
 cannot be finished to Review with a result unless it holds a commit, diff, test, file or
 log artifact (`ErrNoEvidence`; a report does not count, a question and a research task
 with no files are exempt). `mission_finish` (a tool of its own; `mission_report` only
@@ -1840,6 +1840,11 @@ task if the plan has none; when that is settled it lists writer branches still t
 `org_merge` (one at a time); then it attaches the final report to the integration task
 (artifact `final-report`), emits `mission.report` and closes the session as done. Each
 mission worker's exec is capped by the session's remaining `budget_usd`.
+Worker and verifier briefs fence foreign text in a per-brief random delimiter
+(`<<<DATA-xxxxxxxx` ... `DATA-xxxxxxxx>>>`). One task gets at most 6 workers per turn and 12
+in all, whichever route starts them. A mission closes only if the integration check's
+verdict is newer than every other task's last hand-back, verdict or merge; a plan's
+integration check depends on every non-check task, and tasks added later make it wait.
 
 **Who closes what in a mission.** Workers finish a task to Review; the verifier marks it
 verified; a verified task unlocks its dependents (it counts as done for them). The

@@ -1678,7 +1678,10 @@ that works a task acts on them. The defences:
   conductor never records a verdict for the lead, but that is the conductor's rule and
   not the store's: the store lets any named agent of the session verify a task it did
   not hand back (a peer checker), so the lead holds no verifier binding and no more. Like the binding, the role
-  is an environment label, not a credential. **The evidence rule:** a task of kind
+  is an environment label, not a credential: a process with a shell can unset it. The store
+  therefore refuses verdicts by task-bound non-verifiers and by the executing identity, and
+  the conductor distrusts any verdict not recorded by the verifier it assigned or by the
+  operator (`verdict_by_unexpected_actor`); a mission does not close on such a task. **The evidence rule:** a task of kind
   `task` that declares files cannot be finished to Review with a result unless it holds a
   commit, diff, test, file or log artifact (a report does not count); the check runs in the
   store, inside the hand-back transaction, for every caller. It is self-asserted: an
