@@ -50,7 +50,10 @@ const (
 	MaxAttachments    = 10
 	pendingBatch      = 200
 	// MaxSendAge is how long a queued send stays valid.
-	MaxSendAge         = 6 * time.Hour
+	MaxSendAge = 6 * time.Hour
+	// MaxCheckinAge is how long a check-in the host queued for itself stays valid: its digest is a
+	// picture of a moment, so one that waited longer is dropped and the next pass takes a new one.
+	MaxCheckinAge      = 15 * time.Minute
 	timeLayout         = time.RFC3339Nano
 	maxTurnIDLen       = 128
 	maxConversationLen = 128
@@ -196,7 +199,8 @@ func (s *Store) CancelPendingSends(profileID, conversationID string, beforeID in
 // message queued while no host ran does not start a full-access turn days later.
 func (s *Store) ExpireSends() error {
 	_, err := s.db.Exec(`UPDATE coder_session_commands SET status = 'failed', error = 'expired before the host could run it', updated_at = ?
-		WHERE kind = 'send' AND status = 'pending' AND created_at < ?`, s.stamp(), s.now().Add(-MaxSendAge).UTC().Format(timeLayout))
+		WHERE kind = 'send' AND status = 'pending' AND (created_at < ? OR (turn_id LIKE 'checkin-%' AND created_at < ?))`,
+		s.stamp(), s.now().Add(-MaxSendAge).UTC().Format(timeLayout), s.now().Add(-MaxCheckinAge).UTC().Format(timeLayout))
 	return err
 }
 
@@ -435,7 +439,9 @@ func (s *Store) LastTurn(profileID, conversationID string) (id, status string) {
 // PendingFor counts the commands still waiting for a conversation.
 func (s *Store) PendingFor(profileID, conversationID string) int {
 	var n int
-	_ = s.db.QueryRow(`SELECT COUNT(*) FROM coder_session_commands WHERE profile_id = ? AND conversation_id = ? AND status = 'pending'`, profileID, conversationID).Scan(&n)
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM coder_session_commands WHERE profile_id = ? AND conversation_id = ? AND status = 'pending'`, profileID, conversationID).Scan(&n); err != nil {
+		return 1 << 30 // unreadable counts as busy: nothing is queued on a guess
+	}
 	return n
 }
 
@@ -443,17 +449,17 @@ func (s *Store) PendingFor(profileID, conversationID string) int {
 // scheduled check-ins (no message from a person between them), and when the
 // newest turn of any kind ended or was last touched; failed says whether the
 // newest check-in turn did not complete.
-func (s *Store) CheckinStreak(profileID, conversationID string) (streak int, lastTurnAt time.Time, lastFailed bool) {
+func (s *Store) CheckinStreak(profileID, conversationID string) (streak int, lastTurnAt time.Time, lastFailed bool, err error) {
 	rows, err := s.db.Query(`SELECT id, status, updated_at FROM ai_chat_turns WHERE profile_id = ? AND conversation_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 600`, profileID, conversationID)
 	if err != nil {
-		return 0, time.Time{}, false
+		return 0, time.Time{}, false, err
 	}
 	defer rows.Close()
 	first := true
 	for rows.Next() {
 		var id, status, upd string
-		if rows.Scan(&id, &status, &upd) != nil {
-			break
+		if err := rows.Scan(&id, &status, &upd); err != nil {
+			return 0, time.Time{}, false, err
 		}
 		if first {
 			lastTurnAt, _ = time.Parse(time.RFC3339Nano, upd)
@@ -467,5 +473,5 @@ func (s *Store) CheckinStreak(profileID, conversationID string) (streak int, las
 		first = false
 		streak++
 	}
-	return streak, lastTurnAt, lastFailed
+	return streak, lastTurnAt, lastFailed, rows.Err()
 }

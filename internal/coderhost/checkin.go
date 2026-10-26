@@ -18,6 +18,10 @@ import (
 // records (ids, state words, turn status words, ages); no text an agent wrote
 // reaches it, so a child cannot steer its master through its own status.
 
+// Turns the host makes by itself carry the id prefix "checkin-"; CheckinStreak counts them. A later path that
+// starts turns without a person (a wake-up from a message, a schedule) must use its own recognizable prefix and
+// be counted the same way, or it would reset the limit.
+//
 // MinCheckinGap is the shortest time between two check-ins of one master, event
 // triggers included.
 const MinCheckinGap = time.Minute
@@ -46,7 +50,7 @@ func (h *Host) checkinPass(now time.Time) {
 	}
 	kids := map[string][]Session{}
 	for _, x := range sessions {
-		if x.Parent != "" && x.State != StateStopped {
+		if x.Parent != "" && x.State != StateStopped && hostID.MatchString(x.ConversationID) {
 			kids[x.ProfileID+"\x00"+x.Parent] = append(kids[x.ProfileID+"\x00"+x.Parent], x)
 		}
 	}
@@ -94,7 +98,11 @@ func (h *Host) checkinOne(now time.Time, m Session, children []Session) {
 	}
 	// Spacing is measured from the end of the master's own last turn as well as from the
 	// last check-in, so a long turn is not followed at once by another.
-	streak, lastTurnEnd, lastFailed := h.Store.CheckinStreak(m.ProfileID, m.ConversationID)
+	streak, lastTurnEnd, lastFailed, err := h.Store.CheckinStreak(m.ProfileID, m.ConversationID)
+	if err != nil {
+		h.logf("coder host: check-in for %s: %v", m.ConversationID, err)
+		return // the limit cannot be checked, so nothing is queued
+	}
 	if now.Sub(last) < MinCheckinGap || (!lastTurnEnd.IsZero() && now.Sub(lastTurnEnd) < MinCheckinGap) || !withinActiveHours(settings.ActiveHours, now) {
 		return
 	}
@@ -227,9 +235,13 @@ func digestText(reason string, s snapshot) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "[CHECK-IN] Progress check (%s). The sessions you coordinate, as the host sees them now:\n", reason)
 	for _, c := range s.Children {
-		last := c.Status
-		if last == "" {
-			last = "no turn yet"
+		last := "no turn yet"
+		switch c.Status {
+		case "active", "completed", "failed", "cancelled", "interrupted":
+			last = c.Status
+		case "":
+		default:
+			last = "unknown"
 		}
 		fmt.Fprintf(&b, "- %s: %s; last turn %s; %d message(s) queued", c.ID, c.State, last, c.Queued)
 		if c.Silent {

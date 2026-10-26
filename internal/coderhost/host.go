@@ -156,9 +156,11 @@ func (h *Host) Tick() error {
 			}
 			// A check-in is queued by the host, not typed by a person: it is only run for a
 			// master that is still unattended, as it was when it was queued.
-			if strings.HasPrefix(c.TurnID, "checkin-") && (!x.Unattended || x.Role != "master") {
-				h.end(c, CmdFailed, "the session is no longer an unattended master")
-				continue
+			if strings.HasPrefix(c.TurnID, "checkin-") {
+				if reason := h.checkinStillAllowed(x, h.Store.now()); reason != "" {
+					h.end(c, CmdFailed, reason)
+					continue
+				}
 			}
 			// The turn is recorded before it starts, without a pid yet, so the
 			// app's startup sweep sees it as the host's while it is admitted.
@@ -408,4 +410,25 @@ func (h *Host) checkinIfDue() {
 		h.lastCheckin = now
 		h.checkinPass(now)
 	}
+}
+
+// checkinStillAllowed re-checks, when a host-made check-in is about to run, what
+// allowed it to be queued: it can have waited, and the settings can have changed.
+// It returns why not, or "".
+func (h *Host) checkinStillAllowed(x Session, now time.Time) string {
+	if !x.Unattended || x.Role != "master" {
+		return "the session is no longer an unattended master"
+	}
+	settings, err := h.Store.GetSettings(x.ProfileID, x.ConversationID)
+	if err != nil {
+		return "the session's settings do not read"
+	}
+	if !withinActiveHours(settings.ActiveHours, now) {
+		return "outside the session's active hours"
+	}
+	streak, _, _, err := h.Store.CheckinStreak(x.ProfileID, x.ConversationID)
+	if err != nil || streak >= settings.CheckinLimit {
+		return "the session has had its check-ins in a row; it waits for a person"
+	}
+	return ""
 }
