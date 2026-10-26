@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"time"
 )
 
 // A session with a budget (coder_sessions.budget_usd > 0) runs every turn under a spend cap of what
@@ -31,19 +32,36 @@ type BudgetLauncher interface {
 // errBudgetUsedUp is why a send is refused when nothing is left.
 var errBudgetUsedUp = errors.New("the session's budget is used up")
 
-// Mid-turn rules. A turn's cap is recorded before the turn starts. Its figure is the largest cost it
-// reported; a final cost of exactly 0 (or none) under a positive cap counts as UNREPORTED, and an
-// unreported turn counts as its whole cap (there is no separate "reported" marker in the journal, so a
-// genuinely free turn is charged its cap: the safe side). The turn running RIGHT NOW is the exception for
-// Spent: until it ends, its cap is not charged as spend (so a master with a cost-less running turn is not
-// shown ~$0 left), but a carve made during it subtracts that turn's cap (carveReserve), because the turn
-// may still spend up to it: budget - spent - carved - running cap, so the total cannot reach 2x.
+// Reported and unreported. A usage.updated event that is PRESENT counts as reported, whatever its figure:
+// a reported 0 stays 0 (a runtime that always reports 0 is trusted at 0; kilo cannot be capped at all and
+// is refused for capped sessions as before). Only a turn that STARTED and journaled NO usage event at all
+// counts as its whole cap; a cost-less capped turn is charged max(cap, its workers' cost), never both.
+// A turn's cap row is written unstarted before the turn starts and marked started when the turn is
+// running (host, and again when its token is bound); an unstarted row charges nothing and is dropped
+// after a minute, so a crash between the two leaves no charge.
+//
+// The turn running RIGHT NOW is not charged its cap as spend until it ends.
+//
+// Carving a child's budget is limited by budget - spent - carved. The running turn's own cap (fixed at
+// its start, from what was left then) is NOT reserved: reserving it would make every carve from inside a
+// capped master's turn fail. The accepted bound: within one running turn, total exposure can exceed the
+// budget by at most what that turn carved during itself; the next turn starts with the true remainder.
 
 // RecordTurnCap notes the cap a turn started under.
 func (s *Store) RecordTurnCap(profileID, conversationID, turnID string, capUSD float64) error {
-	_, err := s.db.Exec(`INSERT OR REPLACE INTO coder_session_turn_caps (profile_id, conversation_id, turn_id, cap_usd) VALUES (?, ?, ?, ?)`,
-		profileID, conversationID, turnID, capUSD)
+	_, err := s.db.Exec(`INSERT OR REPLACE INTO coder_session_turn_caps (profile_id, conversation_id, turn_id, cap_usd, started, created_at) VALUES (?, ?, ?, ?, 0, ?)`,
+		profileID, conversationID, turnID, capUSD, s.stamp())
 	return err
+}
+
+// MarkTurnCapStarted says the turn the cap was recorded for is running.
+func (s *Store) MarkTurnCapStarted(profileID, conversationID, turnID string) {
+	_, _ = s.db.Exec(`UPDATE coder_session_turn_caps SET started = 1 WHERE profile_id = ? AND conversation_id = ? AND turn_id = ?`, profileID, conversationID, turnID)
+}
+
+// DropUnstartedCaps forgets the caps of turns that never started (older than a minute).
+func (s *Store) DropUnstartedCaps() {
+	_, _ = s.db.Exec(`DELETE FROM coder_session_turn_caps WHERE started = 0 AND created_at < ?`, s.now().Add(-time.Minute).UTC().Format(timeLayout))
 }
 
 // DropTurnCap forgets the cap of a turn that did not start.
@@ -59,18 +77,12 @@ func (s *Store) runningCap(profileID, conversationID string) (turn string, capUS
 	return turn, capUSD
 }
 
-// carveReserve is what a carve made now must leave for the session's running turn.
-func (s *Store) carveReserve(profileID, conversationID string) float64 {
-	_, c := s.runningCap(profileID, conversationID)
-	return c
-}
-
 func validCost(p *float64) bool { return p != nil && *p >= 0 && !math.IsNaN(*p) && !math.IsInf(*p, 0) }
 
 // Spent is what the session's turns have cost.
 func (s *Store) Spent(profileID, conversationID string) (float64, error) {
 	caps := map[string]float64{}
-	rows, err := s.db.Query(`SELECT turn_id, cap_usd FROM coder_session_turn_caps WHERE profile_id = ? AND conversation_id = ?`, profileID, conversationID)
+	rows, err := s.db.Query(`SELECT turn_id, cap_usd FROM coder_session_turn_caps WHERE profile_id = ? AND conversation_id = ? AND started = 1`, profileID, conversationID)
 	if err != nil {
 		return 0, err
 	}
@@ -117,18 +129,25 @@ func (s *Store) Spent(profileID, conversationID string) (float64, error) {
 	ev.Close()
 	running, _ := s.runningCap(profileID, conversationID)
 	total := 0.0
+	workerSum := map[string]float64{} // per turn
+	for k, v := range workers {
+		workerSum[k[0]] += v
+	}
 	for turn, c := range caps {
-		if v := lead[turn]; v > 0 {
-			total += v
+		if v, reported := lead[turn]; reported {
+			total += v + workerSum[turn]
 		} else if turn != running {
-			total += c // unreported (none, or exactly 0): the whole cap; the running turn is charged at its end
+			total += max(c, workerSum[turn]) // no usage event at all: the whole cap, or its workers if they cost more
+		} else {
+			total += workerSum[turn]
 		}
 		delete(lead, turn)
+		delete(workerSum, turn)
 	}
 	for _, v := range lead {
 		total += v // turns that ran before the session had a budget
 	}
-	for _, v := range workers {
+	for _, v := range workerSum {
 		total += v
 	}
 	return total, nil

@@ -301,6 +301,7 @@ func (s *AIStore) DeleteConversation(id, profileID string) error {
 		`DELETE FROM coder_session_commands WHERE conversation_id = ? AND profile_id = ?`,
 		`DELETE FROM coder_session_turn_caps WHERE conversation_id = ? AND profile_id = ?`,
 		`DELETE FROM coder_session_tokens WHERE conversation_id = ? AND profile_id = ?`,
+		`DELETE FROM coder_session_host_turns WHERE conversation_id = ? AND profile_id = ?`,
 		`UPDATE coder_sessions SET role = 'solo', parent_conversation_id = '' WHERE parent_conversation_id = ? AND profile_id = ?`,
 		`DELETE FROM coder_sessions WHERE conversation_id = ? AND profile_id = ?`,
 	} {

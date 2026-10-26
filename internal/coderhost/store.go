@@ -50,8 +50,10 @@ const (
 	// MaxPendingMaster is how many master-made sends may wait for one child; the rest of
 	// MaxPendingPerChat stays for a person's.
 	MaxPendingMaster = 5
-	MaxAttachments   = 10
-	pendingBatch     = 200
+	// MaxPendingMasterStops is how many stops masters may have waiting for one child.
+	MaxPendingMasterStops = 2
+	MaxAttachments        = 10
+	pendingBatch          = 200
 	// MaxSendAge is how long a queued send stays valid.
 	MaxSendAge = 6 * time.Hour
 	// MaxCheckinAge is how long a check-in the host queued for itself stays valid: its digest is a
@@ -152,7 +154,12 @@ func (s *Store) Enqueue(c Command) (Command, error) {
 	if waiting >= MaxPendingPerChat {
 		return c, ErrQueueFull
 	}
-	if c.WantsMission && (c.Kind != KindSend || HostMade(c.TurnID)) {
+	// Issuer is the authority for "a master made this", not the turn id: an issuer-tagged send can never
+	// be a mission, and a master- turn id is the master tools' alone (a caller with no issuer cannot use it).
+	if c.Issuer == "" && strings.HasPrefix(c.TurnID, MasterTurnPrefix) {
+		return c, errors.New("coder host: turn ids starting with " + MasterTurnPrefix + " belong to the master tools")
+	}
+	if c.WantsMission && (c.Kind != KindSend || HostMade(c.TurnID) || c.Issuer != "") {
 		return c, errors.New("coder host: only a person's send can ask for a mission")
 	}
 	mark := ""
@@ -163,6 +170,24 @@ func (s *Store) Enqueue(c Command) (Command, error) {
 	// Everything a master queues for a child (sends, pause, resume; not stop, which always has room) shares MaxPendingMaster
 	// slots, taken by the INSERT itself so concurrent callers cannot pass the cap together; the rest
 	// of MaxPendingPerChat stays for a person's.
+	if c.Kind == KindStop && c.Issuer != "" {
+		// A master's stops are few: one pending stop from the same issuer makes a new one a no-op, and
+		// at most MaxPendingMasterStops wait for a child, so a master cannot fill the person's slots.
+		var n int
+		var existing int64
+		_ = s.db.QueryRow(`SELECT COALESCE(MAX(CASE WHEN issuer = ? THEN id END), 0), COUNT(*) FROM coder_session_commands WHERE profile_id = ? AND conversation_id = ? AND kind = 'stop' AND status = 'pending' AND issuer != ''`,
+			c.Issuer, c.ProfileID, c.ConversationID).Scan(&existing, &n)
+		if existing > 0 {
+			got, ok, err := s.GetCommand(existing)
+			if err != nil || !ok {
+				return c, errors.New("coder host: a stop is already waiting")
+			}
+			return got, nil
+		}
+		if n >= MaxPendingMasterStops {
+			return c, ErrQueueFull
+		}
+	}
 	masterMade := (c.Issuer != "" && c.Kind != KindStop) || (c.Kind == KindSend && strings.HasPrefix(c.TurnID, MasterTurnPrefix))
 	res, err := s.db.Exec(`INSERT INTO coder_session_commands (profile_id, conversation_id, kind, turn_id, message, attachments, status, error, created_at, updated_at, issuer)
 		SELECT ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?
@@ -321,6 +346,7 @@ func (s *Store) SweepOrphans() (int, error) {
 		`DELETE FROM coder_session_commands WHERE status = 'pending' AND NOT EXISTS (SELECT 1 FROM ai_chat_conversations c WHERE c.id = coder_session_commands.conversation_id AND c.profile_id = coder_session_commands.profile_id)`,
 		`DELETE FROM coder_sessions WHERE NOT EXISTS (SELECT 1 FROM ai_chat_conversations c WHERE c.id = coder_sessions.conversation_id AND c.profile_id = coder_sessions.profile_id)`,
 		`DELETE FROM coder_session_turn_caps WHERE NOT EXISTS (SELECT 1 FROM ai_chat_conversations c WHERE c.id = coder_session_turn_caps.conversation_id AND c.profile_id = coder_session_turn_caps.profile_id)`,
+		`DELETE FROM coder_session_host_turns WHERE NOT EXISTS (SELECT 1 FROM ai_chat_conversations c WHERE c.id = coder_session_host_turns.conversation_id AND c.profile_id = coder_session_host_turns.profile_id)`,
 		`DELETE FROM coder_session_tokens WHERE NOT EXISTS (SELECT 1 FROM ai_chat_conversations c WHERE c.id = coder_session_tokens.conversation_id AND c.profile_id = coder_session_tokens.profile_id)`,
 		`DELETE FROM coder_session_spawns WHERE NOT EXISTS (SELECT 1 FROM ai_chat_conversations c WHERE c.id = coder_session_spawns.parent AND c.profile_id = coder_session_spawns.profile_id)`,
 	} {
@@ -527,6 +553,7 @@ func (s *Store) CheckinStreak(profileID, conversationID string) (streak int, las
 		return 0, time.Time{}, false, err
 	}
 	defer rows.Close()
+	marked := s.hostTurnSet(profileID, conversationID)
 	first := true
 	for rows.Next() {
 		var id, status, upd string
@@ -536,7 +563,7 @@ func (s *Store) CheckinStreak(profileID, conversationID string) (streak int, las
 		if first {
 			lastTurnAt, _ = time.Parse(time.RFC3339Nano, upd)
 		}
-		if !HostMade(id) {
+		if !HostMade(id) && !marked[id] {
 			break
 		}
 		if first {
@@ -553,4 +580,25 @@ func boolInt(b bool) int {
 		return 1
 	}
 	return 0
+}
+
+// MarkHostTurn records that a turn started from a send a master queued, whatever its turn id.
+func (s *Store) MarkHostTurn(profileID, conversationID, turnID string) {
+	_, _ = s.db.Exec(`INSERT OR IGNORE INTO coder_session_host_turns (profile_id, conversation_id, turn_id) VALUES (?, ?, ?)`, profileID, conversationID, turnID)
+}
+
+func (s *Store) hostTurnSet(profileID, conversationID string) map[string]bool {
+	out := map[string]bool{}
+	rows, err := s.db.Query(`SELECT turn_id FROM coder_session_host_turns WHERE profile_id = ? AND conversation_id = ?`, profileID, conversationID)
+	if err != nil {
+		return out
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		if rows.Scan(&id) == nil {
+			out[id] = true
+		}
+	}
+	return out
 }

@@ -131,6 +131,7 @@ func (h *Host) watch(x Session, t Turn) {
 // Tick makes one pass over the waiting commands. A command that cannot run yet
 // (a send to a busy or paused session) stays pending, in order.
 func (h *Host) Tick() error {
+	h.Store.DropUnstartedCaps()
 	if err := h.Store.ExpireSends(); err != nil {
 		return err
 	}
@@ -192,7 +193,7 @@ func (h *Host) Tick() error {
 			// A message a master sent to a child counts with the check-ins: after CheckinLimit
 			// host-made turns in a row the child waits for a person, and it is only run for a
 			// session that is still a child.
-			if strings.HasPrefix(c.TurnID, MasterTurnPrefix) {
+			if strings.HasPrefix(c.TurnID, MasterTurnPrefix) || c.Issuer != "" {
 				if reason := h.masterSendStillAllowed(x); reason != "" {
 					h.end(c, CmdFailed, reason)
 					continue
@@ -271,6 +272,12 @@ func (h *Host) Tick() error {
 				h.settle(x)
 				h.end(c, CmdFailed, err.Error())
 				continue
+			}
+			if capped {
+				h.Store.MarkTurnCapStarted(c.ProfileID, c.ConversationID, c.TurnID)
+			}
+			if c.Issuer != "" && !HostMade(c.TurnID) {
+				h.Store.MarkHostTurn(c.ProfileID, c.ConversationID, c.TurnID) // counts like a master- turn
 			}
 			x.TurnPID, x.TurnStamp = t.PID(), t.Stamp()
 			if err := h.Store.SaveSession(x); err != nil {
