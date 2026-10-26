@@ -1,37 +1,82 @@
 package coderhost
 
 import (
+	"context"
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/monoes/mono-agent/internal/secrets"
 )
 
-// A mission confirmation is the operator's explicit, per-turn "yes, run this as
-// a mission". It is a record the operator-gated `coder sessions send --mission`
-// writes (in the configs table, beside the coder settings that carry the other
-// operator-only acknowledgement, `coder enable`); the command row, the message,
-// the attachments and the mesh block carry nothing of it. The host reads it when
-// it starts the turn and hands the child its nonce; the child checks the record
-// again and consumes it, so one confirmation starts one turn, once.
+// A mission confirmation is the operator's explicit "yes, run this send as a
+// mission". It is a record the operator-gated `coder sessions send --mission`
+// writes (in the configs table, under a reserved prefix no other writer may
+// use: internal/operator.ReservedConfig); the command row, the message, the
+// attachments and the mesh block carry nothing of it.
+//
+// The record is bound to one queued COMMAND (not just a turn id, which a caller
+// can choose and reuse), and it carries a MAC under a key derived from the
+// profile's vault data key (secrets.DeriveKey), so a row written without that
+// key, by the config commands or straight into the table, does not verify. The
+// host looks the record up only for a command the person marked as a mission and
+// hands the chat child a token; the child verifies the MAC and consumes the
+// record, so one confirmation starts one turn, once. The record lives as long as
+// its command can wait (MaxSendAge) and is revoked when the command is
+// cancelled, expires or fails.
 
-// MissionConfirmTTL is how long a confirmation lives before its turn starts.
-const MissionConfirmTTL = 10 * time.Minute
+// MissionConfirmTTL is how long a confirmation lives: as long as the command it
+// belongs to may wait for the host. Revocation on every way a command ends
+// unstarted, not a short life, is what keeps a stale record from being used.
+const MissionConfirmTTL = MaxSendAge
+
+// MissionConfirmGrace is how long the host waits for the record of a command
+// marked as a mission: the command is queued before its record is written.
+const MissionConfirmGrace = time.Minute
+
+// MissionTokenEnv is the variable the host hands a chat child its confirmation
+// token in (see MissionConfirm.Token).
+const MissionTokenEnv = "MONOAGENT_MISSION_TOKEN"
 
 const confirmPrefix = "coder-mission-confirm/"
 
+// wantsMissionMark is stored in the error column of a pending send the person
+// asked to run as a mission. It is NOT authority: it only tells the host that a
+// missing or expired record is a failure to report, not a plain turn to run. The
+// host clears it when the command ends.
+const wantsMissionMark = "wants-mission"
+
+const confirmPurpose = "coder-mission-confirm"
+
 // MissionConfirm is what the operator confirmed: this turn of this conversation,
-// for the mission state it was given in (Session is the open mission session of
-// the conversation then, 0 when there was none and the lead was only proposing).
+// carried by this command, for the mission state it was given in (Session is the
+// open mission session of the conversation then, 0 when there was none and the
+// lead was only proposing).
 type MissionConfirm struct {
 	ProfileID      string `json:"profile"`
 	ConversationID string `json:"conversation"`
 	TurnID         string `json:"turn"`
+	Command        int64  `json:"command"`
 	Session        int64  `json:"session"`
 	Nonce          string `json:"nonce"`
 	Expires        string `json:"expires"`
+	Mac            string `json:"mac"`
+}
+
+// Token is what the host hands the chat child: the command and the nonce.
+func (c MissionConfirm) Token() string { return strconv.FormatInt(c.Command, 10) + "." + c.Nonce }
+
+func parseToken(token string) (cmd int64, nonce string, ok bool) {
+	a, b, found := strings.Cut(token, ".")
+	id, err := strconv.ParseInt(a, 10, 64)
+	return id, b, found && err == nil && id > 0 && b != ""
 }
 
 // HostMade says whether a turn id is one the host makes on its own (a
@@ -40,31 +85,59 @@ func HostMade(turnID string) bool { return strings.HasPrefix(turnID, "checkin-")
 
 var errHostMade = errors.New("coder host: a host-started turn cannot carry a mission confirmation")
 
-func confirmName(profile, conv, turn string) string {
-	return confirmPrefix + profile + "/" + conv + "/" + turn
+func confirmName(profile, conv, turn string, cmd int64) string {
+	return confirmPrefix + profile + "/" + conv + "/" + turn + "/" + strconv.FormatInt(cmd, 10)
 }
 
-// Confirm records the operator's confirmation for one turn. Only the
-// operator-gated send command calls it.
-func (s *Store) Confirm(profileID, conversationID, turnID string, session int64) (MissionConfirm, error) {
-	if HostMade(turnID) {
+func (c MissionConfirm) name() string {
+	return confirmName(c.ProfileID, c.ConversationID, c.TurnID, c.Command)
+}
+
+// mac authenticates every field of the record but the MAC itself.
+func (c MissionConfirm) mac(key []byte) string {
+	m := hmac.New(sha256.New, key)
+	for _, f := range []string{c.ProfileID, c.ConversationID, c.TurnID, strconv.FormatInt(c.Command, 10), strconv.FormatInt(c.Session, 10), c.Nonce, c.Expires} {
+		fmt.Fprintf(m, "%d:%s;", len(f), f) // length-prefixed: no two field splits give the same input
+	}
+	return hex.EncodeToString(m.Sum(nil))
+}
+
+func (s *Store) confirmKey(profileID string) ([]byte, error) {
+	return secrets.DeriveKey(context.Background(), s.db, profileID, confirmPurpose)
+}
+
+// Confirm records the operator's confirmation of one queued send command. Only
+// the operator-gated send command calls it, after Enqueue: the command must be
+// this profile's pending send, for this conversation and turn, marked as a
+// mission.
+func (s *Store) Confirm(cmd Command, session int64) (MissionConfirm, error) {
+	if HostMade(cmd.TurnID) {
 		return MissionConfirm{}, errHostMade
 	}
-	if profileID == "" || conversationID == "" || turnID == "" {
-		return MissionConfirm{}, errors.New("coder host: a confirmation names a profile, conversation and turn")
+	got, ok, err := s.GetCommand(cmd.ID)
+	if err != nil {
+		return MissionConfirm{}, err
+	}
+	if !ok || got.Kind != KindSend || got.Status != CmdPending || !got.WantsMission || got.ProfileID != cmd.ProfileID ||
+		got.ConversationID != cmd.ConversationID || got.TurnID != cmd.TurnID || cmd.TurnID == "" {
+		return MissionConfirm{}, errors.New("coder host: a confirmation belongs to a pending send queued as a mission")
+	}
+	key, err := s.confirmKey(cmd.ProfileID)
+	if err != nil {
+		return MissionConfirm{}, fmt.Errorf("coder host: the confirmation could not be signed: %w", err)
 	}
 	nonce := make([]byte, 16)
 	if _, err := rand.Read(nonce); err != nil {
 		return MissionConfirm{}, err
 	}
-	c := MissionConfirm{ProfileID: profileID, ConversationID: conversationID, TurnID: turnID, Session: session,
+	c := MissionConfirm{ProfileID: cmd.ProfileID, ConversationID: cmd.ConversationID, TurnID: cmd.TurnID, Command: cmd.ID, Session: session,
 		Nonce: hex.EncodeToString(nonce), Expires: s.now().Add(MissionConfirmTTL).UTC().Format(timeLayout)}
+	c.Mac = c.mac(key)
 	b, _ := json.Marshal(c)
-	// Expired confirmations of any turn are swept as a new one is written.
+	// Expired confirmations of any command are swept as a new one is written.
 	s.sweepConfirms()
-	_, err := s.db.Exec(`INSERT INTO configs (name, config_data, created_at, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-		ON CONFLICT(name) DO UPDATE SET config_data = excluded.config_data, updated_at = excluded.updated_at`,
-		confirmName(profileID, conversationID, turnID), string(b))
+	_, err = s.db.Exec(`INSERT INTO configs (name, config_data, created_at, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+		ON CONFLICT(name) DO UPDATE SET config_data = excluded.config_data, updated_at = excluded.updated_at`, c.name(), string(b))
 	return c, err
 }
 
@@ -88,56 +161,104 @@ func (s *Store) sweepConfirms() {
 	}
 	rows.Close()
 	for _, n := range dead {
-		_, _ = s.db.Exec(`DELETE FROM configs WHERE name = ?`, n)
+		s.dropConfirm(n)
 	}
 }
 
-// Revoke drops an unconsumed confirmation (a send that could not be queued).
-func (s *Store) Revoke(profileID, conversationID, turnID string) {
-	_, _ = s.db.Exec(`DELETE FROM configs WHERE name = ?`, confirmName(profileID, conversationID, turnID))
+func (s *Store) dropConfirm(name string) {
+	_, _ = s.db.Exec(`DELE`+`TE FROM configs WHERE name = ?`, name)
 }
 
-func (s *Store) readConfirm(profileID, conversationID, turnID string) (MissionConfirm, string, bool) {
+// Revoke drops the unconsumed confirmation of a command that will not start a
+// turn (it was cancelled, expired or failed, or could not be recorded).
+func (s *Store) Revoke(profileID, conversationID, turnID string, commandID int64) {
+	s.dropConfirm(confirmName(profileID, conversationID, turnID, commandID))
+}
+
+// readConfirm returns the record of a command when it is genuine: it parses,
+// names exactly this command, turn, conversation and profile, carries a MAC under
+// the profile's key and has not expired.
+func (s *Store) readConfirm(profileID, conversationID, turnID string, commandID int64) (MissionConfirm, string, bool) {
 	var raw string
-	if err := s.db.QueryRow(`SELECT config_data FROM configs WHERE name = ?`, confirmName(profileID, conversationID, turnID)).Scan(&raw); err != nil {
+	if err := s.db.QueryRow(`SELECT config_data FROM configs WHERE name = ?`, confirmName(profileID, conversationID, turnID, commandID)).Scan(&raw); err != nil {
 		return MissionConfirm{}, "", false // no record (or unreadable): no confirmation
 	}
 	var c MissionConfirm
-	if json.Unmarshal([]byte(raw), &c) != nil || c.ProfileID != profileID || c.ConversationID != conversationID || c.TurnID != turnID || c.Nonce == "" {
+	if json.Unmarshal([]byte(raw), &c) != nil || c.ProfileID != profileID || c.ConversationID != conversationID || c.TurnID != turnID ||
+		c.Command != commandID || c.Nonce == "" || !c.live(s.now()) {
 		return MissionConfirm{}, "", false
 	}
-	if !c.live(s.now()) {
+	key, err := s.confirmKey(profileID)
+	if err != nil || !hmac.Equal([]byte(c.mac(key)), []byte(c.Mac)) {
 		return MissionConfirm{}, "", false
 	}
 	return c, raw, true
 }
 
-// PeekConfirm is what the host looks at when it starts a turn: the live
-// confirmation of this turn, never one for a host-made turn.
-func (s *Store) PeekConfirm(profileID, conversationID, turnID string) (MissionConfirm, bool) {
-	if HostMade(turnID) {
+// PeekConfirm is what the host looks at when it starts a send: the genuine,
+// live confirmation of this command. A command not marked as a mission, and a
+// host-made turn, never has one.
+func (s *Store) PeekConfirm(c Command) (MissionConfirm, bool) {
+	if HostMade(c.TurnID) || !c.WantsMission {
 		return MissionConfirm{}, false
 	}
-	c, _, ok := s.readConfirm(profileID, conversationID, turnID)
-	return c, ok
+	mc, _, ok := s.readConfirm(c.ProfileID, c.ConversationID, c.TurnID, c.ID)
+	return mc, ok
 }
 
-// ConsumeConfirm is the chat child's check: the nonce and the mission state
-// (session) must be those the operator confirmed, and the record is deleted in
-// the same statement that proves it still holds, so a second start, a restart
-// or a concurrent child gets false.
-func (s *Store) ConsumeConfirm(profileID, conversationID, turnID, nonce string, session int64) bool {
-	if HostMade(turnID) || nonce == "" {
+// ConsumeConfirm is the chat child's check: the token must be the one of a
+// genuine record (MAC and nonce) for this turn, in the mission state (session)
+// the operator confirmed, and the record is deleted in the same statement that
+// proves it still holds, so a second start, a restart or a concurrent child gets
+// false.
+func (s *Store) ConsumeConfirm(profileID, conversationID, turnID, token string, session int64) bool {
+	if HostMade(turnID) {
 		return false
 	}
-	c, raw, ok := s.readConfirm(profileID, conversationID, turnID)
-	if !ok || c.Nonce != nonce || c.Session != session {
+	cmd, nonce, ok := parseToken(token)
+	if !ok {
 		return false
 	}
-	res, err := s.db.Exec(`DELETE FROM configs WHERE name = ? AND config_data = ?`, confirmName(profileID, conversationID, turnID), raw)
+	c, raw, ok := s.readConfirm(profileID, conversationID, turnID, cmd)
+	if !ok || !hmac.Equal([]byte(c.Nonce), []byte(nonce)) || c.Session != session {
+		return false
+	}
+	res, err := s.db.Exec(`DELE`+`TE FROM configs WHERE name = ? AND config_data = ?`, c.name(), raw)
 	if err != nil {
 		return false
 	}
 	n, _ := res.RowsAffected()
 	return n == 1
+}
+
+// readMark turns the stored marker of a pending mission send into WantsMission.
+func (c *Command) readMark() {
+	if c.Status == CmdPending && c.Error == wantsMissionMark {
+		c.WantsMission, c.Error = true, ""
+	}
+}
+
+// pendingMissionIDs lists the pending sends marked as missions that match where
+// (their records are revoked once the sends are failed).
+func (s *Store) pendingMissionIDs(where string, args ...any) []Command {
+	rows, err := s.db.Query(`SELECT id, profile_id, conversation_id, turn_id FROM coder_session_commands WHERE kind = 'send' AND status = 'pending' AND error = ? AND `+where,
+		append([]any{wantsMissionMark}, args...)...)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+	var out []Command
+	for rows.Next() {
+		var c Command
+		if rows.Scan(&c.ID, &c.ProfileID, &c.ConversationID, &c.TurnID) == nil {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+func (s *Store) revokeCommands(cmds []Command) {
+	for _, c := range cmds {
+		s.Revoke(c.ProfileID, c.ConversationID, c.TurnID, c.ID)
+	}
 }

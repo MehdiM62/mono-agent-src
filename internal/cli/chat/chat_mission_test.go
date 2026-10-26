@@ -2,7 +2,6 @@ package chat
 
 import (
 	"context"
-	"strings"
 	"testing"
 
 	"github.com/monoes/mono-agent/internal/ai"
@@ -50,21 +49,6 @@ func TestMissionRunOnlyForAConfirmedLead(t *testing.T) {
 	mr := missionRun(m)
 	if mr == nil || mr.Store == nil || mr.ProfileID != "default" || mr.Session != 0 {
 		t.Fatalf("confirmed lead: %+v (the session is the conversation's, never preset)", mr)
-	}
-}
-
-// --mission is the operator-friendly hidden flag the UI click passes: it is registered, hidden,
-// and refused outside a coder conversation.
-func TestChatMissionFlagIsHiddenAndNeedsAConversation(t *testing.T) {
-	cmd := newChatCmd(testDeps(&testConfig{DBPath: t.TempDir() + "/x.db", ProfileID: "default"}))
-	f := cmd.Flags().Lookup("mission")
-	if f == nil || !f.Hidden {
-		t.Fatalf("--mission: %+v", f)
-	}
-	cmd.SetArgs([]string{"--mission", "--runtime", "fake", "hi"})
-	err := cmd.Execute()
-	if err == nil || !strings.Contains(err.Error(), "--mission only applies to a coder conversation") {
-		t.Fatalf("--mission outside a conversation: %v", err)
 	}
 }
 

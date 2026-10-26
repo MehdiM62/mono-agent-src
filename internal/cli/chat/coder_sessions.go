@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 
@@ -145,19 +146,25 @@ func newCoderSessionsSendCmd(cfg *Deps) *cobra.Command {
 			if turn == "" {
 				turn = "t-" + uuid.NewString()
 			}
+			// A mission send is queued marked as one, then its confirmation is recorded for
+			// that command: a mission send never runs without it (the host fails it instead),
+			// and the record is revoked if the command is cancelled, expires or fails.
+			session := int64(0)
 			if mission {
-				// The confirmation is its own record, written before the command so the host
-				// never starts the turn without it; it is bound to the mission state it is given in.
-				if err := confirmMission(cfg, profileID, args[0], turn); err != nil {
+				session = openMissionSessionID(context.Background(), cfg, profileID, args[0])
+			}
+			c, qerr := enqueue(cfg, coderhost.Command{ProfileID: profileID, ConversationID: args[0], Kind: coderhost.KindSend, TurnID: turn, Message: args[1], Attachments: atts, WantsMission: mission}, !noHost)
+			if mission && c.ID > 0 { // queued, even if starting the host failed afterwards
+				if err := confirmMission(cfg, c, session); err != nil {
+					failQueuedMission(cfg, c.ID, "mission confirmation could not be recorded: send again")
 					return err
 				}
 			}
-			c, err := enqueue(cfg, coderhost.Command{ProfileID: profileID, ConversationID: args[0], Kind: coderhost.KindSend, TurnID: turn, Message: args[1], Attachments: atts}, !noHost)
-			if err != nil {
-				if mission {
-					revokeMission(cfg, profileID, args[0], turn)
+			if qerr != nil {
+				if mission && c.ID > 0 {
+					return fmt.Errorf("the mission send was queued as command %d with its confirmation and runs when a coder host does; the host could not be started: %w", c.ID, qerr)
 				}
-				return err
+				return qerr
 			}
 			return printQueueJSON(cmd, map[string]any{"commandId": c.ID, "conversationId": c.ConversationID, "turnId": c.TurnID, "hostStarted": !noHost})
 		},

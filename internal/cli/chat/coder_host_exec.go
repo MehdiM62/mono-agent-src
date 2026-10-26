@@ -86,11 +86,12 @@ func (l *execLauncher) Start(profileID, conversationID, turnID, message string, 
 	if missionToken != "" && !hostID.MatchString(missionToken) {
 		return nil, fmt.Errorf("the mission confirmation is not a valid token")
 	}
-	if missionToken != "" {
-		// Never a bare --mission: the child verifies and consumes the operator's record.
-		rest = append(rest, "--mission-token="+missionToken)
-	}
 	cmd := exec.Command(l.bin, l.args(profileID, rest...)...)
+	if missionToken != "" {
+		// In the child's environment, not its arguments (which any process of the user lists):
+		// the child verifies the operator's signed record and consumes it, and drops the variable.
+		cmd.Env = append(os.Environ(), coderhost.MissionTokenEnv+"="+missionToken)
+	}
 	cmd.Dir = filepath.Dir(l.logDir)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = prompt, logFile, logFile
 	if err := clicore.DetachStart(cmd); err != nil {

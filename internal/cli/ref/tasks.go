@@ -129,8 +129,8 @@ WHO MAY DO WHAT
   not count; refused with invalid_input "a code task needs evidence"): attach one with artifact first.
   After a failed verification the evidence from before does not count: a retry attaches a new one.
   The evidence rule is self-asserted: artifact references are not validated and the declared files come from the planner's notes.
-  MISSIONS. A coder chat's lead runs a session with the mission tools (chat --conversation C --turn T
-  --mission, a hidden flag; an open session of the conversation implies it): mission_plan, mission_add_tasks,
+  MISSIONS. A coder chat's lead runs a session with the mission tools (a send confirmed with
+  coder sessions send --mission, operator only; an open session of the conversation implies it): mission_plan, mission_add_tasks,
   mission_split, mission_status, mission_replan, and once a session exists mission_next, mission_assign,
   mission_report, mission_verify (another agent, read only, another model when ready, records its own
   verdict) and mission_finish (integration check, writer merges, final report, closes the session as done

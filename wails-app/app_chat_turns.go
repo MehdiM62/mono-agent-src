@@ -97,11 +97,6 @@ func (sup *chatSupervisor) startTurn(h *chatTurnHandle, message string, tools, a
 	h.cancel = cancel
 	h.mu.Unlock()
 	args := chatTurnArgs(h.profileID, h.conversationID, h.turnID, sup.instanceID, message, tools, allowRuns, attachments...)
-	if h.mission {
-		// Before the "--" that ends the flags: the message is the last two words of argv.
-		n := len(args) - 2
-		args = append(args[:n:n], "--mission", "--", message)
-	}
 	proc, err := sup.launcher(ctx, cliBin, args)
 	if err != nil {
 		cancel()

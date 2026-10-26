@@ -77,9 +77,9 @@ func (a *App) StartChatTurn(conversationID, turnID, message string, tools, allow
 
 // CoderConfirmMission is the follow-up turn that confirms a mission
 // proposal (docs/mastermind/plans/2026-10-25-coder-missions-task-sessions.md
-// section 9): StartChatTurn with `chat --mission`, which marks the
-// conversation's mission as user-confirmed. The CLI decides what that
-// allows; this only passes the flag. Coder turns never take tools.
+// section 9): a coder conversation's send through the host with
+// `coder sessions send --mission`, which records the operator's confirmation
+// for that one send. The CLI decides what that allows. Coder turns never take tools.
 func (a *App) CoderConfirmMission(conversationID, turnID, message string) string {
 	return a.startChatTurn(conversationID, turnID, message, false, false, nil, true)
 }
@@ -111,6 +111,12 @@ func (a *App) startChatTurn(conversationID, turnID, message string, tools, allow
 			return a.chatBindingError(err)
 		}
 		return resp
+	}
+	if mission {
+		// A mission is confirmed only through the coder host's operator-gated send; the
+		// direct turn has no such record, and no flag stands in for it.
+		a.chatSup.release(conversationID, turnID)
+		return a.chatBindingError(fmt.Errorf("a mission needs a coder conversation: confirm it through the coder host"))
 	}
 	resp, err := a.chatSup.startTurn(h, message, tools, allowRuns, attachments)
 	if err != nil {

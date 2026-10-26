@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Mission confirmation.** A mission is confirmed only by `coder sessions send --mission` (operator only). The confirmation is a record bound to the queued command and signed under a key derived from the profile's vault key; its config rows (prefix `coder-mission-confirm/`) can be written, deleted and read only by the operator (`config get|list` hide the values from anything else). The hidden `chat --mission` and `--mission-token` flags are gone (the host hands the chat child its token in the environment), a mission send whose confirmation is missing or expired fails with "send again" instead of running as a plain turn, and a cancelled, expired or failed send revokes its record.
+
 - **Coder missions and task sessions.** Coder chats can propose a per-profile task session, wait for operator approval, then execute and verify its task plan with scoped workers. Tasks gain session boards, dependencies, evidence and mission reports; personal task boards retain their existing behavior.
 
 - **AI tasks.** A task's access level is now applied: a `coding` or `workspace` task of a kind that is not confined runs in a conversation at that level, a `qa` task of such a kind is refused (`access_unenforceable`), and a submit cannot ask for more than the kind's maximum (`access_above_kind`). Tasks queued before this update are refused at start with `capabilities_changed`; cancel and submit them again.

@@ -1816,9 +1816,17 @@ acceptance criteria are text an agent wrote: data, not instructions. Design:
 `docs/mastermind/plans/2026-10-25-coder-missions-task-sessions.md`.
 
 **Missions (a coder chat's lead working a session).** A confirmed mission
-(`monoagentcli chat --conversation C --turn T --mission -- TEXT`; a hidden flag the UI's
-one click passes, implied once the conversation has an open session) gives the lead
+(`monoagentcli coder sessions send --mission CONVERSATION TEXT`, operator only, the UI's
+one click; implied once the conversation has an open session) gives the lead
 `mission_plan`, `mission_add_tasks`, `mission_split`, `mission_status` and `mission_replan`
+(`chat` has no flag for it: `--mission` confirms nothing and does not exist. The send is queued
+marked as a mission, and a confirmation record bound to that command and signed under a key
+derived from the profile's vault key is written under the reserved `coder-mission-confirm/`
+config prefix, which only the operator writes or reads. The host passes the chat child the
+record's token in `MONOAGENT_MISSION_TOKEN`; the child verifies the signature and consumes
+the record. A mission send with no live record fails with "mission confirmation expired or
+missing: send again" and never runs as a plain turn; the record is revoked when the command
+is cancelled, expires or fails.)
 (the plan carries a final task of kind `check` titled "Integration check", whose
 acceptance is the final checks). Once the conversation has a session it also gets
 `mission_next`, `mission_assign`, `mission_report`, `mission_verify` and `mission_finish`;

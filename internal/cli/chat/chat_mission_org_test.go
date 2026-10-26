@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/monoes/mono-agent/internal/ai"
+	"github.com/monoes/mono-agent/internal/coderhost"
 	"github.com/monoes/mono-agent/internal/monomind"
 	"github.com/monoes/mono-agent/internal/tasks"
 )
@@ -47,9 +48,16 @@ func TestDynamicOrgLeadGetsMissionToolsByStage(t *testing.T) {
 	if _, code := runChatHistory(t, dbPath, "default", "set-org", conv.ID, "dynamic"); code != 0 {
 		t.Fatalf("set-org: exit %d", code)
 	}
+	cs, closeCS := confirmStore(t, dbPath)
+	defer closeCS()
 	turn := func(id string, extra ...string) {
 		t.Helper()
-		args := append([]string{"--conversation", conv.ID, "--turn", id}, extra...)
+		args := []string{"--conversation", conv.ID, "--turn", id}
+		tok := ""
+		if len(extra) > 0 && extra[0] == "confirm" { // the host's token for an operator-confirmed send
+			tok = confirmedToken(t, cs, conv.ID, id, 0)
+		}
+		t.Setenv(coderhost.MissionTokenEnv, tok)
 		if out, err := runChatCmd(t, dbPath, bin, append(args, "--", "build it")...); err != nil {
 			t.Fatalf("turn %s: %v\n%s", id, err, out)
 		}
@@ -59,7 +67,7 @@ func TestDynamicOrgLeadGetsMissionToolsByStage(t *testing.T) {
 	if got := leadToolNames(t, argsLog); got != "org_spawn,mission_propose" {
 		t.Errorf("before a confirmation: %s", got)
 	}
-	turn("t2", "--mission")
+	turn("t2", "confirm")
 	if got := leadToolNames(t, argsLog); got != "org_spawn,mission_propose,mission_plan,mission_status" {
 		t.Errorf("confirmed, no session yet: %s", got)
 	}

@@ -161,29 +161,21 @@ func TestApp_StartChatTurn_PassesAttachments(t *testing.T) {
 	}
 }
 
-// CoderConfirmMission starts a normal turn with --mission before the "--".
-func TestApp_CoderConfirmMission_PassesMissionFlag(t *testing.T) {
+// A mission is confirmed only through the coder host's operator-gated send: on the
+// direct turn path (no host) it is refused and no turn process starts, and the
+// chat command has no flag that stands in for it.
+func TestApp_CoderConfirmMission_DirectPathIsRefused(t *testing.T) {
 	bin, argsLog := chatFakeCLI(t, fakeChatReply{match: "chat --conversation", stdout: lines(
 		admissionLine("coder-1", "turn-1", "active", false),
-		eventLine("coder-1", "turn-1", 1, chatevents.EventTurnFinished, chatevents.TurnFinishedPayload{Status: chatevents.StatusCompleted, HistorySaved: true}),
 	)})
-	a, emitter := newCLIChatApp(t, bin)
+	a, _ := newCLIChatApp(t, bin)
 	a.selectForTest("default")
-	r := decodeStart(t, a.CoderConfirmMission("coder-1", "turn-1", "-yes, start"))
-	if !r.OK {
-		t.Fatalf("Start = %+v", r)
+	if r := decodeStart(t, a.CoderConfirmMission("coder-1", "turn-1", "-yes, start")); r.OK {
+		t.Fatalf("a mission started on the direct path: %+v", r)
 	}
-	waitForType(t, emitter, chatevents.EventTurnFinished, 5*time.Second)
-	var got []string // the routing probe (chat history show) comes first; the turn is the chat --conversation call
 	for _, l := range readArgsLog(t, argsLog) {
-		if strings.Contains(l, "chat --conversation") {
-			got = append(got, l)
+		if strings.Contains(l, "chat --conversation") || strings.Contains(l, "--mission") {
+			t.Errorf("a turn process was started for a refused mission: %q", l)
 		}
-	}
-	if len(got) == 0 || !strings.HasSuffix(got[0], "--instance "+a.chatSup.instanceID+" --mission -- -yes, start") {
-		t.Errorf("argv = %q", got)
-	}
-	if strings.Contains(got[0], "--tools") {
-		t.Errorf("a mission turn must not take tools: %q", got)
 	}
 }

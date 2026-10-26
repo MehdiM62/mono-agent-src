@@ -1691,6 +1691,20 @@ that works a task acts on them. The defences:
   done or verified, `mission_finish` closes the session as done in the operator's process
   (as the spend record is): the agent cannot close it while a task is open, blocked or
   failing, or a writer branch is unmerged.
+  **A mission's confirmation** (the person's "run this send as a mission") is a record,
+  not a flag: the coder host's chat children inherit the host's environment and are
+  reparented, so they look like the operator to environment and ancestry checks, and
+  nothing a turn is given on its command line or in its message can be trusted to mean the
+  person confirmed. The record is bound to one queued command, signed under a key derived
+  from the profile's vault key (so a row written without that key does not verify), lives
+  under a reserved config prefix that only the operator writes, deletes or reads, is single
+  use, and is revoked when its command is cancelled, expires or fails. A send marked as a
+  mission never runs plain: without a live record it fails. The token reaches the child in
+  its environment, which the child clears at once. The limit: the key comes out of the OS
+  keychain (or the file keyring that stands in for it), and the database is a file the
+  user owns, so a process that runs as the user with a shell and can reach both is not
+  stopped by any of this; the guard is against agent turns going through the CLI, which
+  refuses them these commands.
 - **The operator-only commands refuse an agent-driven caller:** `board`
   (it shows the Inbox) and `approve` (both unless delegated, see above),
   `edit`, `move`, `archive`, `unarchive`, `add --ready`, `agents allow`,
