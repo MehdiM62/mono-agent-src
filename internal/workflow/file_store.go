@@ -3,7 +3,6 @@ package workflow
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -88,7 +87,7 @@ func NewWorkflowFileStore(dir string) (*WorkflowFileStore, error) {
 // the store directory (e.g. an imported workflow whose "id" is "../../etc/foo").
 func (s *WorkflowFileStore) filePath(id string) (string, error) {
 	if id == "" || id == "." || id == ".." ||
-		strings.ContainsAny(id, `/\`) || strings.Contains(id, "..") {
+		strings.ContainsAny(id, `/\:`) || strings.Contains(id, "..") || reservedFileName(id) {
 		return "", fmt.Errorf("file_store: invalid workflow id %q", id)
 	}
 	return filepath.Join(s.dir, id+".json"), nil
@@ -244,20 +243,6 @@ func installStaged(tmp, path string) error {
 		return err
 	}
 	return syncDir(filepath.Dir(path))
-}
-
-// syncDir flushes a directory's entries (the rename) to disk. Platforms that cannot open a
-// directory for this (Windows) keep the rename as it is.
-func syncDir(dir string) error {
-	d, err := os.Open(dir)
-	if err != nil {
-		return nil
-	}
-	defer d.Close()
-	if err := d.Sync(); err != nil && !errors.Is(err, os.ErrInvalid) {
-		return err
-	}
-	return nil
 }
 
 // readRaw returns the workflow file's bytes as they are on disk, and whether
@@ -534,3 +519,20 @@ func (s *WorkflowFileStore) quarantine(id string, data []byte) (string, error) {
 // ReadRawForMigrate reports whether the workflow has a file already (and its bytes), for the
 // one-off DB-to-files migration, which must not overwrite a canonical file.
 func (s *WorkflowFileStore) ReadRawForMigrate(id string) ([]byte, bool, error) { return s.readRaw(id) }
+
+// reservedFileName reports a name Windows treats as a device (CON, NUL, COM1, ...), with or
+// without an extension. Such an id is refused everywhere so a workflow moves between machines.
+func reservedFileName(id string) bool {
+	base := strings.ToUpper(id)
+	if i := strings.IndexByte(base, '.'); i >= 0 {
+		base = base[:i]
+	}
+	switch base {
+	case "CON", "PRN", "AUX", "NUL", "CLOCK$":
+		return true
+	}
+	if len(base) == 4 && (strings.HasPrefix(base, "COM") || strings.HasPrefix(base, "LPT")) && base[3] >= '0' && base[3] <= '9' {
+		return true
+	}
+	return false
+}

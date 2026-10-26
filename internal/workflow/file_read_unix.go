@@ -13,10 +13,10 @@ import (
 const maxWorkflowFileBytes = 16 << 20
 
 // readRegularFile reads a bounded regular file without ever blocking on a special one: the file is
-// opened non-blocking, so a named pipe with no writer opens at once, and is refused after the
-// descriptor says what it is.
+// opened non-blocking and without following a final symlink, so a named pipe with no writer opens
+// at once and a link is refused, and what is read is what the descriptor says it is.
 func readRegularFile(path string) ([]byte, error) {
-	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK, 0)
+	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK|syscall.O_NOFOLLOW, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -31,5 +31,9 @@ func readRegularFile(path string) ([]byte, error) {
 	if info.Size() > maxWorkflowFileBytes {
 		return nil, fmt.Errorf("%w: %s is larger than %d bytes", ErrFileTooLarge, path, maxWorkflowFileBytes)
 	}
-	return io.ReadAll(io.LimitReader(f, maxWorkflowFileBytes+1))
+	data, err := io.ReadAll(io.LimitReader(f, maxWorkflowFileBytes+1))
+	if err == nil && len(data) > maxWorkflowFileBytes {
+		err = fmt.Errorf("%w: %s grew past %d bytes", ErrFileTooLarge, path, maxWorkflowFileBytes)
+	}
+	return data, err
 }

@@ -488,5 +488,6 @@ func (d Deps) newExportCmd() *cobra.Command {
 // workflowIDTaken reports whether any profile already has a workflow with id.
 func workflowIDTaken(ctx context.Context, store *workflow.HybridWorkflowStore, id string) bool {
 	wf, err := store.GetWorkflow(ctx, id)
-	return err == nil && wf != nil
+	// A workflow that cannot be read is not free either: do not reuse its id.
+	return err != nil || wf != nil
 }

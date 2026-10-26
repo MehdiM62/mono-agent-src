@@ -488,3 +488,21 @@ func TestApprovedEditRefusesAWorkflowThatChangedSinceItWasRead(t *testing.T) {
 	}
 	_ = s
 }
+
+// Ids that are not safe file names on every platform are refused, not turned into odd files.
+func TestFilePathRefusesPortableTroubleNames(t *testing.T) {
+	files, err := NewWorkflowFileStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"nul", "CON", "com1", "Lpt9.txt", "a:b", "a/b", `a\b`, "..", ""} {
+		if _, err := files.filePath(id); err == nil {
+			t.Errorf("id %q was accepted", id)
+		}
+	}
+	for _, id := range []string{"wf-1", "hello-v1", "5f3c1d7e-aaaa-bbbb-cccc-0123456789ab", "com10", "console"} {
+		if _, err := files.filePath(id); err != nil {
+			t.Errorf("id %q was refused: %v", id, err)
+		}
+	}
+}

@@ -129,3 +129,21 @@ func TestStampSkipsPipesAndLinks(t *testing.T) {
 		t.Fatal("a link's target was rewritten")
 	}
 }
+
+// A link is never read as a workflow file, by any reader, even when it points at a plain file.
+func TestReadRawRefusesALink(t *testing.T) {
+	files, err := NewWorkflowFileStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := filepath.Join(files.dir, "real.txt")
+	if err := os.WriteFile(target, []byte(`{"id":"l"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, filepath.Join(files.dir, "l.json")); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := files.readRaw("l"); err == nil {
+		t.Fatal("a link was read as a workflow file")
+	}
+}
