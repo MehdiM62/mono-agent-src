@@ -15,7 +15,7 @@ func TestChatMissionFlagIsRefusedToAnAgent(t *testing.T) {
 	cmd := newChatCmd(agent)
 	cmd.SetArgs([]string{"--mission", "--runtime", "fake", "hi"})
 	cmd.SilenceErrors, cmd.SilenceUsage = true, true
-	if err := cmd.Execute(); exitCodeFor(err) != 3 {
+	if err := cmd.Execute(); exitCodeFor(err) != 3 || err == nil || !strings.Contains(err.Error(), "only the user can confirm a mission") {
 		t.Fatalf("an agent passed --mission: exit %d (%v)", exitCodeFor(err), err)
 	}
 
