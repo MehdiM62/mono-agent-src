@@ -38,7 +38,8 @@ type childFact struct {
 }
 
 type snapshot struct {
-	Children []childFact `json:"children"`
+	Children []childFact  `json:"children"`
+	Mission  *missionFact `json:"mission,omitempty"` // the master's own open task session, if any
 }
 
 // checkinPass looks at every master once. It never runs a turn: it queues a send.
@@ -81,6 +82,7 @@ func (h *Host) checkinOne(now time.Time, m Session, children []Session) {
 		return
 	}
 	cur := h.snapshotOf(now, m.ProfileID, children, settings.SilentMinutes)
+	cur.Mission = h.missionOf(m.ProfileID, m.ConversationID)
 	curJSON, _ := json.Marshal(cur)
 	nowStr := now.UTC().Format(timeLayout)
 	remember := func() error {
@@ -249,6 +251,7 @@ func digestText(reason string, s snapshot) string {
 		}
 		b.WriteString("\n")
 	}
+	b.WriteString(missionLine(s.Mission))
 	b.WriteString("Review them and give each the direction it needs. Do not redo finished work. This message was written by the host, not by the person or by any of these sessions.")
 	return b.String()
 }
