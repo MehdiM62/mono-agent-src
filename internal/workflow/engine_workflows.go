@@ -144,6 +144,9 @@ func (e *WorkflowEngine) RestoreActiveWorkflows(ctx context.Context) error {
 			e.logger.Warn().Str("workflow_id", wf.ID).Err(err).Msg("engine: restore: failed to load workflow")
 			continue
 		}
+		if !full.IsActive {
+			continue // the listing said active but the workflow itself is not: arm nothing
+		}
 		if err := e.triggerMgr.ActivateWorkflow(ctx, full); err != nil {
 			failed++
 			e.logger.Warn().Str("workflow_id", wf.ID).Err(err).Msg("engine: restore: failed to activate triggers")
@@ -170,14 +173,14 @@ func (e *WorkflowEngine) DeleteWorkflow(ctx context.Context, id string) error {
 		return fmt.Errorf("engine: delete workflow: %w", err)
 	}
 
+	// The store first: if it refuses (the database is busy), the triggers must stay as they were.
+	if err := e.store.DeleteWorkflow(ctx, id); err != nil {
+		return fmt.Errorf("engine: delete workflow: %w", err)
+	}
 	if existing.IsActive {
 		e.triggerMgr.DeactivateWorkflow(id)
 	}
 	e.triggerMgr.unregisterStoredAppHooks(ctx, id, workflowProfile(existing))
-
-	if err := e.store.DeleteWorkflow(ctx, id); err != nil {
-		return fmt.Errorf("engine: delete workflow: %w", err)
-	}
 	if db := e.store.RawDB(); db != nil {
 		if err := DeleteWorkflowState(ctx, db, id); err != nil {
 			e.logger.Warn().Err(err).Str("workflow_id", id).Msg("engine: delete workflow: state not removed")
@@ -235,14 +238,14 @@ func (e *WorkflowEngine) DeactivateWorkflow(ctx context.Context, id string) erro
 		return fmt.Errorf("engine: deactivate workflow: %w", err)
 	}
 
+	// The store first: if it refuses (the database is busy), the triggers must stay as they were.
+	if err := e.store.SetWorkflowActive(ctx, id, false); err != nil {
+		return fmt.Errorf("engine: deactivate workflow: %w", err)
+	}
 	e.triggerMgr.DeactivateWorkflow(id)
 	// Hooks another process (the daemon) registered: this one has no
 	// trigger entry for them.
 	e.triggerMgr.unregisterStoredAppHooks(ctx, id, workflowProfile(existing))
-
-	if err := e.store.SetWorkflowActive(ctx, id, false); err != nil {
-		return fmt.Errorf("engine: deactivate workflow: %w", err)
-	}
 
 	e.logger.Info().Str("workflow_id", id).Msg("engine: workflow deactivated")
 	return nil
