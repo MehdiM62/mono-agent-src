@@ -10,12 +10,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/monoes/mono-agent/internal/operator"
 	"github.com/monoes/mono-agent/internal/storage"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
 
 func persistTestEnv(t *testing.T) (home string, cfg *globalConfig) {
 	t.Helper()
+	// The tests act as the operator: an agent-marked environment would start new
+	// workflows inactive.
+	for _, k := range operator.MarkerEnv() {
+		t.Setenv(k, "")
+	}
 	home = t.TempDir()
 	t.Setenv("HOME", home)
 	return home, &globalConfig{DBPath: filepath.Join(t.TempDir(), "wf.db"), JSONOutput: true, ProfileID: "default"}
@@ -94,7 +100,7 @@ func TestWorkflowFileOnlyBackfill(t *testing.T) {
 		t.Fatal(err)
 	}
 	now := time.Now().UTC()
-	wf := &workflow.Workflow{ID: "file-only-wf", Name: "file only", Version: 1, CreatedAt: now, UpdatedAt: now,
+	wf := &workflow.Workflow{ID: "file-only-wf", Name: "file only", ProfileID: "default", Version: 1, CreatedAt: now, UpdatedAt: now,
 		Nodes: []workflow.WorkflowNode{
 			{ID: "fo-trigger", WorkflowID: "file-only-wf", Type: "trigger.manual", Name: "Start", Config: map[string]any{}},
 			{ID: "fo-set", WorkflowID: "file-only-wf", Type: "core.set", Name: "Set", Config: map[string]any{"fields": map[string]any{}}},
