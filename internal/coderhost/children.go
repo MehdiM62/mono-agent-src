@@ -227,6 +227,7 @@ func (s *Store) carveBudget(profileID, parent, child string, usd float64) error 
 	if err != nil {
 		return err
 	}
+	spent += s.carveReserve(profileID, parent) // the running turn may still spend its cap
 	res, err := s.db.Exec(`UPDATE coder_sessions SET budget_usd = ?, updated_at = ?
 		WHERE profile_id = ? AND conversation_id = ? AND parent_conversation_id = ?
 		AND ( (SELECT budget_usd FROM coder_sessions WHERE profile_id = ? AND conversation_id = ?) <= 0
@@ -241,6 +242,8 @@ func (s *Store) carveBudget(profileID, parent, child string, usd float64) error 
 // the window; one statement, so concurrent callers cannot both take the last slot.
 func (s *Store) takeSpawnSlot(profileID, parent string) error {
 	now := s.now().UTC()
+	// rows older than the window can no longer count: drop them
+	_, _ = s.db.Exec(`DELETE FROM coder_session_spawns WHERE profile_id = ? AND parent = ? AND created_at < ?`, profileID, parent, now.Add(-SpawnRateWindow).Format(timeLayout))
 	res, err := s.db.Exec(`INSERT INTO coder_session_spawns (profile_id, parent, child, created_at)
 		SELECT ?, ?, '', ? WHERE (SELECT COUNT(*) FROM coder_session_spawns WHERE profile_id = ? AND parent = ? AND created_at >= ?) < ?`,
 		profileID, parent, now.Format(timeLayout), profileID, parent, now.Add(-SpawnRateWindow).Format(timeLayout), SpawnRateMax)
@@ -362,6 +365,7 @@ func (s *Store) checkBudget(c Caller, usd float64) error {
 	if err != nil {
 		return err
 	}
+	spent += s.carveReserve(c.ProfileID, c.ConversationID)
 	if left := have - carved - spent; usd <= 0 || usd > left+1e-9 {
 		return fmt.Errorf("%w: the master has $%.2f of its $%.2f budget left to give; ask for an amount up to that", ErrLimit, math.Max(left, 0), have)
 	}

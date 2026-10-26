@@ -163,11 +163,16 @@ func (h *Host) Tick() error {
 		if err != nil {
 			return err
 		}
-		// A command a master queued is run only while the target is still that master's child:
-		// a session re-parented or released in between is not the master's to command.
-		if c.Issuer != "" && !h.Store.IsDescendant(c.ProfileID, c.Issuer, c.ConversationID) { // the predicate authorize uses
-			h.end(c, CmdFailed, "the session is no longer a child of the master that sent this")
-			continue
+		// A command a master queued is run only while the target is still that master's descendant and
+		// the master is alive; a paused master's sends are held (they stay pending, in order, and do not
+		// hold up a person's message to the same chat).
+		if c.Issuer != "" {
+			if ok, hold, reason := h.issuerStillAllowed(c, x); !ok {
+				if !hold {
+					h.end(c, CmdFailed, reason)
+				}
+				continue
+			}
 		}
 		switch c.Kind {
 		case KindSend:
@@ -191,12 +196,6 @@ func (h *Host) Tick() error {
 			// host-made turns in a row the child waits for a person, and it is only run for a
 			// session that is still a child.
 			if strings.HasPrefix(c.TurnID, MasterTurnPrefix) {
-				// A paused master's messages are held, in order, like a paused chat's: they run when
-				// it resumes (a stop cancels them; they expire like check-ins).
-				if p, ok, err := h.Store.GetSession(x.ProfileID, x.Parent); err == nil && ok && p.State == StatePaused {
-					blocked[k] = true
-					continue
-				}
 				if reason := h.masterSendStillAllowed(x); reason != "" {
 					h.end(c, CmdFailed, reason)
 					continue
@@ -258,6 +257,15 @@ func (h *Host) Tick() error {
 				h.end(c, CmdFailed, berr.Error())
 				continue
 			}
+			// The turn's cap is recorded BEFORE the turn starts (and dropped if it does not), so a crash or a
+			// failed write can never leave a running turn with no cap on record.
+			if capped {
+				if err := h.Store.RecordTurnCap(c.ProfileID, c.ConversationID, c.TurnID, capUSD); err != nil {
+					h.settle(x)
+					h.end(c, CmdFailed, "could not record the turn's spend cap: "+err.Error())
+					continue
+				}
+			}
 			t, err := h.unlocked(func() (Turn, error) { // admission can take seconds; do not hold up the turn watchers meanwhile
 				// The token is the one of the confirmation record looked up above (never anything
 				// in the command row, the message or the mesh block); the child verifies the
@@ -268,14 +276,12 @@ func (h *Host) Tick() error {
 				return h.L.Start(c.ProfileID, c.ConversationID, c.TurnID, message, c.Attachments, token)
 			})
 			if err != nil {
+				if capped {
+					h.Store.DropTurnCap(c.ProfileID, c.ConversationID, c.TurnID)
+				}
 				h.settle(x)
 				h.end(c, CmdFailed, err.Error())
 				continue
-			}
-			if capped {
-				if err := h.Store.RecordTurnCap(c.ProfileID, c.ConversationID, c.TurnID, capUSD); err != nil {
-					h.logf("coder host: recording the cap of turn %s: %v", c.TurnID, err)
-				}
 			}
 			x.TurnPID, x.TurnStamp = t.PID(), t.Stamp()
 			if err := h.Store.SaveSession(x); err != nil {
@@ -559,9 +565,6 @@ func (h *Host) masterSendStillAllowed(x Session) string {
 	if x.Role != "child" || x.Parent == "" {
 		return "the session is no longer a child session"
 	}
-	if p, ok, err := h.Store.GetSession(x.ProfileID, x.Parent); err != nil || !ok || p.State == StateStopped {
-		return "the session's master is gone or stopped"
-	}
 	settings, err := h.Store.GetSettings(x.ProfileID, x.ConversationID)
 	if err != nil {
 		return "the session's settings do not read"
@@ -571,4 +574,27 @@ func (h *Host) masterSendStillAllowed(x Session) string {
 		return "the session has had its host-made turns in a row; it waits for a person"
 	}
 	return ""
+}
+
+// issuerStillAllowed is the check every command a master queued (c.Issuer != "") passes when it is about
+// to run: the target x must still be a descendant of the issuer (the predicate the tools authorize with),
+// and the issuer must still exist and not be stopped. A send from a paused master is held (hold is true:
+// leave it pending, in order, like a send to a paused chat); a stop, pause or resume from a paused master
+// still runs, so a master can always stop a runaway child. reason says why not when ok is false and hold
+// is false. A command with no issuer is always allowed here.
+func (h *Host) issuerStillAllowed(c Command, x Session) (ok bool, hold bool, reason string) {
+	if c.Issuer == "" {
+		return true, false, ""
+	}
+	if !h.Store.IsDescendant(c.ProfileID, c.Issuer, c.ConversationID) {
+		return false, false, "the session is no longer a child of the master that sent this"
+	}
+	m, found, err := h.Store.GetSession(c.ProfileID, c.Issuer)
+	if err != nil || !found || m.State == StateStopped {
+		return false, false, "the session's master is gone or stopped"
+	}
+	if m.State == StatePaused && c.Kind == KindSend {
+		return false, true, "the session's master is paused"
+	}
+	return true, false, ""
 }
