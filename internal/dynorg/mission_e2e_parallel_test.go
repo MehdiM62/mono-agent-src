@@ -29,7 +29,7 @@ func e2eParallelPlan() map[string]any {
 		w("b2", "Two: model", []string{"s"}, "b2.go"),
 		w("c1", "One: wire", []string{"b1"}, "c1.go"),
 		w("c2", "Two: wire", []string{"b2"}, "c2.go"),
-		{Ref: "chk", Title: "Integration check", Kind: "check", DependsOn: []string{"c1", "c2"}, Acceptance: "`go build ./...` and `go test ./...` exit 0", Files: []string{"./"}, Size: "xs", Executor: ExecLead},
+		{Ref: "chk", Title: "Integration check", Kind: "check", DependsOn: []string{"s", "b1", "b2", "c1", "c2"}, Acceptance: "`go build ./...` and `go test ./...` exit 0", Files: []string{"./"}, Size: "xs", Executor: ExecLead},
 	}}
 }
 

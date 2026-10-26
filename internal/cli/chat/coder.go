@@ -163,6 +163,9 @@ func saveCoderSettings(db *sql.DB, s coderSettings) error {
 	if s.orgWritersDefaulted { // the default is not the operator's choice: keep it unset
 		s.OrgWriters = ""
 	}
+	if s.orgMaxAgentsDefaulted { // likewise: a stored default would pin missions at 6 workers
+		s.OrgMaxAgents = 0
+	}
 	b, err := json.Marshal(s)
 	if err != nil {
 		return err

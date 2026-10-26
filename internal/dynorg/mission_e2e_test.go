@@ -129,7 +129,7 @@ func e2ePlan() map[string]any {
 		{Ref: "t1", Title: "Parse the flag", Parent: "e1", Acceptance: "`go test ./cmd -run TestFlag` exits 0", Files: []string{"cmd/flag.go"}, Size: "s", Executor: ExecWorker},
 		{Ref: "t2", Title: "Print JSON", Parent: "e1", DependsOn: []string{"t1"}, Acceptance: "`app --json` output contains the key version", Files: []string{"cmd/print.go"}, Size: "m", Executor: ExecWorker},
 		{Ref: "t3", Title: "Document it", Parent: "e1", DependsOn: []string{"t2"}, Acceptance: "the file docs/json.md exists", Files: []string{"docs/json.md"}, Size: "xs", Executor: ExecWorker},
-		{Ref: "chk", Title: "Integration check", Kind: "check", DependsOn: []string{"t3"}, Acceptance: "`go build ./...` and `go test ./...` exit 0", Files: []string{"./"}, Size: "xs", Executor: ExecLead},
+		{Ref: "chk", Title: "Integration check", Kind: "check", DependsOn: []string{"t1", "t2", "t3"}, Acceptance: "`go build ./...` and `go test ./...` exit 0", Files: []string{"./"}, Size: "xs", Executor: ExecLead},
 	}}
 }
 

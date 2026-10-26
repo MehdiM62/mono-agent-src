@@ -185,6 +185,9 @@ func (m *MissionConfig) writeTasks(ctx context.Context, se tasks.Session, batch 
 	if rej := ValidatePlan(batch, existing, se.Counts.Stored(), planLimit(se)); len(rej) > 0 {
 		return nil, &RejectedError{rej}
 	}
+	if rej := integrationRejections(batch, plan.Tasks); len(rej) > 0 {
+		return nil, &RejectedError{rej}
+	}
 	ids := map[string]int64{}
 	resolve := func(ref string) int64 {
 		if n, ok := existingRef(ref); ok {
@@ -208,6 +211,13 @@ func (m *MissionConfig) writeTasks(ctx context.Context, se tasks.Session, batch 
 			return ids, fmt.Errorf("task %s was refused by the board after %d of %d were written (mission_status shows them; send the rest with mission_add_tasks): %w", t.Ref, len(ids), len(batch), err)
 		}
 		ids[t.Ref] = made.ID
+	}
+	var made []int64
+	for _, id := range ids {
+		made = append(made, id)
+	}
+	if err := m.waitForNewTasks(ctx, se, made); err != nil {
+		return ids, err
 	}
 	return ids, nil
 }

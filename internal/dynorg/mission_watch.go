@@ -67,6 +67,7 @@ func (c *Conductor) missionTick(mc *MissionRun) {
 		case se.State == tasks.SessionRunning:
 			c.missionBudget(c.ctx, se) // the 90 percent warning
 			c.renewLeases(c.ctx, mc, sid)
+			c.renewLeadLeases(c.ctx, mc, sid)
 			c.cutOverlong(mc, sid)
 		}
 		c.missionReconcile(c.ctx, sid)
@@ -81,6 +82,7 @@ func (c *Conductor) missionHalt(ctx context.Context, se tasks.Session) {
 		return
 	}
 	c.msched.mu.Lock()
+	c.msched.init()
 	first := !c.msched.halted[se.ID]
 	c.msched.halted[se.ID] = true
 	c.msched.mu.Unlock()
@@ -134,6 +136,38 @@ func (c *Conductor) renewLeases(ctx context.Context, mc *MissionRun, sid int64) 
 		if _, err := mc.Store.SessionClaim(ctx, mc.ProfileID, sid, w.task.task.ID, w.task.actor, mc.lease()); err == nil {
 			c.msched.mu.Lock()
 			w.task.renewedAt = now
+			c.msched.mu.Unlock()
+		}
+	}
+}
+
+// renewLeadLeases renews the claims of the tasks the lead does itself, a third of a lease
+// apart: the lead has no process of its own to renew them, and its Conductor lives as long as
+// it does. Without it a long lead task goes stale and a worker may be started on it.
+func (c *Conductor) renewLeadLeases(ctx context.Context, mc *MissionRun, sid int64) {
+	now := c.cfg.Now()
+	c.msched.mu.Lock()
+	c.msched.init()
+	var due []int64
+	for id, oc := range c.msched.owned {
+		if oc.session == sid && oc.name == missionLeadName && now.Sub(c.msched.leadRenewed[id]) >= tasks.DefaultLease/3 {
+			due = append(due, id)
+		}
+	}
+	c.msched.mu.Unlock()
+	for _, id := range due {
+		// only a task the lead still holds: one it finished or gave back is not claimed again
+		cur, _, err := mc.Store.Get(ctx, mc.ProfileID, id)
+		if err != nil || cur.Status != tasks.StatusInProgress || cur.Claim == nil || cur.Claim.By != missionLeadName {
+			c.msched.mu.Lock()
+			delete(c.msched.owned, id)
+			c.msched.mu.Unlock()
+			continue
+		}
+		actor := tasks.Actor{Kind: tasks.Agent, Name: missionLeadName, Session: sid, Task: id}
+		if _, err := mc.Store.SessionClaim(ctx, mc.ProfileID, sid, id, actor, tasks.DefaultLease); err == nil {
+			c.msched.mu.Lock()
+			c.msched.leadRenewed[id] = now
 			c.msched.mu.Unlock()
 		}
 	}

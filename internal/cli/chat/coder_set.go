@@ -93,7 +93,7 @@ func newCoderSetCmd(cfg *Deps) *cobra.Command {
 			if orgMax <= 0 || orgMax > 20 {
 				return clicore.InvalidInput("--org-max-agents must be 1-20")
 			}
-			s.OrgMaxAgents = orgMax
+			s.OrgMaxAgents, s.orgMaxAgentsDefaulted = orgMax, false
 		}
 		if f.Changed("org-max-concurrent") {
 			if orgConc <= 0 || orgConc > 10 {

@@ -74,7 +74,7 @@ type Unfinished struct {
 	Status       string   `json:"status"`
 	Blocked      bool     `json:"blocked,omitempty"`
 	Retries      int      `json:"retries,omitempty"`
-	FailureNotes []string `json:"failure_notes,omitempty"`
+	FailureNotes []string `json:"failure_notes_untrusted,omitempty"`
 }
 
 // FinishView is mission_finish's result.
@@ -162,6 +162,10 @@ func (c *Conductor) missionFinishStep(ctx context.Context, mc *MissionRun, sid i
 	for _, t := range others {
 		if !settled(t) {
 			v.Unfinished = append(v.Unfinished, c.unfinished(ctx, mc, sid, t))
+		} else if who, bad := c.verdictUntrusted(ctx, mc, sid, t); bad {
+			u := c.unfinished(ctx, mc, sid, t)
+			u.FailureNotes = append(u.FailureNotes, untrustedNote(who))
+			v.Unfinished = append(v.Unfinished, u)
 		}
 	}
 	if len(v.Unfinished) > 0 {
@@ -182,6 +186,13 @@ func (c *Conductor) missionFinishStep(ctx context.Context, mc *MissionRun, sid i
 		return v, nil
 	}
 	v.IntegrationTask = integration.ID
+	if who, bad := c.verdictUntrusted(ctx, mc, sid, *integration); bad && settled(*integration) {
+		u := c.unfinished(ctx, mc, sid, *integration)
+		u.FailureNotes = append(u.FailureNotes, untrustedNote(who))
+		v.Unfinished = append(v.Unfinished, u)
+		v.Next = "The integration check was judged by " + who + ", not by its verifier: the operator re-checks it before the mission closes."
+		return v, nil
+	}
 	if !settled(*integration) {
 		v.Unfinished = append(v.Unfinished, c.unfinished(ctx, mc, sid, *integration))
 		v.MergesRemaining = c.mergesRemaining(ctx, mc, sid, plan.Tasks)
@@ -192,7 +203,20 @@ func (c *Conductor) missionFinishStep(ctx context.Context, mc *MissionRun, sid i
 		v.Next = "Every task is done or verified, but writer branches are not merged yet: " + mergeAdvice(v.MergesRemaining) + "then call mission_finish again (re-run the checks if a merge changed the tree)."
 		return v, nil
 	}
+	if why := c.integrationStale(ctx, mc, sid, plan, *integration); why != "" {
+		if err := requeueIntegration(ctx, mc.Store, mc.ProfileID, *integration); err != nil {
+			return v, fmt.Errorf("%s, and the integration check could not be requeued: %w", why, err)
+		}
+		_, _ = mc.Store.SessionComment(ctx, mc.ProfileID, sid, integration.ID, "Run and verify the checks again: "+why+".", missionActor())
+		v.Unfinished = append(v.Unfinished, c.unfinished(ctx, mc, sid, *integration))
+		v.Next = "The integration check ran before the tree last changed (" + why + "), so it was sent back to Ready: run it with mission_next, verify it with mission_verify, then call mission_finish again."
+		return v, nil
+	}
 	return c.closeMission(ctx, mc, se, plan, v)
+}
+
+func untrustedNote(who string) string {
+	return verdictByUnexpectedActor + ": judged by " + boundText(who, 80) + ", not by its verifier; the operator re-checks it"
 }
 
 func mergeAdvice(merges []string) string {
@@ -250,9 +274,9 @@ func (c *Conductor) closeMission(ctx context.Context, mc *MissionRun, se tasks.S
 func (c *Conductor) finalReport(ctx context.Context, mc *MissionRun, se tasks.Session, plan tasks.SessionPlan) (string, chatevents.MissionReportPayload) {
 	p := chatevents.MissionReportPayload{SessionID: se.ID, Title: se.Title, Unfinished: []int64{}, SpentUSD: se.SpentUSD, BudgetUSD: se.BudgetUSD}
 	var b strings.Builder
-	fmt.Fprintf(&b, "# Mission report: %s\n\n", boundText(se.Title, 200))
+	fmt.Fprintf(&b, "# Mission report: %s\n\n", boundText(oneLine(se.Title), 200))
 	if g := strings.TrimSpace(se.Goal); g != "" {
-		b.WriteString("Goal: " + boundText(g, 1500) + "\n\n")
+		b.WriteString("Goal: " + boundText(oneLine(g), 1500) + "\n\n")
 	}
 	var lines []string
 	for _, t := range plan.Tasks {
@@ -271,16 +295,17 @@ func (c *Conductor) finalReport(ctx context.Context, mc *MissionRun, se tasks.Se
 			p.Unfinished = append(p.Unfinished, t.ID)
 			state = string(t.Status)
 		}
-		line := fmt.Sprintf("- #%d %s [%s]", t.ID, boundText(t.Title, 150), state)
+		line := fmt.Sprintf("- #%d %s [%s]", t.ID, boundText(oneLine(t.Title), 150), state)
 		if d, err := mc.Store.SessionTask(ctx, mc.ProfileID, se.ID, t.ID, missionActor()); err == nil {
 			for _, a := range d.Artifacts {
 				if a.Kind != "report" {
 					p.Artifacts++
-					line += fmt.Sprintf("\n  - %s: %s", a.Kind, boundText(a.Ref, 160))
+					line += fmt.Sprintf("\n  - %s: `%s`", a.Kind, strings.ReplaceAll(boundText(oneLine(a.Ref), 160), "`", "'"))
 				}
 			}
-			if r := strings.Join(strings.Fields(lastResult(d)), " "); r != "" {
-				line += "\n  - result: " + boundText(r, 300)
+			if r := strings.TrimSpace(lastResult(d)); r != "" {
+				// worker-written: in a code block, so it cannot add headings, links or fences
+				line += "\n  - result:\n\n" + indentLines(codeBlock(boundText(r, 300)), "    ")
 			}
 		}
 		lines = append(lines, line)
@@ -292,4 +317,9 @@ func (c *Conductor) finalReport(ctx context.Context, mc *MissionRun, se tasks.Se
 	b.WriteString(".\n\n## Tasks\n\n" + strings.Join(lines, "\n") + "\n")
 	p.Report = boundText(b.String(), maxFinalReport)
 	return p.Report, p
+}
+
+// indentLines prefixes every line of s.
+func indentLines(s, prefix string) string {
+	return prefix + strings.ReplaceAll(s, "\n", "\n"+prefix)
 }
