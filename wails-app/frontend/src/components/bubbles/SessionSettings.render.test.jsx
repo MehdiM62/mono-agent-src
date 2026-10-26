@@ -176,6 +176,54 @@ describe('SessionSettings', () => {
     }
   })
 
+  // What the person is typing is theirs until they leave the field: a refresh that brings another stored
+  // value must not write over it.
+  it('keeps what is being typed when a refresh brings another stored value', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      await shown()
+      const field = screen.getByLabelText('Max child sessions')
+      fireEvent.change(field, { target: { value: '9' } })
+      // changed elsewhere meanwhile; the answer also carries a note, so we can tell it has been rendered
+      api.getCoderSessionSettings.mockResolvedValue(view({ role: 'master', checkin: { streak: 48, limit: 48, waiting: true } }, { max_children: 5 }))
+      await vi.advanceTimersByTimeAsync(15500)
+      await waitFor(() => expect(screen.getByTestId('pane-checkin-waiting')).toHaveTextContent('Waiting for you'))
+      expect(screen.getByLabelText('Max child sessions')).toHaveValue(9)
+      api.setCoderSessionSettings.mockResolvedValue(view({}, { max_children: 9 }))
+      fireEvent.blur(screen.getByLabelText('Max child sessions'))
+      await waitFor(() => expect(api.setCoderSessionSettings).toHaveBeenCalledWith('c1', { max_children: 9 }, ''))
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not save an emptied field as 0, and shows the stored value again', async () => {
+    await shown()
+    const field = screen.getByLabelText('Max child sessions')
+    fireEvent.change(field, { target: { value: '' } })
+    expect(screen.getByLabelText('Max child sessions')).toHaveValue(null)
+    fireEvent.blur(screen.getByLabelText('Max child sessions'))
+    expect(api.setCoderSessionSettings).not.toHaveBeenCalled()
+    expect(screen.getByLabelText('Max child sessions')).toHaveValue(4)
+  })
+
+  it('shows the stored value of a field again once the person leaves it unchanged, after a refresh changed it', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      await shown()
+      const field = screen.getByLabelText('Max child sessions')
+      fireEvent.change(field, { target: { value: '4' } }) // typed the value it already has
+      api.getCoderSessionSettings.mockResolvedValue(view({ role: 'master', checkin: { streak: 48, limit: 48, waiting: true } }, { max_children: 7 }))
+      await vi.advanceTimersByTimeAsync(15500)
+      await waitFor(() => expect(screen.getByTestId('pane-checkin-waiting')).toHaveTextContent('Waiting for you'))
+      fireEvent.blur(screen.getByLabelText('Max child sessions'))
+      expect(api.setCoderSessionSettings).not.toHaveBeenCalled()
+      expect(screen.getByLabelText('Max child sessions')).toHaveValue(7)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('shows why a change was refused and keeps what was stored', async () => {
     api.setCoderSessionSettings.mockRejectedValue(new Error('max_children must be between 0 and 20'))
     await shown()
