@@ -127,7 +127,10 @@ func TestHelperPublish(t *testing.T) {
 	defer closeDB()
 	ctx := context.Background()
 	cur, err := h.GetWorkflow(ctx, "wf-c")
-	if err != nil || cur == nil {
+	if err == nil && cur == nil {
+		os.Exit(3) // another writer deleted it first: a refusal, not a failure
+	}
+	if err != nil {
 		t.Fatalf("%v", err)
 	}
 	if b := os.Getenv("WF_HELPER_BARRIER"); b != "" {

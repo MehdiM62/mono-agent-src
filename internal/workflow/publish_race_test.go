@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"testing"
+	"time"
 )
 
 // helperActions are the writers a child process can run against the rig's workflow.
@@ -214,5 +215,38 @@ func TestCrashKilledActivationAfterRenameIsRolledBack(t *testing.T) {
 	}
 	if f, _ := r.h.files.GetWorkflow(context.Background(), "wf-c"); f.IsActive {
 		t.Fatal("the file still says active")
+	}
+}
+
+// A writer that stalled before its file step (so its lease ran out) is fenced out: recovery removes
+// its intent, another save commits, and when the writer wakes it neither writes its file nor
+// commits. The file keeps matching the rows.
+func TestCrashAnExpiredWriterCannotWriteItsFileAfterRecovery(t *testing.T) {
+	r := newCrashRig(t)
+	cmd, release := r.pauseHelper(t, "before-fence")
+	if _, err := r.s.db.Exec(`UPDATE workflow_publications SET started_at = ?`, time.Now().Add(-time.Hour).UTC()); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := r.h.RecoverPublications(context.Background()); err != nil || n != 1 {
+		t.Fatalf("recover: %d %v", n, err)
+	}
+	cur, _ := r.h.GetWorkflow(context.Background(), "wf-c")
+	cur.Nodes[1].Config = map[string]interface{}{"k": "from-parent"}
+	if err := r.h.SaveWorkflow(context.Background(), cur); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(r.root, "workflows", "wf-c.json")
+	before, _ := os.Stat(path)
+	release()
+	err := cmd.Wait()
+	if after, _ := os.Stat(path); !os.SameFile(before, after) {
+		t.Fatal("the fenced-out writer replaced the file (even if it was repaired afterwards)")
+	}
+	if ee, ok := err.(*exec.ExitError); !ok || ee.ExitCode() != 3 {
+		t.Fatalf("the stalled writer should be told its change was lost: %v", err)
+	}
+	r.assertConsistent(t)
+	if got := sqlConfig(t, r.s, "wf-c", "c-set"); got != "from-parent" {
+		t.Fatalf("rows: %v", got)
 	}
 }

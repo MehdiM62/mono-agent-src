@@ -186,7 +186,10 @@ func (h *HybridWorkflowStore) publishOnce(ctx context.Context, p Publication) (*
 	}
 	_ = failpoint("after-intent")
 
-	if err := h.publishFile(p, plan); err != nil {
+	if err := h.publishFile(ctx, p, plan, intentID); err != nil {
+		if errors.Is(err, ErrPublicationLost) {
+			return nil, err // nothing was written: the file step never started
+		}
 		return nil, h.abort(ctx, intentID, p.WorkflowID, err)
 	}
 	var window error
@@ -202,6 +205,7 @@ func (h *HybridWorkflowStore) publishOnce(ctx context.Context, p Publication) (*
 	w, err := h.commitPublication(ctx, p, plan, intentID)
 	if err != nil {
 		if errors.Is(err, ErrPublicationLost) {
+			h.repairAfterLost(ctx, p.WorkflowID, plan.targetSHA)
 			return nil, err
 		}
 		return nil, h.abort(ctx, intentID, p.WorkflowID, err)
@@ -347,11 +351,31 @@ func (h *HybridWorkflowStore) publishRowsOnly(ctx context.Context, tx *sql.Tx, p
 	return pl.target, nil
 }
 
-// publishFile is step 2: the file reaches its target bytes (or is removed, for a delete).
-func (h *HybridWorkflowStore) publishFile(p Publication, pl *pubPlan) error {
+// publishFile is step 2: the file reaches its target bytes (or is removed, for a delete). The
+// ownership check and the file write happen inside one transaction that holds the write lock, as
+// recovery does, so recovery cannot remove this intent between the check and the rename: either it
+// ran first (ErrPublicationLost, nothing written) or the rename completes first and recovery then
+// finds the file and rolls it back.
+func (h *HybridWorkflowStore) publishFile(ctx context.Context, p Publication, pl *pubPlan, intentID int64) error {
+	if err := failpoint("before-fence"); err != nil {
+		return err
+	}
+	tx, done, err := h.beginDurable(ctx)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrFileSyncFailed, err)
+	}
+	defer done()
+	defer tx.Rollback()
+	res, err := tx.ExecContext(ctx, `UPDATE workflow_publications SET state = state WHERE id = ? AND state = 'pending'`, intentID)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrFileSyncFailed, err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrPublicationLost
+	}
 	fileWriteMu.Lock()
 	defer fileWriteMu.Unlock()
-	err := failpoint("before-rename")
+	err = failpoint("before-rename")
 	if err == nil && guardedFileFault != nil {
 		err = guardedFileFault()
 	}
@@ -362,10 +386,55 @@ func (h *HybridWorkflowStore) publishFile(p Publication, pl *pubPlan) error {
 			err = h.files.writeRaw(p.WorkflowID, pl.data)
 		}
 	}
+	if err == nil {
+		err = tx.Commit()
+	}
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrFileSyncFailed, err)
 	}
 	return nil
+}
+
+// repairAfterLost runs in a writer whose intent was removed by someone else after it had written
+// its file: when the file still holds this writer's bytes and no other change is open, it rewrites the
+// file from the committed rows, so the file never outlives the rows it was meant to describe.
+func (h *HybridWorkflowStore) repairAfterLost(ctx context.Context, id, targetSHA string) {
+	tx, done, err := h.beginDurable(ctx)
+	if err != nil {
+		return
+	}
+	defer done()
+	defer tx.Rollback()
+	if err := lockPublication(ctx, tx, id); err != nil {
+		return
+	}
+	var open int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM workflow_publications WHERE workflow_id = ?`, id).Scan(&open); err != nil || open > 0 {
+		return
+	}
+	raw, there, err := h.files.readRaw(id)
+	now := ""
+	if there {
+		now = shaHex(append([]byte{}, raw...))
+	}
+	if err != nil || now != targetSHA {
+		return
+	}
+	// Rewrite the file from the committed rows (another save may have committed since this
+	// writer's bytes were derived); with no rows the workflow has no file.
+	rows, err := getWorkflowFrom(ctx, tx, id)
+	switch {
+	case err == nil:
+		var data []byte
+		if data, err = h.files.renderWorkflow(rows); err == nil {
+			err = h.files.writeRaw(id, data)
+		}
+	case errors.Is(err, sql.ErrNoRows):
+		err = h.files.removeFile(id)
+	}
+	if err == nil {
+		_ = tx.Commit()
+	}
 }
 
 // commitPublication is step 3: the rows, the version, the approvals and the removal of the
