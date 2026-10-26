@@ -1713,6 +1713,16 @@ that works a task acts on them. The defences:
   it, and the database is a file that user owns) can sign a record, so none of this stops
   such a process; the guard is against agent turns going through the CLI, which refuses
   them these commands.
+- **A setting that changes what agents may do must be changed by the operator only:**
+  the configuration rows that gate approvals, permissions or sandboxing, or that decide
+  what runs unattended, are written, deleted and (for the single-use ones) read only by
+  the operator's own terminal; `config set` and `config delete` refuse anything else with
+  the operator-only exit code. The storage layer refuses a raw write of such a row from a
+  caller that is not the operator as well, and a test fails when a new source file starts
+  writing the configs table without being listed and justified. Plain preferences and the
+  selector rows an automation resolves stay open to every caller. The check reads marks,
+  not identity: a process that deliberately hides its marks, or edits the database file,
+  is not stopped, as with the other operator-only commands.
 - **The operator-only commands refuse an agent-driven caller:** `board`
   (it shows the Inbox) and `approve` (both unless delegated, see above),
   `edit`, `move`, `archive`, `unarchive`, `add --ready`, `agents allow`,
