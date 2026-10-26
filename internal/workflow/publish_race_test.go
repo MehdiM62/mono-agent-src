@@ -250,3 +250,21 @@ func TestCrashAnExpiredWriterCannotWriteItsFileAfterRecovery(t *testing.T) {
 		t.Fatalf("rows: %v", got)
 	}
 }
+
+// Listing, counting and copying go through the same gate as GetWorkflow: after a writer died with
+// its file replaced, no listing returns the proposed definition, even though the listing itself is
+// what recovers the abandoned change.
+func TestCrashListingAfterADeadWritersRenameDoesNotReturnTheProposal(t *testing.T) {
+	r := newCrashRig(t)
+	waitKilled(t, r.startHelper(t, "apply-fix", "MONOAGENT_WF_FAILPOINT=after-rename"))
+	list, err := r.h.ListWorkflows(context.Background(), "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, w := range list {
+		if w.ID == "wf-c" && w.Nodes[1].Config["k"] == "from-helper" {
+			t.Fatal("the listing returned a definition that never committed")
+		}
+	}
+	r.assertConsistent(t)
+}

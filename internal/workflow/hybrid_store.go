@@ -52,21 +52,21 @@ func (h *HybridWorkflowStore) fileWorkflows(ctx context.Context) ([]*Workflow, e
 	if h.files == nil {
 		return nil, nil
 	}
-	all, err := h.files.ListWorkflows(ctx)
-	if err != nil {
-		return nil, err
-	}
-	open := h.openIntents(ctx)
-	if len(open) == 0 {
-		return all, nil
-	}
-	kept := all[:0:0]
-	for _, wf := range all {
-		if !open[wf.ID] {
-			kept = append(kept, wf)
+	var kept []*Workflow
+	err := h.stableFileRead(ctx, func(open map[string]bool) error {
+		all, err := h.files.ListWorkflows(ctx)
+		if err != nil {
+			return err
 		}
-	}
-	return kept, nil
+		kept = kept[:0]
+		for _, wf := range all {
+			if !gated(open, wf.ID) {
+				kept = append(kept, wf)
+			}
+		}
+		return nil
+	})
+	return kept, err
 }
 
 // CreateWorkflow saves a new workflow's whole definition, all-or-nothing
@@ -81,10 +81,15 @@ func (h *HybridWorkflowStore) GetWorkflow(ctx context.Context, id string) (*Work
 	if h.files == nil {
 		return h.sql.GetWorkflow(ctx, id)
 	}
-	if h.openIntents(ctx)[id] {
-		return h.sql.GetWorkflow(ctx, id)
-	}
-	wf, err := h.files.GetWorkflow(ctx, id)
+	var wf *Workflow
+	err := h.stableFileRead(ctx, func(open map[string]bool) (err error) {
+		wf = nil
+		if gated(open, id) {
+			return nil
+		}
+		wf, err = h.files.GetWorkflow(ctx, id)
+		return err
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -309,10 +314,18 @@ func (h *HybridWorkflowStore) editBase(ctx context.Context, cur *Workflow) Workf
 // fileCopy returns the file store's workflow for id, or nil when there is no
 // file store, no such workflow, or the read failed.
 func (h *HybridWorkflowStore) fileCopy(ctx context.Context, id string) *Workflow {
-	if h.files == nil || h.openIntents(ctx)[id] {
+	if h.files == nil {
 		return nil
 	}
-	wf, err := h.files.GetWorkflow(ctx, id)
+	var wf *Workflow
+	err := h.stableFileRead(ctx, func(open map[string]bool) (err error) {
+		wf = nil
+		if gated(open, id) {
+			return nil
+		}
+		wf, err = h.files.GetWorkflow(ctx, id)
+		return err
+	})
 	if err != nil {
 		return nil
 	}

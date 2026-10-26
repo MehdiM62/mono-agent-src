@@ -230,3 +230,31 @@ func (h *HybridWorkflowStore) openIntents(ctx context.Context) map[string]bool {
 	}
 	return open
 }
+
+// publicationGen counts the intents ever recorded; it moves whenever a change starts.
+func (h *HybridWorkflowStore) publicationGen(ctx context.Context) int64 {
+	var n int64
+	_ = h.sql.db.QueryRowContext(ctx, `SELECT COALESCE(MAX(seq), 0) FROM sqlite_sequence WHERE name = 'workflow_publications'`).Scan(&n)
+	return n
+}
+
+// gated reports whether the file of workflow id must not be trusted (see stableFileRead).
+func gated(open map[string]bool, id string) bool { return open[id] || open["*"] }
+
+// stableFileRead runs read, which loads workflow files, with the set of workflows that have a
+// change in flight (their files are skipped). A change that started while read ran may have
+// replaced a file before read opened it, or may be rolled back before this call could see it, so
+// the read is repeated until no change started during it; if the files will not hold still, every
+// file is skipped and the committed rows speak for all of them.
+func (h *HybridWorkflowStore) stableFileRead(ctx context.Context, read func(open map[string]bool) error) error {
+	for i := 0; i < 5; i++ {
+		gen := h.publicationGen(ctx)
+		if err := read(h.openIntents(ctx)); err != nil {
+			return err
+		}
+		if h.publicationGen(ctx) == gen {
+			return nil
+		}
+	}
+	return read(map[string]bool{"*": true})
+}

@@ -261,3 +261,25 @@ func BenchmarkPublish(b *testing.B) {
 		}
 	}
 }
+
+// A change that starts while files are being read makes the read run again, so a file replaced
+// before the read opened it is never trusted.
+func TestStableFileReadRepeatsWhenAChangeStartsDuringIt(t *testing.T) {
+	ctx := context.Background()
+	h, s, _, _ := guardedRig(t)
+	calls := 0
+	var last map[string]bool
+	err := h.stableFileRead(ctx, func(open map[string]bool) error {
+		calls++
+		last = open
+		if calls == 1 {
+			_, err := s.db.Exec(`INSERT INTO workflow_publications (workflow_id, kind, state, owner_pid, started_at)
+				VALUES ('wf-g', 'save', 'pending', ?, ?)`, os.Getpid(), time.Now().UTC())
+			return err
+		}
+		return nil
+	})
+	if err != nil || calls != 2 || !last["wf-g"] {
+		t.Fatalf("calls %d open %v err %v", calls, last, err)
+	}
+}
