@@ -108,11 +108,11 @@ func (l *execLauncher) Start(profileID, conversationID, turnID, message string, 
 		close(t.done)
 	}()
 	if stamp == "" {
-		t.Stop()
+		t.stopAndWait()
 		return nil, errors.New("could not identify the turn's process (its start time is unreadable), so it was stopped")
 	}
 	if err := awaitAdmission(logPath, offset, t.done); err != nil {
-		t.Stop()
+		t.stopAndWait()
 		return nil, err
 	}
 	return t, nil
@@ -149,6 +149,9 @@ func awaitAdmission(logPath string, offset int64, done <-chan struct{}) error {
 			}
 			f.Close()
 		}
+		if exited && len(pending) > 0 && pending[len(pending)-1] != '\n' {
+			pending = append(pending, '\n') // the last line may have no newline; the process is done writing
+		}
 		for {
 			i := bytes.IndexByte(pending, '\n')
 			if i < 0 {
@@ -182,9 +185,6 @@ func awaitAdmission(logPath string, offset int64, done <-chan struct{}) error {
 			}
 		}
 		if exited {
-			if tail := strings.TrimSpace(string(pending)); tail != "" {
-				lastLine = tail
-			}
 			if lastLine == "" {
 				lastLine = "no output"
 			}
@@ -223,6 +223,17 @@ func (l *execLauncher) Finish(profileID, conversationID, turnID, reason string) 
 	out, err := exec.CommandContext(ctx, l.bin, l.args(profileID, "chat", "history", "finish", conversationID, turnID, "--status", "failed", "--reason", reason)...).CombinedOutput()
 	if err != nil && l.logf != nil {
 		l.logf("coder host: closing turn %s: %v: %s", turnID, err, strings.TrimSpace(string(out)))
+	}
+}
+
+// stopAndWait stops a turn the host is giving up on and waits (bounded) until its
+// process is gone: the caller then frees the session, and the next turn must not
+// overlap an agent that was slow to die.
+func (t *execTurn) stopAndWait() {
+	t.Stop()
+	select {
+	case <-t.done:
+	case <-time.After(hostTurnGrace + 5*time.Second):
 	}
 }
 
@@ -288,12 +299,38 @@ var adoptedPoll = time.Second
 
 func (t *adoptedTurn) Stop() {
 	t.once.Do(func() {
-		signalTurn(t.pid, t.stamp, terminateGroup)
-		// Not this process's child, so the group is signalled only while the leader is
-		// verifiably the same process. A leader that ends first leaves any child that
-		// ignored SIGTERM running: it cannot be told from a stranger by then.
-		time.AfterFunc(hostTurnGrace, func() { signalTurn(t.pid, t.stamp, killGroup) })
+		go func() {
+			signalAdopted(t.pid, t.stamp, terminateGroup)
+			// Not this process's child, so the group is signalled only while the leader is
+			// verifiably the same process. A leader that ends first leaves any child that
+			// ignored SIGTERM running: it cannot be told from a stranger by then.
+			time.Sleep(hostTurnGrace)
+			signalAdopted(t.pid, t.stamp, killGroup)
+		}()
 	})
+}
+
+// signalRetry is how long and how often an adopted turn's start time is read
+// again when it cannot be read: a ps that failed once should not lose a stop.
+var (
+	signalRetries       = 10
+	signalRetryInterval = 500 * time.Millisecond
+)
+
+// signalAdopted signals the turn once its start time reads and matches; it gives
+// up when the process is gone or the start time reads as a different one.
+func signalAdopted(pid int, stamp string, sig groupSignal) {
+	for i := 0; i < signalRetries; i++ {
+		now := stampOf(pid)
+		if now == stamp {
+			signalTurn(pid, stamp, sig)
+			return
+		}
+		if now != "" || !turnAlive(pid) {
+			return
+		}
+		time.Sleep(signalRetryInterval)
+	}
 }
 
 // signalTurn sends sig to the turn's process group if pid still is the process

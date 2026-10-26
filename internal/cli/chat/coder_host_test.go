@@ -2,6 +2,7 @@ package chat
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"os"
@@ -494,5 +495,104 @@ func TestHostStopRefusesWhatItCannotIdentify(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	if !turnAlive(child.Process.Pid) {
 		t.Fatal("the unidentified process was killed")
+	}
+}
+
+// A turn the host gives up on is gone before Start returns, so the session it
+// frees cannot overlap an agent that was slow to die.
+func TestAGivenUpTurnIsGoneBeforeStartReturns(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell script")
+	}
+	dir := t.TempDir()
+	pidFile := filepath.Join(dir, "pid")
+	bin := filepath.Join(dir, "fake")
+	// ignores SIGTERM, so only the kill after the grace period ends it
+	if err := os.WriteFile(bin, []byte("#!/bin/sh\ntrap '' TERM\necho $$ > '"+pidFile+"'\ncat > /dev/null\nwhile true; do sleep 1; done\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	oldStamp, oldGrace := stampOf, hostTurnGrace
+	stampOf, hostTurnGrace = func(int) string { return "" }, 300*time.Millisecond
+	t.Cleanup(func() { stampOf, hostTurnGrace = oldStamp, oldGrace })
+	l := &execLauncher{bin: bin, dbPath: "/db/x.db", instance: "host-test", logDir: filepath.Join(dir, "turns")}
+	if _, err := l.Start("p", "c1", "t1", "hello", nil); err == nil {
+		t.Fatal("Start succeeded without a start time")
+	}
+	b, _ := os.ReadFile(pidFile)
+	pid, _ := strconv.Atoi(strings.TrimSpace(string(b)))
+	if pid <= 1 || turnAlive(pid) {
+		t.Fatalf("pid %d is still alive when Start returned", pid)
+	}
+}
+
+// A stop for an adopted turn is not lost because its start time could not be read
+// at that moment.
+func TestAStopForAnAdoptedTurnSurvivesAnUnreadableStartTime(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("process groups")
+	}
+	cmd := exec.Command("sleep", "30")
+	cmd.SysProcAttr = newSessionAttr()
+	if err := cmd.Start(); err != nil {
+		t.Skip("no sleep")
+	}
+	go cmd.Wait()
+	t.Cleanup(func() { cmd.Process.Kill() })
+	pid := cmd.Process.Pid
+	stamp := pidStamp(pid)
+	if stamp == "" {
+		t.Skip("no process start times here")
+	}
+	turn := (&execLauncher{}).Adopt(pid, stamp)
+	if turn == nil {
+		t.Fatal("not adopted")
+	}
+	unreadable := 3
+	oldStamp, oldInt, oldGrace := stampOf, signalRetryInterval, hostTurnGrace
+	stampOf = func(p int) string {
+		if unreadable > 0 {
+			unreadable--
+			return ""
+		}
+		return oldStamp(p)
+	}
+	signalRetryInterval, hostTurnGrace = 10*time.Millisecond, 5*time.Second
+	t.Cleanup(func() { stampOf, signalRetryInterval, hostTurnGrace = oldStamp, oldInt, oldGrace })
+	turn.Stop()
+	waitUntil(t, "the adopted turn to be stopped despite the unreadable start time", func() bool { return !turnAlive(pid) })
+}
+
+// The last line of the log may have no newline when the process exits right after it.
+func TestAnAdmissionLineWithoutANewlineCounts(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell script")
+	}
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "fake")
+	if err := os.WriteFile(bin, []byte("#!/bin/sh\ncat > /dev/null\nprintf '{\"admitted\":true}'\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	l := &execLauncher{bin: bin, dbPath: "/db/x.db", instance: "host-test", logDir: filepath.Join(dir, "turns")}
+	if _, err := l.Start("p", "c1", "t1", "hello", nil); err != nil {
+		t.Fatalf("Start = %v, want the unterminated admission line accepted", err)
+	}
+}
+
+func TestHostRunRefusesWithoutAStartTimeOfItsOwn(t *testing.T) {
+	dbPath := newChatCLITestDB(t)
+	cfg := testDeps(&testConfig{DBPath: dbPath, ProfileID: "default", JSONOutput: true})
+	oldStamp := stampOf
+	stampOf = func(int) string { return "" }
+	t.Cleanup(func() { stampOf = oldStamp })
+	cmd := newCoderHostCmd(cfg)
+	cmd.SetArgs([]string{"run"})
+	cmd.SilenceErrors, cmd.SilenceUsage = true, true
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second) // a host that does start would run until this ends
+	defer cancel()
+	if err := cmd.ExecuteContext(ctx); err == nil || !strings.Contains(err.Error(), "start time") {
+		t.Fatalf("host run = %v, want a refusal that names the start time", err)
+	}
+	if hostRunning(cfg) {
+		t.Fatal("the refused host kept the lock")
 	}
 }

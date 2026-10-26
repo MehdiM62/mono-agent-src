@@ -149,7 +149,11 @@ func newCoderHostRunCmd(cfg *Deps) *cobra.Command {
 			}
 			defer release()
 			// host.json first: `host stop` and `host status` read it as soon as the lock is held.
-			info := hostInfo{PID: os.Getpid(), Stamp: stampOf(os.Getpid()), Instance: "host-" + uuid.NewString()[:8], StartedAt: time.Now().UTC().Format(time.RFC3339)}
+			ownStamp := stampOf(os.Getpid())
+			if ownStamp == "" {
+				return fmt.Errorf("cannot read this process's start time, so `host stop` and a later host could not tell it from another process; not starting")
+			}
+			info := hostInfo{PID: os.Getpid(), Stamp: ownStamp, Instance: "host-" + uuid.NewString()[:8], StartedAt: time.Now().UTC().Format(time.RFC3339)}
 			raw, _ := json.Marshal(info)
 			infoPath := filepath.Join(hostDir(cfg), hostInfoFile)
 			if err := os.WriteFile(infoPath+".tmp", raw, 0o600); err != nil { // renamed into place: a reader never sees half of it
