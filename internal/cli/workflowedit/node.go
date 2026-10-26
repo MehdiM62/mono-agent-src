@@ -448,11 +448,19 @@ func approving(ctx context.Context, expect string) context.Context {
 	return workflow.WithExpectHash(workflow.WithApproval(ctx), expect)
 }
 
-// reviewOf is the review hash of a workflow as it was read ("" when it cannot be worked out).
+// reviewOf is the review hash of a workflow as it was read ("" for no workflow at all).
 func reviewOf(wf *workflow.Workflow) string {
 	if wf == nil {
 		return ""
 	}
-	h, _ := workflow.ReviewHash(wf)
+	h, err := workflow.ReviewHash(wf)
+	if err != nil {
+		// Never an empty guard: an empty one would let the edit (and its approval) through unchecked.
+		return unreadableReview
+	}
 	return h
 }
+
+// unreadableReview is a guard that matches no workflow, so an edit whose review hash could not be
+// worked out is refused instead of going through unguarded.
+const unreadableReview = "unreadable-review-hash"
