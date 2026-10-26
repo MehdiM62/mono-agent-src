@@ -2573,24 +2573,31 @@ monoagentcli --profile work coder host stop                        # the host on
   master is level 1, a child level 2) and a rate of 6 per 10 minutes; the child runs the master's runtime,
   model and folder (or a folder inside it), at most the master's access capped at `workspace` and never `full`
   (an operator raises that), and its `--budget-usd` is carved out of the master's cap (`settings set
-  --budget-usd`, operator only; a capped master must give its child a positive amount that fits). Each turn of a capped session runs under what it has left (budget, less what its turns cost, less what it carved for its children) as `--budget-usd`, which is a ceiling for **that turn**; the total holds because the next turn starts with what is left. A turn's cost is the largest total it journaled; a usage event that is present with cost 0 is a reported 0 (a runtime that always reports 0 is trusted at 0; kilo cannot be capped and is refused for capped sessions). Only a turn that started and journaled no usage event at all counts as having spent its whole cap, or its workers' cost if that is more (never both); a cap row of a turn that never started charges nothing. A carve is limited by budget - spent - carved: the running turn's own cap (fixed when it started) is not reserved, so a capped master's turn can spend its cap AND carve up to budget - spent - carved to children during the same turn: exposure per master turn can reach about 2x the budget (chains do not compound); the next turn starts from the true remainder. A send with nothing left (under $0.000001) fails with the reason. Cost comes from the runtimes' own reports (a runtime that reports none counts as $0, and kilo cannot enforce a cap at all). The issuer, not the turn id, is what marks a send as a master's: an issuer-tagged send can never be a mission, counts toward the host-made streak, and a `master-` turn id without an issuer is refused. At most 2 master stops wait per child (a repeated stop is a no-op). A command a master queues records the master as its issuer and runs only while the target is still that master's child; at most 5 master sends wait per child and they expire after 15 minutes. With a token `list`, `settings get` and `command` show only the caller's own tree; without one they need the operator (an agent that lost or dropped the variable reads nothing). A master's message is **not a person's send**: its turn
+  --budget-usd`, operator only; a capped master must give its child a positive amount that fits). Each turn of a capped session runs under what it has left (budget, less what its turns cost, less what it carved for its children) as `--budget-usd`, which is a ceiling for **that turn**; the total holds because the next turn starts with what is left. A turn's cost is the largest total it journaled; a usage event that is present with cost 0 is a reported 0 (a runtime that always reports 0 is trusted at 0; kilo cannot be capped and is refused for capped sessions). Only a turn that started and journaled no usage event at all counts as having spent its whole cap, or its workers' cost if that is more (never both); a cap row of a turn that never started charges nothing. A carve is limited by budget - spent - carved: the running turn's own cap (fixed when it started) is not reserved, so a capped master's turn can spend its cap AND carve up to budget - spent - carved to children during the same turn: exposure per master turn can reach about 2x the budget (chains do not compound); the next turn starts from the true remainder. A send with nothing left (under $0.000001) fails with the reason. Cost comes from the runtimes' own reports (a runtime that reports none counts as $0, and kilo cannot enforce a cap at all). The issuer, not the turn id, is what marks a send as a master's: an issuer-tagged send can never be a mission, counts toward the host-made streak, and a `master-` turn id without an issuer is refused. Everything a master queues for a child except a stop (sends, pause, resume) shares 5 pending slots per child; its stops are counted apart (at most 2 wait per child, and a repeated stop is a no-op). A command a master queues records the master as its issuer and runs only while the target is still that master's child; a master's queued sends (not its pause or resume) expire after 15 minutes. With a token `list`, `settings get` and `command` show only the caller's own tree; without one they need the operator (an agent that lost or dropped the variable reads nothing). A master's message is **not a person's send**: its turn
   id starts with `master-`, it can carry no mission confirmation, and, like `checkin-`, it counts toward the
   host-made turns in a row (`checkin_limit`) after which the child waits for a person.
-- **First-run checks** (for the operator's first real run; none of this is verified live):
-  1. *Budget caps:* give a master `settings set --budget-usd 2`, spawn a child with `--budget-usd 1.5`, then
-     another with `--budget-usd 1` (refused: it does not fit); `sessions status` shows carved and left; a
+- **First-run checks** (for the operator's first real run; none of this is verified live). `spawn` works only
+  with a master's session token, so the steps that spawn are done by asking the master, in its chat, to run the
+  command in its turn; the rest is the operator's own terminal:
+  1. *Budget caps:* `monoagentcli --profile P coder sessions settings set <master-conv> --budget-usd 2`; ask
+     the master to run `coder sessions spawn --message TEXT --budget-usd 1.5`, then the same with
+     `--budget-usd 1` (refused: it does not fit); `coder sessions status <master-conv>` shows carved and left; a
      capped turn runs with `--budget-usd` equal to what is left; a runtime that reports no cost counts as 0
      (kilo is refused for a capped session).
-  2. *Spawn limits:* a child that spawns (a third level) is refused (depth 2); a master past `max_children`
-     is refused; the 7th spawn within 10 minutes is refused; a child's access is never above the master's and
-     never `full` (an `--access full` spawn is refused).
-  3. *`answer-` turns:* park a question and answer it with `sessions questions answer`; the turn that runs has
-     the id prefix `answer-`, is counted by the check-in streak and starts no mission; with `checkin_limit`
-     reached the answer is refused or fails when it runs; a default is taken only after 30 minutes and never for
-     `risky_action` or `missing_credential`.
-  4. *Missions:* confirm a mission, approve its plan, close the app mid-run: workers and the board survive and
-     the next turn resumes from `mission_status`; a check-in of a master with children shows the mission line;
-     a draft session starts no worker for a check-in turn and nothing approves it.
+  2. *Spawn limits:* a child that tries `spawn` is refused (it is not a master; depth is 2); a master past
+     `max_children` is refused; the 7th spawn within 10 minutes is refused; `--access full` is not accepted
+     (`coding|workspace` only) and a child is never above its master's access.
+  3. *`answer-` turns:* `coder sessions questions list <conv>`, then `coder sessions questions answer <conv> <id>
+     "text"`; the turn that runs has the id prefix `answer-`, is counted by the check-in streak and starts no
+     mission; with `checkin_limit` reached the answer is refused or fails when it runs; a default is taken only
+     after 30 minutes and never for `risky_action` or `missing_credential`.
+  4. *Missions:* confirm a mission (`coder sessions send --mission <conv> TEXT`), approve its plan, close the
+     app mid-run: workers and the board survive and the next turn resumes from `mission_status`; a check-in of a
+     master with children shows the mission line; a draft session starts no worker for a check-in turn.
+  5. *The autonomy backend has no model-facing producer yet:* nothing outside tests calls `Store.Park` or
+     `Store.Record` (grep of non-test code: the only definitions are in `parked.go` and `ledger.go`, no
+     callers). A first run can only check that the CLI lists and answers on an empty or hand-made state, and
+     that settings validation refuses what it should.
 - **Good to know:** the host and the turns it starts keep the environment of the terminal that started the host.
   `host stop` leaves turns running: `sessions stop <conv>` first if you want them ended. Queued sends only
   expire while a host runs. `send` prints `hostStarted: true` unless you pass `--no-host`.

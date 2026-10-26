@@ -1766,9 +1766,11 @@ injected text and a confused script inside the rules; it is not a sandbox agains
   `workspace` (never `full` by spawn; an operator raises it), and the `coder set` caps still apply. The send gate
   (human approval of an agent's sends), access levels, budgets and the operator-only settings are enforced in
   code by the host and the stores, not by a prompt; no preset of the autonomy policy changes them.
-- **Who may steer a session.** `sessions send|stop|pause|resume`, `settings set`, `questions answer`, `host
-  run|stop` and mission confirmation are operator-only: they refuse an agent-driven caller (the same guard as the
-  task board, with the same limit: a process that scrubs its own environment is treated as the operator).
+- **Who may steer a session.** `sessions send|stop|pause|resume`, `settings set`, `questions answer`,
+  `decisions revert`, `host run|stop` and mission confirmation are operator-only: they refuse an agent-driven
+  caller (the same guard as the task board, with the same limit: a process that scrubs its own environment is
+  treated as the operator). `sessions list`, `settings get` and `command` need a session token (they then show
+  the caller's own tree only) or the operator.
 - **Session tokens.** The host mints a token for each turn (`MONOAGENT_SESSION_TOKEN`). It names profile,
   conversation and turn, is valid only while that turn is the session's current one (24 hours at most), is stored
   as a hash and signed under a key derived from the profile's vault key, and counts only from the turn's process or
@@ -1793,7 +1795,8 @@ injected text and a confused script inside the rules; it is not a sandbox agains
   capped master's turn can spend its cap and carve to its children in the same turn (up to about twice the
   budget per master turn; chains do not compound).
 - **Spawn and run limits.** Depth 2, `max_children` per master, 6 spawns per 10 minutes
-  per master, 5 master sends and 2 master stops waiting per child, queued sends that expire (6 hours; a master's
+  per master, 5 pending slots per child shared by everything a master queues except a stop (sends, pause,
+  resume) and 2 master stops apart, queued sends that expire (6 hours; a master's sends, not its pause or resume,
   after 15 minutes), 50 waiting sends and 50 waiting control commands per conversation. `max_concurrent` is stored and shown; nothing acts on
   it yet.
 - **Check-ins and the streak.** After `checkin_limit` (default 48) host-made turns (`checkin-`, `answer-`,
@@ -1805,7 +1808,7 @@ injected text and a confused script inside the rules; it is not a sandbox agains
   a host- or master-validated source before it is added.
 - **Mesh text is data.** What other agents send to a session over monomind's mesh is sealed as untrusted peer
   content in front of its next turn; it starts no turn and carries no authority. The mesh name is not a trust
-  anchor and `mesh_accept` limits who is heard (default: its master and children).
+  anchor and `mesh_accept` (`none`, `subtree` or `project`; default `subtree`) limits who is heard.
 - **Not covered.** Anything a same-user process can do (read the database, the keychain, `/proc/<pid>/environ`
   of a turn until it exits). Mission leads and task sessions run in the host but the host does not yet start a
   child session per task: a task's work is done by the conductor's workers (AGENTS.md, "Persistent coder

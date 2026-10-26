@@ -40,7 +40,7 @@ func TestTheDigestShowsAMissionsProgressAsNumbersOnly(t *testing.T) {
 	h, _, st := newHost(t)
 	family(t, st, 1)
 	missionOfMaster(t, st, true)
-	m := h.missionOf("p", "m")
+	m, _ := h.missionOf("p", "m")
 	if m == nil || m.State != "running" || m.Total != 2 || m.Done != 0 {
 		t.Fatalf("mission fact = %+v", m)
 	}
@@ -53,7 +53,7 @@ func TestTheDigestShowsAMissionsProgressAsNumbersOnly(t *testing.T) {
 			t.Fatalf("agent-written text %q reached the digest:\n%s", leaked, text)
 		}
 	}
-	if h.missionOf("p", "k1") != nil {
+	if k, ok := h.missionOf("p", "k1"); k != nil || !ok {
 		t.Fatal("a conversation without a session got a mission line")
 	}
 }
@@ -89,5 +89,27 @@ func TestAMissionTaskFinishingMakesAQuietIntervalWorthACheckIn(t *testing.T) {
 	}
 	if se2, _ := ts.GetSession(ctx, "p", se.ID, opActor); se2.State != tasks.SessionRunning || se2.ApprovedBy != se.ApprovedBy || !se2.ApprovedAt.Equal(*se.ApprovedAt) {
 		t.Fatalf("the check-in changed the session: %+v", se2)
+	}
+}
+
+func TestAFailedMissionReadKeepsTheLastLookAndIsNotAChange(t *testing.T) {
+	h, _, st := newHost(t)
+	family(t, st, 1)
+	missionOfMaster(t, st, true)
+	h.checkinPass(t0) // baseline holds the mission
+	before, _ := st.GetCheckin("p", "m")
+	if !strings.Contains(before.Snapshot, `"mission"`) {
+		t.Fatalf("baseline lacks the mission: %s", before.Snapshot)
+	}
+	if _, err := st.db.Exec(`ALTER TABLE task_sessions RENAME TO task_sessions_away`); err != nil {
+		t.Fatal(err)
+	}
+	h.checkinPass(t0.Add(16 * time.Minute)) // the read fails: same as before, so only a look
+	if len(checkins(t, st)) != 0 {
+		t.Fatal("a failed read of the mission was taken for a change")
+	}
+	after, _ := st.GetCheckin("p", "m")
+	if after.At == before.At || !strings.Contains(after.Snapshot, `"mission"`) {
+		t.Fatalf("the look was not recorded with the kept mission: %+v", after)
 	}
 }

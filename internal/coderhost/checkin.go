@@ -82,15 +82,28 @@ func (h *Host) checkinOne(now time.Time, m Session, children []Session) {
 		return
 	}
 	cur := h.snapshotOf(now, m.ProfileID, children, settings.SilentMinutes)
-	cur.Mission = h.missionOf(m.ProfileID, m.ConversationID)
 	curJSON, _ := json.Marshal(cur)
 	nowStr := now.UTC().Format(timeLayout)
 	remember := func() error {
 		return h.Store.SaveCheckin(m.ProfileID, m.ConversationID, Checkin{At: nowStr, Snapshot: string(curJSON)})
 	}
 
+	// The mission is read only when a look is about to be recorded or acted on, after the cheap early
+	// returns; a failed read keeps the last look's value so a transient error does not read as a change.
+	withMission := func() {
+		mission, ok := h.missionOf(m.ProfileID, m.ConversationID)
+		if !ok {
+			var was snapshot
+			_ = json.Unmarshal([]byte(prev.Snapshot), &was)
+			mission = was.Mission
+		}
+		cur.Mission = mission
+		curJSON, _ = json.Marshal(cur)
+	}
+
 	last, _ := time.Parse(timeLayout, prev.At)
 	if prev.At == "" || now.Before(last) {
+		withMission()
 		// First sight of this master, or the clock went back past the last look:
 		// remember the children as they are and check in after one interval.
 		if err := remember(); err != nil {
@@ -112,6 +125,7 @@ func (h *Host) checkinOne(now time.Time, m Session, children []Session) {
 	if streak >= settings.CheckinLimit {
 		return
 	}
+	withMission()
 	var before snapshot
 	_ = json.Unmarshal([]byte(prev.Snapshot), &before)
 	events := triggeredEvents(before, cur, settings.CheckinTriggers)

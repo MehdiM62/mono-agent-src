@@ -25,12 +25,11 @@ type missionFact struct {
 var hostReader = tasks.Actor{Kind: tasks.Human, Name: "coder-host"}
 
 // missionOf is the open (draft, running or paused) task session bound to the
-// conversation, or nil. A read that fails gives nil: the digest then simply has
-// no mission line.
-func (h *Host) missionOf(profileID, conversationID string) *missionFact {
+// conversation, or nil. ok is false when the read failed (the caller keeps what it had).
+func (h *Host) missionOf(profileID, conversationID string) (m *missionFact, ok bool) {
 	list, err := tasks.NewStore(h.Store.db).ListSessions(context.Background(), profileID, tasks.SessionFilter{}, hostReader)
 	if err != nil {
-		return nil
+		return nil, false
 	}
 	for _, se := range list { // newest first
 		if se.ConversationID != conversationID {
@@ -39,10 +38,10 @@ func (h *Host) missionOf(profileID, conversationID string) *missionFact {
 		switch se.State {
 		case tasks.SessionDraft, tasks.SessionRunning, tasks.SessionPaused:
 			return &missionFact{State: string(se.State), Done: se.Counts.Done, Review: se.Counts.Review, Total: se.Counts.Total,
-				Verified: se.Counts.Verified, Blocked: se.Counts.Blocked}
+				Verified: se.Counts.Verified, Blocked: se.Counts.Blocked}, true
 		}
 	}
-	return nil
+	return nil, true
 }
 
 // missionLine is the digest's line for a mission: numbers and a state word only.
