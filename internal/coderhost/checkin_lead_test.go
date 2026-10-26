@@ -163,3 +163,104 @@ func TestQueuedCheckInOfAMasterWithoutChildrenFollowsTheMission(t *testing.T) {
 		t.Fatalf("started=%v command=%+v", l.started, got)
 	}
 }
+
+// setTasks puts the session's four tasks (oldest first) into the given states directly.
+func setTasks(t *testing.T, st *Store, se tasks.Session, ts *tasks.Store, rows [4][3]any) {
+	t.Helper()
+	ctx := context.Background()
+	for len(listIDs(t, st, se.ID)) < 4 {
+		if _, err := ts.AddSessionTask(ctx, "p", se.ID, tasks.SessionTaskInput{Title: "extra", Acceptance: "it works"}, opActor); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for i, id := range listIDs(t, st, se.ID) {
+		if _, err := st.db.Exec(`UPDATE tasks SET status = ?, verified = ?, blocked = ? WHERE id = ?`, rows[i][0], rows[i][1], rows[i][2], id); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func listIDs(t *testing.T, st *Store, session int64) []int64 {
+	t.Helper()
+	rs, err := st.db.Query(`SELECT id FROM tasks WHERE session_id = ? AND kind <> 'epic' ORDER BY id`, session)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rs.Close()
+	var out []int64
+	for rs.Next() {
+		var id int64
+		rs.Scan(&id)
+		out = append(out, id)
+	}
+	return out
+}
+
+// Open work is counted from disjoint statuses: a task keeps verified=1 once it is done, so Done and
+// Verified overlap.
+func TestOpenWorkIsCountedFromDisjointStatuses(t *testing.T) {
+	dv, rd, rv, ru, rb, ip := [3]any{"done", 1, 0}, [3]any{"ready", 0, 0}, [3]any{"review", 1, 0}, [3]any{"review", 0, 0}, [3]any{"review", 0, 1}, [3]any{"in_progress", 0, 0}
+	dn := [3]any{"done", 0, 0}
+	for name, c := range map[string]struct {
+		rows [4][3]any
+		open bool
+	}{
+		"done+verified and ready tasks":              {[4][3]any{dv, dv, rd, rd}, true},
+		"all done and verified":                      {[4][3]any{dv, dv, dv, dv}, false},
+		"done+verified with an unverified review":    {[4][3]any{dv, dv, dv, ru}, true},
+		"only verified review awaiting the operator": {[4][3]any{rv, rv, dn, dv}, false},
+		"blocked only":                               {[4][3]any{rb, dv, dn, dv}, false},
+		"blocked and ready":                          {[4][3]any{rb, dv, rd, dv}, true},
+		"in progress":                                {[4][3]any{ip, dv, dn, dv}, true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			h, _, st := newHost(t)
+			se, ts := leadOf(t, st, true)
+			setTasks(t, st, se, ts, c.rows)
+			m, ok := h.missionOf("p", "m")
+			if !ok || m.open() != c.open {
+				t.Fatalf("mission = %+v ok=%v, want open=%v", m, ok, c.open)
+			}
+		})
+	}
+}
+
+func TestBlockedOnlyIsNotWokenButBlockedWithReadyIs(t *testing.T) {
+	for _, c := range []struct {
+		rows [4][3]any
+		woke int
+	}{
+		{[4][3]any{{"review", 0, 1}, {"done", 1, 0}, {"done", 0, 0}, {"done", 1, 0}}, 0},
+		{[4][3]any{{"review", 0, 1}, {"done", 1, 0}, {"ready", 0, 0}, {"done", 1, 0}}, 1},
+	} {
+		h, _, st := newHost(t)
+		se, ts := leadOf(t, st, true)
+		setSettings(t, st, "m", `{"skip_if_unchanged": false}`)
+		setTasks(t, st, se, ts, c.rows)
+		h.checkinPass(t0)
+		h.checkinPass(t0.Add(32 * time.Minute))
+		if n := len(checkins(t, st)); n != c.woke {
+			t.Fatalf("rows %v: woken %d, want %d", c.rows, n, c.woke)
+		}
+	}
+}
+
+func TestMissionAndChildReadsAreScopedToTheirProfileAndParent(t *testing.T) {
+	h, _, st := newHost(t)
+	family(t, st, 2)
+	st.SetRole("p", "k2", "solo", "")
+	if n, err := h.liveChildren("p", "m"); err != nil || n != 1 {
+		t.Fatalf("live children of m = %d %v", n, err)
+	}
+	if n, _ := h.liveChildren("other", "m"); n != 0 {
+		t.Fatalf("another profile's children counted: %d", n)
+	}
+	se, _ := missionFor(t, st, "k2", true)
+	st.db.Exec(`UPDATE task_sessions SET archived_at = 'x' WHERE id = ?`, se.ID)
+	if m, ok := h.missionOf("p", "k2"); m != nil || !ok {
+		t.Fatalf("an archived session is a mission: %+v", m)
+	}
+	if m, ok := h.missionOf("other", "m"); m != nil || !ok {
+		t.Fatalf("another profile's mission: %+v", m)
+	}
+}

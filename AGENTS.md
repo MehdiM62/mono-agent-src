@@ -1868,11 +1868,17 @@ plan). A lead that wants a goal with its own schedule uses the master verbs on i
 sessions spawn`, below): one child per goal, not per task. When a master of children also has an open task
 session, each check-in digest carries one line with the session's state and its counts (done of total, in
 review, verified, blocked): numbers and a state word, never a title, goal or task text. A mission's lead
-without children (role `solo`, or a master whose children are gone) is checked in on all the same, by the same
-scheduler and limits, while its conversation is bound to a **running** task session with open work (a task neither
-done nor verified, a blocked one, or one in review that no verifier has passed; a verified task only awaits the operator's close): the digest is the mission line alone. A draft session (waiting
-for the person's plan approval) or a paused one is never woken, a child never is (its master is), and a queued
-check-in is dropped when it runs if the mission has stopped being running with open work.
+without children (role `solo`, or a master whose children are all stopped: treated as a lead on purpose) is
+checked in on all the same, by the same scheduler and limits, while its conversation is bound to a **running**
+task session with open work. Open work is counted from disjoint statuses: tasks in inbox, ready or in progress,
+plus tasks in review that no verifier has passed and that are not blocked (a task keeps its verified flag once
+closed, so done and verified are never added). A blocked task waits for the operator and a verified one for the
+operator's close, so neither counts: nothing a lead does hastens them. The digest is the mission line alone. This
+is on by default for every unattended solo session bound to a running mission; `unattended` off disables it. A
+draft session (waiting for the person's plan approval) or a paused one is never woken, a child never is (its
+master is), and a queued check-in is dropped when it runs if the mission has stopped being running with open
+work. A lead that adds tasks to itself can keep itself woken, but only up to `checkin_limit` check-ins per person
+message, and bounded by the session's `max_tasks` and budget.
 
 **Who closes what in a mission.** Workers finish a task to Review; the verifier marks it
 verified; a verified task unlocks its dependents (it counts as done for them). The
