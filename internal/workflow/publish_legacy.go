@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"regexp"
 	"sort"
@@ -60,6 +61,12 @@ func (h *HybridWorkflowStore) ClaimLegacyFiles(ctx context.Context) ([]*Workflow
 	if done, err := legacyDone(ctx, tx); err != nil || done {
 		return nil, err
 	}
+	// Without any profile nothing can be taken in (every workflow belongs to one): do not record the
+	// claim, or the files that are really older versions' would become adoptable-only.
+	var profiles int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM profiles`).Scan(&profiles); err != nil || profiles == 0 {
+		return nil, err
+	}
 	entries, err := os.ReadDir(h.files.dir)
 	if err != nil && !os.IsNotExist(err) {
 		return nil, err
@@ -85,8 +92,14 @@ func (h *HybridWorkflowStore) ClaimLegacyFiles(ctx context.Context) ([]*Workflow
 		if _, err := tx.ExecContext(ctx, `SAVEPOINT claim_file`); err != nil {
 			return nil, err
 		}
-		res, _, err := h.importLocked(ctx, tx, id, profileExists, 0, false, regularFileInfo(h.files, id), importClaim, "")
+		res, declined, err := h.importLocked(ctx, tx, id, profileExists, 0, false, regularFileInfo(h.files, id), importClaim, "")
 		if err != nil || !res.Imported {
+			why := declined
+			if err != nil {
+				why = err.Error()
+			}
+			// Left as a file: `doctor` offers it for adoption (the reason is not lost with the claim).
+			log.Printf("workflow file %q was not taken in: %s", id, why)
 			if _, rerr := tx.ExecContext(ctx, `ROLLBACK TO claim_file`); rerr != nil {
 				return nil, rerr
 			}
@@ -321,4 +334,11 @@ func (h *HybridWorkflowStore) AdoptFile(ctx context.Context, id, profile, sha st
 		return fmt.Errorf("workflow file %s was not adopted: %s", id, declined)
 	}
 	return tx.Commit()
+}
+
+// LegacyClaimDone reports whether the files older versions left have been taken in (see
+// ClaimLegacyFiles).
+func LegacyClaimDone(ctx context.Context, db *sql.DB) bool {
+	done, err := legacyDone(ctx, db)
+	return err == nil && done
 }

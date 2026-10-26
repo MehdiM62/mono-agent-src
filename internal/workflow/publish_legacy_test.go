@@ -375,3 +375,53 @@ func TestAdoptableListingIsBounded(t *testing.T) {
 		}
 	}
 }
+
+// With no profile at all the claim cannot take anything in, and it is not recorded: the files stay
+// older versions' files until a profile exists, instead of becoming adoptable-only for good.
+func TestNoClaimIsRecordedWhileThereIsNoProfile(t *testing.T) {
+	ctx := context.Background()
+	h, s := newHybridForTest(t)
+	if _, err := s.db.Exec(`PRAGMA foreign_keys = OFF`); err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range []string{profilesWipeSQL} {
+		if _, err := s.db.Exec(q); err != nil {
+			t.Skip("cannot empty the profiles table here:", err)
+		}
+	}
+	dropFile(t, h, "wf-early", true)
+	if created, err := h.ClaimLegacyFiles(ctx); err != nil || len(created) != 0 {
+		t.Fatalf("%v %v", created, err)
+	}
+	if markerCount(t, s) != 0 {
+		t.Fatal("a claim that took in nothing because there is no profile was recorded")
+	}
+	if _, err := s.db.Exec(`INSERT INTO profiles (id, name) VALUES ('default', 'default')`); err != nil {
+		t.Fatal(err)
+	}
+	created, err := h.ClaimLegacyFiles(ctx)
+	if err != nil || len(created) != 1 || markerCount(t, s) != 1 {
+		t.Fatalf("after a profile exists: %v %v markers=%d", created, err, markerCount(t, s))
+	}
+}
+
+// A listing opens only the files of workflows that have rows: a valid-looking file with no stored
+// copy is never parsed (the file store caches what it parses, which makes that visible).
+func TestListingDoesNotParseFilesWithNoRows(t *testing.T) {
+	ctx := context.Background()
+	h, _, _, _ := guardedRig(t)
+	dropFile(t, h, "junk-no-rows", true)
+	if _, err := h.ListAllProfilesWorkflows(ctx); err != nil {
+		t.Fatal(err)
+	}
+	h.files.mu.Lock()
+	defer h.files.mu.Unlock()
+	for path := range h.files.cache {
+		if strings.HasSuffix(path, "junk-no-rows.json") {
+			t.Fatal("the listing parsed a file with no stored copy")
+		}
+	}
+	if len(h.files.cache) == 0 {
+		t.Fatal("the listing parsed nothing at all, not even the stored workflow")
+	}
+}

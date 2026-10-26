@@ -98,7 +98,16 @@ func StampFileWorkflows(ctx context.Context, db *sql.DB, dir string) error {
 		}
 		return p.String
 	}
-	stamped, err := workflow.StampFileWorkflowProfiles(dir, owner, rowOwner)
+	// Before the files older versions left are taken in, all of them may need an owner. After it,
+	// only the files of workflows that have rows do: a file with no stored copy is left unread.
+	eligible := func(id string) bool {
+		if !workflow.LegacyClaimDone(ctx, db) {
+			return true
+		}
+		var n int
+		return db.QueryRowContext(ctx, `SELECT COUNT(*) FROM workflows WHERE id = ?`, id).Scan(&n) == nil && n > 0
+	}
+	stamped, err := workflow.StampFileWorkflowProfilesFor(dir, owner, rowOwner, eligible)
 	if len(stamped) > 0 {
 		log.Printf("workflow files: gave %d workflow(s) with no profile an owner (fallback %q)", len(stamped), owner)
 	}

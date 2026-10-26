@@ -61,8 +61,14 @@ func (h *HybridWorkflowStore) fileWorkflows(ctx context.Context) ([]*Workflow, e
 	}
 	h.ensureClaimed(ctx)
 	var kept []*Workflow
-	err := h.stableFileRead(ctx, func(open map[string]bool) error {
-		all, err := h.files.ListWorkflows(ctx)
+	// Only files of workflows that have rows are opened: a file with no stored copy is not a
+	// workflow, and a folder of junk must not cost a parse of each on every command.
+	withRows, err := h.workflowIDs(ctx)
+	if err != nil {
+		return nil, err
+	}
+	err = h.stableFileRead(ctx, func(open map[string]bool) error {
+		all, err := h.files.listWorkflows(ctx, withRows)
 		if err != nil {
 			return err
 		}
@@ -603,6 +609,14 @@ func (h *HybridWorkflowStore) RawDB() *sql.DB { return h.sql.RawDB() }
 // protect and is served from its file, as it always was.
 func (h *HybridWorkflowStore) reconciledFile(ctx context.Context, id string) (*Workflow, error) {
 	h.ensureClaimed(ctx)
+	// No stored copy: nothing is served from the file, so it is not even opened.
+	var stored int
+	if err := h.sql.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM workflows WHERE id = ?`, id).Scan(&stored); err != nil {
+		return nil, err
+	}
+	if stored == 0 {
+		return nil, nil
+	}
 	raw, existed, err := h.files.readRaw(id)
 	if err != nil {
 		return nil, err
@@ -719,4 +733,22 @@ func (h *HybridWorkflowStore) deactivateRowsOnly(ctx context.Context, id string)
 		return false, err
 	}
 	return true, tx.Commit()
+}
+
+// workflowIDs is the set of ids that have rows.
+func (h *HybridWorkflowStore) workflowIDs(ctx context.Context) (map[string]bool, error) {
+	rs, err := h.sql.db.QueryContext(ctx, `SELECT id FROM workflows`)
+	if err != nil {
+		return nil, err
+	}
+	defer rs.Close()
+	out := map[string]bool{}
+	for rs.Next() {
+		var id string
+		if err := rs.Scan(&id); err != nil {
+			return nil, err
+		}
+		out[id] = true
+	}
+	return out, rs.Err()
 }

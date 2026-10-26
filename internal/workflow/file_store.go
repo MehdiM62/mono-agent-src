@@ -303,6 +303,12 @@ func (s *WorkflowFileStore) GetWorkflow(ctx context.Context, id string) (*Workfl
 // UpdatedAt desc. Parsed workflows are cached per file and reused while the
 // file's modtime and size are unchanged.
 func (s *WorkflowFileStore) ListWorkflows(ctx context.Context) ([]*Workflow, error) {
+	return s.listWorkflows(ctx, nil)
+}
+
+// listWorkflows is ListWorkflows limited to the ids in only (all of them when only is nil): a file
+// whose id is not wanted is not opened.
+func (s *WorkflowFileStore) listWorkflows(ctx context.Context, only map[string]bool) ([]*Workflow, error) {
 	entries, err := os.ReadDir(s.dir)
 	if err != nil {
 		return nil, fmt.Errorf("file_store: readdir %s: %w", s.dir, err)
@@ -310,6 +316,9 @@ func (s *WorkflowFileStore) ListWorkflows(ctx context.Context) ([]*Workflow, err
 	var wfs []*Workflow
 	for _, e := range entries {
 		if e.IsDir() || filepath.Ext(e.Name()) != ".json" {
+			continue
+		}
+		if only != nil && !only[strings.TrimSuffix(e.Name(), ".json")] {
 			continue
 		}
 		wf, err := s.cachedWorkflow(e)
