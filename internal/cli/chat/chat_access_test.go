@@ -3,6 +3,7 @@ package chat
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -199,14 +200,41 @@ func backgroundWithExit(t *testing.T) (*exec.Cmd, <-chan struct{}) {
 	if runtime.GOOS != "linux" {
 		t.Skip("a process's identity comes from /proc")
 	}
-	c := exec.Command("sleep", "60")
-	c.Env = append(os.Environ(), execTreeEnv+"=tok-"+t.Name())
-	if err := c.Start(); err != nil {
+	ready, signal, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ready.Close()
+	input, hold, err := os.Pipe()
+	if err != nil {
+		signal.Close()
+		t.Fatal(err)
+	}
+	// The shell signals only once its final image and environment are ready,
+	// then stays in a builtin read. There is no subsequent exec or 60s expiry.
+	c := exec.Command("sh", "-c", "printf R >&3; read -r line")
+	token := "tok-" + t.Name()
+	c.Env = append(os.Environ(), execTreeEnv+"="+token)
+	c.Stdin = input
+	c.ExtraFiles = []*os.File{signal}
+	err = c.Start()
+	signal.Close()
+	input.Close()
+	if err != nil {
+		hold.Close()
 		t.Fatal(err)
 	}
 	reaped := make(chan struct{})
 	go func() { c.Wait(); close(reaped) }()
-	t.Cleanup(func() { c.Process.Kill(); <-reaped })
+	t.Cleanup(func() { c.Process.Kill(); hold.Close(); <-reaped })
+	var marker [1]byte
+	if _, err := io.ReadFull(ready, marker[:]); err != nil {
+		t.Fatal(err)
+	}
+	if marker[0] != 'R' || processIdentity(c.Process.Pid) != "tree:"+token {
+		t.Fatal("ready child has no expected exec-tree identity")
+	}
+
 	return c, reaped
 }
 
