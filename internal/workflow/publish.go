@@ -35,7 +35,7 @@ var ErrPublicationLost = errors.New("the change was rolled back by another proce
 const publicationLease = 30 * time.Second
 
 // publicationWait is how long Publish retries while another change of the same workflow is open.
-var publicationWait = 5 * time.Second
+var publicationWait = 20 * time.Second
 
 // Publication describes one change of a workflow's definition, made through Publish.
 type Publication struct {
