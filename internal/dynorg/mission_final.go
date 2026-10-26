@@ -49,7 +49,7 @@ func missionRunToolSpecs() []monomind.ToolSpec {
 	return []monomind.ToolSpec{
 		{Name: ToolMissionVerify, Description: "Start the verifier of a task that a worker handed to review: another agent, on another model when one is ready, read only, bound to that one task. It checks the task's acceptance and records its own verdict (pass: the task is verified; fail: it goes back to Ready with the note, up to the retry cap, then it is blocked for the operator). org_wait for it. You never record a verdict yourself.",
 			Schema: obj(map[string]any{"session": session, "task_id": intProp("A task in Review (not blocked, not verified).")}, "task_id")},
-		{Name: ToolMissionFinish, Description: "Integrate the mission and propose its close. Call it when mission_next has nothing left to start. It lists any task that is not done or verified (blocked ones with the verifiers' failure notes) and stops there. When every task is, it creates the integration check task if the plan has none, then waits for it; then it lists writer branches you have not org_merge'd (merge them one at a time and call again); then it writes the final report (an artifact, and the mission.report card) and proposes the close: the session stays running and ONLY the operator closes it (task session close, or the Close button). When it says ready_to_close, do not call it again.",
+		{Name: ToolMissionFinish, Description: "Integrate the mission and propose its close. Call it when mission_next has nothing left to start. It lists any task that is not done or verified (blocked ones with the verifiers' failure notes) and stops there. When every task is, it creates the integration check task if the plan has none, then waits for it; then it lists writer branches you have not org_merge'd (merge them one at a time and call again); then it writes the final report (an artifact, and the mission.report card; again if work is reopened and the checks settle anew) and proposes the close: the session stays running and ONLY the operator closes it (task session close, or the Close button). When it says ready_to_close, do not call it again.",
 			Schema: obj(map[string]any{"session": session})},
 	}
 }
@@ -262,7 +262,12 @@ func (c *Conductor) createIntegration(ctx context.Context, mc *MissionRun, sid i
 // session stays running. A repeat call writes nothing more and says it is still waiting.
 func (c *Conductor) proposeMissionClose(ctx context.Context, mc *MissionRun, se tasks.Session, plan tasks.SessionPlan, v FinishView) (FinishView, error) {
 	rep, payload := c.finalReport(ctx, mc, se, plan)
-	proposed, err := c.proposeClose(ctx, mc, se.ID, rep)
+	payload.State, payload.CloseProposed = string(se.State), true
+	proposed, err := c.proposeClose(ctx, mc, se.ID, rep, func() {
+		if c.cfg.Emit != nil {
+			c.cfg.Emit.Emit(chatevents.EventMissionReport, payload)
+		}
+	})
 	if err != nil {
 		return v, err
 	}
@@ -270,10 +275,6 @@ func (c *Conductor) proposeMissionClose(ctx context.Context, mc *MissionRun, se 
 	if !proposed {
 		v.Next = "The mission is ready and the operator has not closed it yet; it is still waiting for the operator. Do not call mission_finish again: give the user a short summary and stop."
 		return v, nil
-	}
-	payload.State, payload.CloseProposed = string(se.State), true
-	if c.cfg.Emit != nil {
-		c.cfg.Emit.Emit(chatevents.EventMissionReport, payload)
 	}
 	v.Report = boundText(rep, 4000)
 	v.Next = "The mission is ready; the operator closes it (task session close " + fmt.Sprint(se.ID) + " or the Close button); do not call mission_finish again. The final report is on the conversation: give the user a short summary of what was built and how it was checked."
@@ -284,9 +285,9 @@ func (c *Conductor) proposeMissionClose(ctx context.Context, mc *MissionRun, se 
 func (c *Conductor) finalReport(ctx context.Context, mc *MissionRun, se tasks.Session, plan tasks.SessionPlan) (string, chatevents.MissionReportPayload) {
 	p := chatevents.MissionReportPayload{SessionID: se.ID, Title: se.Title, Unfinished: []int64{}, SpentUSD: se.SpentUSD, BudgetUSD: se.BudgetUSD}
 	var b strings.Builder
-	fmt.Fprintf(&b, "# Mission report: %s\n\n", boundText(oneLine(se.Title), 200))
+	fmt.Fprintf(&b, "# Mission report: %s\n\n", mdCode(se.Title, 200))
 	if g := strings.TrimSpace(se.Goal); g != "" {
-		b.WriteString("Goal: " + boundText(oneLine(g), 1500) + "\n\n")
+		b.WriteString("Goal: " + mdCode(g, 1500) + "\n\n")
 	}
 	var lines []string
 	for _, t := range plan.Tasks {
@@ -305,12 +306,12 @@ func (c *Conductor) finalReport(ctx context.Context, mc *MissionRun, se tasks.Se
 			p.Unfinished = append(p.Unfinished, t.ID)
 			state = string(t.Status)
 		}
-		line := fmt.Sprintf("- #%d %s [%s]", t.ID, boundText(oneLine(t.Title), 150), state)
+		line := fmt.Sprintf("- #%d %s [%s]", t.ID, mdCode(t.Title, 150), state)
 		if d, err := mc.Store.SessionTask(ctx, mc.ProfileID, se.ID, t.ID, missionActor()); err == nil {
 			for _, a := range d.Artifacts {
 				if a.Kind != "report" {
 					p.Artifacts++
-					line += fmt.Sprintf("\n  - %s: `%s`", a.Kind, strings.ReplaceAll(boundText(oneLine(a.Ref), 160), "`", "'"))
+					line += fmt.Sprintf("\n  - %s: %s", a.Kind, mdCode(a.Ref, 160))
 				}
 			}
 			if r := strings.TrimSpace(lastResult(d)); r != "" {
@@ -332,4 +333,15 @@ func (c *Conductor) finalReport(ctx context.Context, mc *MissionRun, se tasks.Se
 // indentLines prefixes every line of s.
 func indentLines(s, prefix string) string {
 	return prefix + strings.ReplaceAll(s, "\n", "\n"+prefix)
+}
+
+// mdCode is text as one inline code span: the report is rendered as markdown for the operator
+// who reads it before closing the mission, and titles, goals and references come from agents,
+// so no link, image, tag, heading or emphasis in them may take effect.
+func mdCode(text string, max int) string {
+	t := strings.ReplaceAll(boundText(oneLine(text), max), "`", "'")
+	if strings.TrimSpace(t) == "" {
+		return "`(none)`"
+	}
+	return "`" + t + "`"
 }

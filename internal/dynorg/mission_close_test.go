@@ -42,7 +42,7 @@ func closeRig(t *testing.T, integration, settle bool) (*missionRig, tasks.Task, 
 }
 
 func (r *missionRig) tryClose() error {
-	_, err := r.c.proposeClose(tbg, r.mc, r.sid, "the report")
+	_, err := r.c.proposeClose(tbg, r.mc, r.sid, "the report", nil)
 	return err
 }
 
@@ -118,7 +118,7 @@ func TestProposeCloseLeavesAFullySettledMissionRunning(t *testing.T) {
 	if st := r.session().State; st != tasks.SessionRunning {
 		t.Fatalf("state %s: the conductor must not close the session", st)
 	}
-	if again, err := r.c.proposeClose(tbg, r.mc, r.sid, "the report"); err != nil || again {
+	if again, err := r.c.proposeClose(tbg, r.mc, r.sid, "the report", nil); err != nil || again {
 		t.Fatalf("a second proposal wrote again: %v %v", again, err)
 	}
 	if d, _ := r.store.SessionTask(tbg, "default", r.sid, it.ID, operator); countRef(d.Artifacts, "final-report") != 1 {

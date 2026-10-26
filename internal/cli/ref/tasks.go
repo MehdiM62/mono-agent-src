@@ -143,7 +143,8 @@ WHO MAY DO WHAT
   operator turned that on. The lead never closes a task or the session. ONLY the operator closes
   the session (session close ID [--note TEXT], or the Close button). mission_finish proposes the close,
   once, when every task is done or verified, none blocked, no writer branch is left to merge, and the
-  integration check is done or verified: it writes the final report and says ready_to_close; the
+  integration check is done or verified: it writes the final report and says ready_to_close (once per
+  integration verdict; reopened work gets a new report); the
   session stays running (the operator may also close at any time, ready or not). Two writers work in parallel
   when orgWriters is isolated (a worktree and branch each, merged one at a
   time with org_merge); with shared they take turns. A confirmed mission in a git work tree with a

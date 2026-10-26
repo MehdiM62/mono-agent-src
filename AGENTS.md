@@ -1848,9 +1848,13 @@ reads) does the next closing step each call: it lists tasks that are not done or
 (blocked ones with their notes); with everything settled it adds the Integration check
 task if the plan has none; when that is settled it lists writer branches still to
 `org_merge` (one at a time); then it attaches the final report to the integration task
-(artifact `final-report`) and emits `mission.report` (once, with `closeProposed`): it
-only PROPOSES the close (`ready_to_close`), the session stays running and the operator
-closes it (`session close`, or the Close button). A second call writes nothing more. Each
+(artifact `final-report`, written by the operator's process; agents cannot attach that
+reference) and emits `mission.report` (with `closeProposed`), once per integration verdict:
+it only PROPOSES the close (`ready_to_close`), the session stays running and the operator
+closes it (`session close`, which also releases the session's claims, or the Close button).
+A second call on an unchanged state writes nothing more; work reopened after a proposal
+gets a new report and card when its integration check settles again. A `close_proposed`
+session event, written after the card, records that the card went out. Each
 mission worker's exec is capped by the session's remaining `budget_usd`.
 Worker and verifier briefs fence foreign text in a per-brief random delimiter
 (`<<<DATA-xxxxxxxx` ... `DATA-xxxxxxxx>>>`). One task gets at most 6 workers per turn and 12
