@@ -19,7 +19,7 @@ func readRegularFile(path string) ([]byte, error) {
 		return nil, fmt.Errorf("%s is not a regular file", path)
 	}
 	if info.Size() > maxWorkflowFileBytes {
-		return nil, fmt.Errorf("%s is larger than %d bytes", path, maxWorkflowFileBytes)
+		return nil, fmt.Errorf("%w: %s is larger than %d bytes", ErrFileTooLarge, path, maxWorkflowFileBytes)
 	}
 	return os.ReadFile(path)
 }

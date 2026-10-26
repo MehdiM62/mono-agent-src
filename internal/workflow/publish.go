@@ -24,6 +24,9 @@ var ErrPublicationBusy = errors.New("another change to this workflow is in progr
 // ErrInvalidGraph: the definition has nodes or connections whose ids repeat.
 var ErrInvalidGraph = errors.New("the workflow has repeated node or connection ids")
 
+// ErrFileTooLarge: a workflow file over the size every reader accepts (16 MiB).
+var ErrFileTooLarge = errors.New("the workflow file is too large")
+
 // ErrPublicationLost: the publication was rolled back by another process before it committed
 // (its file was put back), so nothing was changed.
 var ErrPublicationLost = errors.New("the change was rolled back by another process before it committed")
@@ -314,6 +317,9 @@ func (h *HybridWorkflowStore) plan(ctx context.Context, tx *sql.Tx, p Publicatio
 	if h.files != nil {
 		if pl.data, err = h.files.renderWorkflow(t); err != nil {
 			return nil, err
+		}
+		if len(pl.data) > maxWorkflowFileBytes {
+			return nil, fmt.Errorf("%w: workflow %s would be %d bytes (the limit is %d)", ErrFileTooLarge, p.WorkflowID, len(pl.data), maxWorkflowFileBytes)
 		}
 		pl.targetSHA = shaHex(pl.data)
 	}

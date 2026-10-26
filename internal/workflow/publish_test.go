@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -414,5 +415,44 @@ func TestPublishNormalizesNodeIDsAndRefusesRepeats(t *testing.T) {
 	}
 	if !bytes.Equal(before, fileBytes(t, h, "wf-g")) || openIntentCount(t, s) != 0 {
 		t.Fatal("a refused definition touched the file or left an intent")
+	}
+}
+
+// A definition whose file would be larger than every reader accepts is refused before an intent is
+// recorded; an oversized file that is already there under an open change is left to the operator,
+// who can replace it from the rows.
+func TestOversizedFilesAreRefusedAndRecoverable(t *testing.T) {
+	ctx := context.Background()
+	h, s, _, nodes := guardedRig(t)
+	huge := strings.Repeat("x", maxWorkflowFileBytes+1)
+	big := append([]WorkflowNode(nil), nodes...)
+	big[1].Config = map[string]interface{}{"k": huge}
+	before := fileBytes(t, h, "wf-g")
+	if err := h.SaveWorkflowNodes(ctx, "wf-g", big); !errors.Is(err, ErrFileTooLarge) {
+		t.Fatalf("%v", err)
+	}
+	if !bytes.Equal(before, fileBytes(t, h, "wf-g")) || openIntentCount(t, s) != 0 {
+		t.Fatal("the refusal changed the file or left an intent")
+	}
+	// An oversized file under an abandoned change.
+	if err := os.WriteFile(filepath.Join(h.files.dir, "wf-g.json"), []byte(huge), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.db.Exec(`INSERT INTO workflow_publications (workflow_id, kind, state, owner_pid, started_at)
+		VALUES ('wf-g', 'save', 'pending', 0, ?)`, time.Now().UTC()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.RecoverPublications(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var state string
+	if err := s.db.QueryRow(`SELECT state FROM workflow_publications`).Scan(&state); err != nil || state != "unresolved" {
+		t.Fatalf("state %q %v", state, err)
+	}
+	if err := h.ResolveUnresolved(ctx, "wf-g", KeepRows); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := h.GetWorkflow(ctx, "wf-g"); err != nil || got == nil || openIntentCount(t, s) != 0 {
+		t.Fatalf("after resolving: %v %v", got, err)
 	}
 }
