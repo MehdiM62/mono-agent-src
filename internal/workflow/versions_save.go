@@ -131,9 +131,14 @@ func (h *HybridWorkflowStore) saveDefinitionAs(ctx context.Context, w *Workflow,
 		Note:            note,
 		StoredVersion:   stored,
 		RevokeApprovals: revoke,
-		Build: func(*Workflow) (*Workflow, error) {
+		Build: func(cur *Workflow) (*Workflow, error) {
 			c := *w
 			c.Connections = append([]WorkflowConnection(nil), w.Connections...)
+			if cur != nil {
+				// The active flag the caller read earlier may be stale (another process may have switched
+				// the workflow off or on since): a save never changes it. Only SetWorkflowActive does.
+				c.IsActive = cur.IsActive
+			}
 			return &c, nil
 		},
 	})

@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 )
@@ -217,7 +218,9 @@ func (e *WorkflowEngine) ActivateWorkflow(ctx context.Context, id string) error 
 		// `if existing.IsActive`, so the trigger would survive deletion.
 		e.triggerMgr.DeactivateWorkflow(id)
 		// Revert the active flag so the DB stays consistent.
-		_ = e.store.SetWorkflowActive(ctx, id, false)
+		if rerr := e.store.SetWorkflowActive(context.WithoutCancel(ctx), id, false); rerr != nil {
+			err = errors.Join(err, fmt.Errorf("the flag could not be reverted: %w", rerr))
+		}
 		return fmt.Errorf("engine: activate workflow: register triggers: %w", err)
 	}
 

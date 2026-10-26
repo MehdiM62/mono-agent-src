@@ -668,3 +668,47 @@ func TestExhaustedRetryStillSaysBusy(t *testing.T) {
 		t.Fatalf("%v", err)
 	}
 }
+
+// A save carries the active flag the caller read earlier; it must not undo a toggle made since.
+func TestSaveDoesNotUndoAToggleMadeSinceItWasRead(t *testing.T) {
+	ctx := context.Background()
+	h, s, _, _ := guardedRig(t)
+	stale := mustGet(t, h, "wf-g") // read while inactive
+	if err := h.SetWorkflowActive(ctx, "wf-g", true); err != nil {
+		t.Fatal(err)
+	}
+	stale.Description = "edited from a stale read"
+	if err := h.SaveWorkflow(ctx, stale); err != nil {
+		t.Fatal(err)
+	}
+	if rows, _ := s.GetWorkflow(ctx, "wf-g"); !rows.IsActive {
+		t.Fatal("a save from a stale read switched the workflow off")
+	}
+	stale = mustGet(t, h, "wf-g") // read while active
+	if err := h.SetWorkflowActive(ctx, "wf-g", false); err != nil {
+		t.Fatal(err)
+	}
+	stale.Description = "edited again"
+	if err := h.SaveWorkflow(ctx, stale); err != nil {
+		t.Fatal(err)
+	}
+	if rows, _ := s.GetWorkflow(ctx, "wf-g"); rows.IsActive {
+		t.Fatal("a save from a stale read switched the workflow on")
+	}
+}
+
+// An approval with a guard that matches nothing leaves no trace: no approval row, the file as it
+// was, and no open change.
+func TestABogusGuardLeavesNoApprovalFileOrIntent(t *testing.T) {
+	ctx := context.Background()
+	h, s, _, nodes := guardedRig(t)
+	before := fileBytes(t, h, "wf-g")
+	approved := approvals(t, s, "wf-g")
+	err := h.SaveWorkflowNodes(WithExpectHash(WithApproval(ctx), "bogus"), "wf-g", nodes)
+	if !errors.Is(err, ErrChangedSincePreview) {
+		t.Fatalf("%v", err)
+	}
+	if approvals(t, s, "wf-g") != approved || !bytes.Equal(before, fileBytes(t, h, "wf-g")) || openIntentCount(t, s) != 0 {
+		t.Fatal("a refused edit left something behind")
+	}
+}
