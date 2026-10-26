@@ -21,6 +21,17 @@ type sessionSettingsView struct {
 	OperatorOnly   []string            `json:"operatorOnly"`
 	Allowed        map[string][]string `json:"allowed"`
 	Changed        []string            `json:"changed,omitempty"`
+	// Checkin is set for a master: how many check-in turns ran in a row with no message
+	// from a person between them, against its limit. Waiting says the scheduler would check
+	// in (it is unattended and has children) but has reached the limit, so it waits until
+	// someone writes to the master.
+	Checkin *checkinView `json:"checkin,omitempty"`
+}
+
+type checkinView struct {
+	Streak  int  `json:"streak"`
+	Limit   int  `json:"limit"`
+	Waiting bool `json:"waiting"`
 }
 
 func newCoderSessionsSettingsCmd(cfg *Deps) *cobra.Command {
@@ -73,6 +84,21 @@ func sessionSettingsFrom(cfg *Deps, profileID string, conv ai.Conversation, chan
 	} else if ok {
 		v.Role, v.Unattended = x.Role, x.Unattended
 	}
+	if v.Role == "master" {
+		if streak, _, _, err := cs.CheckinStreak(profileID, conv.ID); err == nil {
+			// Waiting is what the scheduler would do: no check-in for a master that is not unattended or has
+			// no running child, and none past the limit.
+			children := 0
+			if all, err := cs.ListSessions(profileID); err == nil {
+				for _, x := range all {
+					if x.Parent == conv.ID && x.State != coderhost.StateStopped {
+						children++
+					}
+				}
+			}
+			v.Checkin = &checkinView{Streak: streak, Limit: settings.CheckinLimit, Waiting: v.Unattended && children > 0 && streak >= settings.CheckinLimit}
+		}
+	}
 	return v, nil
 }
 
@@ -100,7 +126,7 @@ func newCoderSessionsSettingsSetCmd(cfg *Deps) *cobra.Command {
 		Short: "Change settings with a JSON object naming only the settings to change",
 		Long: "--patch takes a JSON object with the settings to change (see `settings get` for their names); a setting " +
 			"it does not name keeps its value, and a name that is not a setting is refused. --unattended true|false " +
-			"says whether the session may run with nobody there. --role makes it a master of child sessions (which the " +
+			"false turns off the host's own scheduled check-ins for the session; a message you send runs either way. --role makes it a master of child sessions (which the " +
 			"host checks in on at the master's interval) or a child of one.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -172,7 +198,7 @@ func newCoderSessionsSettingsSetCmd(cfg *Deps) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&patch, "patch", "", "JSON object with the settings to change")
-	cmd.Flags().StringVar(&unattended, "unattended", "", "true or false: may the session run with nobody there")
+	cmd.Flags().StringVar(&unattended, "unattended", "", "true or false: false turns off the host's own scheduled check-ins for the session")
 	cmd.Flags().StringVar(&role, "role", "", "solo, master or child (a child needs --parent: a master with room for it)")
 	cmd.Flags().StringVar(&parent, "parent", "", "the master conversation, with --role child")
 	clicore.WithJSONErrors(cfg.JSONOutput, cmd)

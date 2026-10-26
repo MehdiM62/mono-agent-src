@@ -2,8 +2,8 @@
 import React from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import '@testing-library/jest-dom/vitest'
-import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
-import '../../i18n.js'
+import { render, screen, fireEvent, waitFor, cleanup, act } from '@testing-library/react'
+import i18n from '../../i18n.js'
 
 // The coder pane's session section: the unattended switch is always shown with the
 // access level, the other settings sit in a disclosure, and each change names only
@@ -43,6 +43,44 @@ describe('SessionSettings', () => {
     expect(sw).toHaveTextContent('Unattended: on')
     expect(sw).toHaveTextContent(/coding/i)
     expect(screen.getByTestId('pane-unattended')).toBeVisible()
+  })
+
+  it('says when a master is waiting for a person at its check-in limit, and only then', async () => {
+    api.getCoderSessionSettings.mockResolvedValue(view({ role: 'master', checkin: { streak: 48, limit: 48, waiting: true } }))
+    await shown()
+    expect(screen.getByTestId('pane-checkin-waiting')).toHaveTextContent('Waiting for you: 48 check-in turns ran with no message from you')
+    cleanup()
+    api.getCoderSessionSettings.mockResolvedValue(view({ role: 'master', checkin: { streak: 1, limit: 1, waiting: true } }))
+    await shown()
+    expect(screen.getByTestId('pane-checkin-waiting')).toHaveTextContent('Waiting for you: 1 check-in turn ran with')
+    cleanup()
+    api.getCoderSessionSettings.mockResolvedValue(view({ role: 'master', checkin: { streak: 3, limit: 48, waiting: false } }))
+    await shown()
+    expect(screen.getByTestId('pane-checkin-waiting')).toBeEmptyDOMElement()
+    cleanup()
+    api.getCoderSessionSettings.mockResolvedValue(view()) // not a master: no check-in state at all
+    await shown()
+    expect(screen.getByTestId('pane-checkin-waiting')).toBeEmptyDOMElement()
+  })
+
+  it('keeps the note up to date while the pane is open: it appears by itself and clears when a person writes', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      api.getCoderSessionSettings.mockResolvedValue(view({ role: 'master', checkin: { streak: 47, limit: 48, waiting: false } }))
+      await shown()
+      expect(screen.getByTestId('pane-checkin-waiting')).toBeEmptyDOMElement()
+      api.getCoderSessionSettings.mockResolvedValue(view({ role: 'master', checkin: { streak: 48, limit: 48, waiting: true } }))
+      await vi.advanceTimersByTimeAsync(15500)
+      await waitFor(() => expect(screen.getByTestId('pane-checkin-waiting')).toHaveTextContent('Waiting for you: 48'))
+      api.getCoderSessionSettings.mockResolvedValue(view({ role: 'master', checkin: { streak: 0, limit: 48, waiting: false } }))
+      await vi.advanceTimersByTimeAsync(15500)
+      await waitFor(() => expect(screen.getByTestId('pane-checkin-waiting')).toBeEmptyDOMElement())
+      api.getCoderSessionSettings.mockRejectedValue(new Error('boom')) // a refresh that fails keeps what is shown
+      await vi.advanceTimersByTimeAsync(15500)
+      expect(screen.getByTestId('pane-unattended')).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('turns unattended off through the CLI and shows the stored answer', async () => {
@@ -98,6 +136,44 @@ describe('SessionSettings', () => {
     fireEvent.change(field, { target: { value: '12' } })
     fireEvent.blur(field)
     await waitFor(() => expect(api.setCoderSessionSettings).toHaveBeenCalledWith('c1', { checkin_limit: 12 }, ''))
+  })
+
+  // The translation function changes identity when the language is set up or switched, which on a
+  // slow machine can happen after the pane showed. That must not reload the settings and unmount the
+  // section under the person's hands.
+  it('keeps what is shown, and its fields, when the translation function changes', async () => {
+    await shown()
+    const field = screen.getByLabelText('Check-ins in a row')
+    const reads = api.getCoderSessionSettings.mock.calls.length
+    try {
+      await act(async () => { await i18n.changeLanguage('es') })
+      await act(async () => { await i18n.changeLanguage('en') })
+    } finally {
+      await act(async () => { await i18n.changeLanguage('en') })
+    }
+    expect(screen.getByLabelText('Check-ins in a row')).toBe(field)
+    expect(api.getCoderSessionSettings.mock.calls.length).toBe(reads)
+  })
+
+  // A refresh that started before a save and answers after it must not put the old values back.
+  it('does not let a slow refresh overwrite a save that finished after it started', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      await shown()
+      let release
+      api.getCoderSessionSettings.mockImplementation(() => new Promise(resolve => { release = () => resolve(view()) })) // answers with the old 48
+      await vi.advanceTimersByTimeAsync(15500) // the refresh starts and waits
+      expect(release).toBeTypeOf('function')
+      api.setCoderSessionSettings.mockResolvedValue(view({}, { checkin_limit: 12 }))
+      const field = screen.getByLabelText('Check-ins in a row')
+      fireEvent.change(field, { target: { value: '12' } })
+      fireEvent.blur(field)
+      await waitFor(() => expect(screen.getByLabelText('Check-ins in a row')).toHaveValue(12))
+      await act(async () => { release() })
+      expect(screen.getByLabelText('Check-ins in a row')).toHaveValue(12)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('shows why a change was refused and keeps what was stored', async () => {

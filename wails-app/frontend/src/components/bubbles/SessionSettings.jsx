@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { api } from '../../services/api.js'
 
@@ -7,6 +7,7 @@ const row = { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', p
 const label = { fontFamily: mono, fontSize: 10, color: 'var(--text-muted)', minWidth: 78 }
 const value = { fontFamily: mono, fontSize: 11, color: 'var(--text)' }
 const INTERVALS = [0, 5, 10, 15, 30, 60]
+const REFRESH_MS = 15000
 const WHO = ['user', 'master', 'model']
 
 // useSessionSettings reads a coder session's settings from the CLI and saves
@@ -14,29 +15,43 @@ const WHO = ['user', 'master', 'model']
 // validates and answers with all of them, so what is shown is always what is stored.
 function useSessionSettings(conversationId) {
   const { t } = useTranslation()
+  // Read through a ref: the translation function changes identity when the language is set up or
+  // switched, and that must not reload the settings and unmount the section.
+  const tRef = useRef(t)
+  tRef.current = t
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [rev, setRev] = useState(0) // bumps after each save, so a field shows what is stored, not what was refused
+  // Bumped when a save starts and when it ends: a read that began before is older than what the save
+  // stored, and its answer is dropped instead of putting the old values back.
+  const epoch = useRef(0)
   useEffect(() => {
     let live = true
     setData(null); setError('')
-    api.getCoderSessionSettings(conversationId)
-      .then(r => { if (live) setData(r) })
-      .catch(() => { if (live) setError(t('bubbles.pane.session.loadFailed')) })
-    return () => { live = false }
-  }, [conversationId, t])
+    const read = () => {
+      const began = epoch.current
+      return api.getCoderSessionSettings(conversationId).then(r => { if (live && began === epoch.current) setData(r) })
+    }
+    read().catch(() => { if (live) setError(tRef.current('bubbles.pane.session.loadFailed')) })
+    // Kept up to date while the pane is open: the check-in count changes by itself, and a message
+    // from the person clears it. A refresh that fails keeps what is shown.
+    const timer = setInterval(() => { read().catch(() => {}) }, REFRESH_MS)
+    return () => { live = false; clearInterval(timer) }
+  }, [conversationId])
   const save = useCallback(async (patch, unattended = '') => {
+    epoch.current++
     setBusy(true); setError('')
     try {
       setData(await api.setCoderSessionSettings(conversationId, patch, unattended))
     } catch (err) {
-      setError(t('bubbles.pane.session.saveFailed', { error: String(err?.message || err) }))
+      setError(tRef.current('bubbles.pane.session.saveFailed', { error: String(err?.message || err) }))
     } finally {
+      epoch.current++
       setBusy(false)
       setRev(r => r + 1)
     }
-  }, [conversationId, t])
+  }, [conversationId])
   return { data, error, busy, save, rev }
 }
 
@@ -57,6 +72,9 @@ function UnattendedRow({ session: { data, error, busy, save }, access }) {
         {access ? ` · ${t(`bubbles.pane.level.${access}`)}` : ''}
       </button>
       <span style={{ ...label, flexBasis: '100%', minWidth: 0 }}>{t('bubbles.pane.session.unattendedWhy')}</span>
+      <div role="status" aria-live="polite" data-testid="pane-checkin-waiting" style={{ flexBasis: '100%', fontFamily: mono, fontSize: 10, color: '#fbbf24' }}>
+        {data?.checkin?.waiting ? t('bubbles.pane.session.checkinWaiting', { count: data.checkin.streak }) : ''}
+      </div>
       <Err>{error}</Err>
     </div>
   )

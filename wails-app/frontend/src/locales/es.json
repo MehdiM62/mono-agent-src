@@ -1247,7 +1247,7 @@
         "unattended": "Desatendida",
         "unattendedOn": "Desatendida: sí",
         "unattendedOff": "Desatendida: no",
-        "unattendedWhy": "Si está activada, este chat sigue trabajando sin nadie aquí, con el nivel de acceso indicado. Si no, solo tú puedes ponerlo en marcha.",
+        "unattendedWhy": "Si está activada, el host puede iniciar turnos de este chat por sí mismo (revisiones programadas) sin nadie aquí, con el nivel de acceso indicado. Un mensaje tuyo se ejecuta en cualquier caso.",
         "checkins": "Revisiones",
         "checkinEvery": "Revisar cada",
         "checkinOff": "No",
@@ -1296,7 +1296,9 @@
         "saveFailed": "No se guardó: {{error}}",
         "saved": "Guardado.",
         "checkinLimit": "Revisiones seguidas",
-        "checkinLimitWhy": "Tras tantas revisiones sin un mensaje tuyo, el principal espera uno."
+        "checkinLimitWhy": "Tras tantas revisiones sin un mensaje tuyo, el principal espera uno.",
+        "checkinWaiting_one": "Esperando por ti: se hizo {{count}} turno de revisión sin un mensaje tuyo. Escribe en este chat para que continúen.",
+        "checkinWaiting_other": "Esperando por ti: se hicieron {{count}} turnos de revisión sin un mensaje tuyo. Escribe en este chat para que continúen."
       }
     }
   },

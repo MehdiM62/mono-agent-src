@@ -301,8 +301,8 @@ func (h *Host) meshLoop(ctx context.Context) {
 
 // meshSync tells the mesh which sessions to show: those whose settings make them
 // visible and that are not stopped, are doing something, or were touched within
-// MeshIdle. What it says about a session is generic (its state and access level),
-// never anything from its prompts.
+// MeshIdle. What it says about a session is generic (its state word), never anything
+// from its prompts, its folder's path or its access level.
 func (h *Host) meshSync(ctx context.Context) {
 	idle := h.MeshIdle
 	if idle <= 0 {
