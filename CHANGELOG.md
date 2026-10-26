@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **AI tasks.** A task's access level is now applied: a `coding` or `workspace` task of a kind that is not confined runs in a conversation at that level, a `qa` task of such a kind is refused (`access_unenforceable`), and a submit cannot ask for more than the kind's maximum (`access_above_kind`). Tasks queued before this update are refused at start with `capabilities_changed`; cancel and submit them again.
+
 - **Vault agent access.** Each profile now offers Strict, Use without revealing, and Reveal in the Vault page and `secret agent-access strict|use|reveal`. Existing grants retain Use access. Reveal permits audited plaintext reads through `secret reveal` and `vault.secret_get`; only the operator can change the level.
 
 - **AI tasks.** `workflow-generate`, `failed-run-fix` and `recording-analyze` now run as confined turns that only propose. The user reviews and applies: `workflow apply-fix <task> [--dry-run]` shows or applies a failed run's workflow edits, `workflow save-draft <task>` saves a generated workflow as an inactive draft; both leave the workflow unapproved.

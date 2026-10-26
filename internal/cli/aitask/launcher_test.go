@@ -227,3 +227,24 @@ func TestNoUnconfinedQAConversationForAnyKind(t *testing.T) {
 		t.Fatal("no confined kind is registered here: the test checked nothing")
 	}
 }
+
+// The refusal only suggests levels the kind allows, and Enforceable agrees
+// with the creation rule (start uses it).
+func TestEnforceableAndRefusalMessage(t *testing.T) {
+	l := selfLauncher{deps(t, nil)}
+	if err := l.Enforceable("generic", "qa"); err == nil {
+		t.Fatal("generic at qa is enforceable")
+	}
+	if err := l.Enforceable("draft-reply", "qa"); err != nil {
+		t.Fatal(err)
+	}
+	err := l.Enforceable("generic", "qa")
+	if !strings.Contains(err.Error(), "coding or workspace") {
+		t.Fatalf("message = %v", err)
+	}
+	aitask.Register(aitask.Kind{Name: "qa-only-test", DefaultAccess: aitask.AccessQA})
+	err = l.Enforceable("qa-only-test", "qa")
+	if err == nil || strings.Contains(err.Error(), "--access coding") {
+		t.Fatalf("a qa-ceiling kind was told to raise: %v", err)
+	}
+}

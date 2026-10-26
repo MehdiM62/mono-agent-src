@@ -96,6 +96,9 @@ func Register(k Kind) {
 	if !ValidAccess(k.MaxAccess) {
 		panic(fmt.Sprintf("aitask: kind %s has bad max access %q", k.Name, k.MaxAccess))
 	}
+	if AccessRank(k.Ceiling()) < AccessRank(k.DefaultAccess) {
+		panic(fmt.Sprintf("aitask: kind %s has max access %q below its default %q", k.Name, k.MaxAccess, k.DefaultAccess))
+	}
 	kindsMu.Lock()
 	defer kindsMu.Unlock()
 	if _, dup := kinds[k.Name]; dup {

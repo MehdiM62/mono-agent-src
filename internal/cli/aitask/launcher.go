@@ -103,8 +103,27 @@ func conversationLevel(kind, access string) ([]string, error) {
 	case aitask.AccessWorkspace:
 		return []string{"--access", ai.AccessWorkspace}, nil
 	}
-	return nil, &aitask.Error{Code: aitask.CodeAccessUnenforced,
-		Message: fmt.Sprintf("a %s task cannot run at the %q access level: only a confined kind has a read-only profile to run it in, and a coder turn has a shell. Submit it with --access coding or workspace", kind, access)}
+	msg := fmt.Sprintf("a %s task cannot run at the %q access level: only a confined kind has a read-only profile to run it in, and a coder turn has a shell.", kind, access)
+	if k, err := aitask.Lookup(kind); err == nil {
+		var ok []string
+		for _, a := range []string{aitask.AccessCoding, aitask.AccessWorkspace} {
+			if aitask.AccessRank(a) <= aitask.AccessRank(k.Ceiling()) {
+				ok = append(ok, a)
+			}
+		}
+		if len(ok) > 0 {
+			msg += " Submit it with --access " + strings.Join(ok, " or ") + "."
+		} else {
+			msg += " This kind has no level it can run at."
+		}
+	}
+	return nil, &aitask.Error{Code: aitask.CodeAccessUnenforced, Message: msg}
+}
+
+// Enforceable is nil when a turn of kind can be held to access.
+func (l selfLauncher) Enforceable(kind, access string) error {
+	_, err := conversationLevel(kind, access)
+	return err
 }
 
 func (l selfLauncher) CreateConversation(ctx context.Context, runtime, kind, access string) (aitask.Conversation, error) {

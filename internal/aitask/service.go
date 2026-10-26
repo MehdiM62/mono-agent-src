@@ -49,6 +49,12 @@ type Launcher interface {
 	// DefaultBudget is the spend cap, in USD, a task gets when submit names
 	// none (the operator's coder budget).
 	DefaultBudget(ctx context.Context) (float64, error)
+	// Enforceable is nil when a turn of this kind can be held to this access
+	// level, else the refusal (CodeAccessUnenforced). Submit's
+	// CreateConversation applies it, and Start checks it again, so a kind
+	// that stops being confined while a task is queued does not start as an
+	// unconfined shell turn.
+	Enforceable(kind, access string) error
 	// CreateConversation makes the task's conversation at the level the task's
 	// access stands for, or refuses with CodeAccessUnenforced when the kind
 	// cannot be held to that level.
@@ -249,6 +255,9 @@ func (s *Service) verifyAtStart(ctx context.Context, t Task) error {
 		return err
 	}
 	if err := s.checkUnattended(ctx, kind, t.Access, t.Unattended); err != nil {
+		return err
+	}
+	if err := s.Launcher.Enforceable(kind.Name, t.Access); err != nil {
 		return err
 	}
 	if t.BudgetUSD <= 0 {
