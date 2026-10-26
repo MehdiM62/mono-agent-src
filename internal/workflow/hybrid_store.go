@@ -364,29 +364,21 @@ func (h *HybridWorkflowStore) fileCopy(ctx context.Context, id string) *Workflow
 // in SQLite even when the workflow's canonical definition lives only in the
 // file store (e.g. created via the CLI's `workflow create`).
 func (h *HybridWorkflowStore) ensureSQLWorkflow(ctx context.Context, workflowID string) {
-	existing, err := h.sql.GetWorkflow(ctx, workflowID)
-	if err != nil || existing != nil {
-		return
-	}
 	if h.files == nil {
 		return
 	}
-	wf, ferr := h.files.GetWorkflow(ctx, workflowID)
-	if ferr != nil || wf == nil {
+	if existing, err := h.sql.GetWorkflow(ctx, workflowID); err != nil || existing != nil {
 		return
 	}
-	// Insert a minimal stub row — only metadata, no nodes/connections.
-	stub := *wf
-	stub.Nodes = nil
-	stub.Connections = nil
-	_ = h.sql.CreateWorkflow(ctx, &stub)
+	// The file becomes rows through the importer: one transaction that does nothing while a
+	// change of this workflow is open, so a file that has not committed is never backfilled.
+	_, _ = h.ImportFile(ctx, workflowID, nil)
 }
 
 // publishGraph publishes workflow id with its nodes or connections replaced, through Publish:
 // the file and the rows change together or not at all, and a file that cannot be written is an
 // error.
 func (h *HybridWorkflowStore) publishGraph(ctx context.Context, workflowID, origin string, edit func(next *Workflow)) error {
-	h.ensureSQLWorkflow(ctx, workflowID)
 	_, err := h.Publish(ctx, Publication{
 		WorkflowID:   workflowID,
 		Origin:       origin,

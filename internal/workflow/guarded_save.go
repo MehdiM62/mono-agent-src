@@ -86,7 +86,6 @@ func (e *TxHookError) Unwrap() error { return e.Err }
 // commits. A file step that fails rolls everything back (ErrFileSyncFailed); a commit that fails
 // after the file was published puts the previous file bytes back. Every error is returned.
 func (h *HybridWorkflowStore) SaveNodesGuarded(ctx context.Context, workflowID string, nodes []WorkflowNode, guard SaveGuard) error {
-	h.ensureSQLWorkflow(ctx, workflowID)
 	_, err := h.Publish(ctx, Publication{
 		WorkflowID:      workflowID,
 		Origin:          "apply-fix",

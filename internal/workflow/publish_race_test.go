@@ -345,3 +345,26 @@ func TestCrashFailedCoordinationReadDoesNotTrustTheFile(t *testing.T) {
 		t.Fatal("expected the read to fail")
 	}
 }
+
+// A backfill that runs while a new workflow's creation is between its file and its commit must not
+// insert rows from that uncommitted file: when the creator dies, nothing of it may remain.
+func TestCrashBackfillDuringACreationLeavesNoStub(t *testing.T) {
+	r := newCrashRig(t)
+	r.pauseAction = "save-shared"
+	cmd, _ := r.pauseHelper(t, "after-rename")
+	r.h.ensureSQLWorkflow(context.Background(), "wf-x")
+	if got, _ := r.s.GetWorkflow(context.Background(), "wf-x"); got != nil {
+		t.Fatal("a stub was created from the uncommitted file")
+	}
+	_ = cmd.Process.Kill()
+	_ = cmd.Wait()
+	if got, err := r.h.GetWorkflow(context.Background(), "wf-x"); err != nil || got != nil {
+		t.Fatalf("the abandoned creation is still visible: %v %v", got, err)
+	}
+	if _, err := os.Stat(filepath.Join(r.root, "workflows", "wf-x.json")); !os.IsNotExist(err) {
+		t.Fatalf("the abandoned file survived: %v", err)
+	}
+	if got, _ := r.s.GetWorkflow(context.Background(), "wf-x"); got != nil {
+		t.Fatal("rows of the abandoned creation survived")
+	}
+}
