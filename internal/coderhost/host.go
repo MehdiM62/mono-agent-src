@@ -155,7 +155,6 @@ func (h *Host) Tick() error {
 				h.end(c, CmdFailed, "could not record the session: "+err.Error())
 				return err
 			}
-			h.mu.Unlock() // admission can take seconds; do not hold up the turn watchers meanwhile
 			message, commit := c.Message, func() {}
 			if h.Mesh != nil {
 				if ms, ok := h.meshSessionFor(c.ProfileID, c.ConversationID); ok {
@@ -170,8 +169,9 @@ func (h *Host) Tick() error {
 					}
 				}
 			}
-			t, err := h.L.Start(c.ProfileID, c.ConversationID, c.TurnID, message, c.Attachments)
-			h.mu.Lock()
+			t, err := h.unlocked(func() (Turn, error) { // admission can take seconds; do not hold up the turn watchers meanwhile
+				return h.L.Start(c.ProfileID, c.ConversationID, c.TurnID, message, c.Attachments)
+			})
 			if err != nil {
 				h.settle(x)
 				h.end(c, CmdFailed, err.Error())
@@ -183,9 +183,7 @@ func (h *Host) Tick() error {
 				h.end(c, CmdFailed, "could not record the session: "+err.Error())
 				return err
 			}
-			h.mu.Unlock() // the turn has the messages and is recorded: mark them read, without holding up the watchers
-			commit()
-			h.mu.Lock()
+			_, _ = h.unlocked(func() (Turn, error) { commit(); return nil, nil }) // the turn has the messages and is recorded: mark them read, without holding up the watchers
 			h.live[k] = t
 			h.watch(x, t)
 			h.end(c, CmdDone, "")
@@ -323,7 +321,7 @@ func (h *Host) meshSync(ctx context.Context) {
 			// this session leave and come back under a new address: it stays as it was.
 			h.logf("coder host: mesh: %s: %v", x.ConversationID, err)
 			if prev, ok := h.meshPrev[key]; ok {
-				want = append(want, prev)
+				want, next[key] = append(want, prev), prev
 			}
 			continue
 		}
@@ -333,7 +331,7 @@ func (h *Host) meshSync(ctx context.Context) {
 		cwd, _, ok, err := h.Store.ConversationInfo(x.ProfileID, x.ConversationID)
 		if err != nil {
 			if prev, ok := h.meshPrev[key]; ok {
-				want = append(want, prev)
+				want, next[key] = append(want, prev), prev
 			}
 			continue
 		}
@@ -376,4 +374,11 @@ func (h *Host) meshSessionFor(profileID, conversationID string) (MeshSession, bo
 		}
 	}
 	return MeshSession{ProfileID: profileID, ConversationID: conversationID, Accept: settings.MeshAccept, Related: related}, true
+}
+
+// unlocked runs f without h.mu (which the caller holds) and takes it back, also if f panics.
+func (h *Host) unlocked(f func() (Turn, error)) (Turn, error) {
+	h.mu.Unlock()
+	defer h.mu.Lock()
+	return f()
 }

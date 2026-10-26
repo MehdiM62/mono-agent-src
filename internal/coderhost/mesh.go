@@ -289,10 +289,13 @@ func (m *HubMesh) Inbox(ms MeshSession) (string, func()) {
 	}
 	raw, _ := reply["messages"].([]any)
 	related := map[string]bool{}
+	unknownRelative := false // a relative that has not joined (yet): its messages cannot be told from a stranger's
 	if ms.Accept == "subtree" {
 		for _, c := range ms.Related {
 			if o := m.sessions[meshKey{ms.ProfileID, c}]; o != nil {
 				related[o.addr] = true
+			} else {
+				unknownRelative = true
 			}
 		}
 	}
@@ -311,6 +314,10 @@ func (m *HubMesh) Inbox(ms MeshSession) (string, func()) {
 			}
 		case "subtree":
 			if !related[from] {
+				if unknownRelative { // leave it and everything after it at the hub for a later look
+					consume = i
+					goto done
+				}
 				continue
 			}
 		default:
@@ -322,6 +329,7 @@ func (m *HubMesh) Inbox(ms MeshSession) (string, func()) {
 			break
 		}
 	}
+done:
 	more := consume < len(raw)
 	if n, ok := reply["more"].(float64); ok && n > 0 {
 		more = true
@@ -340,8 +348,11 @@ func (m *HubMesh) Inbox(ms MeshSession) (string, func()) {
 		// the messages were looked at. If it joined under another address, they are gone with it.
 		cur := m.sessions[k]
 		if cur == nil || cur.addr != addr {
-			return
+			return // gone, or joined again under another address: the mailbox looked at is not this one
 		}
+		// The hub keeps a mailbox across a new key for the same address (it is in its database), so
+		// the oldest n are the ones looked at. A hub that lost the mailbox in the seconds between the look
+		// and this call, with a message arriving in them, would have it consumed unseen; that is accepted.
 		if reply, err := m.call(map[string]any{"op": "inbox", "addr": cur.addr, "key": cur.key, "limit": n}); err != nil || reply["ok"] != true {
 			m.logf("mesh: could not mark %d message(s) read for %s: %v %v", n, cur.alias, err, reply["error"]) // they come again next turn
 		}

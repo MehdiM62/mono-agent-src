@@ -191,9 +191,11 @@ func TestATakenAliasGetsASuffixAndAChosenAliasIsKept(t *testing.T) {
 func TestASessionThatIsNoLongerWantedLeaves(t *testing.T) {
 	h := newFakeHub()
 	m := newMesh(h)
-	m.Sync(bg, []MeshSession{sess("c1"), sess("c2")})
+	c2 := sess("c2")
+	c2.Cwd = "/work/web" // another folder, so its name does not depend on which of the two joins first
+	m.Sync(bg, []MeshSession{sess("c1"), c2})
 	m.Sync(bg, []MeshSession{sess("c1")})
-	if h.count("bye") != 1 || h.addrOf("coder-api-20261026-090507-2") != "" {
+	if h.count("bye") != 1 || h.addrOf("coder-web-20261026-090507") != "" || h.addrOf("coder-api-20261026-090507") == "" {
 		t.Fatalf("byes=%d agents=%v", h.count("bye"), h.agents)
 	}
 	m.Close()
@@ -740,5 +742,44 @@ func TestPeerTextCannotLeaveItsAttributeAndUnknownScopesLetNothingIn(t *testing.
 	odd.Accept = "everyone"
 	if block, _ := m.Inbox(odd); block != "" {
 		t.Fatal("a scope the code does not know let a message in")
+	}
+}
+
+// A second bad pass in a row still keeps the session where it is.
+func TestABadSettingsRowKeepsItsSessionOnTheMeshForSeveralPasses(t *testing.T) {
+	h, _, st := newHost(t)
+	rm := &recordingMesh{}
+	h.Mesh = rm
+	addConversation(t, st, "c1", "/work/c1")
+	st.EnsureSession("p", "c1")
+	h.meshSync(context.Background())
+	st.db.Exec(`UPDATE coder_sessions SET settings = '{"checkin_minutes": "oops"}' WHERE conversation_id = 'c1'`)
+	for i := 0; i < 4; i++ {
+		h.meshSync(context.Background())
+		if s := rm.last(); len(s) != 1 || s[0].ConversationID != "c1" {
+			t.Fatalf("pass %d of a bad row shows %v", i+1, s)
+		}
+	}
+}
+
+// A relative that has not joined yet cannot be told from a stranger, so nothing is
+// consumed behind its back.
+func TestSubtreeLeavesMessagesAloneWhileARelativeHasNotJoined(t *testing.T) {
+	h := newFakeHub()
+	m := newMesh(h)
+	child, other := sess("child"), sess("other")
+	child.Accept, other.Accept = "subtree", "none"
+	child.Cwd, other.Cwd = "/work/c", "/work/o"
+	child.Related = []string{"master"} // the master is not on the mesh yet
+	m.Sync(bg, []MeshSession{child, other})
+	childAddr := h.addrOf("coder-c-20261026-090507")
+	h.put(childAddr, msg("host/some-0000000000000000/master-turn", "from the master, before it joined"))
+	block, commit := m.Inbox(child)
+	commit()
+	if block != "" {
+		t.Fatalf("a message from an unknown sender was delivered: %s", block)
+	}
+	if len(h.inbox[childAddr]) != 1 {
+		t.Fatalf("the message was consumed before the master could join: %d left", len(h.inbox[childAddr]))
 	}
 }
