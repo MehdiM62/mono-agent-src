@@ -1,10 +1,16 @@
 package main
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/spf13/pflag"
+
+	"github.com/monoes/mono-agent/internal/coderhost"
 )
 
 // The `ref commands` entries for the coder host and sessions are held to the commands as
@@ -70,5 +76,51 @@ func TestCoderReferenceEntriesNameOnlyRealCommandsAndFlags(t *testing.T) {
 				t.Errorf("`%s` has --%s, which its `ref commands` entry does not document", name, fl.Name)
 			}
 		})
+	}
+}
+
+// AGENTS.md's section on persistent coder sessions states numbers and names that live in
+// the code; it is held to them so it cannot quietly drift.
+func TestAgentsMdPersistentSessionsSectionMatchesTheCode(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "..", "AGENTS.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(raw)
+	i := strings.Index(text, "### Persistent coder sessions")
+	j := strings.Index(text, "## How AI works in mono-agent")
+	if i < 0 || j < i {
+		t.Fatal("AGENTS.md has no 'Persistent coder sessions' section before 'How AI works'")
+	}
+	section := text[i:j]
+	want := func(what, s string) {
+		t.Helper()
+		if !strings.Contains(section, s) {
+			t.Errorf("the section does not mention %s (%q)", what, s)
+		}
+	}
+	def := coderhost.DefaultSettings()
+	want("the check-in interval default", fmt.Sprintf("`checkin_minutes` (default %d", def.CheckinMinutes))
+	want("the check-in limit default", fmt.Sprintf("`checkin_limit` (default %d)", def.CheckinLimit))
+	want("the send lifetime", fmt.Sprintf("%d hours", int(coderhost.MaxSendAge.Hours())))
+	want("the check-in lifetime", fmt.Sprintf("%d\n  minutes", int(coderhost.MaxCheckinAge.Minutes())))
+	want("the queue cap", fmt.Sprintf("at most %d sends", coderhost.MaxPendingPerChat))
+	want("the message cap", fmt.Sprintf("%d KiB", coderhost.MaxMessageBytes>>10))
+	want("the depth", fmt.Sprintf("depth is %d", def.MaxDepth))
+	want("the default mesh scope", "`"+def.MeshAccept+"` (default")
+	rt := reflect.TypeOf(def)
+	for k := 0; k < rt.NumField(); k++ {
+		if tag := strings.Split(rt.Field(k).Tag.Get("json"), ",")[0]; tag != "" {
+			want("the setting "+tag, "`"+tag+"`")
+		}
+	}
+	root := newRootCmd()
+	for _, group := range [][]string{{"coder", "host"}, {"coder", "sessions"}} {
+		g, _, _ := root.Find(group)
+		for _, sub := range g.Commands() {
+			if sub.Name() != "help" {
+				want("the command "+strings.Join(group, " ")+" "+sub.Name(), sub.Name())
+			}
+		}
 	}
 }

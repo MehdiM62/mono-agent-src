@@ -94,7 +94,7 @@ var coderCommandDocs = []cmdDoc{
 		Short: "Change settings with a JSON object naming only the settings to change (the operator only)",
 		Usage: "monoagentcli [--profile P] coder sessions settings set CONVERSATION [--patch JSON] [--unattended true|false] [--role solo|master|child] [--parent MASTER]",
 		Flags: `  --patch string       JSON object with the settings to change; a name that is not a setting is refused
-  --unattended string  true or false: may the session run with nobody there
+  --unattended string  true or false: false turns off the host's own scheduled check-ins for the session (a message you send runs either way)
   --role string        solo, master or child (a child needs --parent: a master with room for it)
   --parent string      The master conversation, with --role child`,
 		Examples: []string{

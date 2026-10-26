@@ -2379,37 +2379,47 @@ monoagentcli --profile work coder host stop                        # the host on
 - **State:** `idle`, `running` and `paused` (no new turn starts; a running one finishes). `waiting_user` and
   `stopped` exist in the schema and nothing sets them yet. Sends to a busy or paused conversation wait, in order. `stop` ends the running turn **and drops the sends queued before
   it**. Commands run in the order they were queued.
-- **Unattended:** a session runs with nobody there, at the access level of its conversation (the only limit
-  besides the budget caps). The desktop pane always shows `Unattended: on · <access>`;
-  `sessions settings set <conv> --unattended false` is the switch.
+- **Unattended:** a session may be run by the host with nobody there, at the access level of its conversation
+  (the only limit besides the `coder set` caps). Today the flag gates one thing: the host's own scheduled
+  check-ins (below); a message a person queues runs either way. The desktop pane always shows
+  `Unattended: on · <access>`; `sessions settings set <conv> --unattended false` turns the check-ins off.
 - **Settings** (`sessions settings get|set`, JSON in `--patch`, only the named settings change, a name that is
   not a setting is refused): `checkin_minutes`, `skip_if_unchanged`, `checkin_triggers`, `silent_minutes`,
   `active_hours` (`HH:MM-HH:MM`, local time), `checkin_limit`, `autonomy_preset`, `autonomy_classes`,
   `max_children`, `max_concurrent`, `max_depth`, `mesh_visible`, `mesh_alias`, `mesh_accept`. `get` lists which
-  are operator-only and the values each allows. The autonomy settings are stored and shown; nothing acts on
-  them yet.
+  are operator-only and the values each allows. The autonomy settings and `max_concurrent` are stored,
+  validated and shown; nothing acts on them yet. `max_children` and `max_depth` hold when a child is linked.
 - **Masters and children:** `sessions settings set <conv> --role master`, then `--role child --parent <master>`
   for each child (the master must be a master with room under its `max_children`; depth is 2; a session with
   children cannot change role).
 - **Check-ins:** the host looks at each unattended, idle master that has children and queues one short turn
   for it with a digest, when `checkin_minutes` (default 15, 0 = off) have passed since the last look, or when
   a child finished, failed, was paused or went silent (`checkin_triggers`, `silent_minutes`). With
-  `skip_if_unchanged` (default) a quiet interval is only a look. At most one per minute, counted from the end of
-  the master's own last turn; never while the master is busy (it gets one catch-up afterwards); after a check-in
-  turn that did not complete only the timer brings the next. After `checkin_limit` (default 48) check-ins in a
-  row with no message from a person, the master waits for one (the pane says so). A queued check-in lives 15
+  `skip_if_unchanged` (default) a quiet interval is only a look. At most one per minute, counted from the later of
+  the last look and the master's newest turn; never while the master is busy (it gets one catch-up afterwards); after a check-in
+  turn that failed or was interrupted only the timer brings the next. After `checkin_limit` (default 48) check-in turns in a
+  row (a failed or interrupted one counts) with no message from a person, the master waits for one (the pane
+  says so, within about 15 seconds). A queued check-in lives 15
   minutes and is checked again when it runs. The digest holds only the host's records (conversation ids, state
   and turn-status words, counts, ages), never text an agent wrote. Host-made turns carry the turn-id prefix
   `checkin-`; the limit counts it, so a later path that starts turns without a person must use its own prefix.
   `child_question` and `budget_80` are accepted settings that do not fire yet.
-- **Mesh** (needs monomind 2.29+): with `mesh_visible` (default on) the host keeps the session on monomind's
-  mesh between turns, as `coder-<folder>-<start time>` (or `mesh_alias`), with a state word as its task and
-  nothing else (no prompt text, no access level, no path). What other agents sent it is put, sealed as
+- **Mesh** (needs monomind 2.29+; the host does not check the version, it just tries `monomind mesh who` to
+  start the hub): with `mesh_visible` (default on) the host keeps the session on monomind's mesh between turns
+  (until it has been idle for 6 hours), as `coder-<folder>-<start time>` (or `mesh_alias`), with a state word as
+  its task and nothing else (no prompt text, no access level, no path). What other agents sent it is put, sealed as
   untrusted peer content, in front of its next turn, and only marked read once that turn has started; it never
   starts a turn or grants anything. `mesh_accept` decides who is heard: `subtree` (default: its master and
   children), `project` (any local process that claims this project: the project id is the sender's own
-  claim) or `none`. `MONOAGENT_MESH=0` or monomind's `MONOMIND_MESH_AUTOJOIN=0` turns it off.
-- **Files:** `<db dir>/coder-host/` holds `host.lock`, `host.json`, `host.log` and `turns/<turn>.log`.
+  claim) or `none`. `MONOAGENT_MESH=0` or monomind's `MONOMIND_MESH_AUTOJOIN=0`, set where the host starts, stops the host's
+  presence; a running turn still registers itself through monomind under its own name. A block that would not
+  fit under the 256 KiB prompt limit stays unread; a fresh message from an unknown sender is left alone for up to
+  10 minutes while a relative has not joined the mesh.
+- **Good to know:** the host and the turns it starts keep the environment of the terminal that started the host.
+  `host stop` leaves turns running: `sessions stop <conv>` first if you want them ended. Queued sends only
+  expire while a host runs. `send` prints `hostStarted: true` unless you pass `--no-host`.
+- **Files:** `<db dir>/coder-host/` holds `host.lock`, `host.json`, `host.log` and `turns/<turn>.log`; the
+  logs hold turn output and are never pruned.
 - **Not run by agents:** like `wails dev` and the real coder run, starting the host is the user's own act from
   a terminal; an agent shell is refused. Every `coder host` and `coder sessions` command names `--profile`
   (the host serves the whole database, but the profile gate treats them as profile commands) and needs the
