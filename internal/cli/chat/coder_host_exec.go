@@ -79,8 +79,8 @@ func (l *execLauncher) Start(profileID, conversationID, turnID, message string, 
 	t := &execTurn{pid: cmd.Process.Pid, stamp: pidStamp(cmd.Process.Pid), done: make(chan struct{})}
 	go func() {
 		t.err = cmd.Wait()
+		os.Remove(promptPath) // before done closes: whoever sees the turn end sees no prompt left
 		close(t.done)
-		os.Remove(promptPath)
 	}()
 	if err := awaitAdmission(logPath, offset, t.done); err != nil {
 		t.Stop()
