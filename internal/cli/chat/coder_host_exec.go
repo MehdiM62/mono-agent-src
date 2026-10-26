@@ -259,6 +259,7 @@ func (t *execTurn) Wait() error   { <-t.done; return t.err }
 func (t *execTurn) Stop() {
 	t.once.Do(func() {
 		_ = terminateGroup(t.pid) // t is this process's child: its pid is not reused before cmd.Wait reaps it
+		grace := hostTurnGrace // read here: the goroutine below can outlive a test that swaps it
 		go func() {
 			select {
 			case <-t.done:
@@ -266,7 +267,7 @@ func (t *execTurn) Stop() {
 				// the SIGTERM goes with it. The pid is free from the reap on, so this runs at
 				// once, and the window in which it could name a new process is that short.
 				_ = killGroup(t.pid)
-			case <-time.After(hostTurnGrace):
+			case <-time.After(grace):
 				_ = killGroup(t.pid)
 			}
 		}()
@@ -279,6 +280,7 @@ type adoptedTurn struct {
 	pid   int
 	stamp string
 	once  sync.Once
+	bg    sync.WaitGroup // the stop goroutine; tests wait for it before restoring the variables it reads
 }
 
 func (t *adoptedTurn) PID() int      { return t.pid }
@@ -307,7 +309,9 @@ var adoptedPoll = time.Second
 
 func (t *adoptedTurn) Stop() {
 	t.once.Do(func() {
+		t.bg.Add(1)
 		go func() {
+			defer t.bg.Done()
 			signalAdopted(t.pid, t.stamp, terminateGroup)
 			// Not this process's child, so the group is signalled only while the leader is
 			// verifiably the same process. A leader that ends first leaves any child that
