@@ -186,6 +186,7 @@ func (h *HybridWorkflowStore) beginDurable(ctx context.Context) (tx *sql.Tx, don
 }
 
 func (h *HybridWorkflowStore) publishOnce(ctx context.Context, p Publication) (*Workflow, error) {
+	h.ensureClaimed(ctx)
 	if h.files != nil {
 		if err := h.recoverID(ctx, p.WorkflowID); err != nil {
 			if isBusyErr(err) {
@@ -418,7 +419,7 @@ func (h *HybridWorkflowStore) applyRows(ctx context.Context, tx *sql.Tx, p Publi
 		if _, err := tx.ExecContext(ctx, deleteWorkflowRowSQL, p.WorkflowID); err != nil {
 			return fmt.Errorf("removing workflow %s: %w", p.WorkflowID, err)
 		}
-		return nil
+		return pruneLegacy(ctx, tx, p.WorkflowID)
 	}
 	if id := pl.profileID(); id != "" && pl.profileKnown {
 		var n int

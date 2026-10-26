@@ -23,6 +23,9 @@ type HybridWorkflowStore struct {
 	// declined remembers, per workflow, the file bytes the importer refused, so a file that stays
 	// refused is not retried (under the write lock) on every read in this process.
 	declined sync.Map
+	// claimed: this store has made sure the legacy set is recorded (see ensureClaimed).
+	claimMu sync.Mutex
+	claimed bool
 }
 
 // SetOnSaved registers fn to run after every successful save of a
@@ -56,6 +59,7 @@ func (h *HybridWorkflowStore) fileWorkflows(ctx context.Context) ([]*Workflow, e
 	if h.files == nil {
 		return nil, nil
 	}
+	h.ensureClaimed(ctx)
 	var kept []*Workflow
 	err := h.stableFileRead(ctx, func(open map[string]bool) error {
 		all, err := h.files.ListWorkflows(ctx)
@@ -70,7 +74,57 @@ func (h *HybridWorkflowStore) fileWorkflows(ctx context.Context) ([]*Workflow, e
 		}
 		return nil
 	})
-	return kept, err
+	if err != nil {
+		return nil, err
+	}
+	return h.overlayRows(ctx, kept)
+}
+
+// overlayRows makes a listing of workflow files say what the rows say about each: whose workflow it
+// is, whether it is on, and its version. A file cannot give itself another owner or switch itself on
+// (the daemon arms triggers from these listings). A file with no rows that is not one of the older
+// versions' (see ClaimLegacyFiles) is left out until an operator adopts it. Listed workflows are
+// copies: the file store's cache is not touched.
+func (h *HybridWorkflowStore) overlayRows(ctx context.Context, files []*Workflow) ([]*Workflow, error) {
+	type rowInfo struct {
+		profile string
+		active  bool
+		version int
+	}
+	rows := map[string]rowInfo{}
+	rs, err := h.sql.db.QueryContext(ctx, `SELECT id, profile_id, is_active, version FROM workflows`)
+	if err != nil {
+		return nil, err
+	}
+	defer rs.Close()
+	for rs.Next() {
+		var id, profile string
+		var active, version int
+		if err := rs.Scan(&id, &profile, &active, &version); err != nil {
+			return nil, err
+		}
+		rows[id] = rowInfo{profile, active != 0, version}
+	}
+	if err := rs.Err(); err != nil {
+		return nil, err
+	}
+	legacy, recorded, err := legacyMarker(ctx, h.sql.db)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*Workflow, 0, len(files))
+	for _, wf := range files {
+		r, ok := rows[wf.ID]
+		if !ok && recorded && !legacy[wf.ID] {
+			continue
+		}
+		c := *wf
+		if ok {
+			c.ProfileID, c.IsActive, c.Version = r.profile, r.active, r.version
+		}
+		out = append(out, &c)
+	}
+	return out, nil
 }
 
 // CreateWorkflow saves a new workflow's whole definition, all-or-nothing
@@ -547,6 +601,7 @@ func (h *HybridWorkflowStore) RawDB() *sql.DB { return h.sql.RawDB() }
 // file the committed rows are served (nil, nil). A workflow with no rows at all has nothing to
 // protect and is served from its file, as it always was.
 func (h *HybridWorkflowStore) reconciledFile(ctx context.Context, id string) (*Workflow, error) {
+	h.ensureClaimed(ctx)
 	raw, existed, err := h.files.readRaw(id)
 	if err != nil {
 		return nil, err
@@ -578,15 +633,18 @@ func (h *HybridWorkflowStore) reconciledFile(ctx context.Context, id string) (*W
 		if err := h.sql.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM workflows WHERE id = ?`, id).Scan(&n); err != nil {
 			return nil, err
 		}
-		post := false
 		if n == 0 {
-			// No rows: a legacy file is served as it always was; one that appeared since the legacy
-			// set was recorded is brought in (inactive) before anything reads it.
-			if post, err = postMarkerFile(ctx, h.sql.db, id); err != nil {
-				return nil, err
+			// No rows: a legacy file is served as it always was. One that appeared since the legacy set
+			// was recorded is not served and not imported: it waits to be adopted by an operator.
+			post, perr := postMarkerFile(ctx, h.sql.db, id)
+			if perr != nil {
+				return nil, perr
+			}
+			if post {
+				return nil, nil
 			}
 		}
-		if n > 0 || post {
+		if n > 0 {
 			if _, err := h.ImportFile(ctx, id, nil); err != nil && !errors.Is(err, ErrSharedIDs) {
 				return nil, err
 			}

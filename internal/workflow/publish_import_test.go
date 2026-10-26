@@ -128,7 +128,7 @@ func TestImportIgnoresAFileThatDoesNotParse(t *testing.T) {
 
 func TestImportCreatesRowsForAFileThatHasNone(t *testing.T) {
 	ctx := context.Background()
-	h, s, _, _ := guardedRig(t)
+	h, s := newHybridForTest(t) // unused so far: the file counts as an older version's
 	if err := h.files.SaveWorkflow(ctx, mirrorWF("wf-file-only", "f-trig", "f-set")); err != nil {
 		t.Fatal(err)
 	}
@@ -246,7 +246,7 @@ func TestImportOnlyHonoursAFileSwitchingAWorkflowOff(t *testing.T) {
 
 // The owner of a workflow is not the file's to change: a file naming another profile is declined
 // and reads keep the rows' profile; a file that appears for a profile starts inactive.
-func TestImportKeepsTheOwnerProfileAndStartsNewFilesInactive(t *testing.T) {
+func TestImportKeepsTheOwnerProfileAndANewFileWaitsToBeAdopted(t *testing.T) {
 	ctx := context.Background()
 	h, s, _, _ := guardedRig(t)
 	if _, err := s.db.Exec(`INSERT INTO profiles (id, name) VALUES ('victim', 'Victim')`); err != nil {
@@ -271,15 +271,18 @@ func TestImportKeepsTheOwnerProfileAndStartsNewFilesInactive(t *testing.T) {
 	if err := h.files.SaveWorkflow(ctx, fresh); err != nil {
 		t.Fatal(err)
 	}
-	res, err := h.ImportFile(ctx, "wf-new-file", nil)
-	if err != nil || !res.Created {
+	// It appeared after the legacy set was recorded: not taken in, not served, until adopted.
+	if res, err := h.ImportFile(ctx, "wf-new-file", nil); err != nil || res.Imported {
 		t.Fatalf("%+v %v", res, err)
 	}
-	// A file with no rows keeps its own flag (older versions saved active workflows as files), but
-	// the rows and what a read serves agree.
-	rows, _ := s.GetWorkflow(ctx, "wf-new-file")
-	if got, _ := h.GetWorkflow(ctx, "wf-new-file"); got.IsActive != rows.IsActive {
-		t.Fatal("a read and the rows disagree about the active flag")
+	if got, _ := h.GetWorkflow(ctx, "wf-new-file"); got != nil {
+		t.Fatal("a read served a file nobody adopted")
+	}
+	if err := h.AdoptFile(ctx, "wf-new-file"); err != nil {
+		t.Fatal(err)
+	}
+	if rows, _ := s.GetWorkflow(ctx, "wf-new-file"); rows == nil || rows.IsActive || rows.ProfileID != "victim" {
+		t.Fatalf("adopted rows: %+v", rows)
 	}
 }
 

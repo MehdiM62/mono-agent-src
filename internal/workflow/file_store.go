@@ -313,8 +313,8 @@ func (s *WorkflowFileStore) ListWorkflows(ctx context.Context) ([]*Workflow, err
 			continue
 		}
 		wf, err := s.cachedWorkflow(e)
-		if err != nil {
-			continue
+		if err != nil || wf.ID != strings.TrimSuffix(e.Name(), ".json") {
+			continue // unreadable, or a file whose content names another workflow than its name does
 		}
 		wfs = append(wfs, wf)
 	}

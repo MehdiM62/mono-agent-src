@@ -41,6 +41,7 @@ func (h *HybridWorkflowStore) ImportFile(ctx context.Context, id string, accept 
 	if h.files == nil {
 		return none, nil
 	}
+	h.ensureClaimed(ctx)
 	// Look at the file before the write lock is taken: only a plain, bounded file is worth the lock.
 	pre := regularFileInfo(h.files, id)
 	if pre == nil {
@@ -54,7 +55,7 @@ func (h *HybridWorkflowStore) ImportFile(ctx context.Context, id string, accept 
 	if err := lockPublication(ctx, tx, id); err != nil {
 		return none, err
 	}
-	res, _, err := h.importLocked(ctx, tx, id, accept, 0, false, pre)
+	res, _, err := h.importLocked(ctx, tx, id, accept, 0, false, pre, false)
 	if err != nil {
 		return none, err
 	}
@@ -67,7 +68,7 @@ func (h *HybridWorkflowStore) ImportFile(ctx context.Context, id string, accept 
 // importLocked is ImportFile inside a transaction that already holds the write lock. An open change
 // other than skipIntent makes it do nothing; force imports even bytes already reconciled. declined
 // says why nothing was read from the file ("" when it was).
-func (h *HybridWorkflowStore) importLocked(ctx context.Context, tx *sql.Tx, id string, accept func(*Workflow) bool, skipIntent int64, force bool, pre os.FileInfo) (res ImportResult, declined string, err error) {
+func (h *HybridWorkflowStore) importLocked(ctx context.Context, tx *sql.Tx, id string, accept func(*Workflow) bool, skipIntent int64, force bool, pre os.FileInfo, adopt bool) (res ImportResult, declined string, err error) {
 	var open int
 	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM workflow_publications WHERE workflow_id = ? AND id != ?`, id, skipIntent).Scan(&open); err != nil {
 		if isNoTable(err) {
@@ -151,10 +152,17 @@ func (h *HybridWorkflowStore) importLocked(ctx context.Context, tx *sql.Tx, id s
 	if rows == nil {
 		note = ""
 		// A file-only workflow older versions saved keeps its active flag. One that appeared after the
-		// legacy set was recorded starts inactive: starting it is an operator's act.
-		if post, err := postMarkerFile(ctx, tx, id); err != nil {
+		// legacy set was recorded is not taken in by itself at all (a file dropped in can name any
+		// profile): it waits for an operator to adopt it, and is then created inactive.
+		post, err := postMarkerFile(ctx, tx, id)
+		if err != nil {
 			return res, "", err
-		} else if post {
+		}
+		if post && !adopt {
+			res.Workflow = nil
+			return res, "a new file waits to be adopted", nil
+		}
+		if post {
 			wf.IsActive, note = false, ImportNewFileNote
 		}
 	} else {
@@ -217,7 +225,7 @@ func (h *HybridWorkflowStore) ResolveUnresolved(ctx context.Context, id, keep st
 	intentID := in.ID
 	switch keep {
 	case KeepFile:
-		res, declined, err := h.importLocked(ctx, tx, id, nil, intentID, true, nil)
+		res, declined, err := h.importLocked(ctx, tx, id, nil, intentID, true, nil, false)
 		if err != nil {
 			return err
 		}
@@ -309,4 +317,40 @@ func graphIDProblem(wf *Workflow) string {
 		seen[c.ID] = true
 	}
 	return ""
+}
+
+// AdoptFile creates the workflow of a file that appeared after the legacy set was recorded. It is
+// the operator's act (doctor fix workflows.publications.adopt): the workflow starts inactive, in
+// the profile the file names, which must exist, and has no approvals.
+func (h *HybridWorkflowStore) AdoptFile(ctx context.Context, id string) error {
+	if h.files == nil {
+		return fmt.Errorf("no workflow files here")
+	}
+	pre := regularFileInfo(h.files, id)
+	if pre == nil {
+		return fmt.Errorf("workflow file %s is missing or is not a plain file", id)
+	}
+	tx, err := h.sql.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := lockPublication(ctx, tx, id); err != nil {
+		return err
+	}
+	exists := func(w *Workflow) bool {
+		var n int
+		return h.sql.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM profiles WHERE id = ?`, w.ProfileID).Scan(&n) == nil && n > 0
+	}
+	res, declined, err := h.importLocked(ctx, tx, id, exists, 0, true, pre, true)
+	if err != nil {
+		return err
+	}
+	if !res.Imported {
+		if declined == "" {
+			declined = "it is already in step with its stored copy"
+		}
+		return fmt.Errorf("workflow file %s was not adopted: %s", id, declined)
+	}
+	return tx.Commit()
 }

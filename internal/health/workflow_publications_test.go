@@ -85,3 +85,20 @@ func TestWorkflowPublicationsUnresolvedNamesBothChoicesAndPicksNone(t *testing.T
 		t.Fatalf("%v %v", got, err)
 	}
 }
+
+func TestWorkflowPublicationsOffersToAdoptANewFile(t *testing.T) {
+	info := &WorkflowPublicationsInfo{Adoptable: []string{"wf-new"}}
+	res := checkWorkflowPublications(context.Background(), publicationsEnv(info, nil))
+	if len(res.Children) != 1 || res.Children[0].FixID != "workflows.publications.adopt:wf-new" {
+		t.Fatalf("%+v", res.Children)
+	}
+	var got string
+	env := &Env{AdoptWorkflowFile: func(_ context.Context, id string) error { got = id; return nil }}
+	fix, ok := Default().Fix(res.Children[0].FixID)
+	if !ok {
+		t.Fatal("the fix is not registered")
+	}
+	if err := fix.Apply(context.Background(), env, func(string) {}); err != nil || got != "wf-new" {
+		t.Fatalf("%q %v", got, err)
+	}
+}

@@ -41,7 +41,10 @@ func addWorkflowPublicationHooks(env *health.Env) {
 		if info.Unreadable, info.Pending, err = store.FileDrift(ctx); err != nil {
 			return info, err
 		}
-		info.ImportedInactive, err = store.ImportedInactive(ctx)
+		if info.ImportedInactive, err = store.ImportedInactive(ctx); err != nil {
+			return info, err
+		}
+		info.Adoptable, err = store.AdoptableFiles(ctx)
 		return info, err
 	}
 	env.RecoverWorkflowPublications = func(ctx context.Context) (int, error) {
@@ -57,5 +60,12 @@ func addWorkflowPublicationHooks(env *health.Env) {
 			return err
 		}
 		return store.ResolveUnresolved(ctx, id, keep)
+	}
+	env.AdoptWorkflowFile = func(ctx context.Context, id string) error {
+		store, err := open()
+		if err != nil || store == nil || env.DB == nil {
+			return err
+		}
+		return store.AdoptFile(ctx, id)
 	}
 }

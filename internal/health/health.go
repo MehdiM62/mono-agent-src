@@ -169,6 +169,8 @@ type Env struct {
 	RecoverWorkflowPublications func(ctx context.Context) (int, error)
 	// ResolveWorkflowPublication ends an unresolved change: keep is "keep-rows" or "keep-file".
 	ResolveWorkflowPublication func(ctx context.Context, workflowID, keep string) error
+	// AdoptWorkflowFile creates the workflow of a file that appeared by itself (inactive).
+	AdoptWorkflowFile func(ctx context.Context, workflowID string) error
 
 	// Node.js: the first node on PATH that isn't monoagent's managed one,
 	// the active managed version, and installing a managed one.

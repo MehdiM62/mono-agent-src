@@ -73,7 +73,7 @@ func postMarkerFile(ctx context.Context, q rowQuerier, id string) (bool, error) 
 	}
 	var ids []string
 	if err := json.Unmarshal([]byte(raw), &ids); err != nil {
-		return false, nil // an unreadable marker is treated as not recorded: today's behaviour
+		return true, nil // an unreadable marker fails closed: nothing is grandfathered
 	}
 	for _, l := range ids {
 		if l == id {
@@ -105,4 +105,103 @@ func (h *HybridWorkflowStore) ImportedInactive(ctx context.Context) ([]string, e
 		out = append(out, id)
 	}
 	return out, rows.Err()
+}
+
+// ensureClaimed records the legacy set the first time this store is used for files, in whatever
+// process that is (a CLI command, the daemon, the MCP server, the API): not only the CLI's sync.
+func (h *HybridWorkflowStore) ensureClaimed(ctx context.Context) {
+	if h.files == nil {
+		return
+	}
+	h.claimMu.Lock()
+	defer h.claimMu.Unlock()
+	if h.claimed {
+		return
+	}
+	if err := h.ClaimLegacyFiles(ctx); err == nil {
+		h.claimed = true
+	}
+}
+
+// pruneLegacy takes a workflow out of the legacy set when it is removed, so a file later recreated
+// under the same id is a new file, not a grandfathered one.
+func pruneLegacy(ctx context.Context, tx *sql.Tx, id string) error {
+	var raw string
+	switch err := tx.QueryRowContext(ctx, `SELECT value FROM settings WHERE key = ?`, legacyFilesKey).Scan(&raw); {
+	case errors.Is(err, sql.ErrNoRows) || isNoTable(err):
+		return nil
+	case err != nil:
+		return err
+	}
+	var ids []string
+	if json.Unmarshal([]byte(raw), &ids) != nil {
+		return nil
+	}
+	kept := ids[:0]
+	for _, l := range ids {
+		if l != id {
+			kept = append(kept, l)
+		}
+	}
+	if len(kept) == len(ids) {
+		return nil
+	}
+	out, _ := json.Marshal(kept)
+	_, err := tx.ExecContext(ctx, `UPDATE settings SET value = ? WHERE key = ?`, string(out), legacyFilesKey)
+	return err
+}
+
+// AdoptableFiles lists workflow files that appeared after the legacy set was recorded and have no
+// rows: they are neither imported nor served until an operator adopts them.
+func (h *HybridWorkflowStore) AdoptableFiles(ctx context.Context) ([]string, error) {
+	if h.files == nil {
+		return nil, nil
+	}
+	entries, err := os.ReadDir(h.files.dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var out []string
+	for _, e := range entries {
+		id, ok := strings.CutSuffix(e.Name(), ".json")
+		if e.IsDir() || !ok || strings.HasSuffix(id, ".ai-backup") {
+			continue
+		}
+		var n int
+		if err := h.sql.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM workflows WHERE id = ?`, id).Scan(&n); err != nil || n > 0 {
+			continue
+		}
+		if post, err := postMarkerFile(ctx, h.sql.db, id); err != nil || !post {
+			continue
+		}
+		out = append(out, id)
+	}
+	return out, nil
+}
+
+// legacyMarker returns the recorded legacy set. recorded is false before the first claim; an
+// unreadable marker counts as recorded and empty (fail closed).
+func legacyMarker(ctx context.Context, q rowQuerier) (ids map[string]bool, recorded bool, err error) {
+	var raw string
+	switch err := q.QueryRowContext(ctx, `SELECT value FROM settings WHERE key = ?`, legacyFilesKey).Scan(&raw); {
+	case errors.Is(err, sql.ErrNoRows):
+		return nil, false, nil
+	case err != nil:
+		if isNoTable(err) {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+	var list []string
+	if json.Unmarshal([]byte(raw), &list) != nil {
+		return map[string]bool{}, true, nil
+	}
+	ids = make(map[string]bool, len(list))
+	for _, l := range list {
+		ids[l] = true
+	}
+	return ids, true, nil
 }

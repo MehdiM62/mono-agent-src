@@ -15,6 +15,8 @@ const (
 	FixWorkflowPublicationsRecover = "workflows.publications.recover"
 	// FixWorkflowPublicationsResolve is parameterized: "<workflow id>:keep-rows" or "<workflow id>:keep-file".
 	FixWorkflowPublicationsResolve = "workflows.publications.resolve"
+	// FixWorkflowPublicationsAdopt is parameterized: "<workflow id>".
+	FixWorkflowPublicationsAdopt = "workflows.publications.adopt"
 )
 
 // WorkflowPublicationsInfo is what the check reads (all local).
@@ -27,6 +29,9 @@ type WorkflowPublicationsInfo struct {
 	Pending    []string
 	// ImportedInactive lists workflows that appeared as outside files and were imported inactive.
 	ImportedInactive []string
+	// Adoptable lists workflow files that appeared after the first sync and are neither imported nor
+	// used until an operator adopts them.
+	Adoptable []string
 }
 
 // OpenWorkflowPublication is one unfinished change.
@@ -52,7 +57,16 @@ func workflowPublicationFixes() []Fix {
 		Apply: fixWorkflowPublications},
 		{FixInfo: FixInfo{ID: FixWorkflowPublicationsResolve, Label: "Resolve the unfinished change of {arg}",
 			Safety: SafetyConfirm, Command: "monoagentcli doctor fix workflows.publications.resolve:{arg}"},
-			ApplyArg: fixWorkflowPublicationResolve}}
+			ApplyArg: fixWorkflowPublicationResolve},
+		{FixInfo: FixInfo{ID: FixWorkflowPublicationsAdopt, Label: "Adopt the workflow file {arg} as a new, inactive workflow",
+			Safety: SafetyConfirm, Command: "monoagentcli doctor fix workflows.publications.adopt:{arg}"},
+			ApplyArg: func(ctx context.Context, env *Env, arg string, progress func(string)) error {
+				if env.AdoptWorkflowFile == nil {
+					return fmt.Errorf("not available here")
+				}
+				progress("adopting " + arg)
+				return env.AdoptWorkflowFile(ctx, arg)
+			}}}
 }
 
 func fixWorkflowPublicationResolve(ctx context.Context, env *Env, arg string, progress func(string)) error {
@@ -103,6 +117,11 @@ func checkWorkflowPublications(ctx context.Context, env *Env) Result {
 	for _, id := range info.Pending {
 		res.Children = append(res.Children, Result{ID: CheckWorkflowPublications + ".pending." + rowID(id), Title: id,
 			Status: StatusInfo, Summary: "edited outside the app; it is picked up by the next command that opens the workflows"})
+	}
+	for _, id := range info.Adoptable {
+		res.Children = append(res.Children, Result{ID: CheckWorkflowPublications + ".adopt." + rowID(id), Title: id,
+			Status: StatusInfo, Summary: "a new workflow file appeared by itself; it is not used until you adopt it (it starts inactive)",
+			FixID: FixWorkflowPublicationsAdopt + ":" + id})
 	}
 	for _, id := range info.ImportedInactive {
 		res.Children = append(res.Children, Result{ID: CheckWorkflowPublications + ".imported." + rowID(id), Title: id,
