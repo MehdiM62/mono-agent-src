@@ -310,13 +310,24 @@ func (h *HybridWorkflowStore) SetWorkflowActive(ctx context.Context, id string, 
 	return err
 }
 
-// lockedFileCopy reads the file's workflow from inside a publication, which has already ruled out
-// an open change of that workflow (so the file can be trusted without asking again).
+// lockedFileCopy is the workflow file's definition for a publication to build on, and only when
+// that file is the one that was reconciled: a plain file whose bytes are the ones the database
+// recorded (the importer ran first, and either took the file in or declined it). Anything else — a
+// link, a pipe, an edit that landed after the import, a file the importer declined — gives nil, and
+// the publication builds on the committed rows instead of consuming bytes nobody looked at.
 func (h *HybridWorkflowStore) lockedFileCopy(ctx context.Context, id string) *Workflow {
-	if h.files == nil {
+	if h.files == nil || regularFileInfo(h.files, id) == nil {
 		return nil
 	}
-	wf, err := h.files.GetWorkflow(ctx, id)
+	raw, existed, err := h.files.readRaw(id)
+	if err != nil || !existed {
+		return nil
+	}
+	var known string
+	if err := h.sql.db.QueryRowContext(ctx, `SELECT file_sha FROM workflow_file_state WHERE workflow_id = ?`, id).Scan(&known); err != nil || known != shaHex(append([]byte{}, raw...)) {
+		return nil
+	}
+	wf, err := parseWorkflowFile(raw)
 	if err != nil {
 		return nil
 	}

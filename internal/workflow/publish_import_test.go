@@ -365,3 +365,43 @@ func TestRowsOnlySaveForgetsTheReconciledBytes(t *testing.T) {
 		t.Fatal("the old approval survived")
 	}
 }
+
+// A link put where the workflow's file was (pointing at an approved definition) is declined by the
+// importer and must not be built on by the next publication either: the activation builds from the
+// committed rows and replaces the link with a plain file.
+func TestPublicationDoesNotBuildOnAFileTheImporterDeclined(t *testing.T) {
+	ctx := context.Background()
+	h, s, _, _ := guardedRig(t)
+	a := fileBytes(t, h, "wf-g") // approved A
+	cur, _ := h.GetWorkflow(ctx, "wf-g")
+	cur.Nodes[1].Config = map[string]interface{}{"k": "B"}
+	if err := h.SaveWorkflow(ctx, cur); err != nil {
+		t.Fatal(err)
+	}
+	dir := h.files.dir
+	target := filepath.Join(dir, "elsewhere.txt")
+	if err := os.WriteFile(target, a, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "wf-g.json")
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, path); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.SetWorkflowActive(ctx, "wf-g", true); err != nil {
+		t.Fatal(err)
+	}
+	if info, err := os.Lstat(path); err != nil || !info.Mode().IsRegular() {
+		t.Fatalf("the link was not replaced by a plain file: %v", err)
+	}
+	if sqlConfig(t, s, "wf-g", "g-set") != "B" {
+		t.Fatal("the linked definition was published")
+	}
+	now, _ := h.GetWorkflow(ctx, "wf-g")
+	hash, _ := definitionHash(now)
+	if ok, _ := h.DefinitionApproved(ctx, "wf-g", hash); ok && now.Nodes[1].Config["k"] != "B" {
+		t.Fatal("the approved definition came back through the link")
+	}
+}
