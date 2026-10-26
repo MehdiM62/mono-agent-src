@@ -27,9 +27,6 @@ const SyncMarkerName = "workflows-sqlite-sync.json"
 // for the next call, as is one whose node or connection ids are owned by another workflow in
 // SQLite (an upsert would move them). Returns the ids imported.
 func SyncFileWorkflowsToSQL(ctx context.Context, db *sql.DB, dir string) ([]string, error) {
-	if err := StampFileWorkflows(ctx, db, dir); err != nil {
-		return nil, err
-	}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -43,11 +40,15 @@ func SyncFileWorkflowsToSQL(ctx context.Context, db *sql.DB, dir string) ([]stri
 	}
 	store := workflow.NewHybridWorkflowStore(files, workflow.NewSQLiteWorkflowStore(db))
 	_, _ = store.RecoverPublications(ctx)
-	// Remember which files are older versions' (once, for everyone); later file-only arrivals start inactive.
+	// Remember which files are older versions' (once, for everyone); later file-only arrivals wait to be adopted.
 	if err := store.ClaimLegacyFiles(ctx); err != nil {
 		return nil, err
 	}
 	store.SweepStaleTemp()
+	// Unfinished changes are settled before any file is rewritten (the stamp rewrites legacy files).
+	if err := StampFileWorkflows(ctx, db, dir); err != nil {
+		return nil, err
+	}
 	// A file of a profile that no longer exists (deleted, or copied from one) must not come back
 	// as a row of a profile that is gone.
 	profileExists := func(wf *workflow.Workflow) bool {

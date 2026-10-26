@@ -74,7 +74,7 @@ func (d Deps) runWorkflowMigrate() func(cmd *cobra.Command, args []string) error
 			}
 
 			// A file that is already there is the canonical copy and may be mid-change: leave it.
-			if _, exists, _ := fileStore.ReadRawForMigrate(full.ID); exists {
+			if _, exists, rerr := fileStore.ReadRawForMigrate(full.ID); exists || rerr != nil { // a file that cannot be read is not an absent one
 				fmt.Printf("  SKIP %s (%s): a workflow file already exists\n", full.ID, full.Name)
 				skipped++
 				continue
