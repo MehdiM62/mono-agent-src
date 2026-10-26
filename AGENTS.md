@@ -1854,6 +1854,22 @@ in all, whichever route starts them. A mission closes only if the integration ch
 verdict is newer than every other task's last hand-back, verdict or merge; a plan's
 integration check depends on every non-check task, and tasks added later make it wait.
 
+**Missions in the host (unattended).** Since the coder host (below) every coder turn, a mission's
+included, is a host turn, so a mission no longer ends with the app: the lead's conductor, its workers and
+verifiers live in the turn process the host started, the plan and the board live in the database, and a later
+turn rebuilds its state from `mission_status`. Decision D6 of the missions plan ("a mission runs only while the
+app or CLI turn is alive") is reversed by decision S1 of the host plan. What did not change: the operator opens a
+session (`task session approve`), closes tasks to Done, and confirms a mission (`coder sessions send --mission`);
+no host-made turn (`checkin-`, `answer-`, `master-`, a default taken after a timeout) carries or infers a
+confirmation, a plan approval or a close, and a draft session starts no worker for any lead turn. A task's work
+is still done by the conductor's workers, in the lead's turn: **the host does not start a child coder session
+per task yet** (which tasks would become sessions, and how a budget is split, are open questions of the host
+plan). A lead that wants a goal with its own schedule uses the master verbs on its own conversation (`coder
+sessions spawn`, below): one child per goal, not per task. When a master of children also has an open task
+session, each check-in digest carries one line with the session's state and its counts (done of total, in
+review, verified, blocked): numbers and a state word, never a title, goal or task text. A mission's own
+conversation gets no check-in unless it is a master with children.
+
 **Who closes what in a mission.** Workers finish a task to Review; the verifier marks it
 verified; a verified task unlocks its dependents (it counts as done for them). The
 operator closes tasks to Done, or the session's `auto_close_verified` does when the
@@ -1886,7 +1902,7 @@ a row here):
 | MCP, any server | `monoagentcli mcp`: `task_list`, `task_get`, `task_next`, `task_session_list`, `task_session_get`; with `--allow-mutations` also `task_claim`, `task_comment`, `task_finish`, `task_release`, `task_add`, `task_split`, `task_verify`, `task_artifact`, acting on the call's profile as `agent:<client>#<4 hex>`; text in fields ending in `_untrusted`; no tool edits, moves or archives a task, and none approves unless the user delegated it (next row) |
 | MCP, the board alone | `claude mcp add monoagent-tasks -- monoagentcli mcp --tasks-only --allow-mutations`: the same thirteen tools and no other, one server for every profile (each call passes `profile`); nothing registers it for you. While the user has run `task agents allow --approve` for the profile (default: off), it also serves `task_approve`; no tool changes that setting |
 | Claude Code skill | `~/.claude/skills/monoagent-tasks/SKILL.md`, written create-only by the next CLI run on a machine with `~/.claude` |
-| Task sessions | `monoagentcli --profile <id> task session new\|list\|show\|plan\|approve\|pause\|resume\|stop\|archive\|budget`, `task add --session N`, `task next --session N`, `task split\|verify\|artifact\|depend\|undepend` (the paragraph above); the same board work over MCP through the tools of the row above; the desktop app's session switcher is not built yet |
+| Task sessions | `monoagentcli --profile <id> task session new\|list\|show\|plan\|approve\|pause\|resume\|stop\|archive\|budget`, `task add --session N`, `task next --session N`, `task split\|verify\|artifact\|depend\|undepend` (the paragraph above); the same board work over MCP through the tools of the row above; the desktop app's session switcher is not built yet; a mission runs unattended in the coder host ("Missions in the host") |
 | Dashboard summary | `monoagentcli --profile <id> --json summary --section tasks`: one profile's counts and its next task (not in `--all-profiles`) |
 | Desktop app | The Tasks tab after Documents: the selected profile's board, drag and keyboard moves, a "How to capture" note, a sidebar badge; it renders and runs `monoagentcli task ...`, and slides cards by FLIP unless `prefers-reduced-motion` is set |
 | macOS menu | Services, "Add to MonoAgent Tasks: <profile>" on text selected in any app, installed once per profile by `monoagentcli --profile <id> task os install` and removed by `task os uninstall` (both the operator's: an agent is refused with `operator_only`); it runs `task add --stdin --source os`, a capture into Inbox (`monoagentcli ref tasks`) |
@@ -2495,7 +2511,7 @@ monoagentcli --profile work coder host stop                        # the host on
   row (a failed or interrupted one counts) with no message from a person, the master waits for one (the pane
   says so, within about 15 seconds). A queued check-in lives 15
   minutes and is checked again when it runs. The digest holds only the host's records (conversation ids, state
-  and turn-status words, counts, ages), never text an agent wrote. Host-made turns carry the turn-id prefix
+  and turn-status words, counts, ages), never text an agent wrote (for a master with an open task session: its state word and task counts, and a change in them counts as a change for `skip_if_unchanged`). Host-made turns carry the turn-id prefix
   `checkin-`; the limit counts it, so a later path that starts turns without a person must use its own prefix.
   `child_question` and `budget_80` are accepted settings that do not fire yet.
 - **Autonomy** (`autonomy_preset`, `autonomy_classes`, operator only): when a session meets a gap
@@ -2514,7 +2530,7 @@ monoagentcli --profile work coder host stop                        # the host on
   policy names the user; the host then sends it with a turn id `answer-...`, which is host-made like
   `checkin-`: counted by the check-in limit and never a mission confirmation. After 30 minutes a question with
   a default and a `take_default` fallback gets that default (a ledger row, made by the model). Answering as a
-  master needs the session token of a later phase and is not possible yet. The gap class and `reversible`
+  master is supported by the store (the master is the issuer) but no CLI verb or MCP tool (`session_answer`) exposes it yet, so only the operator answers. The gap class and `reversible`
   flag come from whoever parks the question or records the decision: before any model-facing tool is added,
   the producer must take the class from a host- or master-validated source, or a model could label a risky
   action "ambiguity". A default is not applied while the check-in limit is reached or the session is stopped. A master's answer and
@@ -2557,9 +2573,31 @@ monoagentcli --profile work coder host stop                        # the host on
   master is level 1, a child level 2) and a rate of 6 per 10 minutes; the child runs the master's runtime,
   model and folder (or a folder inside it), at most the master's access capped at `workspace` and never `full`
   (an operator raises that), and its `--budget-usd` is carved out of the master's cap (`settings set
-  --budget-usd`, operator only; a capped master must give its child a positive amount that fits). Each turn of a capped session runs under what it has left (budget, less what its turns cost, less what it carved for its children) as `--budget-usd`, which is a ceiling for **that turn**; the total holds because the next turn starts with what is left. A turn's cost is the largest total it journaled; a usage event that is present with cost 0 is a reported 0 (a runtime that always reports 0 is trusted at 0; kilo cannot be capped and is refused for capped sessions). Only a turn that started and journaled no usage event at all counts as having spent its whole cap, or its workers' cost if that is more (never both); a cap row of a turn that never started charges nothing. A carve is limited by budget - spent - carved: the running turn's own cap (fixed when it started) is not reserved, so a capped master's turn can spend its cap AND carve up to budget - spent - carved to children during the same turn: exposure per master turn can reach about 2x the budget (chains do not compound); the next turn starts from the true remainder. A send with nothing left (under $0.000001) fails with the reason. Cost comes from the runtimes' own reports (a runtime that reports none counts as $0, and kilo cannot enforce a cap at all). The issuer, not the turn id, is what marks a send as a master's: an issuer-tagged send can never be a mission, counts toward the host-made streak, and a `master-` turn id without an issuer is refused. At most 2 master stops wait per child (a repeated stop is a no-op). A command a master queues records the master as its issuer and runs only while the target is still that master's child; at most 5 master sends wait per child and they expire after 15 minutes. With a token `list`, `settings get` and `command` show only the caller's own tree; without one they need the operator (an agent that lost or dropped the variable reads nothing). A master's message is **not a person's send**: its turn
+  --budget-usd`, operator only; a capped master must give its child a positive amount that fits). Each turn of a capped session runs under what it has left (budget, less what its turns cost, less what it carved for its children) as `--budget-usd`, which is a ceiling for **that turn**; the total holds because the next turn starts with what is left. A turn's cost is the largest total it journaled; a usage event that is present with cost 0 is a reported 0 (a runtime that always reports 0 is trusted at 0; kilo cannot be capped and is refused for capped sessions). Only a turn that started and journaled no usage event at all counts as having spent its whole cap, or its workers' cost if that is more (never both); a cap row of a turn that never started charges nothing. A carve is limited by budget - spent - carved: the running turn's own cap (fixed when it started) is not reserved, so a capped master's turn can spend its cap AND carve up to budget - spent - carved to children during the same turn: exposure per master turn can reach about 2x the budget (chains do not compound); the next turn starts from the true remainder. A send with nothing left (under $0.000001) fails with the reason. Cost comes from the runtimes' own reports (a runtime that reports none counts as $0, and kilo cannot enforce a cap at all). The issuer, not the turn id, is what marks a send as a master's: an issuer-tagged send can never be a mission, counts toward the host-made streak, and a `master-` turn id without an issuer is refused. Everything a master queues for a child except a stop (sends, pause, resume) shares 5 pending slots per child; its stops are counted apart (at most 2 wait per child, and a repeated stop is a no-op). A command a master queues records the master as its issuer and runs only while the target is still that master's child; a master's queued sends (not its pause or resume) expire after 15 minutes. With a token `list`, `settings get` and `command` show only the caller's own tree; without one they need the operator (an agent that lost or dropped the variable reads nothing). A master's message is **not a person's send**: its turn
   id starts with `master-`, it can carry no mission confirmation, and, like `checkin-`, it counts toward the
   host-made turns in a row (`checkin_limit`) after which the child waits for a person.
+- **First-run checks** (for the operator's first real run; none of this is verified live). `spawn` works only
+  with a master's session token, so the steps that spawn are done by asking the master, in its chat, to run the
+  command in its turn; the rest is the operator's own terminal:
+  1. *Budget caps:* `monoagentcli --profile P coder sessions settings set <master-conv> --budget-usd 2`; ask
+     the master to run `coder sessions spawn --message TEXT --budget-usd 1.5`, then the same with
+     `--budget-usd 1` (refused: it does not fit); `coder sessions status <master-conv>` shows carved and left; a
+     capped turn runs with `--budget-usd` equal to what is left; a runtime that reports no cost counts as 0
+     (kilo is refused for a capped session).
+  2. *Spawn limits:* a child that tries `spawn` is refused (it is not a master; depth is 2); a master past
+     `max_children` is refused; the 7th spawn within 10 minutes is refused; `--access full` is not accepted
+     (`coding|workspace` only) and a child is never above its master's access.
+  3. *`answer-` turns:* `coder sessions questions list <conv>`, then `coder sessions questions answer <conv> <id>
+     "text"`; the turn that runs has the id prefix `answer-`, is counted by the check-in streak and starts no
+     mission; with `checkin_limit` reached the answer is refused or fails when it runs; a default is taken only
+     after 30 minutes and never for `risky_action` or `missing_credential`.
+  4. *Missions:* confirm a mission (`coder sessions send --mission <conv> TEXT`), approve its plan, close the
+     app mid-run: workers and the board survive and the next turn resumes from `mission_status`; a check-in of a
+     master with children shows the mission line; a draft session starts no worker for a check-in turn.
+  5. *The autonomy backend has no model-facing producer yet:* nothing outside tests calls `Store.Park` or
+     `Store.Record` (grep of non-test code: the only definitions are in `parked.go` and `ledger.go`, no
+     callers). A first run can only check that the CLI lists and answers on an empty or hand-made state, and
+     that settings validation refuses what it should.
 - **Good to know:** the host and the turns it starts keep the environment of the terminal that started the host.
   `host stop` leaves turns running: `sessions stop <conv>` first if you want them ended. Queued sends only
   expire while a host runs. `send` prints `hostStarted: true` unless you pass `--no-host`.
