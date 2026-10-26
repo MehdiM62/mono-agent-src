@@ -299,3 +299,28 @@ func TestGuardedSaveWithAnEmptyHashIsRefused(t *testing.T) {
 		t.Fatal("a missing workflow must be an error")
 	}
 }
+
+// Connections saved with empty handles are normalized before the version is worked out: saving the
+// same workflow again is not a new version, and an operator save approves what was published.
+func TestSaveNormalizesConnectionHandlesBeforeHashingAndVersioning(t *testing.T) {
+	ctx := context.Background()
+	h, s, _, _ := guardedRig(t)
+	w := mirrorWF("wf-h", "h-trig", "h-set")
+	w.Connections[0].SourceHandle, w.Connections[0].TargetHandle = "", ""
+	if err := h.SaveWorkflow(WithApproval(ctx), w); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := h.GetWorkflow(ctx, "wf-h")
+	hash, _ := definitionHash(got)
+	if ok, _ := h.DefinitionApproved(ctx, "wf-h", hash); !ok {
+		t.Fatal("the published definition is not the one that was approved")
+	}
+	again := mirrorWF("wf-h", "h-trig", "h-set")
+	again.Connections[0].SourceHandle, again.Connections[0].TargetHandle = "", ""
+	if err := h.SaveWorkflow(ctx, again); err != nil {
+		t.Fatalf("saving the same workflow again: %v", err)
+	}
+	if versionCount(t, s, "wf-h") != 1 {
+		t.Fatalf("%d versions for one definition", versionCount(t, s, "wf-h"))
+	}
+}

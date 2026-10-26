@@ -271,6 +271,9 @@ func (h *HybridWorkflowStore) plan(ctx context.Context, tx *sql.Tx, p Publicatio
 			t.Connections[i].ID = newID()
 		}
 	}
+	// The file and the version snapshot are written with normalized handles, so the hash, the
+	// version and the approval must be worked out from the normalized definition too.
+	NormalizeConnectionHandles(t.Connections)
 	pl.graph = true
 	if err := h.sql.checkOwnIDs(ctx, t); err != nil {
 		if !errors.Is(err, ErrSharedIDs) {
