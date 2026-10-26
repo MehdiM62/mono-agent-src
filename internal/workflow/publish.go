@@ -65,6 +65,18 @@ type pubPlan struct {
 	targetHash string
 }
 
+// profileID is the profile the workflow belongs to, kept on the intent so a profile's deletion can
+// find a change that has not created the workflow's row yet.
+func (pl *pubPlan) profileID() string {
+	switch {
+	case pl.target != nil && pl.target.ProfileID != "":
+		return pl.target.ProfileID
+	case pl.cur != nil:
+		return pl.cur.ProfileID
+	}
+	return ""
+}
+
 func shaHex(b []byte) string {
 	if b == nil {
 		return ""
@@ -175,10 +187,10 @@ func (h *HybridWorkflowStore) publishOnce(ctx context.Context, p Publication) (*
 	}
 	res, err := tx.ExecContext(ctx, `
 		INSERT INTO workflow_publications
-			(workflow_id, kind, state, base_hash, target_hash, target_sha, prev_sha, prev_bytes, prev_existed,
+			(workflow_id, profile_id, kind, state, base_hash, target_hash, target_sha, prev_sha, prev_bytes, prev_existed,
 			 next_version, origin, owner_pid, started_at, note)
-		VALUES (?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		p.WorkflowID, p.Kind, plan.baseHash, plan.targetHash, plan.targetSHA, shaHex(prev), prev, boolToInt(existed),
+		VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		p.WorkflowID, plan.profileID(), p.Kind, plan.baseHash, plan.targetHash, plan.targetSHA, shaHex(prev), prev, boolToInt(existed),
 		plan.version, p.Origin, os.Getpid(), time.Now().UTC(), p.Note)
 	if err != nil {
 		return nil, fmt.Errorf("recording the intent for workflow %s: %w", p.WorkflowID, err)
@@ -311,6 +323,15 @@ func (h *HybridWorkflowStore) applyRows(ctx context.Context, tx *sql.Tx, p Publi
 			return fmt.Errorf("removing workflow %s: %w", p.WorkflowID, err)
 		}
 		return nil
+	}
+	if id := pl.profileID(); id != "" {
+		var n int
+		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM profiles WHERE id = ?`, id).Scan(&n); err != nil {
+			return err
+		}
+		if n == 0 {
+			return fmt.Errorf("saving workflow %s: %w", p.WorkflowID, ErrNoProfile)
+		}
 	}
 	if pl.graph {
 		// Planning looked at who owns the node and connection ids, but another change may have

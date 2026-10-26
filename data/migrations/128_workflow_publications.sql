@@ -4,6 +4,7 @@
 CREATE TABLE IF NOT EXISTS workflow_publications (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     workflow_id   TEXT NOT NULL,
+    profile_id    TEXT NOT NULL DEFAULT '',
     kind          TEXT NOT NULL,
     state         TEXT NOT NULL DEFAULT 'pending',
     base_hash     TEXT NOT NULL DEFAULT '',
