@@ -2538,7 +2538,9 @@ monoagentcli --profile work coder host stop                        # the host on
   refused with the same `not_yours` text, so the verb is no way to find which questions exist. The note is the same
   host-made `answer-m-` turn (issuer = the master, counted in the streak, gated at the limit, sealed as data, never a
   mission or approval). With no token the verb is the operator's (`RequireOperator`); a token that does not verify is a
-  refusal, never a fall-back to the operator path. No model-facing tool parks or records yet. A default is not applied while the check-in limit is reached or the session is stopped. A master's answer and
+  refusal, never a fall-back to the operator path. A session's own model parks and records
+  through `sessions park` / `sessions record` and the MCP tools `session_park` / `session_record` (mutating; token
+  required, see "Autonomy producer" below).  A default is not applied while the check-in limit is reached or the session is stopped. A master's answer and
   an applied default are held to the check-in limit too (refused, or failed when they run); every `answer-` turn,
   including a person's own answer, counts in the streak on purpose (the safe direction). A master's answer is
   queued with the master as issuer, so it runs only while the session is still that master's child. A paused master's
@@ -2581,6 +2583,23 @@ monoagentcli --profile work coder host stop                        # the host on
   --budget-usd`, operator only; a capped master must give its child a positive amount that fits). Each turn of a capped session runs under what it has left (budget, less what its turns cost, less what it carved for its children) as `--budget-usd`, which is a ceiling for **that turn**; the total holds because the next turn starts with what is left. A turn's cost is the largest total it journaled; a usage event that is present with cost 0 is a reported 0 (a runtime that always reports 0 is trusted at 0; kilo cannot be capped and is refused for capped sessions). Only a turn that started and journaled no usage event at all counts as having spent its whole cap, or its workers' cost if that is more (never both); a cap row of a turn that never started charges nothing. A carve is limited by budget - spent - carved: the running turn's own cap (fixed when it started) is not reserved, so a capped master's turn can spend its cap AND carve up to budget - spent - carved to children during the same turn: exposure per master turn can reach about 2x the budget (chains do not compound); the next turn starts from the true remainder. A send with nothing left (under $0.000001) fails with the reason. Cost comes from the runtimes' own reports (a runtime that reports none counts as $0, and kilo cannot enforce a cap at all). The issuer, not the turn id, is what marks a send as a master's: an issuer-tagged send can never be a mission, counts toward the host-made streak, and a `master-` turn id without an issuer is refused. Everything a master queues for a child except a stop (sends, pause, resume) shares 5 pending slots per child; its stops are counted apart (at most 2 wait per child, and a repeated stop is a no-op). A command a master queues records the master as its issuer and runs only while the target is still that master's child; a master's queued sends (not its pause or resume) expire after 15 minutes. With a token `list`, `settings get` and `command` show only the caller's own tree; without one they need the operator (an agent that lost or dropped the variable reads nothing). A master's message is **not a person's send**: its turn
   id starts with `master-`, it can carry no mission confirmation, and, like `checkin-`, it counts toward the
   host-made turns in a row (`checkin_limit`) after which the child waits for a person.
+- **Autonomy producer** (`session_park`, `session_record`; CLI `sessions park|record`). They act on the caller's
+  OWN session, named by the verified session token: there is no conversation argument, so session A's token cannot
+  park or record for B, and a call without a valid token is refused (the operator has no session of its own and
+  uses `questions answer` / `decisions revert`). The model supplies class, text and the `reversible` flag, and the
+  host validates all of it: the class must be one of the six gap classes; `risky_action` and `missing_credential`
+  can never be claimed reversible and can never be recorded as the model's decision (also refused inside
+  `Store.Record` for `made_by=model`); `park` consults the policy (`Decide`) and, when the policy lets the model
+  settle that gap, returns `model_decides` with the instruction to decide and call `record`; `record` consults the
+  same policy and is refused (`invalid_input`) when the policy leaves that gap to a master or the user, so
+  recording is no way around asking; `made_by` is fixed to `model`, never read from the caller; the 20-open-question cap, the 500-row ledger
+  rotation and the field caps apply. Neither call starts a turn, queues a command, or touches access, a budget or a
+  setting, and the text is only data (it is sealed when it reaches a reader as an answer note). Host-side sanity rule:
+  the ledger shows every model-made decision as `madeBy: model` together with the `reversible` flag the model
+  claimed, and the operator can revert the reversible ones; a model that mislabels a gap as reversible can have it
+  settled by itself under the preset's rules for that class, which is the residual trust (hard classes are not
+  claimable). A session with no master (a solo or master session, or an unattended child whose master is gone) that parks a
+  question has it answered by the operator (`questions answer`): the conservative choice; nothing answers for it.
 - **First-run checks** (for the operator's first real run; none of this is verified live). `spawn` works only
   with a master's session token, so the steps that spawn are done by asking the master, in its chat, to run the
   command in its turn; the rest is the operator's own terminal:
@@ -2599,10 +2618,16 @@ monoagentcli --profile work coder host stop                        # the host on
   4. *Missions:* confirm a mission (`coder sessions send --mission <conv> TEXT`), approve its plan, close the
      app mid-run: workers and the board survive and the next turn resumes from `mission_status`; a check-in of a
      master with children shows the mission line; a draft session starts no worker for a check-in turn.
-  5. *The autonomy backend has no model-facing producer yet:* nothing outside tests calls `Store.Park` or
-     `Store.Record` (grep of non-test code: the only definitions are in `parked.go` and `ledger.go`, no
-     callers). A first run can only check that the CLI lists and answers on an empty or hand-made state, and
-     that settings validation refuses what it should.
+  5. *Autonomy producer (ask the master, in its chat, to run these in its turn; none of it is verified live):*
+     `coder sessions park --class risky_action --question "delete the build dir?"` parks on the caller's own
+     session (the session goes to `waiting_user`; `questions list <conv>` shows it, answerer `user` for a master
+     with no master, `master` for a child); the same with `--class ambiguity --reversible` is refused with
+     "decide, then run `coder sessions record`"; `coder sessions record --class ambiguity --choice tabs --reason
+     ... --reversible` writes a ledger row shown as made by the model (`decisions list <conv>`); `record --class
+     risky_action ...` and `record` of an irreversible ambiguity (under `ask-on-risk`) are refused; `--reversible`
+     with `risky_action` is refused; 21 open questions are refused. Run without the session token (operator
+     terminal) both verbs are refused. A child asks the same, and its master answers with `questions answer
+     <child-conv> <id> TEXT` from its turn (turn id `answer-m-`, `answeredBy` `master:<conv>`).
 - **Good to know:** the host and the turns it starts keep the environment of the terminal that started the host.
   `host stop` leaves turns running: `sessions stop <conv>` first if you want them ended. Queued sends only
   expire while a host runs. `send` prints `hostStarted: true` unless you pass `--no-host`.

@@ -1803,9 +1803,13 @@ injected text and a confused script inside the rules; it is not a sandbox agains
   `master-`) in a row with no message from a person, a session waits for one. A new path that starts turns
   without a person must use its own prefix and be counted, or it would reset the limit.
 - **Autonomy decides who answers a gap, nothing more.** `risky_action` and `missing_credential` are never
-  answered by the model and never take a default. A model-made decision is written to the decisions ledger. The
-  gap class and `reversible` flag come from whoever records the decision: a model-facing tool must take them from
-  a host- or master-validated source before it is added.
+  answered by the model and never take a default. A model-made decision is written to the decisions ledger as the
+  model's. The producer tools (`session_park`, `session_record`, `sessions park|record`) take the caller from the
+  verified session token (no session argument), validate the class, refuse a hard class as reversible or as a
+  recorded model decision, and consult the policy: a park the policy leaves to the model and a record the policy
+  leaves to a master or the user are refused. They start no turn and carry no approval. The `reversible` flag is the
+  model's claim and is shown as such in the ledger. A master answers its direct child's question under its own
+  token (`session_answer`); every question that is not its child's is refused with one text.
 - **Mesh text is data.** What other agents send to a session over monomind's mesh is sealed as untrusted peer
   content in front of its next turn; it starts no turn and carries no authority. The mesh name is not a trust
   anchor and `mesh_accept` (`none`, `subtree` or `project`; default `subtree`) limits who is heard.

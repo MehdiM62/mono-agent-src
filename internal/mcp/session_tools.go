@@ -111,7 +111,7 @@ func sessionTools() []tool {
 			}, "session", "patch"),
 		},
 	}
-	return append(tools, sessionAnswerTools()...)
+	return append(append(tools, sessionAnswerTools()...), sessionProducerTools()...)
 }
 
 func joinNames(names []string) string {

@@ -70,10 +70,9 @@ const ledgerCols = `id, profile_id, conversation_id, class, question, choice, al
 // Alternatives, Reason, Reversible and MadeBy; the text fields are cut to their
 // bounds. Recording is bookkeeping: it does not carry the decision out.
 //
-// TRUST: Class, Reversible and MadeBy come from the caller. Before any model-facing
-// tool can write here, the producer must take the class from a host- or
-// master-validated source; a model that labels a risky action "ambiguity" would
-// otherwise have it recorded (and, through Decide, settled) as a low-risk one.
+// TRUST: Class, Reversible and MadeBy come from the caller. A model-facing caller goes through
+// RecordOwn (producer.go), which fixes MadeBy, and Record itself refuses a hard class as the
+// model's decision, so a model cannot have a risky action or a credential gap recorded as its own.
 func (s *Store) Record(e LedgerEntry) (LedgerEntry, error) {
 	if e.ProfileID == "" || e.ConversationID == "" || len(e.ConversationID) > maxConversationLen {
 		return e, errors.New("coder host: a decision needs a profile and a conversation")
@@ -86,6 +85,9 @@ func (s *Store) Record(e LedgerEntry) (LedgerEntry, error) {
 	}
 	if e.Choice == "" {
 		return e, errors.New("coder host: a decision needs a choice")
+	}
+	if e.MadeBy == WhoModel && HardClass(e.Class) {
+		return e, ErrPolicyReserves
 	}
 	e.Question, e.Choice, e.Reason = trimTo(e.Question, maxDecisionText), trimTo(e.Choice, maxDecisionText), trimTo(e.Reason, maxDecisionText)
 	alts := []string{}
