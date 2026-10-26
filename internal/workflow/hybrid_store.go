@@ -339,11 +339,13 @@ func (h *HybridWorkflowStore) lockedFileCopy(ctx context.Context, id string) *Wo
 }
 
 // editBase is the definition a node or connection edit starts from: the committed rows, with the
-// name, description, settings and active flag the file carries, so a hand edit of those survives.
+// name, description and settings the file carries, so a hand edit of those survives. The active flag
+// stays the rows'.
 func (h *HybridWorkflowStore) editBase(ctx context.Context, cur *Workflow) Workflow {
 	next := *cur
 	if fw := h.lockedFileCopy(ctx, cur.ID); fw != nil {
-		next.Name, next.Description, next.IsActive, next.Settings = fw.Name, fw.Description, fw.IsActive, fw.Settings
+		// Not the active flag: a node edit must not switch a workflow on or off (only SetWorkflowActive does).
+		next.Name, next.Description, next.Settings = fw.Name, fw.Description, fw.Settings
 	}
 	return next
 }

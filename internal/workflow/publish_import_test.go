@@ -520,3 +520,40 @@ func TestResolveKeepRowsKeepsACopyOfTheCurrentFile(t *testing.T) {
 		t.Fatal("the copy is not the file that was replaced")
 	}
 }
+
+// A node edit never changes the active flag: a file that says is_active:true (imported with the
+// same definition) must not be turned into an active workflow by the next unrelated edit.
+func TestNodeEditDoesNotSwitchAWorkflowOn(t *testing.T) {
+	ctx := context.Background()
+	h, s, _, nodes := guardedRig(t)
+	handEdit(t, h, "wf-g", func(w *Workflow) { w.IsActive = true })
+	if _, err := h.ImportFile(ctx, "wf-g", nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.SaveWorkflowNodes(ctx, "wf-g", nodes); err != nil {
+		t.Fatal(err)
+	}
+	if rows, _ := s.GetWorkflow(ctx, "wf-g"); rows.IsActive {
+		t.Fatal("the rows were switched on by a node edit")
+	}
+	if f, _ := h.files.GetWorkflow(ctx, "wf-g"); f.IsActive {
+		t.Fatal("the file was switched on by a node edit")
+	}
+	hash, _ := ReviewHash(mustGet(t, h, "wf-g"))
+	nodes[1].Config = map[string]interface{}{"k": "guarded"}
+	if err := h.SaveNodesGuarded(ctx, "wf-g", nodes, SaveGuard{ExpectHash: hash}); err != nil {
+		t.Fatal(err)
+	}
+	if rows, _ := s.GetWorkflow(ctx, "wf-g"); rows.IsActive {
+		t.Fatal("a guarded edit switched the workflow on")
+	}
+}
+
+func mustGet(t *testing.T, h *HybridWorkflowStore, id string) *Workflow {
+	t.Helper()
+	w, err := h.GetWorkflow(context.Background(), id)
+	if err != nil || w == nil {
+		t.Fatalf("%v", err)
+	}
+	return w
+}
