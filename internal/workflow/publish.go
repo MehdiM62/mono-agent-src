@@ -412,6 +412,11 @@ func (h *HybridWorkflowStore) publishRowsOnly(ctx context.Context, tx *sql.Tx, p
 	if err := h.applyRows(ctx, tx, p, pl); err != nil {
 		return nil, err
 	}
+	// The rows changed without a file: whatever bytes were last reconciled no longer describe them,
+	// so a file put back later (even the very same bytes) must be compared again, not skipped.
+	if _, err := tx.ExecContext(ctx, `DELETE FROM workflow_file_state WHERE workflow_id = ?`, p.WorkflowID); err != nil && !isNoTable(err) {
+		return nil, err
+	}
 	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("committing guarded save: %w", err)
 	}

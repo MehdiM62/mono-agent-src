@@ -336,3 +336,32 @@ func TestImportRefusesMissingAndRepeatedGraphIDs(t *testing.T) {
 		}
 	}
 }
+
+// Approve A, move the file away, change the rows without a file, then put A's exact bytes back: the
+// remembered bytes must not make the import skip it. The file differs from the rows, so it is
+// imported and the old approval goes.
+func TestRowsOnlySaveForgetsTheReconciledBytes(t *testing.T) {
+	ctx := context.Background()
+	h, s, _, nodes := guardedRig(t)
+	path := filepath.Join(h.files.dir, "wf-g.json")
+	a := fileBytes(t, h, "wf-g")
+	if err := os.Rename(path, path+".away"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.SaveWorkflowNodes(ctx, "wf-g", nodes); err != nil { // B, rows only
+		t.Fatal(err)
+	}
+	if err := os.Rename(path+".away", path); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(a, fileBytes(t, h, "wf-g")) {
+		t.Fatal("setup: the file is not A")
+	}
+	res, err := h.ImportFile(ctx, "wf-g", nil)
+	if err != nil || !res.Imported {
+		t.Fatalf("A's bytes were skipped: %+v %v", res, err)
+	}
+	if approvals(t, s, "wf-g") != 0 {
+		t.Fatal("the old approval survived")
+	}
+}
