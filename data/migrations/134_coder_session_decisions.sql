@@ -34,6 +34,8 @@ CREATE TABLE IF NOT EXISTS coder_session_questions (
     answered_by     TEXT NOT NULL DEFAULT '',
     command_id      INTEGER NOT NULL DEFAULT 0,
     decision_id     INTEGER NOT NULL DEFAULT 0,
+    reopen_count    INTEGER NOT NULL DEFAULT 0,
+    last_failed_at  TEXT NOT NULL DEFAULT '',
     created_at      TEXT NOT NULL,
     answered_at     TEXT NOT NULL DEFAULT ''
 );

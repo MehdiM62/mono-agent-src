@@ -86,6 +86,8 @@ var (
 	// ErrWaitsForPerson: the session has had its host-made turns in a row; a master's answer, like a
 	// check-in, would start another, so the session waits for a person (the operator can still answer).
 	ErrWaitsForPerson = errors.New("coder host: the session has had its host-made turns in a row and waits for a person")
+	// ErrAnswerKeepsFailing: the notes carrying this question's answer failed MaxAnswerReopens times.
+	ErrAnswerKeepsFailing = errors.New("coder host: the notes answering this question keep failing; it is left for a person")
 	// ErrMasterStopped: the master that would answer is stopped or gone.
 	ErrMasterStopped = errors.New("coder host: the session's master is stopped or gone, so it cannot answer")
 	// ErrStopped: a stopped session starts no turn, so an answer to it would be dropped.
@@ -315,6 +317,9 @@ func (s *Store) Answer(profileID string, id int64, answer string, scope CallerSc
 		} else if streak+s.pendingGatedAnswers(q.ProfileID, q.ConversationID) >= settings.CheckinLimit {
 			return q, Command{}, ErrWaitsForPerson
 		}
+		if n, _ := s.reopenCount(q.ID); n >= MaxAnswerReopens {
+			return q, Command{}, ErrAnswerKeepsFailing
+		}
 		// A paused master's note is held by the host until it resumes; a stopped one's is cancelled.
 		if m, ok, err := s.GetSession(q.ProfileID, scope.ConversationID()); err != nil {
 			return q, Command{}, err
@@ -355,6 +360,12 @@ func (s *Store) claimQuestion(q Question, status, answer, by string) error {
 		return ErrNotOpen
 	}
 	return nil
+}
+
+func (s *Store) reopenCount(id int64) (int, error) {
+	var n int
+	err := s.db.QueryRow(`SELECT reopen_count FROM coder_session_questions WHERE id = ?`, id).Scan(&n)
+	return n, err
 }
 
 func (s *Store) reopenQuestion(id int64) {

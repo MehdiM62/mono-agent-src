@@ -21,8 +21,14 @@ import (
 const (
 	MaxClosedQuestions = 500
 	redeliverAfter     = time.Minute
-	maxQuotedQuestion  = 2000
-	maxQuotedAnswer    = 4000
+	// MaxAnswerReopens is how many times a question's note may fail before the host stops trying a
+	// default, or accepting a master's answer, for it: it is left for a person.
+	MaxAnswerReopens = 2
+	// startedMarker begins the error of a command that failed after its turn had started: the model
+	// may have read the note, so its question is not reopened.
+	startedMarker     = "the turn started"
+	maxQuotedQuestion = 2000
+	maxQuotedAnswer   = 4000
 )
 
 // Where an answer note comes from, in its turn id ("answer-<origin>-<hex>"). A
@@ -209,6 +215,21 @@ func (s *Store) limitReached(c *passCtx, q Question) (bool, error) {
 	return c.streak+c.pending >= c.settings.CheckinLimit, nil
 }
 
+// keepsFailing says whether a default for q should wait: its note has failed MaxAnswerReopens
+// times, or failed within the last ParkTimeout.
+func (s *Store) keepsFailing(q Question, now time.Time) bool {
+	var n int
+	var last string
+	if err := s.db.QueryRow(`SELECT reopen_count, last_failed_at FROM coder_session_questions WHERE id = ?`, q.ID).Scan(&n, &last); err != nil {
+		return true
+	}
+	if n >= MaxAnswerReopens {
+		return true
+	}
+	t, err := time.Parse(timeLayout, last)
+	return last != "" && (err != nil || now.Sub(t) < ParkTimeout)
+}
+
 // pendingGatedAnswers counts the answer notes from a master or a default still waiting for a
 // conversation: each becomes a host-made turn.
 func (s *Store) pendingGatedAnswers(profileID, conversationID string) int {
@@ -226,7 +247,7 @@ func (s *Store) pendingGatedAnswers(profileID, conversationID string) int {
 // no other row is rotated out for it). The host calls it on every pass.
 func (s *Store) ReopenFailedAnswers() {
 	rows, err := s.db.Query(`SELECT q.id, q.profile_id, q.conversation_id, q.command_id, q.decision_id FROM coder_session_questions q
-		JOIN coder_session_commands c ON c.id = q.command_id WHERE q.status != 'open' AND q.command_id > 0 AND c.status = 'failed' LIMIT ?`, pendingBatch)
+		JOIN coder_session_commands c ON c.id = q.command_id WHERE q.status != 'open' AND q.command_id > 0 AND c.status = 'failed' AND c.error NOT LIKE ? LIMIT ?`, startedMarker+"%", pendingBatch)
 	if err != nil {
 		return
 	}
@@ -243,8 +264,8 @@ func (s *Store) ReopenFailedAnswers() {
 	}
 	rows.Close()
 	for _, l := range all {
-		res, err := s.db.Exec(`UPDATE coder_session_questions SET status = 'open', answer = '', answered_by = '', answered_at = '', command_id = 0, decision_id = 0
-			WHERE id = ? AND command_id = ? AND status != 'open'`, l.id, l.cmd)
+		res, err := s.db.Exec(`UPDATE coder_session_questions SET status = 'open', answer = '', answered_by = '', answered_at = '', command_id = 0, decision_id = 0, reopen_count = reopen_count + 1, last_failed_at = ?
+			WHERE id = ? AND command_id = ? AND status != 'open'`, s.stamp(), l.id, l.cmd)
 		if err != nil {
 			continue
 		}
@@ -306,8 +327,14 @@ func (s *Store) applyDefault(cache map[string]*passCtx, q Question) (bool, error
 	case Decide(c.settings, q.Class, q.Reversible, c.has).Fallback != FallbackTakeDefault:
 		return false, nil
 	}
+	if s.keepsFailing(q, s.now()) {
+		return false, nil // its note failed before: a person decides now, or it tries again later
+	}
 	if at, err := s.limitReached(c, q); err != nil || at {
 		return false, err // the session waits for a person; a default turn would go around that
+	}
+	if _, _, berr := s.TurnCap(q.ProfileID, q.ConversationID); berr != nil {
+		return false, nil // the budget is used up: the note could not start a turn
 	}
 	if err := s.claimQuestion(q, questionStatusDefault, q.Default, WhoModel); err != nil {
 		return false, nil // answered meanwhile

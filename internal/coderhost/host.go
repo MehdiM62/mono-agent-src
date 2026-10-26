@@ -294,7 +294,7 @@ func (h *Host) Tick() error {
 			x.TurnPID, x.TurnStamp = t.PID(), t.Stamp()
 			if err := h.Store.SaveSession(x); err != nil {
 				t.Stop()
-				h.end(c, CmdFailed, "could not record the session: "+err.Error())
+				h.end(c, CmdFailed, startedMarker+" but could not record the session: "+err.Error())
 				return err
 			}
 			_, _ = h.unlocked(func() (Turn, error) { commit(); return nil, nil }) // the turn has the messages and is recorded: mark them read, without holding up the watchers
