@@ -198,9 +198,12 @@ func writeFileAtomic(path string, data []byte) (err error) {
 	return installStaged(tmp, path)
 }
 
+// stageWriteHook is a test seam: an error here is a failed write of the staged file.
+var stageWriteHook func(*os.File) error
+
 // stageFile writes data to a fresh, flushed temp file beside path and returns its name; the caller
 // installs it with installStaged or removes it.
-func stageFile(path string, data []byte) (tmp string, err error) {
+func stageFile(path string, data []byte) (string, error) {
 	dir := filepath.Dir(path)
 	if err := statedir.MkdirAll(dir); err != nil {
 		return "", err
@@ -209,24 +212,28 @@ func stageFile(path string, data []byte) (tmp string, err error) {
 	if err != nil {
 		return "", err
 	}
-	tmp = f.Name()
-	defer func() {
-		if err != nil {
-			_ = os.Remove(tmp)
+	name := f.Name() // kept apart from the results so every failure path can still remove it
+	fail := func(err error) (string, error) {
+		f.Close()
+		_ = os.Remove(name)
+		return "", err
+	}
+	if stageWriteHook != nil {
+		if err := stageWriteHook(f); err != nil {
+			return fail(err)
 		}
-	}()
-	if _, err = f.Write(data); err != nil {
-		f.Close()
+	}
+	if _, err := f.Write(data); err != nil {
+		return fail(err)
+	}
+	if err := f.Sync(); err != nil {
+		return fail(err)
+	}
+	if err := f.Close(); err != nil {
+		_ = os.Remove(name)
 		return "", err
 	}
-	if err = f.Sync(); err != nil {
-		f.Close()
-		return "", err
-	}
-	if err = f.Close(); err != nil {
-		return "", err
-	}
-	return tmp, nil
+	return name, nil
 }
 
 // installStaged renames a staged temp file over path and flushes the folder; the temp file is

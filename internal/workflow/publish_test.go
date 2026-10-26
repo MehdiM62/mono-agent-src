@@ -371,3 +371,18 @@ func TestCommittedWorkflowIsNeverAMixOfTwoSaves(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// A staging failure leaves no temp file behind (a full disk would otherwise be filled by retries).
+func TestStagingFailureLeavesNoTempFile(t *testing.T) {
+	dir := t.TempDir()
+	orig := stageWriteHook
+	t.Cleanup(func() { stageWriteHook = orig })
+	stageWriteHook = func(f *os.File) error { return errors.New("disk full") }
+	if _, err := stageFile(filepath.Join(dir, "wf.json"), []byte("{}")); err == nil {
+		t.Fatal("the failure was swallowed")
+	}
+	left, _ := filepath.Glob(filepath.Join(dir, "*.tmp"))
+	if len(left) != 0 {
+		t.Fatalf("temp files left behind: %v", left)
+	}
+}
