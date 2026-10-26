@@ -163,18 +163,12 @@ func (h *HybridWorkflowStore) captureVersion(ctx context.Context, workflowID str
 	if err != nil || wf == nil {
 		return 0, err
 	}
-	v, created, err := h.sql.captureVersion(ctx, wf)
+	v, _, err := h.sql.captureVersion(ctx, wf)
 	if err != nil {
 		return 0, err
 	}
-	// Keep the file's version in step with the history, as a save does —
-	// unless the file changed again meanwhile (its own save numbers it).
-	if created && wf.Version != v {
-		if fileWF := h.fileCopy(ctx, workflowID); fileWF != nil && sameDefinition(fileWF, wf) {
-			fileWF.Version = v
-			_ = h.files.SaveWorkflow(ctx, fileWF)
-		}
-	}
+	// The file's own version number is not rewritten here: it is not part of the definition, and a
+	// rewrite outside a publication could replace a file that is being published.
 	return v, nil
 }
 

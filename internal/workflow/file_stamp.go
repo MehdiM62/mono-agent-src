@@ -39,7 +39,10 @@ func StampFileWorkflowProfiles(dir, fallbackID string, ownerOf func(workflowID s
 			continue
 		}
 		path := filepath.Join(dir, e.Name())
-		raw, err := os.ReadFile(path)
+		if info, err := os.Lstat(path); err != nil || !info.Mode().IsRegular() {
+			continue // a link, pipe or device is not stamped (and never opened)
+		}
+		raw, err := readRegularFile(path)
 		if err != nil {
 			continue
 		}

@@ -95,3 +95,37 @@ func TestUnreadableFileUnderAnAbandonedChangeIsResolvable(t *testing.T) {
 		t.Fatal("a change that is still being made must not be resolved from under its owner")
 	}
 }
+
+// The profile stamp never opens a pipe or follows a link: a pipe named like a workflow file must not
+// block it (and with it every command that opens the workflows).
+func TestStampSkipsPipesAndLinks(t *testing.T) {
+	dir := t.TempDir()
+	if err := syscall.Mkfifo(filepath.Join(dir, "x.json"), 0o600); err != nil {
+		t.Skip(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "real.txt"), []byte(`{"id":"l"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(dir, "real.txt"), filepath.Join(dir, "l.json")); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() {
+		stamped, err := StampFileWorkflowProfiles(dir, "default", nil)
+		if err == nil && len(stamped) != 0 {
+			err = fmt.Errorf("stamped %v", stamped)
+		}
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("the stamp is stuck on a pipe")
+	}
+	if b, _ := os.ReadFile(filepath.Join(dir, "real.txt")); string(b) != `{"id":"l"}` {
+		t.Fatal("a link's target was rewritten")
+	}
+}

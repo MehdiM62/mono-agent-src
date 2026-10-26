@@ -530,3 +530,7 @@ func (s *WorkflowFileStore) quarantine(id string, data []byte) (string, error) {
 	}
 	return final, nil
 }
+
+// ReadRawForMigrate reports whether the workflow has a file already (and its bytes), for the
+// one-off DB-to-files migration, which must not overwrite a canonical file.
+func (s *WorkflowFileStore) ReadRawForMigrate(id string) ([]byte, bool, error) { return s.readRaw(id) }
