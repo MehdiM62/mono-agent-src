@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -314,6 +313,8 @@ func (m *HubMesh) Inbox(ms MeshSession) (string, func()) {
 			if !related[from] {
 				continue
 			}
+		default:
+			continue // a scope this code does not know lets nothing in
 		}
 		kept = append(kept, msg)
 		if len(kept) == inboxShown {
@@ -328,19 +329,24 @@ func (m *HubMesh) Inbox(ms MeshSession) (string, func()) {
 		more = true
 	}
 	block := sealMessages(j.alias, kept, more)
-	addr, key, n := j.addr, j.key, consume
+	k, addr, n := meshKey{ms.ProfileID, ms.ConversationID}, j.addr, consume
 	return block, func() {
 		if n == 0 {
 			return
 		}
 		m.mu.Lock()
 		defer m.mu.Unlock()
-		_, _ = m.call(map[string]any{"op": "inbox", "addr": addr, "key": key, "limit": n}) // the oldest n: the ones looked at
+		// The registration as it is now: the hub may have given the session a new key since
+		// the messages were looked at. If it joined under another address, they are gone with it.
+		cur := m.sessions[k]
+		if cur == nil || cur.addr != addr {
+			return
+		}
+		if reply, err := m.call(map[string]any{"op": "inbox", "addr": cur.addr, "key": cur.key, "limit": n}); err != nil || reply["ok"] != true {
+			m.logf("mesh: could not mark %d message(s) read for %s: %v %v", n, cur.alias, err, reply["error"]) // they come again next turn
+		}
 	}
 }
-
-// peerTag matches an opening or closing peer-message tag, with anything between its characters.
-var peerTag = regexp.MustCompile(`(?i)<\s*/?\s*peer\s*-?\s*message`)
 
 // angle brackets and their lookalikes: a body gets none, so it cannot make or fake a tag.
 var angles = strings.NewReplacer("<", " ", ">", " ", "＜", " ", "＞", " ", "〈", " ", "〉", " ", "‹", " ", "›", " ", "﹤", " ", "﹥", " ", "«", " ", "»", " ")
@@ -358,14 +364,15 @@ func cleanText(s string, max int) string {
 			continue
 		case r >= 0xFE00 && r <= 0xFE0F, r >= 0xE0100 && r <= 0xE01EF, r >= 0xE0000 && r <= 0xE007F:
 			continue
-		case r == 0x115F, r == 0x1160, r == 0x3164, r == 0xFFA0, r == 0x034F, r == 0x180E, r == 0x061C:
+		case r == 0x115F, r == 0x1160, r == 0x3164, r == 0xFFA0, r == 0x034F, r == 0x180E, r == 0x061C, r == 0x2800, r == 0x17B4, r == 0x17B5:
 			continue
 		}
 		b.WriteRune(r)
 	}
-	// Square brackets go too, so a body cannot imitate the block's own [MESH] and [END ...] markers.
-	text := strings.NewReplacer("[", "(", "]", ")").Replace(angles.Replace(b.String()))
-	return meshclient.OneLine(peerTag.ReplaceAllString(text, " "), max)
+	// Square brackets go too, so a body cannot imitate the block's own [MESH] and [END ...] markers,
+	// and quotes and ampersands, so a name or address cannot leave the attribute it is shown in.
+	text := strings.NewReplacer("[", "(", "]", ")", `"`, "'", "&", "+").Replace(angles.Replace(b.String()))
+	return meshclient.OneLine(text, max)
 }
 
 // sealMessages renders messages as a block the model is told is data. The sender's
