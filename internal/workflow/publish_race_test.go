@@ -202,3 +202,17 @@ func TestRaceDeleteAgainstApplyFix(t *testing.T) {
 		t.Fatalf("file present %v, rows %d, intents %d", err == nil, rows, r.openIntents(t))
 	}
 }
+
+// An activation killed between its file and its commit leaves the workflow inactive: the rows'
+// definition hash does not cover the active flag, so it cannot tell the commit happened.
+func TestCrashKilledActivationAfterRenameIsRolledBack(t *testing.T) {
+	r := newCrashRig(t)
+	waitKilled(t, r.startHelper(t, "toggle", "MONOAGENT_WF_FAILPOINT=after-rename"))
+	r.assertConsistent(t)
+	if got, _ := r.h.GetWorkflow(context.Background(), "wf-c"); got.IsActive {
+		t.Fatal("the uncommitted activation survived")
+	}
+	if f, _ := r.h.files.GetWorkflow(context.Background(), "wf-c"); f.IsActive {
+		t.Fatal("the file still says active")
+	}
+}

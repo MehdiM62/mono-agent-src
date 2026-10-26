@@ -43,28 +43,28 @@ func TestPublishRefusesWhileAnotherChangeIsOpen(t *testing.T) {
 	}
 }
 
-// An abandoned intent whose rows already hold its target is rolled forward: the file is made to
-// say what the rows say.
-func TestRecoveryRollsForwardWhenTheRowsHoldTheTarget(t *testing.T) {
+// An abandoned intent is always rolled back, even when the rows' definition equals its target: an
+// intent that survives proves the commit did not happen.
+func TestRecoveryRollsBackEvenWhenTheRowsHoldTheTarget(t *testing.T) {
 	ctx := context.Background()
 	h, s, _, _ := guardedRig(t)
 	cur, _ := h.GetWorkflow(ctx, "wf-g")
 	def, _ := definitionHash(cur)
 	prev := fileBytes(t, h, "wf-g")
-	if err := os.WriteFile(h.files.dir+"/wf-g.json", []byte("{}"), 0o600); err != nil {
+	proposed := []byte("{}")
+	if err := os.WriteFile(h.files.dir+"/wf-g.json", proposed, 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.db.Exec(`INSERT INTO workflow_publications
 		(workflow_id, kind, state, target_hash, target_sha, prev_sha, prev_bytes, prev_existed, owner_pid, started_at)
-		VALUES ('wf-g', 'save', 'pending', ?, 'x', 'y', ?, 1, 0, ?)`, def, prev, time.Now().UTC()); err != nil {
+		VALUES ('wf-g', 'save', 'pending', ?, ?, ?, ?, 1, 0, ?)`, def, shaHex(proposed), shaHex(prev), prev, time.Now().UTC()); err != nil {
 		t.Fatal(err)
 	}
 	if n, err := h.RecoverPublications(ctx); err != nil || n != 1 {
 		t.Fatalf("n=%d err=%v", n, err)
 	}
-	got, _ := h.files.GetWorkflow(ctx, "wf-g")
-	if got == nil || len(got.Nodes) != 2 || openIntentCount(t, s) != 0 {
-		t.Fatalf("the file was not rewritten from the rows: %+v", got)
+	if !bytes.Equal(fileBytes(t, h, "wf-g"), prev) || openIntentCount(t, s) != 0 {
+		t.Fatal("the proposed file was kept")
 	}
 }
 

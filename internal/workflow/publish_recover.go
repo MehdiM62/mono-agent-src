@@ -52,9 +52,10 @@ func (s *WorkflowFileStore) quarantineDir() string {
 const dropIntentSQL = `DELETE FROM workflow_publications WHERE id = ?`
 
 // resolveIntent makes the file agree with the committed rows again after a publication that did
-// not finish, as a function of the intent, the file and the rows. It runs inside tx, which holds
-// the write lock. Rolling back, not forward: the process that opened the intent never reported
-// success.
+// not finish, as a function of the intent and the file. It runs inside tx, which holds the write
+// lock. It always rolls back: the commit removes its intent in the same transaction as the rows, so
+// an intent that is still here proves the rows did not change (comparing hashes would not: an
+// activation changes the rows but not the definition hash).
 func (h *HybridWorkflowStore) resolveIntent(ctx context.Context, tx *sql.Tx, in *intent) (unresolved bool, err error) {
 	raw, existed, err := h.files.readRaw(in.WorkflowID)
 	if err != nil {
@@ -64,33 +65,11 @@ func (h *HybridWorkflowStore) resolveIntent(ctx context.Context, tx *sql.Tx, in 
 	if existed {
 		file = shaHex(append([]byte{}, raw...))
 	}
-	rowsHash := ""
-	rows, err := getWorkflowFrom(ctx, tx, in.WorkflowID)
-	switch {
-	case err == nil:
-		if rowsHash, err = definitionHash(rows); err != nil {
-			return false, err
-		}
-	case !errors.Is(err, sql.ErrNoRows):
-		return false, err
-	}
 	drop := func() error {
 		_, err := tx.ExecContext(ctx, dropIntentSQL, in.ID)
 		return err
 	}
 	switch {
-	case in.Kind != PubDelete && in.TargetHash != "" && rowsHash == in.TargetHash:
-		// The rows already hold the target: make the file say so.
-		if file != in.TargetSHA {
-			data, err := h.files.renderWorkflow(rows)
-			if err != nil {
-				return false, err
-			}
-			if err := h.files.writeRaw(in.WorkflowID, data); err != nil {
-				return false, err
-			}
-		}
-		return false, drop()
 	case file == in.PrevSHA:
 		return false, drop()
 	case file == in.TargetSHA:
