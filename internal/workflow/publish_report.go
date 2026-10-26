@@ -70,7 +70,7 @@ func (h *HybridWorkflowStore) FileDrift(ctx context.Context) (unreadable, pendin
 		if rerr != nil {
 			continue
 		}
-		if wf, perr := parseWorkflowFile(raw); perr != nil || wf == nil || wf.ID == "" {
+		if wf, perr := parseWorkflowFile(raw); perr != nil || wf == nil || wf.ID == "" || graphIDProblem(wf) != "" {
 			unreadable = append(unreadable, id)
 			continue
 		}

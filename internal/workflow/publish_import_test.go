@@ -302,3 +302,37 @@ func TestPublishReconcilesAnOutsideEditBeforeBuildingOnIt(t *testing.T) {
 		t.Fatal("the bytes were left unreconciled")
 	}
 }
+
+// A file whose graph ids are missing or repeated is not imported (and so not recorded as
+// reconciled): the rows would differ from the file for good.
+func TestImportRefusesMissingAndRepeatedGraphIDs(t *testing.T) {
+	ctx := context.Background()
+	for name, edit := range map[string]func(w *Workflow){
+		"connection without an id": func(w *Workflow) { w.Connections[0].ID = "" },
+		"repeated node id":         func(w *Workflow) { w.Nodes[1].ID = w.Nodes[0].ID },
+		"node without an id":       func(w *Workflow) { w.Nodes[1].ID = "" },
+	} {
+		h, s, _, _ := guardedRig(t)
+		path := filepath.Join(h.files.dir, "wf-g.json")
+		w, _ := h.files.GetWorkflow(ctx, "wf-g")
+		w.Nodes[1].Config = map[string]interface{}{"k": "changed"}
+		edit(w)
+		data, err := h.files.renderWorkflow(w)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, data, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if res, err := h.ImportFile(ctx, "wf-g", nil); err != nil || res.Imported {
+			t.Fatalf("%s: %+v %v", name, res, err)
+		}
+		if n, _ := rowsCount(s, `SELECT COUNT(*) FROM workflow_file_state WHERE workflow_id = 'wf-g' AND file_sha = '`+shaHex(data)+`'`); n != 0 {
+			t.Fatalf("%s: the bytes were recorded as reconciled", name)
+		}
+		unreadable, _, _ := h.FileDrift(ctx)
+		if len(unreadable) != 1 {
+			t.Fatalf("%s: doctor does not list the file: %v", name, unreadable)
+		}
+	}
+}

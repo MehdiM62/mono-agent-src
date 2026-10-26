@@ -99,6 +99,9 @@ func (h *HybridWorkflowStore) importLocked(ctx context.Context, tx *sql.Tx, id s
 	if accept != nil && !accept(wf) {
 		return res, "refused", nil
 	}
+	if why := graphIDProblem(wf); why != "" {
+		return res, why, nil
+	}
 	fileDef, err := definitionHash(wf)
 	if err != nil {
 		return res, "the file does not parse as this workflow", nil
@@ -252,4 +255,31 @@ func statFile(s *WorkflowFileStore, id string) (*importStamp, error) {
 		return nil, err
 	}
 	return &importStamp{size: info.Size(), modTime: info.ModTime()}, nil
+}
+
+// graphIDProblem says what is wrong with the node and connection ids of a workflow read from a
+// file ("" when nothing is): the rows are keyed by them, so a missing or repeated id would give
+// rows that differ from the file, and the file's bytes would still be recorded as reconciled.
+func graphIDProblem(wf *Workflow) string {
+	seen := map[string]bool{}
+	for _, n := range wf.Nodes {
+		if n.ID == "" {
+			return "a node has no id"
+		}
+		if seen[n.ID] {
+			return "two nodes share the id " + n.ID
+		}
+		seen[n.ID] = true
+	}
+	seen = map[string]bool{}
+	for _, c := range wf.Connections {
+		if c.ID == "" {
+			return "a connection has no id"
+		}
+		if seen[c.ID] {
+			return "two connections share the id " + c.ID
+		}
+		seen[c.ID] = true
+	}
+	return ""
 }
