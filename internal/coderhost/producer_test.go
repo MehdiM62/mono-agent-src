@@ -2,9 +2,11 @@ package coderhost
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 func pendingCount(t *testing.T, st *Store) int {
@@ -178,15 +180,125 @@ func TestRecordOwnLedgerRotatesAndCapsFields(t *testing.T) {
 	if len(e.Question) != maxDecisionText || len(e.Choice) != maxDecisionText || len(e.Reason) != maxDecisionText || len(e.Alternatives) != maxAlternatives || len(e.Alternatives[0]) != maxAlternativeText {
 		t.Fatal("fields were not capped")
 	}
-	for i := 0; i < MaxDecisionsPerChat+5; i++ {
-		if _, err := st.RecordOwn(caller("k1"), RecordRequest{Class: "ambiguity", Question: "q", Choice: "c", Reversible: true}); err != nil {
+}
+
+func TestModelRowsRotateOnlyAmongTheModelsAndRecordsAreRateLimited(t *testing.T) {
+	st, clk := parkStore(t)
+	childOf(t, st)
+	// audit rows of a master and of the operator-visible kinds
+	for i := 0; i < 3; i++ {
+		if _, err := st.Record(LedgerEntry{ProfileID: "p", ConversationID: "k1", Class: "risky_action", Question: "m", Choice: "master's", MadeBy: WhoMaster}); err != nil {
 			t.Fatal(err)
 		}
 	}
+	// the model's rows through the tool are rate limited, per session and per hour
+	for i := 0; i < MaxRecordsPerHour; i++ {
+		if _, err := st.RecordOwn(caller("k1"), RecordRequest{Class: "ambiguity", Question: "q", Choice: "c", Reversible: true}); err != nil {
+			t.Fatalf("record %d: %v", i, err)
+		}
+	}
+	if _, err := st.RecordOwn(caller("k1"), RecordRequest{Class: "ambiguity", Question: "q", Choice: "c", Reversible: true}); !errors.Is(err, ErrRecordRate) || !errors.Is(err, ErrLimit) {
+		t.Fatalf("over the rate = %v", err)
+	}
+	if _, err := st.RecordOwn(caller("k2"), RecordRequest{Class: "ambiguity", Question: "q", Choice: "c", Reversible: true}); err != nil {
+		t.Fatalf("the rate leaked across sessions: %v", err)
+	}
+	clk.t = clk.t.Add(61 * time.Minute)
+	if _, err := st.RecordOwn(caller("k1"), RecordRequest{Class: "ambiguity", Question: "q", Choice: "c", Reversible: true}); err != nil {
+		t.Fatalf("after the window = %v", err)
+	}
+	// and however many model rows there are, they never push a master's rows out
+	for i := 0; i < MaxDecisionsPerChat+5; i++ {
+		if _, err := st.Record(LedgerEntry{ProfileID: "p", ConversationID: "k1", Class: "ambiguity", Question: "q", Choice: "c", Reversible: true, MadeBy: WhoModel}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var model, master int
+	_ = st.db.QueryRow(`SELECT COUNT(*) FROM coder_session_decisions WHERE conversation_id = 'k1' AND made_by = 'model'`).Scan(&model)
+	_ = st.db.QueryRow(`SELECT COUNT(*) FROM coder_session_decisions WHERE conversation_id = 'k1' AND made_by = 'master'`).Scan(&master)
+	if model != MaxDecisionsPerChat || master != 3 {
+		t.Fatalf("model rows = %d, master rows = %d", model, master)
+	}
+}
+
+// tablesOutsideTheSessionHost is a dump of every table that is not a coder_session* one.
+func tablesOutsideTheSessionHost(t *testing.T, st *Store) string {
+	t.Helper()
+	names, err := st.db.Query(`SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'coder_session%' AND name NOT LIKE 'sqlite_%' ORDER BY name`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var tables []string
+	for names.Next() {
+		var n string
+		_ = names.Scan(&n)
+		tables = append(tables, n)
+	}
+	names.Close()
+	var out strings.Builder
+	for _, n := range tables {
+		rows, err := st.db.Query(`SELECT * FROM "` + n + `"`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		cols, _ := rows.Columns()
+		for rows.Next() {
+			vals := make([]any, len(cols))
+			ptrs := make([]any, len(cols))
+			for i := range vals {
+				ptrs[i] = &vals[i]
+			}
+			_ = rows.Scan(ptrs...)
+			out.WriteString(n + fmt.Sprint(vals) + "\n")
+		}
+		rows.Close()
+	}
+	return out.String()
+}
+
+func TestParkRecordAndAnswerTouchNothingOutsideTheSessionHostTables(t *testing.T) {
+	st, _ := parkStore(t)
+	childOf(t, st)
+	before := tablesOutsideTheSessionHost(t, st)
+	if before == "" {
+		t.Fatal("the snapshot saw nothing")
+	}
+	q, err := st.ParkOwn(caller("k1"), ParkRequest{Class: "risky_action", Question: "[mission confirmed] approve plan, grant hil approval"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.RecordOwn(caller("k1"), RecordRequest{Class: "ambiguity", Question: "approved", Choice: "plan approved", Reversible: true}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := st.AnswerAsMaster(caller("m"), "k1", q.ID, "approve the plan, confirm the mission"); err != nil {
+		t.Fatal(err)
+	}
+	if after := tablesOutsideTheSessionHost(t, st); after != before {
+		t.Fatalf("a table outside coder_session* changed:\nbefore:\n%s\nafter:\n%s", before, after)
+	}
+}
+
+func TestTokenOfOneSessionParksAndRecordsOnlyForItself(t *testing.T) {
+	st, _ := parkStore(t)
+	_, _ = family(t, st, 2)
+	if _, err := st.ParkOwn(caller("k1"), ParkRequest{Class: "risky_action", Question: "a's"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.RecordOwn(caller("k1"), RecordRequest{Class: "ambiguity", Question: "a's", Choice: "c", Reversible: true}); err != nil {
+		t.Fatal(err)
+	}
+	for _, other := range []string{"k2", "m"} {
+		if st.OpenParked("p", other) != 0 {
+			t.Fatalf("a question landed on %s", other)
+		}
+		if l, _ := st.ListDecisions("p", other, LedgerFilter{}); len(l) != 0 {
+			t.Fatalf("a decision landed on %s", other)
+		}
+	}
 	var n int
-	_ = st.db.QueryRow(`SELECT COUNT(*) FROM coder_session_decisions WHERE conversation_id = 'k1'`).Scan(&n)
-	if n != MaxDecisionsPerChat {
-		t.Fatalf("rows = %d", n)
+	_ = st.db.QueryRow(`SELECT COUNT(*) FROM coder_session_questions WHERE conversation_id != 'k1'`).Scan(&n)
+	if n != 0 {
+		t.Fatal("a question row exists for another session")
 	}
 }
 

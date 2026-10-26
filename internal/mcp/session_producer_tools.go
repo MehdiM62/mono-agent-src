@@ -54,7 +54,12 @@ func producerToolErr(err error) error {
 	case errors.Is(err, coderhost.ErrPolicyReserves), errors.Is(err, coderhost.ErrNoConversation):
 		return codedErr{text: "invalid_input: " + err.Error(), err: err}
 	}
-	return sessionToolErr(err)
+	out := sessionToolErr(err)
+	var coded codedErr
+	if errors.As(out, &coded) {
+		return out
+	}
+	return errors.New("internal_error: the call could not be completed") // no raw database text out of a tool
 }
 
 func toolSessionPark(ctx context.Context, s *Server, args json.RawMessage) (interface{}, error) {

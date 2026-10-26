@@ -162,8 +162,10 @@ func TestOnlyTheDirectMasterAnswersNotAHigherAncestor(t *testing.T) {
 	if err != nil || q.Answerer != WhoMaster {
 		t.Fatalf("park = %+v, %v", q, err)
 	}
-	if _, _, err := st.AnswerAsMaster(caller("m"), "g", q.ID, "yes"); !errors.Is(err, ErrNotAnswerer) {
-		t.Fatalf("the grandparent answered: %v", err)
+	_, _, err = st.AnswerAsMaster(caller("m"), "g", q.ID, "yes")
+	wantRefusal(t, err, "g", q.ID, "the grandparent")
+	if st.OpenParked("p", "g") != 1 {
+		t.Fatal("a refused answer closed the question")
 	}
 	if _, _, err := st.AnswerAsMaster(caller("k1"), "g", q.ID, "yes"); err != nil {
 		t.Fatalf("the direct master = %v", err)

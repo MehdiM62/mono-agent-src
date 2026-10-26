@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 )
 
 // The autonomy producer: the only way a session's own model parks a question or records a
@@ -20,13 +21,23 @@ import (
 //   - RecordOwn consults the same policy and refuses a decision the policy reserves for a master
 //     or the user, so recording is no way around asking;
 //   - made_by is fixed to "model" here, never read from the caller, and the ledger shows it so;
-//   - the open-question cap (MaxOpenQuestions), the ledger rotation and the field caps apply.
+//   - the open-question cap (MaxOpenQuestions), the field caps and a rate of MaxRecordsPerHour
+//     records an hour apply, and a model's rows rotate only among the model's own rows.
 //
 // Neither call starts a turn, queues a command, changes access, a budget or a setting, or
 // carries any confirmation: they write one row each. A model that mislabels a gap as reversible
 // or low-risk can have it settled by itself under the preset's rules for that class; the rule that
 // bounds it is that the ledger shows the decision as the model's, with the flag it claimed, and
 // that the operator can revert the reversible ones (hard classes are not claimable at all).
+
+// Rate of model-made records: at most MaxRecordsPerHour per session per hour.
+const (
+	MaxRecordsPerHour = 20
+	recordWindow      = time.Hour
+)
+
+// ErrRecordRate: the session has recorded as many decisions in the last hour as it may.
+var ErrRecordRate = fmt.Errorf("%w: a session may record at most %d decisions an hour", ErrLimit, MaxRecordsPerHour)
 
 // ErrPolicyReserves: the policy does not let the model settle this gap, so it cannot be recorded
 // as the model's decision; it is parked instead.
@@ -104,6 +115,15 @@ func (s *Store) RecordOwn(c Caller, r RecordRequest) (LedgerEntry, error) {
 	_, has := s.hasMaster(c.ProfileID, c.ConversationID)
 	if Decide(settings, r.Class, r.Reversible, has).Answerer != WhoModel {
 		return LedgerEntry{}, ErrPolicyReserves
+	}
+	var recent int
+	since := s.now().Add(-recordWindow).UTC().Format(timeLayout)
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM coder_session_decisions WHERE profile_id = ? AND conversation_id = ? AND made_by = 'model' AND created_at >= ?`,
+		c.ProfileID, c.ConversationID, since).Scan(&recent); err != nil {
+		return LedgerEntry{}, err
+	}
+	if recent >= MaxRecordsPerHour {
+		return LedgerEntry{}, ErrRecordRate
 	}
 	return s.Record(LedgerEntry{ProfileID: c.ProfileID, ConversationID: c.ConversationID, Class: r.Class, Question: r.Question,
 		Choice: r.Choice, Alternatives: r.Alternatives, Reason: r.Reason, Reversible: r.Reversible, MadeBy: WhoModel})

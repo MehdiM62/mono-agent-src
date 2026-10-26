@@ -118,9 +118,15 @@ func (s *Store) Record(e LedgerEntry) (LedgerEntry, error) {
 	// Rows rotate out so one chatty session cannot grow the table without bound. The row just
 	// written stays; then active reversible rows (the ones a person may still want to revert)
 	// are kept in preference to active irreversible ones, and those to reverted ones; within
-	// a kind the newest stay.
-	if _, err := tx.Exec(`DELETE FROM coder_session_decisions WHERE profile_id = ? AND conversation_id = ? AND id NOT IN
-		(SELECT id FROM coder_session_decisions WHERE profile_id = ? AND conversation_id = ?
+	// a kind the newest stay. A model-made row rotates only among the model's own rows, so a
+	// model that writes rows cannot push a master's, a default's or an operator's rows out of the
+	// audit trail (its own rows are then capped by MaxDecisionsPerChat on their own).
+	scope := ""
+	if e.MadeBy == WhoModel {
+		scope = ` AND made_by = 'model'`
+	}
+	if _, err := tx.Exec(`DELETE FROM coder_session_decisions WHERE profile_id = ? AND conversation_id = ?`+scope+` AND id NOT IN
+		(SELECT id FROM coder_session_decisions WHERE profile_id = ? AND conversation_id = ?`+scope+`
 			ORDER BY (id = ?) DESC, (CASE WHEN status != 'active' THEN 0 WHEN reversible = 0 THEN 1 ELSE 2 END) DESC, id DESC LIMIT ?)`,
 		e.ProfileID, e.ConversationID, e.ProfileID, e.ConversationID, e.ID, MaxDecisionsPerChat); err != nil {
 		return e, err

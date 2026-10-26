@@ -73,3 +73,16 @@ func TestSessionParkAndRecordActOnTheCallersOwnSession(t *testing.T) {
 		t.Fatalf("park or record queued %d commands", after-cmds)
 	}
 }
+
+func TestSessionRecordIsRateLimitedPerSession(t *testing.T) {
+	sf := newSessionFixture(t)
+	args := map[string]any{"class": "ambiguity", "choice": "c", "reversible": true}
+	for i := 0; i < coderhost.MaxRecordsPerHour; i++ {
+		if _, err := sf.as(t, sf.tokA, "session_record", args); err != nil {
+			t.Fatalf("record %d: %v", i, err)
+		}
+	}
+	if _, err := sf.as(t, sf.tokA, "session_record", args); err == nil || !strings.Contains(err.Error(), "limit") {
+		t.Fatalf("over the rate = %v", err)
+	}
+}

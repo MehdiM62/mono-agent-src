@@ -1808,8 +1808,10 @@ injected text and a confused script inside the rules; it is not a sandbox agains
   verified session token (no session argument), validate the class, refuse a hard class as reversible or as a
   recorded model decision, and consult the policy: a park the policy leaves to the model and a record the policy
   leaves to a master or the user are refused. They start no turn and carry no approval. The `reversible` flag is the
-  model's claim and is shown as such in the ledger. A master answers its direct child's question under its own
-  token (`session_answer`); every question that is not its child's is refused with one text.
+  model's claim and is shown as such in the ledger. A model's ledger rows rotate only among its own and `record` is limited to 20 an hour per session. A master answers
+  its direct child's question under its own token (`session_answer`); every question that is not its direct child's
+  (including one of a deeper descendant) is refused with one text. Reading questions and decisions needs the operator
+  or a session token, is limited to the caller's subtree, and returns model-written text cleaned.
 - **Mesh text is data.** What other agents send to a session over monomind's mesh is sealed as untrusted peer
   content in front of its next turn; it starts no turn and carries no authority. The mesh name is not a trust
   anchor and `mesh_accept` (`none`, `subtree` or `project`; default `subtree`) limits who is heard.

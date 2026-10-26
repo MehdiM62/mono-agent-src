@@ -16,6 +16,9 @@ import (
 // Reading is open; reverting a decision and answering a question are the
 // operator's.
 
+// notYourSession is the one refusal for a read of a session outside the caller's own tree.
+const notYourSession = "not your session or one of your child sessions"
+
 func parseID(s, what string) (int64, error) {
 	id, err := strconv.ParseInt(s, 10, 64)
 	if err != nil || id <= 0 {
@@ -54,10 +57,22 @@ func newDecisionsListCmd(cfg *Deps) *cobra.Command {
 		Short: "List a session's decisions, newest first",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			vis, err := visibleToToken(cfg)
+			if err != nil {
+				return err
+			}
+			if vis != nil && !vis(args[0]) {
+				return clicore.NotFound("%s", notYourSession)
+			}
 			return withCoderStore(cfg, args[0], func(cs *coderhost.Store, profileID string) error {
 				rows, err := cs.ListDecisions(profileID, args[0], coderhost.LedgerFilter{Class: class, Status: status, Limit: limit})
 				if err != nil {
 					return err
+				}
+				if vis != nil {
+					for i := range rows {
+						rows[i] = coderhost.SealEntry(rows[i])
+					}
 				}
 				return printQueueJSON(cmd, map[string]any{"conversationId": args[0], "decisions": rows})
 			})
@@ -76,6 +91,13 @@ func newDecisionsShowCmd(cfg *Deps) *cobra.Command {
 		Short: "Show one decision",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			vis, err := visibleToToken(cfg)
+			if err != nil {
+				return err
+			}
+			if vis != nil && !vis(args[0]) {
+				return clicore.NotFound("%s", notYourSession)
+			}
 			id, err := parseID(args[1], "decision")
 			if err != nil {
 				return err
@@ -87,6 +109,9 @@ func newDecisionsShowCmd(cfg *Deps) *cobra.Command {
 				}
 				if !ok {
 					return clicore.NotFound("no decision %d for %s", id, args[0])
+				}
+				if vis != nil {
+					e = coderhost.SealEntry(e)
 				}
 				return printQueueJSON(cmd, e)
 			})
@@ -149,6 +174,13 @@ func newQuestionsListCmd(cfg *Deps) *cobra.Command {
 			if len(args) == 1 {
 				conv = args[0]
 			}
+			vis, err := visibleToToken(cfg)
+			if err != nil {
+				return err
+			}
+			if vis != nil && conv != "" && !vis(conv) {
+				return clicore.NotFound("%s", notYourSession)
+			}
 			profileID := cfg.ProfileID()
 			if conv != "" {
 				var err error
@@ -164,6 +196,15 @@ func newQuestionsListCmd(cfg *Deps) *cobra.Command {
 			rows, err := coderhost.NewStore(db.DB).ListQuestions(profileID, conv, !all)
 			if err != nil {
 				return err
+			}
+			if vis != nil { // a session sees its own tree's questions, with the model-written text cleaned
+				seen := rows[:0]
+				for _, q := range rows {
+					if vis(q.ConversationID) {
+						seen = append(seen, coderhost.SealQuestion(q))
+					}
+				}
+				rows = seen
 			}
 			return printQueueJSON(cmd, map[string]any{"questions": rows})
 		},

@@ -2532,9 +2532,10 @@ monoagentcli --profile work coder host stop                        # the host on
   a default and a `take_default` fallback gets that default (a ledger row, made by the model). A master answers
   with `sessions questions answer <child-conv> <id> <text>` under its session token, or the MCP tool `session_answer`
   (mutating: needs `--allow-mutations`): the master is the conversation the verified token names (`master:<conv>` in
-  `answeredBy`), only for a question of its own direct child (the conversation must lie below the caller, the question
+  `answeredBy`), only for a question of its own direct child (the conversation must be a direct child of the caller, the question
   must be that conversation's, and the policy must name the master for that class); every other case (unknown id,
-  another profile's or session's question, a peer, an ancestor, the session's own question, an unrelated session) is
+  another profile's or session's question, a peer, an ancestor or a higher ancestor of the child, the session's own
+  question, an unrelated session) is
   refused with the same `not_yours` text, so the verb is no way to find which questions exist. The note is the same
   host-made `answer-m-` turn (issuer = the master, counted in the streak, gated at the limit, sealed as data, never a
   mission or approval). With no token the verb is the operator's (`RequireOperator`); a token that does not verify is a
@@ -2583,6 +2584,12 @@ monoagentcli --profile work coder host stop                        # the host on
   --budget-usd`, operator only; a capped master must give its child a positive amount that fits). Each turn of a capped session runs under what it has left (budget, less what its turns cost, less what it carved for its children) as `--budget-usd`, which is a ceiling for **that turn**; the total holds because the next turn starts with what is left. A turn's cost is the largest total it journaled; a usage event that is present with cost 0 is a reported 0 (a runtime that always reports 0 is trusted at 0; kilo cannot be capped and is refused for capped sessions). Only a turn that started and journaled no usage event at all counts as having spent its whole cap, or its workers' cost if that is more (never both); a cap row of a turn that never started charges nothing. A carve is limited by budget - spent - carved: the running turn's own cap (fixed when it started) is not reserved, so a capped master's turn can spend its cap AND carve up to budget - spent - carved to children during the same turn: exposure per master turn can reach about 2x the budget (chains do not compound); the next turn starts from the true remainder. A send with nothing left (under $0.000001) fails with the reason. Cost comes from the runtimes' own reports (a runtime that reports none counts as $0, and kilo cannot enforce a cap at all). The issuer, not the turn id, is what marks a send as a master's: an issuer-tagged send can never be a mission, counts toward the host-made streak, and a `master-` turn id without an issuer is refused. Everything a master queues for a child except a stop (sends, pause, resume) shares 5 pending slots per child; its stops are counted apart (at most 2 wait per child, and a repeated stop is a no-op). A command a master queues records the master as its issuer and runs only while the target is still that master's child; a master's queued sends (not its pause or resume) expire after 15 minutes. With a token `list`, `settings get` and `command` show only the caller's own tree; without one they need the operator (an agent that lost or dropped the variable reads nothing). A master's message is **not a person's send**: its turn
   id starts with `master-`, it can carry no mission confirmation, and, like `checkin-`, it counts toward the
   host-made turns in a row (`checkin_limit`) after which the child waits for a person.
+- **Reading questions and decisions.** `sessions questions list` and `sessions decisions list|show` need the
+  operator's terminal or a session token. Under a token they show only the caller's own session and its
+  descendants (any other session is refused with one text), and the text a model wrote (question, options,
+  default, answer, choice, alternatives, reason) is returned cleaned of brackets, angle brackets, quotes and
+  control characters on one line; the operator's terminal sees every row raw, including `madeBy` and the
+  `reversible` flag the model claimed. An agent shell without a token reads nothing.
 - **Autonomy producer** (`session_park`, `session_record`; CLI `sessions park|record`). They act on the caller's
   OWN session, named by the verified session token: there is no conversation argument, so session A's token cannot
   park or record for B, and a call without a valid token is refused (the operator has no session of its own and
@@ -2592,8 +2599,9 @@ monoagentcli --profile work coder host stop                        # the host on
   `Store.Record` for `made_by=model`); `park` consults the policy (`Decide`) and, when the policy lets the model
   settle that gap, returns `model_decides` with the instruction to decide and call `record`; `record` consults the
   same policy and is refused (`invalid_input`) when the policy leaves that gap to a master or the user, so
-  recording is no way around asking; `made_by` is fixed to `model`, never read from the caller; the 20-open-question cap, the 500-row ledger
-  rotation and the field caps apply. Neither call starts a turn, queues a command, or touches access, a budget or a
+  recording is no way around asking; `made_by` is fixed to `model`, never read from the caller; the 20-open-question cap, the field caps and
+  at most 20 `record` calls per session per hour apply, and the model's ledger rows (at most 500) rotate only among
+  the model's own rows, so it cannot push a master's or an operator-visible row out of the audit trail. Neither call starts a turn, queues a command, or touches access, a budget or a
   setting, and the text is only data (it is sealed when it reaches a reader as an answer note). Host-side sanity rule:
   the ledger shows every model-made decision as `madeBy: model` together with the `reversible` flag the model
   claimed, and the operator can revert the reversible ones; a model that mislabels a gap as reversible can have it
