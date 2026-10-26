@@ -572,3 +572,43 @@ func TestACancelledCallerStillRollsBack(t *testing.T) {
 		t.Fatal("the cancelled change left its intent or its file behind")
 	}
 }
+
+// Temp files a crashed writer left behind are swept once they are old; a recent one (a writer that
+// is still working) is left alone.
+func TestSweepStaleTempFiles(t *testing.T) {
+	h, _, _, _ := guardedRig(t)
+	old := filepath.Join(h.files.dir, ".wf-g.json.111.tmp")
+	fresh := filepath.Join(h.files.dir, ".wf-g.json.222.tmp")
+	keep := filepath.Join(h.files.dir, "wf-g.json")
+	for _, f := range []string{old, fresh} {
+		if err := os.WriteFile(f, []byte("x"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	past := time.Now().Add(-time.Hour)
+	if err := os.Chtimes(old, past, past); err != nil {
+		t.Fatal(err)
+	}
+	if n := h.SweepStaleTemp(); n != 1 {
+		t.Fatalf("swept %d", n)
+	}
+	for f, want := range map[string]bool{old: false, fresh: true, keep: true} {
+		if _, err := os.Stat(f); (err == nil) != want {
+			t.Errorf("%s present=%v, want %v", filepath.Base(f), err == nil, want)
+		}
+	}
+}
+
+// The quarantine keeps the newest copies of a workflow, not an unbounded number of them.
+func TestQuarantineKeepsOnlyTheNewestCopies(t *testing.T) {
+	h, _, _, _ := guardedRig(t)
+	for i := 0; i < quarantineKeep+5; i++ {
+		if _, err := h.files.quarantine("wf-g", []byte{byte(i)}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	kept, _ := filepath.Glob(filepath.Join(h.files.quarantineDir(), "wf-g.*.json"))
+	if len(kept) != quarantineKeep {
+		t.Fatalf("%d copies kept", len(kept))
+	}
+}

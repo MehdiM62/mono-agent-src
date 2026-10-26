@@ -87,3 +87,31 @@ func (h *HybridWorkflowStore) FileDrift(ctx context.Context) (unreadable, pendin
 	}
 	return unreadable, pending, nil
 }
+
+// SweepStaleTemp removes staged temp files a crashed writer left in the workflows folder (they can
+// be up to the file size limit each). Only files older than twice the lease are touched, so a
+// writer that is still working keeps its file. It returns how many it removed.
+func (h *HybridWorkflowStore) SweepStaleTemp() int {
+	if h.files == nil {
+		return 0
+	}
+	entries, err := os.ReadDir(h.files.dir)
+	if err != nil {
+		return 0
+	}
+	n := 0
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() || !strings.HasPrefix(name, ".") || !strings.HasSuffix(name, ".tmp") {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil || !info.Mode().IsRegular() || time.Since(info.ModTime()) < 2*publicationLease {
+			continue
+		}
+		if os.Remove(filepath.Join(h.files.dir, name)) == nil {
+			n++
+		}
+	}
+	return n
+}

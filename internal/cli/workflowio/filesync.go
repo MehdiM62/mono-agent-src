@@ -43,6 +43,7 @@ func SyncFileWorkflowsToSQL(ctx context.Context, db *sql.DB, dir string) ([]stri
 	}
 	store := workflow.NewHybridWorkflowStore(files, workflow.NewSQLiteWorkflowStore(db))
 	_, _ = store.RecoverPublications(ctx)
+	store.SweepStaleTemp()
 	// A file of a profile that no longer exists (deleted, or copied from one) must not come back
 	// as a row of a profile that is gone.
 	profileExists := func(wf *workflow.Workflow) bool {
