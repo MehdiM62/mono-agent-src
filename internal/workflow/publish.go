@@ -755,7 +755,7 @@ func requireApproved(ctx context.Context, q rowQuerier, id string, pl *pubPlan) 
 	case err != nil:
 		return fmt.Errorf("checking the approval of workflow %s: %w", id, err)
 	case n == 0:
-		return fmt.Errorf("%w: workflow %s: %s", ErrApprovalRequired, id, ApproveHint(pl.profileID(), id))
+		return fmt.Errorf("%w: workflow %s: %s", ErrApprovalRequired, id, ActivateHint(pl.profileID(), id))
 	}
 	return nil
 }

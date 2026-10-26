@@ -254,3 +254,47 @@ func TestTempRunActivationOnlyGoesThroughForWhatTheCreationApproved(t *testing.T
 		t.Fatal("a refused activation switched the workflow on or armed its triggers")
 	}
 }
+
+// racingStore runs before() just before an activation reaches the store, as a concurrent writer would
+// between the engine reading the workflow and publishing the activation.
+type racingStore struct {
+	*HybridWorkflowStore
+	before func()
+}
+
+func (r *racingStore) SetWorkflowActive(ctx context.Context, id string, active bool) error {
+	if active && r.before != nil {
+		r.before()
+	}
+	return r.HybridWorkflowStore.SetWorkflowActive(ctx, id, active)
+}
+
+// The engine pins the hash it read to the activation (WithExpectHash): a save that lands between the
+// read and the publish is refused, and not approved under the operator's context.
+func TestActivationPinsTheHashTheEngineRead(t *testing.T) {
+	ctx := WithApproval(context.Background())
+	h, s := newHybridForTest(t)
+	rs := &racingStore{HybridWorkflowStore: h}
+	eng := newVersionsEngineOver(t, rs, s)
+	if err := eng.CreateWorkflow(ctx, scheduledWF("wf-p", "v")); err != nil {
+		t.Fatal(err)
+	}
+	var changedHash string
+	rs.before = func() { // an agent's save (not approving) between the read and the publish
+		w, _ := h.GetWorkflow(context.Background(), "wf-p")
+		w.Name = "changed in the window"
+		if err := h.SaveWorkflow(context.Background(), w); err != nil {
+			t.Error(err)
+			return
+		}
+		now, _ := h.GetWorkflow(context.Background(), "wf-p")
+		changedHash, _ = definitionHash(now)
+	}
+	if err := eng.ActivateWorkflowWith(ctx, "wf-p", ActivateOptions{}); !errors.Is(err, ErrChangedSincePreview) {
+		t.Fatalf("a save between the read and the publish: %v", err)
+	}
+	got, _ := h.GetWorkflow(context.Background(), "wf-p")
+	if ok, _ := h.DefinitionApproved(context.Background(), "wf-p", changedHash); got.IsActive || changedHash == "" || ok {
+		t.Fatalf("active=%v approved(changed)=%v: the change was approved or armed under the operator's context", got.IsActive, ok)
+	}
+}

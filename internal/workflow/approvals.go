@@ -101,6 +101,15 @@ func ApproveHint(profile, id string) string {
 	return fmt.Sprintf("if the change is yours, run `monoagentcli --profile %s workflow activate %s` (or save it in the app) to let it", profile, id)
 }
 
+// ActivateHint tells the operator how to switch on a definition they have not approved: look at it
+// first, then name what was looked at, so what gets approved is what was reviewed.
+func ActivateHint(profile, id string) string {
+	if profile == "" || id == "" {
+		return "review it in the app or your terminal, then activate it from there"
+	}
+	return fmt.Sprintf("review it with `monoagentcli --profile %s workflow get %s --json`, then run `monoagentcli --profile %s workflow activate %s --expect <its review_hash>` to approve exactly that", profile, id, profile, id)
+}
+
 type approvalCheckErrorKey struct{}
 
 // withApprovalCheckError records on ctx the store error that kept the run
