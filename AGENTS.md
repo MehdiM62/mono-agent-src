@@ -2354,6 +2354,67 @@ older monomind the stage infers it from the `Task` call instead. The lead's own 
 events, and `chat history transcript --by-agent <conversation> <turn>`
 shows the turn split by agent.
 
+### Persistent coder sessions (`coder host`, `coder sessions`)
+
+A coder turn used to be a child of the desktop app and died with it. A **session** is a coder conversation
+the **coder host** carries on: the host is one detached process per database that runs each turn as its own
+detached `chat --conversation` process, takes its commands from the database, and leaves running turns alone
+when it stops (the next host finds them again by pid and start time). The app sends a coder conversation's
+turn to the host and follows the turn's journal; closing the app does not stop it. Scoped chats do not use the
+host.
+
+```bash
+monoagentcli --profile work coder sessions send <conv> "run the tests and fix what fails"   # starts the host if none runs
+monoagentcli --profile work coder sessions list --json            # sessions, state, access, waiting commands, and whether the host runs
+monoagentcli --profile work coder sessions stop|pause|resume <conv>
+monoagentcli --profile work coder sessions command <id>            # how one queued command ended: pending, done, or failed with the reason
+monoagentcli --profile work coder host status --json               # running? pid, since when
+monoagentcli --profile work coder host stop                        # the host only; running turns keep going
+```
+
+- **Operator only (exit 3, `operator_only`):** `sessions send|stop|pause|resume`, `sessions settings set`,
+  `host run|stop`. An agent can neither start a full-access turn nor steer a session; reading (`list`,
+  `command`, `settings get`, `host status`) is open. A queued send expires after 6 hours; at most 50 sends and
+  50 control commands wait per conversation; a message is at most 256 KiB.
+- **State:** `idle`, `running` and `paused` (no new turn starts; a running one finishes). `waiting_user` and
+  `stopped` exist in the schema and nothing sets them yet. Sends to a busy or paused conversation wait, in order. `stop` ends the running turn **and drops the sends queued before
+  it**. Commands run in the order they were queued.
+- **Unattended:** a session runs with nobody there, at the access level of its conversation (the only limit
+  besides the budget caps). The desktop pane always shows `Unattended: on · <access>`;
+  `sessions settings set <conv> --unattended false` is the switch.
+- **Settings** (`sessions settings get|set`, JSON in `--patch`, only the named settings change, a name that is
+  not a setting is refused): `checkin_minutes`, `skip_if_unchanged`, `checkin_triggers`, `silent_minutes`,
+  `active_hours` (`HH:MM-HH:MM`, local time), `checkin_limit`, `autonomy_preset`, `autonomy_classes`,
+  `max_children`, `max_concurrent`, `max_depth`, `mesh_visible`, `mesh_alias`, `mesh_accept`. `get` lists which
+  are operator-only and the values each allows. The autonomy settings are stored and shown; nothing acts on
+  them yet.
+- **Masters and children:** `sessions settings set <conv> --role master`, then `--role child --parent <master>`
+  for each child (the master must be a master with room under its `max_children`; depth is 2; a session with
+  children cannot change role).
+- **Check-ins:** the host looks at each unattended, idle master that has children and queues one short turn
+  for it with a digest, when `checkin_minutes` (default 15, 0 = off) have passed since the last look, or when
+  a child finished, failed, was paused or went silent (`checkin_triggers`, `silent_minutes`). With
+  `skip_if_unchanged` (default) a quiet interval is only a look. At most one per minute, counted from the end of
+  the master's own last turn; never while the master is busy (it gets one catch-up afterwards); after a check-in
+  turn that did not complete only the timer brings the next. After `checkin_limit` (default 48) check-ins in a
+  row with no message from a person, the master waits for one (the pane says so). A queued check-in lives 15
+  minutes and is checked again when it runs. The digest holds only the host's records (conversation ids, state
+  and turn-status words, counts, ages), never text an agent wrote. Host-made turns carry the turn-id prefix
+  `checkin-`; the limit counts it, so a later path that starts turns without a person must use its own prefix.
+  `child_question` and `budget_80` are accepted settings that do not fire yet.
+- **Mesh** (needs monomind 2.29+): with `mesh_visible` (default on) the host keeps the session on monomind's
+  mesh between turns, as `coder-<folder>-<start time>` (or `mesh_alias`), with a state word as its task and
+  nothing else (no prompt text, no access level, no path). What other agents sent it is put, sealed as
+  untrusted peer content, in front of its next turn, and only marked read once that turn has started; it never
+  starts a turn or grants anything. `mesh_accept` decides who is heard: `subtree` (default: its master and
+  children), `project` (any local process that claims this project: the project id is the sender's own
+  claim) or `none`. `MONOAGENT_MESH=0` or monomind's `MONOMIND_MESH_AUTOJOIN=0` turns it off.
+- **Files:** `<db dir>/coder-host/` holds `host.lock`, `host.json`, `host.log` and `turns/<turn>.log`.
+- **Not run by agents:** like `wails dev` and the real coder run, starting the host is the user's own act from
+  a terminal; an agent shell is refused. Every `coder host` and `coder sessions` command names `--profile`
+  (the host serves the whole database, but the profile gate treats them as profile commands) and needs the
+  monoes.me sign-in like the rest of the CLI.
+
 ## How AI works in mono-agent
 
 Every AI feature runs through the **monomind runner** (`monomind agent
