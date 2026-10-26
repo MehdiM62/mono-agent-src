@@ -29,10 +29,12 @@ import (
 func runChat(cfg *Deps, cmd *cobra.Command, args []string, f *chatFlags) (retErr error) {
 	runtime, model, effort, resume, canvasID, historyID, timeoutS, budget, tools, noHistory, promptStdin, conversationID, turnID, instanceID, mode, coderCwd, newWorkspace, coderRoot, profileFold, attach := f.runtime, f.model, f.effort, f.resume, f.canvasID, f.historyID, f.timeoutS, f.budget, f.tools, f.noHistory, f.promptStdin, f.conversationID, f.turnID, f.instanceID, f.mode, f.coderCwd, f.newWorkspace, f.coderRoot, f.profileFold, f.attach
 	// The coder host hands a turn the token of its mission confirmation in the
-	// environment, not in the arguments; it is taken out of the environment here, before
-	// anything this turn starts can inherit it. There is no flag that confirms a mission.
-	missionToken := os.Getenv(coderhost.MissionTokenEnv)
-	_ = os.Unsetenv(coderhost.MissionTokenEnv)
+	// environment, not in the arguments; the binary moves it out of the environment before
+	// it can start any process (coderhost.StashMissionToken, called first in main's run), and
+	// it is taken here (and cleared from Go's environment, should a caller not have stashed it)
+	// before anything this turn starts can inherit it. The process's original environment block
+	// still shows it until exit; the token is dead once the confirmation is consumed. There is no flag that confirms a mission.
+	missionToken := coderhost.TakeMissionToken()
 	// The session token (coderhost.SessionTokenEnv) is NOT taken out of the environment, unlike the
 	// mission token: that one is a single-use proof for this process alone, while the session
 	// token is the identity the turn's own shell and MCP server present to the master tools, so the

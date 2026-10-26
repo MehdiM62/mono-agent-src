@@ -2,8 +2,10 @@ package coderhost
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -356,7 +358,7 @@ func TestAnyIssuerTaggedSendExpiresLikeACheckin(t *testing.T) {
 	}
 }
 
-func TestAMasterCannotFillTheControlSlotsWithStops(t *testing.T) {
+func TestPendingMasterStopsAreCappedAtTwoPerChatAndAtomically(t *testing.T) {
 	st := newStoreT(t)
 	m, _ := master(t, st, "coding")
 	a := spawn(t, st, m)
@@ -364,38 +366,107 @@ func TestAMasterCannotFillTheControlSlotsWithStops(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for i := 0; i < MaxPendingPerChat+1; i++ {
+	for i := 0; i < MaxPendingPerChat+1; i++ { // one issuer: a repeat is a no-op
 		got, err := st.ControlChild(m, a, KindStop)
 		if err != nil || got.ID != first.ID {
 			t.Fatalf("stop %d: %+v %v, want the stop already waiting", i, got, err)
 		}
 	}
+	// exactly two issuers fit: the second is accepted, the third is not
+	if _, err := st.Enqueue(Command{ProfileID: "p", ConversationID: a, Kind: KindStop, Issuer: "other-1"}); err != nil {
+		t.Fatalf("a second issuer's stop: %v", err)
+	}
+	if _, err := st.Enqueue(Command{ProfileID: "p", ConversationID: a, Kind: KindStop, Issuer: "other-2"}); !errors.Is(err, ErrQueueFull) {
+		t.Fatalf("a third issuer's stop: %v", err)
+	}
 	var n int
 	st.db.QueryRow(`SELECT COUNT(*) FROM coder_session_commands WHERE conversation_id = ? AND kind = 'stop'`, a).Scan(&n)
-	if n != 1 {
-		t.Fatalf("%d stops wait", n)
-	}
-	// distinct issuers are capped too
-	for _, who := range []string{"other-1", "other-2", "other-3"} {
-		_, err = st.Enqueue(Command{ProfileID: "p", ConversationID: a, Kind: KindStop, Issuer: who})
-	}
-	if !errors.Is(err, ErrQueueFull) {
-		t.Fatalf("a third issuer's stop: %v", err)
+	if n != MaxPendingMasterStops || MaxPendingMasterStops != 2 {
+		t.Fatalf("%d stops wait (limit %d), want 2", n, MaxPendingMasterStops)
 	}
 	if _, err := st.Enqueue(Command{ProfileID: "p", ConversationID: a, Kind: KindStop}); err != nil {
 		t.Fatalf("a person's stop has no room: %v", err)
 	}
 }
 
+func TestConcurrentMasterStopsFromTwoStoresStayWithinTheCap(t *testing.T) {
+	st := newStoreT(t)
+	m, _ := master(t, st, "coding")
+	a := spawn(t, st, m)
+	other := NewStore(st.db)
+	var wg sync.WaitGroup
+	for i := 0; i < 30; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			s := st
+			if i%2 == 1 {
+				s = other
+			}
+			s.Enqueue(Command{ProfileID: "p", ConversationID: a, Kind: KindStop, Issuer: fmt.Sprint("issuer-", i%6)})
+		}(i)
+	}
+	wg.Wait()
+	var n, distinct int
+	st.db.QueryRow(`SELECT COUNT(*), COUNT(DISTINCT issuer) FROM coder_session_commands WHERE conversation_id = ? AND kind = 'stop'`, a).Scan(&n, &distinct)
+	if n != 2 || distinct != 2 {
+		t.Fatalf("%d pending stops from %d issuers, want 2 from 2", n, distinct)
+	}
+	// the same issuer from both stores: one
+	st2 := newStoreT(t)
+	m2, _ := master(t, st2, "coding")
+	b := spawn(t, st2, m2)
+	o2 := NewStore(st2.db)
+	for i := 0; i < 20; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			s := st2
+			if i%2 == 1 {
+				s = o2
+			}
+			s.ControlChild(m2, b, KindStop)
+		}(i)
+	}
+	wg.Wait()
+	st2.db.QueryRow(`SELECT COUNT(*) FROM coder_session_commands WHERE conversation_id = ? AND kind = 'stop'`, b).Scan(&n)
+	if n != 1 {
+		t.Fatalf("%d stops from one issuer wait", n)
+	}
+}
+
+func TestDropUnstartedCapsKeepsTheSessionsCurrentTurn(t *testing.T) {
+	st := newStoreT(t)
+	m, _ := master(t, st, "coding")
+	c := m.ConversationID
+	running(t, st, c, "t-current") // a slow admission: the turn is the session's, its cap row is old
+	st.RecordTurnCap("p", c, "t-current", 5)
+	st.RecordTurnCap("p", c, "t-old", 5)
+	st.db.Exec(`UPDATE coder_session_turn_caps SET created_at = '2020-01-01T00:00:00Z'`)
+	st.DropUnstartedCaps()
+	var cur, old int
+	st.db.QueryRow(`SELECT COUNT(*) FROM coder_session_turn_caps WHERE turn_id = 't-current'`).Scan(&cur)
+	st.db.QueryRow(`SELECT COUNT(*) FROM coder_session_turn_caps WHERE turn_id = 't-old'`).Scan(&old)
+	if cur != 1 || old != 0 {
+		t.Fatalf("current turn rows %d (want 1), unrelated old rows %d (want 0)", cur, old)
+	}
+}
+
 func TestTheIssuerNotTheTurnIdMakesASendAMastersSend(t *testing.T) {
+	for _, ids := range [][2]string{{"answer-m-2", "answer-m-3"}, {"x-1", "x-2"}} {
+		t.Run(ids[0], func(t *testing.T) { issuerAuthority(t, ids[0], ids[1]) })
+	}
+}
+
+func issuerAuthority(t *testing.T, id1, id2 string) {
 	h, l, st := newHost(t)
 	m, _ := master(t, st, "coding")
 	a := spawn(t, st, m)
 	// an issuer-tagged send can never be a mission, whatever its turn id
-	if _, err := st.Enqueue(Command{ProfileID: "p", ConversationID: a, Kind: KindSend, TurnID: "answer-m-1", Message: "x", Issuer: m.ConversationID, WantsMission: true}); err == nil {
+	if _, err := st.Enqueue(Command{ProfileID: "p", ConversationID: a, Kind: KindSend, TurnID: id1 + "-mission", Message: "x", Issuer: m.ConversationID, WantsMission: true}); err == nil {
 		t.Fatal("an issuer-tagged send asked for a mission")
 	}
-	tagged := answer(t, st, m.ConversationID, a, "answer-m-2")
+	tagged := answer(t, st, m.ConversationID, a, id1)
 	if _, err := st.Confirm(tagged, 0); err == nil {
 		t.Fatal("an issuer-tagged send was confirmed")
 	}
@@ -414,13 +485,13 @@ func TestTheIssuerNotTheTurnIdMakesASendAMastersSend(t *testing.T) {
 	if got, _, _ := st.GetCommand(tagged.ID); got.Status != CmdDone || len(l.started) != 1 {
 		t.Fatalf("the first tagged send: %+v", got)
 	}
-	l.turn("answer-m-2").end()
+	l.turn(id1).end()
 	waitFor(t, "settle", func() bool { return state(t, st, a).State == StateIdle })
-	addTurn(t, st, a, "answer-m-2", "completed", "x", time.Now())
+	addTurn(t, st, a, id1, "completed", "x", time.Now())
 	if n, _, _, _ := st.CheckinStreak("p", a); n != 1 {
 		t.Fatalf("streak = %d, the tagged turn counts like a master- turn", n)
 	}
-	second := answer(t, st, m.ConversationID, a, "answer-m-3")
+	second := answer(t, st, m.ConversationID, a, id2)
 	_ = h.Tick()
 	if got, _, _ := st.GetCommand(second.ID); got.Status != CmdFailed || !strings.Contains(got.Error, "in a row") || len(l.started) != 1 {
 		t.Fatalf("the second tagged send past the limit: %+v", got)

@@ -1695,16 +1695,24 @@ that works a task acts on them. The defences:
   not a flag: the coder host's chat children inherit the host's environment and are
   reparented, so they look like the operator to environment and ancestry checks, and
   nothing a turn is given on its command line or in its message can be trusted to mean the
-  person confirmed. The record is bound to one queued command, signed under a key derived
-  from the profile's vault key (so a row written without that key does not verify), lives
+  person confirmed. The record is bound to one queued command (its id and its creation
+  time, so a record cannot match a different command that reuses the id), signed under a
+  key derived from the profile's vault key (so a row written without that key does not
+  verify), lives
   under a reserved config prefix that only the operator writes, deletes or reads, is single
-  use, and is revoked when its command is cancelled, expires or fails. A send marked as a
-  mission never runs plain: without a live record it fails. The token reaches the child in
-  its environment, which the child clears at once. The limit: the key comes out of the OS
-  keychain (or the file keyring that stands in for it), and the database is a file the
-  user owns, so a process that runs as the user with a shell and can reach both is not
-  stopped by any of this; the guard is against agent turns going through the CLI, which
-  refuses them these commands.
+  use, and is revoked when its command is cancelled, expires, fails or is deleted with its
+  conversation. A send marked as a mission never runs plain: without a live record it
+  fails. The token reaches the child in its environment; the binary moves it out of
+  its own (Go) environment before it starts any process of its own, so nothing the child
+  starts inherits it. That does not erase the environment block the process was given at
+  start: on Linux `/proc/<pid>/environ` and on macOS `ps eww` still show the token to a
+  process of the same user until the child exits. What bounds this is that the token is
+  single use and is dead once the child has consumed the record, early in the turn; the
+  window is from the host's start of the child until that point. The limit of the MAC: the same user with keychain
+  access (the key comes out of the OS keychain, or the file keyring that stands in for
+  it, and the database is a file that user owns) can sign a record, so none of this stops
+  such a process; the guard is against agent turns going through the CLI, which refuses
+  them these commands.
 - **The operator-only commands refuse an agent-driven caller:** `board`
   (it shows the Inbox) and `approve` (both unless delegated, see above),
   `edit`, `move`, `archive`, `unarchive`, `add --ready`, `agents allow`,

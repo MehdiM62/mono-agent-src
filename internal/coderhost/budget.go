@@ -44,8 +44,11 @@ var errBudgetUsedUp = errors.New("the session's budget is used up")
 //
 // Carving a child's budget is limited by budget - spent - carved. The running turn's own cap (fixed at
 // its start, from what was left then) is NOT reserved: reserving it would make every carve from inside a
-// capped master's turn fail. The accepted bound: within one running turn, total exposure can exceed the
-// budget by at most what that turn carved during itself; the next turn starts with the true remainder.
+// capped master's turn fail. The accepted bound, stated plainly: a capped master's turn can spend its cap
+// AND carve up to budget - spent - carved to children during the same turn, so exposure per master turn can
+// reach about 2x the budget (chains do not compound: a child carries only what was carved to it, and
+// children do not carve). The next turn starts with the true remainder. A runtime that reports costUsd 0
+// is trusted at 0.
 
 // RecordTurnCap notes the cap a turn started under.
 func (s *Store) RecordTurnCap(profileID, conversationID, turnID string, capUSD float64) error {
@@ -59,9 +62,12 @@ func (s *Store) MarkTurnCapStarted(profileID, conversationID, turnID string) {
 	_, _ = s.db.Exec(`UPDATE coder_session_turn_caps SET started = 1 WHERE profile_id = ? AND conversation_id = ? AND turn_id = ?`, profileID, conversationID, turnID)
 }
 
-// DropUnstartedCaps forgets the caps of turns that never started (older than a minute).
+// DropUnstartedCaps forgets the caps of turns that never started (older than a minute). The session's CURRENT
+// turn is never dropped: a slow admission can take longer than a minute, and a second host sharing the
+// database may be the one admitting it.
 func (s *Store) DropUnstartedCaps() {
-	_, _ = s.db.Exec(`DELETE FROM coder_session_turn_caps WHERE started = 0 AND created_at < ?`, s.now().Add(-time.Minute).UTC().Format(timeLayout))
+	_, _ = s.db.Exec(`DELETE FROM coder_session_turn_caps WHERE started = 0 AND created_at < ?
+		AND NOT EXISTS (SELECT 1 FROM coder_sessions x WHERE x.profile_id = coder_session_turn_caps.profile_id AND x.conversation_id = coder_session_turn_caps.conversation_id AND x.turn_id = coder_session_turn_caps.turn_id)`, s.now().Add(-time.Minute).UTC().Format(timeLayout))
 }
 
 // DropTurnCap forgets the cap of a turn that did not start.
