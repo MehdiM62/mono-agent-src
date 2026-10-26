@@ -633,3 +633,38 @@ func TestPublishRetriesWhenTheDatabaseIsBusy(t *testing.T) {
 		t.Fatalf("calls %d", calls)
 	}
 }
+
+// A workflow with an unresolved change refuses a new one at once and says where to go, instead of
+// waiting out the retry window and reporting "busy".
+func TestUnresolvedChangeIsReportedAtOnce(t *testing.T) {
+	ctx := context.Background()
+	h, s, hash, nodes := guardedRig(t)
+	if _, err := s.db.Exec(`INSERT INTO workflow_publications (workflow_id, kind, state, owner_pid, started_at)
+		VALUES ('wf-g', 'save', 'unresolved', 0, ?)`, time.Now().UTC()); err != nil {
+		t.Fatal(err)
+	}
+	start := time.Now()
+	err := h.SaveNodesGuarded(ctx, "wf-g", nodes, SaveGuard{ExpectHash: hash})
+	if !errors.Is(err, ErrPublicationUnresolved) || !strings.Contains(err.Error(), "doctor") {
+		t.Fatalf("%v", err)
+	}
+	if time.Since(start) > 2*time.Second {
+		t.Fatal("an unresolved change was retried instead of reported")
+	}
+}
+
+// After the retry window a busy answer is still recognizable as busy.
+func TestExhaustedRetryStillSaysBusy(t *testing.T) {
+	ctx := context.Background()
+	h, s, hash, nodes := guardedRig(t)
+	if _, err := s.db.Exec(`INSERT INTO workflow_publications (workflow_id, kind, state, owner_pid, started_at)
+		VALUES ('wf-g', 'save', 'pending', ?, ?)`, os.Getpid(), time.Now().UTC()); err != nil {
+		t.Fatal(err)
+	}
+	old := publicationWait
+	publicationWait = 150 * time.Millisecond
+	t.Cleanup(func() { publicationWait = old })
+	if err := h.SaveNodesGuarded(ctx, "wf-g", nodes, SaveGuard{ExpectHash: hash}); !errors.Is(err, ErrPublicationBusy) {
+		t.Fatalf("%v", err)
+	}
+}

@@ -369,9 +369,10 @@ func TestCrashBackfillDuringACreationLeavesNoStub(t *testing.T) {
 	}
 }
 
-// An edit that lands after a change was planned and before its rename is not overwritten: the
-// change is abandoned, the edit stays, a copy is kept, and the operator is asked.
-func TestCrashAnEditBeforeTheRenameIsNotOverwritten(t *testing.T) {
+// An edit that lands after a change was planned and before its rename is not overwritten blindly:
+// the change leaves no intent behind, plans again against the file as it is (an edit it cannot take
+// in is copied to the quarantine first) and then goes through.
+func TestCrashAnEditBeforeTheRenameIsKeptNotOverwritten(t *testing.T) {
 	r := newCrashRig(t)
 	cmd, release := r.pauseHelper(t, "before-fence")
 	edited := []byte(`{"id":"wf-c","name":"by hand"}`)
@@ -379,19 +380,18 @@ func TestCrashAnEditBeforeTheRenameIsNotOverwritten(t *testing.T) {
 		t.Fatal(err)
 	}
 	release()
-	err := cmd.Wait()
-	if ee, ok := err.(*exec.ExitError); !ok || ee.ExitCode() != 3 {
-		t.Fatalf("the change should have been refused: %v", err)
-	}
-	if !bytes.Equal(r.fileOnDisk(t), edited) {
-		t.Fatal("the edit was overwritten")
+	if err := cmd.Wait(); err != nil {
+		t.Fatalf("the change should have gone through on its second plan: %v", err)
 	}
 	kept, _ := filepath.Glob(filepath.Join(r.root, "workflow-quarantine", "wf-c.*.json"))
 	if len(kept) != 1 {
 		t.Fatalf("quarantined copies: %v", kept)
 	}
-	var state string
-	if err := r.s.db.QueryRow(`SELECT state FROM workflow_publications`).Scan(&state); err != nil || state != "unresolved" {
-		t.Fatalf("state %q %v", state, err)
+	if b, _ := os.ReadFile(kept[0]); !bytes.Equal(b, edited) {
+		t.Fatal("the copy is not the edit")
+	}
+	r.assertConsistent(t)
+	if got := sqlConfig(t, r.s, "wf-c", "c-set"); got != "from-helper" {
+		t.Fatalf("the change did not land: %v", got)
 	}
 }

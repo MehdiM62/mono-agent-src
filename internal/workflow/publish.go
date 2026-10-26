@@ -22,6 +22,15 @@ const (
 // ErrPublicationBusy: another publication of this workflow is open.
 var ErrPublicationBusy = errors.New("another change to this workflow is in progress")
 
+// ErrPublicationUnresolved: an earlier change of this workflow could not be settled and waits for a
+// person.
+var ErrPublicationUnresolved = errors.New("an earlier change of this workflow needs a decision")
+
+const unresolvedHelp = "run `monoagentcli doctor` and resolve it with `doctor fix workflows.publications.resolve:<workflow id>:keep-rows` (or keep-file)"
+
+// errFileChanged: the file changed between planning and the rename; nothing was written.
+var errFileChanged = errors.New("the file changed while this change was being made")
+
 // ErrInvalidGraph: the definition has nodes or connections whose ids repeat.
 var ErrInvalidGraph = errors.New("the workflow has repeated node or connection ids")
 
@@ -115,11 +124,21 @@ func (h *HybridWorkflowStore) Publish(ctx context.Context, p Publication) (*Work
 	if want := expectFrom(ctx); want != "" && p.ExpectHash == "" {
 		p.ExpectHash, p.Guarded = want, true
 	}
+	// The whole attempt, retries included, is bounded; a rollback after the bound still runs
+	// (abort does not use this context's cancellation).
+	ctx, cancel := context.WithTimeout(ctx, 2*publicationWait)
+	defer cancel()
 	deadline := time.Now().Add(publicationWait)
+	wait := 50 * time.Millisecond
 	for {
 		w, err := h.publishOnce(ctx, p)
-		// A change in progress, or the database too busy for the lock this time: both are worth a wait.
-		if !(errors.Is(err, ErrPublicationBusy) || isBusyErr(err)) || time.Now().After(deadline) {
+		// Worth another try: a change in progress, the database too busy for the lock this time, or
+		// an edit that landed between planning and the rename (the next plan takes it in or keeps a copy).
+		retry := errors.Is(err, ErrPublicationBusy) || errors.Is(err, errFileChanged) || isBusyErr(err)
+		if !retry || time.Now().After(deadline) {
+			if retry && !errors.Is(err, ErrPublicationBusy) {
+				err = errors.Join(ErrPublicationBusy, err) // still callable as "busy" for the caller
+			}
 			if p.Kind == PubDelete {
 				return w, err
 			}
@@ -128,7 +147,10 @@ func (h *HybridWorkflowStore) Publish(ctx context.Context, p Publication) (*Work
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
-		case <-time.After(50 * time.Millisecond):
+		case <-time.After(wait):
+		}
+		if wait < 800*time.Millisecond {
+			wait *= 2
 		}
 	}
 }
@@ -188,11 +210,15 @@ func (h *HybridWorkflowStore) publishOnce(ctx context.Context, p Publication) (*
 	if err := lockPublication(ctx, tx, p.WorkflowID); err != nil {
 		return nil, fmt.Errorf("locking workflow %s: %w", p.WorkflowID, err)
 	}
-	var busy int
-	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM workflow_publications WHERE workflow_id = ?`, p.WorkflowID).Scan(&busy); err != nil {
+	var openState string
+	switch err := tx.QueryRowContext(ctx, `SELECT state FROM workflow_publications WHERE workflow_id = ?`, p.WorkflowID).Scan(&openState); {
+	case errors.Is(err, sql.ErrNoRows):
+	case err != nil:
 		return nil, err
-	}
-	if busy > 0 {
+	case openState == "unresolved":
+		// Waiting will not help: a person has to choose (nothing here retries an unresolved change).
+		return nil, fmt.Errorf("%w: workflow %s: %s", ErrPublicationUnresolved, p.WorkflowID, unresolvedHelp)
+	default:
 		return nil, ErrPublicationBusy
 	}
 	plan, err := h.plan(ctx, tx, p)
@@ -243,7 +269,7 @@ func (h *HybridWorkflowStore) publishOnce(ctx context.Context, p Publication) (*
 	_ = failpoint("after-intent")
 
 	if err := h.publishFile(ctx, p, plan, intentID); err != nil {
-		if errors.Is(err, ErrPublicationLost) {
+		if errors.Is(err, ErrPublicationLost) || errors.Is(err, errFileChanged) {
 			return nil, err // nothing was written: the file step never started
 		}
 		return nil, h.abort(ctx, intentID, p.WorkflowID, err)
@@ -498,6 +524,14 @@ func (h *HybridWorkflowStore) publishFile(ctx context.Context, p Publication, pl
 	// Compare-and-swap: the file must still be the one this change was planned against. An edit that
 	// landed since stays where it is; the abort that follows keeps a copy and hands it to the operator.
 	if err := h.checkFileUnchanged(p.WorkflowID, pl.prevSHA); err != nil {
+		if errors.Is(err, errFileChanged) {
+			// Nothing was written, so there is nothing to roll back: remove the intent here, under the
+			// same lock, and let the caller plan again against the file as it is now.
+			if _, derr := tx.ExecContext(ctx, dropIntentSQL, intentID); derr == nil && tx.Commit() == nil {
+				return err
+			}
+			return fmt.Errorf("%w: %v", ErrFileSyncFailed, err)
+		}
 		return err
 	}
 	err = failpoint("before-rename")
@@ -667,7 +701,7 @@ func (h *HybridWorkflowStore) checkFileUnchanged(id, wantSHA string) error {
 		now = shaHex(append([]byte{}, raw...))
 	}
 	if now != wantSHA {
-		return fmt.Errorf("%w: the file changed while this change was being made", ErrFileSyncFailed)
+		return errFileChanged
 	}
 	return nil
 }
