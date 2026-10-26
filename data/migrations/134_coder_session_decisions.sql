@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS coder_session_decisions (
     reason          TEXT NOT NULL DEFAULT '',
     reversible      INTEGER NOT NULL DEFAULT 0,
     made_by         TEXT NOT NULL CHECK (made_by IN ('model', 'master')),
-    status          TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'reverted')),
+    status          TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'reverted', 'not_applied')),
     reverted_by     TEXT NOT NULL DEFAULT '',
     created_at      TEXT NOT NULL
 );
@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS coder_session_questions (
     answer          TEXT NOT NULL DEFAULT '',
     answered_by     TEXT NOT NULL DEFAULT '',
     command_id      INTEGER NOT NULL DEFAULT 0,
+    decision_id     INTEGER NOT NULL DEFAULT 0,
     created_at      TEXT NOT NULL,
     answered_at     TEXT NOT NULL DEFAULT ''
 );

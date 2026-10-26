@@ -28,6 +28,9 @@ const (
 const (
 	DecisionActive   = "active"
 	DecisionReverted = "reverted"
+	// DecisionNotApplied: a default the ledger recorded, but whose note never reached the session
+	// (it failed, was cancelled or expired); the question was reopened. It cannot be reverted.
+	DecisionNotApplied = "not_applied"
 )
 
 // LedgerEntry is one row.
@@ -116,7 +119,7 @@ func (s *Store) Record(e LedgerEntry) (LedgerEntry, error) {
 	// a kind the newest stay.
 	if _, err := tx.Exec(`DELETE FROM coder_session_decisions WHERE profile_id = ? AND conversation_id = ? AND id NOT IN
 		(SELECT id FROM coder_session_decisions WHERE profile_id = ? AND conversation_id = ?
-			ORDER BY (id = ?) DESC, (CASE WHEN status = 'reverted' THEN 0 WHEN reversible = 0 THEN 1 ELSE 2 END) DESC, id DESC LIMIT ?)`,
+			ORDER BY (id = ?) DESC, (CASE WHEN status != 'active' THEN 0 WHEN reversible = 0 THEN 1 ELSE 2 END) DESC, id DESC LIMIT ?)`,
 		e.ProfileID, e.ConversationID, e.ProfileID, e.ConversationID, e.ID, MaxDecisionsPerChat); err != nil {
 		return e, err
 	}

@@ -175,7 +175,8 @@ type passCtx struct {
 	exists, stopped, has bool
 	settings             Settings
 	err                  error
-	streakKnown, atLimit bool
+	streakKnown          bool
+	streak, pending      int // pending: gated answer notes already queued, here or earlier
 }
 
 func (s *Store) passCtxOf(cache map[string]*passCtx, q Question) *passCtx {
@@ -194,16 +195,67 @@ func (s *Store) passCtxOf(cache map[string]*passCtx, q Question) *passCtx {
 	return c
 }
 
-// limitReached looks at the check-in streak, the dearest check, so it comes last.
+// limitReached looks at the check-in streak, the dearest check, so it comes last. Turns
+// that have run and gated answer notes still waiting both count, and the pass adds each
+// note it queues, so at most the remaining headroom is claimed.
 func (s *Store) limitReached(c *passCtx, q Question) (bool, error) {
 	if !c.streakKnown {
 		streak, _, _, err := s.CheckinStreak(q.ProfileID, q.ConversationID)
 		if err != nil {
 			return false, err
 		}
-		c.streakKnown, c.atLimit = true, streak >= c.settings.CheckinLimit
+		c.streakKnown, c.streak, c.pending = true, streak, s.pendingGatedAnswers(q.ProfileID, q.ConversationID)
 	}
-	return c.atLimit, nil
+	return c.streak+c.pending >= c.settings.CheckinLimit, nil
+}
+
+// pendingGatedAnswers counts the answer notes from a master or a default still waiting for a
+// conversation: each becomes a host-made turn.
+func (s *Store) pendingGatedAnswers(profileID, conversationID string) int {
+	var n int
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM coder_session_commands WHERE profile_id = ? AND conversation_id = ? AND kind = 'send' AND status = 'pending'
+		AND substr(turn_id, 1, 7) = 'answer-' AND (issuer != '' OR substr(turn_id, 1, 9) IN ('answer-m-', 'answer-d-'))`, profileID, conversationID).Scan(&n); err != nil {
+		return 1 << 30 // unreadable counts as full
+	}
+	return n
+}
+
+// ReopenFailedAnswers gives a question back when the note that carried its answer (or default)
+// failed, was cancelled or expired before it ran: the session never heard the answer, so the
+// question is open again, and the ledger row of a default is marked not_applied (kept, so
+// no other row is rotated out for it). The host calls it on every pass.
+func (s *Store) ReopenFailedAnswers() {
+	rows, err := s.db.Query(`SELECT q.id, q.profile_id, q.conversation_id, q.command_id, q.decision_id FROM coder_session_questions q
+		JOIN coder_session_commands c ON c.id = q.command_id WHERE q.status != 'open' AND q.command_id > 0 AND c.status = 'failed' LIMIT ?`, pendingBatch)
+	if err != nil {
+		return
+	}
+	type lost struct {
+		id, cmd, decision int64
+		profile, conv     string
+	}
+	var all []lost
+	for rows.Next() {
+		var l lost
+		if rows.Scan(&l.id, &l.profile, &l.conv, &l.cmd, &l.decision) == nil {
+			all = append(all, l)
+		}
+	}
+	rows.Close()
+	for _, l := range all {
+		res, err := s.db.Exec(`UPDATE coder_session_questions SET status = 'open', answer = '', answered_by = '', answered_at = '', command_id = 0, decision_id = 0
+			WHERE id = ? AND command_id = ? AND status != 'open'`, l.id, l.cmd)
+		if err != nil {
+			continue
+		}
+		if n, _ := res.RowsAffected(); n != 1 {
+			continue
+		}
+		if l.decision > 0 {
+			_, _ = s.db.Exec(`UPDATE coder_session_decisions SET status = 'not_applied' WHERE id = ? AND status = 'active'`, l.decision)
+		}
+		_, _ = s.db.Exec(`UPDATE coder_sessions SET state = 'waiting_user', updated_at = ? WHERE profile_id = ? AND conversation_id = ? AND state = 'idle'`, s.stamp(), l.profile, l.conv)
+	}
 }
 
 // ApplyDefaults runs the timeout pass. Questions that waited longer than
@@ -270,8 +322,12 @@ func (s *Store) applyDefault(cache map[string]*passCtx, q Question) (bool, error
 	s.pruneClosedQuestions(q.ProfileID, q.ConversationID)
 	// The ledger row is written only once the note is queued, so a failed delivery never
 	// costs an older row its place (the ledger rotates its oldest rows out as it fills).
-	_, rerr := s.Record(LedgerEntry{ProfileID: q.ProfileID, ConversationID: q.ConversationID, Class: q.Class, Question: q.Question, Choice: q.Default,
+	c.pending++
+	e, rerr := s.Record(LedgerEntry{ProfileID: q.ProfileID, ConversationID: q.ConversationID, Class: q.Class, Question: q.Question, Choice: q.Default,
 		Alternatives: q.Options, Reason: "nobody answered within " + ParkTimeout.String() + "; the stated default was applied", Reversible: q.Reversible, MadeBy: WhoModel})
+	if rerr == nil {
+		_, _ = s.db.Exec(`UPDATE coder_session_questions SET decision_id = ? WHERE id = ?`, e.ID, q.ID)
+	}
 	return true, errors.Join(err, rerr)
 }
 

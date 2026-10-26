@@ -2520,7 +2520,10 @@ monoagentcli --profile work coder host stop                        # the host on
   action "ambiguity". A default is not applied while the check-in limit is reached or the session is stopped. A master's answer and
   an applied default are held to the check-in limit too (refused, or failed when they run); every `answer-` turn,
   including a person's own answer, counts in the streak on purpose (the safe direction). A master's answer is
-  queued with the master as issuer, so it runs only while the session is still that master's child.
+  queued with the master as issuer, so it runs only while the session is still that master's child. A paused master's
+  answer is held until it resumes; a stopped master cannot answer. If the note that carried an answer or a default
+  fails, is cancelled or expires before it runs, the question is open again (the host does this on every pass) and
+  a default's ledger row becomes `not_applied`. Notes still waiting count toward the check-in limit.
 - **Mesh** (needs monomind 2.29+; the host does not check the version, it just tries `monomind mesh who` to
   start the hub): with `mesh_visible` (default on) the host keeps the session on monomind's mesh between turns
   (until it has been idle for 6 hours), as `coder-<folder>-<start time>` (or `mesh_alias`), with a state word as

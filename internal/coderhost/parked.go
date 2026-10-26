@@ -86,6 +86,8 @@ var (
 	// ErrWaitsForPerson: the session has had its host-made turns in a row; a master's answer, like a
 	// check-in, would start another, so the session waits for a person (the operator can still answer).
 	ErrWaitsForPerson = errors.New("coder host: the session has had its host-made turns in a row and waits for a person")
+	// ErrMasterStopped: the master that would answer is stopped or gone.
+	ErrMasterStopped = errors.New("coder host: the session's master is stopped or gone, so it cannot answer")
 	// ErrStopped: a stopped session starts no turn, so an answer to it would be dropped.
 	ErrStopped        = errors.New("coder host: the session is stopped, so it cannot take an answer; resume it with a message first")
 	ErrNoConversation = errors.New("coder host: the conversation no longer exists")
@@ -310,8 +312,14 @@ func (s *Store) Answer(profileID string, id int64, answer string, scope CallerSc
 		}
 		if streak, _, _, err := s.CheckinStreak(q.ProfileID, q.ConversationID); err != nil {
 			return q, Command{}, err
-		} else if streak >= settings.CheckinLimit {
+		} else if streak+s.pendingGatedAnswers(q.ProfileID, q.ConversationID) >= settings.CheckinLimit {
 			return q, Command{}, ErrWaitsForPerson
+		}
+		// A paused master's note is held by the host until it resumes; a stopped one's is cancelled.
+		if m, ok, err := s.GetSession(q.ProfileID, scope.ConversationID()); err != nil {
+			return q, Command{}, err
+		} else if !ok || m.State == StateStopped {
+			return q, Command{}, ErrMasterStopped
 		}
 	}
 	by := scope.Role()
