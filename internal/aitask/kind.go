@@ -86,6 +86,29 @@ func Lookup(name string) (Kind, error) {
 		Fields:  map[string]any{"kinds": namesLocked(), "descriptions": descriptionsLocked()}}
 }
 
+// KindInfo is a kind as listed to a caller: `aitask kinds` and the agent API's
+// kinds route (the prompt template is not part of it).
+type KindInfo struct {
+	Name          string         `json:"name"`
+	Description   string         `json:"description,omitempty"`
+	DefaultAccess string         `json:"defaultAccess,omitempty"`
+	UnattendedOK  bool           `json:"unattendedOk"`
+	Schema        map[string]any `json:"schema,omitempty"`
+}
+
+// KindInfos lists the registered kinds, sorted by name.
+func KindInfos() []KindInfo {
+	kindsMu.RLock()
+	defer kindsMu.RUnlock()
+	out := make([]KindInfo, 0, len(kinds))
+	for _, n := range namesLocked() {
+		k := kinds[n]
+		out = append(out, KindInfo{Name: k.Name, Description: k.Description, DefaultAccess: k.DefaultAccess,
+			UnattendedOK: k.UnattendedOK, Schema: k.Schema})
+	}
+	return out
+}
+
 // Names are the registered kinds, sorted.
 func Names() []string {
 	kindsMu.RLock()
