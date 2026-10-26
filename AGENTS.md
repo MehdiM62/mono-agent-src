@@ -2514,7 +2514,10 @@ monoagentcli --profile work coder host stop                        # the host on
   policy names the user; the host then sends it with a turn id `answer-...`, which is host-made like
   `checkin-`: counted by the check-in limit and never a mission confirmation. After 30 minutes a question with
   a default and a `take_default` fallback gets that default (a ledger row, made by the model). Answering as a
-  master needs the session token of a later phase and is not possible yet.
+  master needs the session token of a later phase and is not possible yet. The gap class and `reversible`
+  flag come from whoever parks the question or records the decision: before any model-facing tool is added,
+  the producer must take the class from a host- or master-validated source, or a model could label a risky
+  action "ambiguity". A default is not applied while the check-in limit is reached or the session is stopped.
 - **Mesh** (needs monomind 2.29+; the host does not check the version, it just tries `monomind mesh who` to
   start the hub): with `mesh_visible` (default on) the host keeps the session on monomind's mesh between turns
   (until it has been idle for 6 hours), as `coder-<folder>-<start time>` (or `mesh_alias`), with a state word as

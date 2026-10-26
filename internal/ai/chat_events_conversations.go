@@ -299,6 +299,8 @@ func (s *AIStore) DeleteConversation(id, profileID string) error {
 	// above has refused the delete before this point.
 	for _, q := range []string{
 		`DELETE FROM coder_session_commands WHERE conversation_id = ? AND profile_id = ?`,
+		`DELETE FROM coder_session_decisions WHERE conversation_id = ? AND profile_id = ?`,
+		`DELETE FROM coder_session_questions WHERE conversation_id = ? AND profile_id = ?`,
 		`UPDATE coder_sessions SET role = 'solo', parent_conversation_id = '' WHERE parent_conversation_id = ? AND profile_id = ?`,
 		`DELETE FROM coder_sessions WHERE conversation_id = ? AND profile_id = ?`,
 	} {

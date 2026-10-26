@@ -63,9 +63,19 @@ var (
 
 const ledgerCols = `id, profile_id, conversation_id, class, question, choice, alternatives, reason, reversible, made_by, status, reverted_by, created_at`
 
+// forgetDecision removes a row Record just wrote, when what it described did not happen.
+func (s *Store) forgetDecision(profileID string, id int64) {
+	_, _ = s.db.Exec(`DELETE FROM coder_session_decisions WHERE profile_id = ? AND id = ?`, profileID, id)
+}
+
 // Record writes a decision. The caller fills Class, Question, Choice,
 // Alternatives, Reason, Reversible and MadeBy; the text fields are cut to their
 // bounds. Recording is bookkeeping: it does not carry the decision out.
+//
+// TRUST: Class, Reversible and MadeBy come from the caller. Before any model-facing
+// tool can write here, the producer must take the class from a host- or
+// master-validated source; a model that labels a risky action "ambiguity" would
+// otherwise have it recorded (and, through Decide, settled) as a low-risk one.
 func (s *Store) Record(e LedgerEntry) (LedgerEntry, error) {
 	if e.ProfileID == "" || e.ConversationID == "" || len(e.ConversationID) > maxConversationLen {
 		return e, errors.New("coder host: a decision needs a profile and a conversation")
@@ -105,10 +115,14 @@ func (s *Store) Record(e LedgerEntry) (LedgerEntry, error) {
 		return e, err
 	}
 	e.ID, _ = res.LastInsertId()
-	// The oldest rows rotate out so one chatty session cannot grow the table without bound.
+	// Rows rotate out so one chatty session cannot grow the table without bound. The row just
+	// written stays; then active reversible rows (the ones a person may still want to revert)
+	// are kept in preference to active irreversible ones, and those to reverted ones; within
+	// a kind the newest stay.
 	if _, err := tx.Exec(`DELETE FROM coder_session_decisions WHERE profile_id = ? AND conversation_id = ? AND id NOT IN
-		(SELECT id FROM coder_session_decisions WHERE profile_id = ? AND conversation_id = ? ORDER BY id DESC LIMIT ?)`,
-		e.ProfileID, e.ConversationID, e.ProfileID, e.ConversationID, MaxDecisionsPerChat); err != nil {
+		(SELECT id FROM coder_session_decisions WHERE profile_id = ? AND conversation_id = ?
+			ORDER BY (id = ?) DESC, (CASE WHEN status = 'reverted' THEN 0 WHEN reversible = 0 THEN 1 ELSE 2 END) DESC, id DESC LIMIT ?)`,
+		e.ProfileID, e.ConversationID, e.ProfileID, e.ConversationID, e.ID, MaxDecisionsPerChat); err != nil {
 		return e, err
 	}
 	return e, tx.Commit()

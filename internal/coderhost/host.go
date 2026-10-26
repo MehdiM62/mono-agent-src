@@ -263,6 +263,9 @@ func (h *Host) Tick() error {
 		case KindResume:
 			if x.State == StatePaused {
 				x.State = StateIdle
+				if h.Store.OpenParked(x.ProfileID, x.ConversationID) > 0 {
+					x.State = StateWaitingUser // a parked question outlives a pause
+				}
 				if h.live[k] != nil {
 					x.State = StateRunning
 				}

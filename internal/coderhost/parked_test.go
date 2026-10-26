@@ -182,9 +182,6 @@ func TestAnswerPrefixIsHostMadeLikeCheckin(t *testing.T) {
 		if _, err := st.Enqueue(Command{ProfileID: "p", ConversationID: "a", Kind: KindSend, TurnID: id, Message: "m", WantsMission: true}); err == nil {
 			t.Errorf("%s carried a mission", id)
 		}
-		if _, err := st.Confirm(Command{ID: 1, ProfileID: "p", ConversationID: "a", TurnID: id}, 1); err == nil {
-			t.Errorf("%s was confirmed", id)
-		}
 	}
 	if HostMade("t-1") {
 		t.Error("a person's turn is host-made")

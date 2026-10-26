@@ -293,6 +293,8 @@ func (s *Store) SweepOrphans() (int, error) {
 	for _, q := range []string{
 		`DELETE FROM coder_session_commands WHERE status = 'pending' AND NOT EXISTS (SELECT 1 FROM ai_chat_conversations c WHERE c.id = coder_session_commands.conversation_id AND c.profile_id = coder_session_commands.profile_id)`,
 		`DELETE FROM coder_sessions WHERE NOT EXISTS (SELECT 1 FROM ai_chat_conversations c WHERE c.id = coder_sessions.conversation_id AND c.profile_id = coder_sessions.profile_id)`,
+		`DELETE FROM coder_session_decisions WHERE NOT EXISTS (SELECT 1 FROM ai_chat_conversations c WHERE c.id = coder_session_decisions.conversation_id AND c.profile_id = coder_session_decisions.profile_id)`,
+		`DELETE FROM coder_session_questions WHERE NOT EXISTS (SELECT 1 FROM ai_chat_conversations c WHERE c.id = coder_session_questions.conversation_id AND c.profile_id = coder_session_questions.profile_id)`,
 	} {
 		res, err := s.db.Exec(q)
 		if err != nil {
