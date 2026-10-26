@@ -40,7 +40,7 @@ func (l *execLauncher) args(profileID string, rest ...string) []string {
 	return append([]string{"--db-path", l.dbPath, "--profile", profileID, "--json"}, rest...)
 }
 
-func (l *execLauncher) Start(profileID, conversationID, turnID, message string, attachments []string) (coderhost.Turn, error) {
+func (l *execLauncher) Start(profileID, conversationID, turnID, message string, attachments []string, missionToken string) (coderhost.Turn, error) {
 	if !hostID.MatchString(conversationID) || !hostID.MatchString(turnID) {
 		return nil, fmt.Errorf("conversation and turn ids must be letters, digits, '.', '_' and '-'")
 	}
@@ -83,7 +83,15 @@ func (l *execLauncher) Start(profileID, conversationID, turnID, message string, 
 	for _, a := range attachments {
 		rest = append(rest, "--attach="+a)
 	}
+	if missionToken != "" && !hostID.MatchString(missionToken) {
+		return nil, fmt.Errorf("the mission confirmation is not a valid token")
+	}
 	cmd := exec.Command(l.bin, l.args(profileID, rest...)...)
+	if missionToken != "" {
+		// In the child's environment, not its arguments (which any process of the user lists):
+		// the child verifies the operator's signed record and consumes it, and drops the variable.
+		cmd.Env = append(os.Environ(), coderhost.MissionTokenEnv+"="+missionToken)
+	}
 	cmd.Dir = filepath.Dir(l.logDir)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = prompt, logFile, logFile
 	if err := clicore.DetachStart(cmd); err != nil {
