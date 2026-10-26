@@ -91,6 +91,7 @@ func (h *HybridWorkflowStore) SaveNodesGuarded(ctx context.Context, workflowID s
 		WorkflowID:      workflowID,
 		Origin:          "apply-fix",
 		ExpectHash:      guard.ExpectHash,
+		Guarded:         true,
 		RevokeApprovals: guard.RevokeApprovals,
 		KeepFileless:    true,
 		Build: func(cur *Workflow) (*Workflow, error) {

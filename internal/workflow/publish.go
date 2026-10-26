@@ -38,6 +38,9 @@ type Publication struct {
 	Note       string // the note of the version it records
 	// ExpectHash is the ReviewHash the committed workflow must still have (ErrChangedSincePreview).
 	ExpectHash string
+	// Guarded compares ExpectHash even when it is empty (an empty hash then never matches an
+	// existing workflow, and a missing workflow is refused).
+	Guarded bool
 	// RevokeApprovals removes every stored approval in the commit.
 	RevokeApprovals bool
 	// StoredVersion is the version the caller saw before the change.
@@ -228,7 +231,7 @@ func (h *HybridWorkflowStore) plan(ctx context.Context, tx *sql.Tx, p Publicatio
 			return nil, err
 		}
 	}
-	if p.ExpectHash != "" {
+	if p.ExpectHash != "" || p.Guarded {
 		if pl.cur == nil {
 			return nil, fmt.Errorf("workflow %s not found", p.WorkflowID)
 		}

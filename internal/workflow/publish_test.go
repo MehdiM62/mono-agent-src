@@ -283,3 +283,19 @@ func TestStableFileReadRepeatsWhenAChangeStartsDuringIt(t *testing.T) {
 		t.Fatalf("calls %d open %v err %v", calls, last, err)
 	}
 }
+
+// A guarded save with no expected hash never matches: it is refused for an existing workflow, and
+// a missing workflow is reported instead of crashing.
+func TestGuardedSaveWithAnEmptyHashIsRefused(t *testing.T) {
+	ctx := context.Background()
+	h, s, _, nodes := guardedRig(t)
+	if err := h.SaveNodesGuarded(ctx, "wf-g", nodes, SaveGuard{}); !errors.Is(err, ErrChangedSincePreview) {
+		t.Fatalf("existing workflow: %v", err)
+	}
+	if sqlConfig(t, s, "wf-g", "g-set") == "edited" {
+		t.Fatal("the refused edit was written")
+	}
+	if err := h.SaveNodesGuarded(ctx, "no-such", nodes, SaveGuard{}); err == nil {
+		t.Fatal("a missing workflow must be an error")
+	}
+}
