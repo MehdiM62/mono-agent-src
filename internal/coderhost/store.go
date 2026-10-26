@@ -170,35 +170,33 @@ func (s *Store) Enqueue(c Command) (Command, error) {
 	// Everything a master queues for a child (sends, pause, resume; not stop, which always has room) shares MaxPendingMaster
 	// slots, taken by the INSERT itself so concurrent callers cannot pass the cap together; the rest
 	// of MaxPendingPerChat stays for a person's.
-	if c.Kind == KindStop && c.Issuer != "" {
-		// A master's stops are few: one pending stop from the same issuer makes a new one a no-op, and
-		// at most MaxPendingMasterStops wait for a child, so a master cannot fill the person's slots.
-		var n int
-		var existing int64
-		_ = s.db.QueryRow(`SELECT COALESCE(MAX(CASE WHEN issuer = ? THEN id END), 0), COUNT(*) FROM coder_session_commands WHERE profile_id = ? AND conversation_id = ? AND kind = 'stop' AND status = 'pending' AND issuer != ''`,
-			c.Issuer, c.ProfileID, c.ConversationID).Scan(&existing, &n)
-		if existing > 0 {
-			got, ok, err := s.GetCommand(existing)
-			if err != nil || !ok {
-				return c, errors.New("coder host: a stop is already waiting")
-			}
-			return got, nil
-		}
-		if n >= MaxPendingMasterStops {
-			return c, ErrQueueFull
-		}
-	}
+	// A master's stops are few: one pending stop per issuer (a repeat is a no-op) and at most
+	// MaxPendingMasterStops for a child, so a master cannot fill the person's slots; taken by the INSERT itself.
+	masterStop := c.Kind == KindStop && c.Issuer != ""
 	masterMade := (c.Issuer != "" && c.Kind != KindStop) || (c.Kind == KindSend && strings.HasPrefix(c.TurnID, MasterTurnPrefix))
 	res, err := s.db.Exec(`INSERT INTO coder_session_commands (profile_id, conversation_id, kind, turn_id, message, attachments, status, error, created_at, updated_at, issuer)
 		SELECT ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?
-		WHERE ? = 0 OR (SELECT COUNT(*) FROM coder_session_commands WHERE profile_id = ? AND conversation_id = ? AND status = 'pending'
-			AND ((issuer != '' AND kind != 'stop') OR (kind = 'send' AND substr(turn_id, 1, ?) = ?))) < ?`,
+		WHERE (? = 0 OR (SELECT COUNT(*) FROM coder_session_commands WHERE profile_id = ? AND conversation_id = ? AND status = 'pending'
+			AND ((issuer != '' AND kind != 'stop') OR (kind = 'send' AND substr(turn_id, 1, ?) = ?))) < ?)
+		AND (? = 0 OR (
+			NOT EXISTS (SELECT 1 FROM coder_session_commands WHERE profile_id = ? AND conversation_id = ? AND kind = 'stop' AND status = 'pending' AND issuer = ?)
+			AND (SELECT COUNT(*) FROM coder_session_commands WHERE profile_id = ? AND conversation_id = ? AND kind = 'stop' AND status = 'pending' AND issuer != '') < ?))`,
 		c.ProfileID, c.ConversationID, string(c.Kind), c.TurnID, c.Message, string(att), mark, now, now, c.Issuer,
-		boolInt(masterMade), c.ProfileID, c.ConversationID, len(MasterTurnPrefix), MasterTurnPrefix, MaxPendingMaster)
+		boolInt(masterMade), c.ProfileID, c.ConversationID, len(MasterTurnPrefix), MasterTurnPrefix, MaxPendingMaster,
+		boolInt(masterStop), c.ProfileID, c.ConversationID, c.Issuer, c.ProfileID, c.ConversationID, MaxPendingMasterStops)
 	if err != nil {
 		return c, err
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
+		if masterStop { // one pending stop from the same issuer makes a new one a no-op
+			var id int64
+			if s.db.QueryRow(`SELECT id FROM coder_session_commands WHERE profile_id = ? AND conversation_id = ? AND kind = 'stop' AND status = 'pending' AND issuer = ? ORDER BY id LIMIT 1`,
+				c.ProfileID, c.ConversationID, c.Issuer).Scan(&id) == nil {
+				if got, ok, err := s.GetCommand(id); err == nil && ok {
+					return got, nil
+				}
+			}
+		}
 		return c, ErrQueueFull
 	}
 	c.ID, _ = res.LastInsertId()
