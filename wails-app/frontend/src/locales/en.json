@@ -1283,7 +1283,61 @@
       "accessFailed": "Could not read this chat's access level, so it cannot be used yet.",
       "retryAccess": "Try again",
       "accessChanged": "Its access had already changed to {{level}}. Nothing was changed.",
-      "accessRefused": "The change was refused. Nothing was changed."
+      "accessRefused": "The change was refused. Nothing was changed.",
+      "session": {
+        "title": "Session",
+        "unattended": "Unattended",
+        "unattendedOn": "Unattended: on",
+        "unattendedOff": "Unattended: off",
+        "unattendedWhy": "On, this chat keeps working with nobody here, at the access level shown. Off, nothing starts it but you.",
+        "checkins": "Check-ins",
+        "checkinEvery": "Check in every",
+        "checkinOff": "Off",
+        "checkinMinutes": "{{count}} min",
+        "skipUnchanged": "Skip when nothing changed",
+        "autonomy": "Autonomy",
+        "preset": "When it hits a gap",
+        "presetOptions": {
+          "ask-always": "Always ask me",
+          "ask-on-risk": "Ask me when it is risky",
+          "decide-and-log": "Decide and log"
+        },
+        "classes": "By kind of gap",
+        "inherit": "Follow the setting above",
+        "class": {
+          "ambiguity": "Unclear request",
+          "scope_growth": "Scope grows",
+          "risky_action": "Risky action",
+          "verification_failed": "Check failed",
+          "missing_credential": "Missing credential",
+          "child_conflict": "Sessions disagree"
+        },
+        "who": {
+          "user": "Ask me",
+          "master": "Master decides",
+          "model": "Model decides"
+        },
+        "fallback": {
+          "park": "Wait for an answer",
+          "take_default": "Take the default"
+        },
+        "limits": "Limits",
+        "maxChildren": "Max child sessions",
+        "maxConcurrent": "At once",
+        "depth": "Depth {{depth}}",
+        "mesh": "Mesh",
+        "meshVisible": "Visible to other agents",
+        "meshAlias": "Name",
+        "meshAccept": "Accepts messages from",
+        "accept": {
+          "none": "Nobody",
+          "project": "This project",
+          "subtree": "Its master and children"
+        },
+        "loadFailed": "Could not read the session settings.",
+        "saveFailed": "Not saved: {{error}}",
+        "saved": "Saved."
+      }
     }
   },
   "agentRow": {
