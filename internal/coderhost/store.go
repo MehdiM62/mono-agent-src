@@ -199,7 +199,7 @@ func (s *Store) CancelPendingSends(profileID, conversationID string, beforeID in
 // message queued while no host ran does not start a full-access turn days later.
 func (s *Store) ExpireSends() error {
 	_, err := s.db.Exec(`UPDATE coder_session_commands SET status = 'failed', error = 'expired before the host could run it', updated_at = ?
-		WHERE kind = 'send' AND status = 'pending' AND (created_at < ? OR (turn_id LIKE 'checkin-%' AND created_at < ?))`,
+		WHERE kind = 'send' AND status = 'pending' AND (created_at < ? OR (substr(turn_id, 1, 8) = 'checkin-' AND created_at < ?))`,
 		s.stamp(), s.now().Add(-MaxSendAge).UTC().Format(timeLayout), s.now().Add(-MaxCheckinAge).UTC().Format(timeLayout))
 	return err
 }

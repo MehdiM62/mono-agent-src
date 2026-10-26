@@ -531,3 +531,26 @@ func TestChildrenWithUnsafeIdsDoNotMakeAMasterWithChildren(t *testing.T) {
 		t.Fatal("an empty digest was queued for a master whose only child has an unsafe id")
 	}
 }
+
+// Only an exact "checkin-" prefix makes a send a host-made check-in with a short life,
+// as the Go checks that run it read it; SQL's LIKE would also take "CheckIn-".
+func TestOnlyTheExactPrefixMakesACheckInExpireEarly(t *testing.T) {
+	_, _, st := newHost(t)
+	var ids []int64
+	for _, turn := range []string{"checkin-a", "CheckIn-b", "xcheckin-c"} {
+		c, err := st.Enqueue(Command{ProfileID: "p", ConversationID: "m", Kind: KindSend, TurnID: turn, Message: "hi"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		st.db.Exec(`UPDATE coder_session_commands SET created_at = ? WHERE id = ?`, time.Now().Add(-20*time.Minute).UTC().Format(timeLayout), c.ID)
+		ids = append(ids, c.ID)
+	}
+	if err := st.ExpireSends(); err != nil {
+		t.Fatal(err)
+	}
+	for i, want := range []string{CmdFailed, CmdPending, CmdPending} {
+		if got, _, _ := st.GetCommand(ids[i]); got.Status != want {
+			t.Errorf("command %d = %s, want %s", i, got.Status, want)
+		}
+	}
+}
