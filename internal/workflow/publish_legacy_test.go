@@ -425,3 +425,29 @@ func TestListingDoesNotParseFilesWithNoRows(t *testing.T) {
 		t.Fatal("the listing parsed nothing at all, not even the stored workflow")
 	}
 }
+
+// A read-only store (the polled summary) writes nothing when it reads: it does not claim the
+// legacy files and does not import an outside edit.
+func TestAReadOnlyStoreWritesNothingWhenItReads(t *testing.T) {
+	ctx := context.Background()
+	h, s, _, _ := guardedRig(t)
+	versions := versionCount(t, s, "wf-g")
+	h.SetReadOnly()
+	handEdit(t, h, "wf-g", func(w *Workflow) { w.Nodes[1].Config = map[string]interface{}{"k": "outside"} })
+	got, err := h.GetWorkflow(ctx, "wf-g")
+	if err != nil || got == nil || got.Nodes[1].Config["k"] == "outside" {
+		t.Fatalf("a read-only read served the unreconciled file: %+v %v", got, err)
+	}
+	if versionCount(t, s, "wf-g") != versions || sqlConfig(t, s, "wf-g", "g-set") == "outside" {
+		t.Fatal("a read wrote rows")
+	}
+	fresh, s2 := newHybridForTest(t)
+	fresh.SetReadOnly()
+	dropFile(t, fresh, "wf-old", true)
+	if got, _ := fresh.GetWorkflow(ctx, "wf-old"); got != nil {
+		t.Fatalf("a read-only store took in a legacy file: %+v", got)
+	}
+	if markerCount(t, s2) != 0 {
+		t.Fatal("a read-only store recorded the claim")
+	}
+}

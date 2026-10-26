@@ -570,6 +570,7 @@ func (h *HybridWorkflowStore) publishFile(ctx context.Context, p Publication, pl
 // its file: when the file still holds this writer's bytes and no other change is open, it rewrites the
 // file from the committed rows, so the file never outlives the rows it was meant to describe.
 func (h *HybridWorkflowStore) repairAfterLost(ctx context.Context, id, targetSHA string) {
+	ctx = context.WithoutCancel(ctx) // a caller that gave up must not leave the file it replaced behind
 	tx, done, err := h.beginDurable(ctx)
 	if err != nil {
 		return

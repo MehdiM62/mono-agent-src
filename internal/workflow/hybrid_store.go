@@ -26,6 +26,8 @@ type HybridWorkflowStore struct {
 	// claimed: this store has made sure the legacy set is recorded (see ensureClaimed).
 	claimMu sync.Mutex
 	claimed bool
+	// readOnly: reads never write rows (see SetReadOnly).
+	readOnly bool
 }
 
 // SetOnSaved registers fn to run after every successful save of a
@@ -653,6 +655,9 @@ func (h *HybridWorkflowStore) reconciledFile(ctx context.Context, id string) (*W
 			// taken in when the store was first used; later ones wait to be adopted).
 			return nil, nil
 		}
+		if n > 0 && h.readOnly {
+			return nil, nil // not reconciled, and this store may not write: the rows speak
+		}
 		if n > 0 {
 			if _, err := h.ImportFile(ctx, id, nil); err != nil && !errors.Is(err, ErrSharedIDs) {
 				return nil, err
@@ -751,4 +756,13 @@ func (h *HybridWorkflowStore) workflowIDs(ctx context.Context) (map[string]bool,
 		out[id] = true
 	}
 	return out, rs.Err()
+}
+
+// SetReadOnly makes the store's reads write nothing: it does not take in the files older versions
+// left, and a file edited outside the store is not imported by a read (the committed rows are served
+// until some other command imports it). For paths that are polled, like the summary.
+func (h *HybridWorkflowStore) SetReadOnly() {
+	h.claimMu.Lock()
+	defer h.claimMu.Unlock()
+	h.readOnly, h.claimed = true, true
 }
