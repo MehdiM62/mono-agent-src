@@ -139,7 +139,7 @@ func (h *HybridWorkflowStore) Publish(ctx context.Context, p Publication) (*Work
 			if retry && !errors.Is(err, ErrPublicationBusy) {
 				err = errors.Join(ErrPublicationBusy, err) // still callable as "busy" for the caller
 			}
-			if err != nil && ctx.Err() != nil && !errors.Is(err, ErrPublicationBusy) && (retry || errors.Is(err, context.DeadlineExceeded)) {
+			if err != nil && !errors.Is(err, ErrPublicationBusy) && errors.Is(err, context.DeadlineExceeded) {
 				err = errors.Join(ErrPublicationBusy, err) // ran out of time: still recognizable as "busy"
 			}
 			if p.Kind == PubDelete {
@@ -150,7 +150,10 @@ func (h *HybridWorkflowStore) Publish(ctx context.Context, p Publication) (*Work
 		}
 		select {
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				return nil, errors.Join(ErrPublicationBusy, ctx.Err()) // out of time while waiting: still "busy"
+			}
+			return nil, ctx.Err() // a cancel stays a cancel
 		case <-time.After(wait):
 		}
 		if wait < 800*time.Millisecond {
@@ -196,7 +199,10 @@ func (h *HybridWorkflowStore) publishOnce(ctx context.Context, p Publication) (*
 			if isBusyErr(err) {
 				return nil, ErrPublicationBusy // someone else holds the database: try again shortly
 			}
-			return nil, fmt.Errorf("%w: workflow %s: %v", ErrFileInconsistent, p.WorkflowID, err)
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return nil, err // a caller giving up is not a mismatch of file and database
+			}
+			return nil, fmt.Errorf("%w: workflow %s: %w", ErrFileInconsistent, p.WorkflowID, err)
 		}
 		// A file edited outside the store is reconciled first (recorded as a version, approvals
 		// removed) so that no change builds on it, or records its bytes as reconciled, unseen.
@@ -239,7 +245,7 @@ func (h *HybridWorkflowStore) publishOnce(ctx context.Context, p Publication) (*
 			}
 		}
 		if prev, existed, err = h.files.readRaw(p.WorkflowID); err != nil {
-			return nil, fmt.Errorf("%w: %v", ErrFileSyncFailed, err)
+			return nil, fmt.Errorf("%w: %w", ErrFileSyncFailed, err)
 		}
 		plan.prevSHA = ""
 		if existed {
@@ -249,7 +255,7 @@ func (h *HybridWorkflowStore) publishOnce(ctx context.Context, p Publication) (*
 			var known string
 			if qerr := tx.QueryRowContext(ctx, `SELECT file_sha FROM workflow_file_state WHERE workflow_id = ?`, p.WorkflowID).Scan(&known); qerr != nil || known != plan.prevSHA {
 				if _, qerr := h.files.quarantine(p.WorkflowID, prev); qerr != nil {
-					return nil, fmt.Errorf("%w: keeping a copy of the file that is being replaced: %v", ErrFileSyncFailed, qerr)
+					return nil, fmt.Errorf("%w: keeping a copy of the file that is being replaced: %w", ErrFileSyncFailed, qerr)
 				}
 			}
 		}
@@ -503,7 +509,7 @@ func (h *HybridWorkflowStore) publishFile(ctx context.Context, p Publication, pl
 	if p.Kind != PubDelete {
 		var err error
 		if staged, err = h.files.stageRaw(p.WorkflowID, pl.data); err != nil {
-			return fmt.Errorf("%w: %v", ErrFileSyncFailed, err)
+			return fmt.Errorf("%w: %w", ErrFileSyncFailed, err)
 		}
 		defer func() {
 			if staged != "" {
@@ -513,13 +519,13 @@ func (h *HybridWorkflowStore) publishFile(ctx context.Context, p Publication, pl
 	}
 	tx, done, err := h.beginDurable(ctx)
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrFileSyncFailed, err)
+		return fmt.Errorf("%w: %w", ErrFileSyncFailed, err)
 	}
 	defer done()
 	defer tx.Rollback()
 	res, err := tx.ExecContext(ctx, `UPDATE workflow_publications SET state = state WHERE id = ? AND state = 'pending'`, intentID)
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrFileSyncFailed, err)
+		return fmt.Errorf("%w: %w", ErrFileSyncFailed, err)
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
 		return ErrPublicationLost
@@ -535,7 +541,7 @@ func (h *HybridWorkflowStore) publishFile(ctx context.Context, p Publication, pl
 			if _, derr := tx.ExecContext(ctx, dropIntentSQL, intentID); derr == nil && tx.Commit() == nil {
 				return err
 			}
-			return fmt.Errorf("%w: %v", ErrFileSyncFailed, err)
+			return fmt.Errorf("%w: %w", ErrFileSyncFailed, err)
 		}
 		return err
 	}
@@ -555,7 +561,7 @@ func (h *HybridWorkflowStore) publishFile(ctx context.Context, p Publication, pl
 		err = tx.Commit()
 	}
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrFileSyncFailed, err)
+		return fmt.Errorf("%w: %w", ErrFileSyncFailed, err)
 	}
 	return nil
 }
@@ -668,7 +674,7 @@ func (h *HybridWorkflowStore) abort(ctx context.Context, intentID int64, id stri
 	if rerr := h.rollbackIntent(ctx, intentID); rerr != nil {
 		// Nobody owns the unfinished change now: the next process to look retries the restore.
 		_, _ = h.sql.db.ExecContext(ctx, `UPDATE workflow_publications SET owner_pid = 0 WHERE id = ?`, intentID)
-		return errors.Join(err, fmt.Errorf("%w: workflow %s: %v", ErrFileInconsistent, id, rerr))
+		return errors.Join(err, fmt.Errorf("%w: workflow %s: %w", ErrFileInconsistent, id, rerr))
 	}
 	return err
 }
@@ -692,14 +698,14 @@ func approvalFrom(ctx context.Context) bool {
 func (h *HybridWorkflowStore) checkFileUnchanged(id, wantSHA string) error {
 	path, err := h.files.filePath(id)
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrFileSyncFailed, err)
+		return fmt.Errorf("%w: %w", ErrFileSyncFailed, err)
 	}
 	if info, lerr := os.Lstat(path); lerr == nil && !info.Mode().IsRegular() {
 		return fmt.Errorf("%w: %s is not a plain file", ErrFileSyncFailed, path)
 	}
 	raw, there, err := h.files.readRaw(id)
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrFileSyncFailed, err)
+		return fmt.Errorf("%w: %w", ErrFileSyncFailed, err)
 	}
 	now := ""
 	if there {

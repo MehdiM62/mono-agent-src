@@ -712,3 +712,32 @@ func TestABogusGuardLeavesNoApprovalFileOrIntent(t *testing.T) {
 		t.Fatal("a refused edit left something behind")
 	}
 }
+
+// A caller that cancels is told so, never that the file and the database disagree.
+func TestACancelBeforeStartStaysACancel(t *testing.T) {
+	h, s, hash, nodes := guardedRig(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	err := h.SaveNodesGuarded(ctx, "wf-g", nodes, SaveGuard{ExpectHash: hash})
+	if !errors.Is(err, context.Canceled) || errors.Is(err, ErrFileInconsistent) {
+		t.Fatalf("%v", err)
+	}
+	if openIntentCount(t, s) != 0 || sqlConfig(t, s, "wf-g", "g-set") == "edited" {
+		t.Fatal("a cancelled change left something behind")
+	}
+}
+
+// A caller deadline shorter than the retry window still gets "busy" (and the deadline).
+func TestACallerDeadlineShorterThanTheWaitStillSaysBusy(t *testing.T) {
+	h, s, hash, nodes := guardedRig(t)
+	if _, err := s.db.Exec(`INSERT INTO workflow_publications (workflow_id, kind, state, owner_pid, started_at)
+		VALUES ('wf-g', 'save', 'pending', ?, ?)`, os.Getpid(), time.Now().UTC()); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	defer cancel()
+	err := h.SaveNodesGuarded(ctx, "wf-g", nodes, SaveGuard{ExpectHash: hash})
+	if !errors.Is(err, ErrPublicationBusy) || !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("%v", err)
+	}
+}
