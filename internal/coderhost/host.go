@@ -46,6 +46,11 @@ type Host struct {
 	MeshIdle  time.Duration
 	meshPrev  map[meshKey]MeshSession // what the mesh was last told, kept for a session whose records do not read
 
+	// CheckinEvery is how often masters are looked at (default 30 s); the interval
+	// each master asks for is its own setting.
+	CheckinEvery time.Duration
+	lastCheckin  time.Time
+
 	mu   sync.Mutex // serializes session changes between the loop and the turn watchers
 	live map[string]Turn
 	wg   sync.WaitGroup
@@ -257,6 +262,7 @@ func (h *Host) Run(ctx context.Context) error {
 		if err := h.Tick(); err != nil {
 			h.logf("coder host: %v", err)
 		}
+		h.checkinIfDue()
 		select {
 		case <-ctx.Done():
 			return nil
@@ -383,4 +389,16 @@ func (h *Host) unlocked(f func() (Turn, error)) (Turn, error) {
 	h.mu.Unlock()
 	defer h.mu.Lock()
 	return f()
+}
+
+// checkinIfDue runs a check-in pass when CheckinEvery has passed since the last.
+func (h *Host) checkinIfDue() {
+	every := h.CheckinEvery
+	if every <= 0 {
+		every = 30 * time.Second
+	}
+	if now := h.Store.now(); now.Sub(h.lastCheckin) >= every {
+		h.lastCheckin = now
+		h.checkinPass(now)
+	}
 }

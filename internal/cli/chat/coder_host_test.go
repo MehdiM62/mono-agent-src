@@ -654,3 +654,39 @@ func TestSessionSettingsGetSetAndTheirGuards(t *testing.T) {
 		t.Fatalf("a non-operator may read, and the value must be unchanged: %+v", v)
 	}
 }
+
+func TestSessionRoleSetsTheMasterChildStructureWithTheStoreRules(t *testing.T) {
+	dbPath := newChatCLITestDB(t)
+	store := openTestChatStore(t, dbPath)
+	mk := func() string {
+		c, _ := store.CreateConversationMode("default", "agent", "general", "claude", "", "", ai.ModeCoder, t.TempDir())
+		return c.ID
+	}
+	m, k := mk(), mk()
+	cfg := testDeps(&testConfig{DBPath: dbPath, ProfileID: "default", JSONOutput: true})
+	run := func(args ...string) (sessionSettingsView, int) {
+		out, code := runSessionsCLI(t, cfg, append([]string{"settings", "set"}, args...)...)
+		var v sessionSettingsView
+		decodeChatJSON(t, out, &v)
+		return v, code
+	}
+	if _, code := run(k, "--role", "child", "--parent", m); code == 0 {
+		t.Fatal("a child of a session that is not a master was accepted")
+	}
+	if v, code := run(m, "--role", "master"); code != 0 || v.Role != "master" {
+		t.Fatalf("master: exit %d %+v", code, v)
+	}
+	if v, code := run(k, "--role", "child", "--parent", m); code != 0 || v.Role != "child" {
+		t.Fatalf("child: exit %d %+v", code, v)
+	}
+	for _, bad := range [][]string{{k, "--parent", m}, {k, "--role", "boss"}, {m, "--role", "solo"}} {
+		if _, code := run(bad...); code == 0 {
+			t.Errorf("%v was accepted", bad)
+		}
+	}
+	agent := testDeps(&testConfig{DBPath: dbPath, ProfileID: "default", JSONOutput: true})
+	agent.RequireOperator = func(what string) error { return errors.New("operator only: " + what) }
+	if _, code := runSessionsCLI(t, agent, "settings", "set", k, "--role", "solo"); code == 0 {
+		t.Fatal("a non-operator changed a role")
+	}
+}

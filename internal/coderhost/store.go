@@ -313,3 +313,104 @@ func (s *Store) ConversationInfo(profileID, conversationID string) (cwd, access 
 	}
 	return cwd, access, true, nil
 }
+
+// SetRole links a session into the master/child structure: "solo" (no links),
+// "master" (may have children) or "child" of a master. It refuses what the design
+// forbids: a child needs a master of the same profile that allows children, a
+// master has no parent, no session is its own parent, the master's max_children
+// holds, and a session that has children cannot become something else.
+func (s *Store) SetRole(profileID, conversationID, role, parent string) error {
+	if _, err := s.EnsureSession(profileID, conversationID); err != nil {
+		return err
+	}
+	var children int
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM coder_sessions WHERE profile_id = ? AND parent_conversation_id = ? AND state != 'stopped'`, profileID, conversationID).Scan(&children); err != nil {
+		return err
+	}
+	switch role {
+	case "solo", "master":
+		if parent != "" {
+			return fmt.Errorf("a %s session has no parent", role)
+		}
+		if role == "solo" && children > 0 {
+			return errors.New("this session has child sessions; stop or move them first")
+		}
+	case "child":
+		if parent == "" || parent == conversationID {
+			return errors.New("a child needs another session as its master")
+		}
+		if children > 0 {
+			return errors.New("this session has child sessions, so it cannot be a child itself")
+		}
+		p, ok, err := s.GetSession(profileID, parent)
+		if err != nil {
+			return err
+		}
+		if !ok || p.Role != "master" || p.State == StateStopped {
+			return errors.New("the master must be a running master session of this profile")
+		}
+		ps, err := s.GetSettings(profileID, parent)
+		if err != nil {
+			return err
+		}
+		if ps.MaxDepth < 2 {
+			return errors.New("the master's max_depth does not allow children")
+		}
+		var siblings int
+		if err := s.db.QueryRow(`SELECT COUNT(*) FROM coder_sessions WHERE profile_id = ? AND parent_conversation_id = ? AND conversation_id != ? AND state != 'stopped'`, profileID, parent, conversationID).Scan(&siblings); err != nil {
+			return err
+		}
+		if siblings >= ps.MaxChildren {
+			return fmt.Errorf("the master already has %d child sessions (max_children is %d)", siblings, ps.MaxChildren)
+		}
+	default:
+		return fmt.Errorf("role is solo, master or child, not %q", role)
+	}
+	_, err := s.db.Exec(`UPDATE coder_sessions SET role = ?, parent_conversation_id = ?, updated_at = ? WHERE profile_id = ? AND conversation_id = ?`, role, parent, s.stamp(), profileID, conversationID)
+	return err
+}
+
+// Checkin is what the scheduler remembers about a master.
+type Checkin struct {
+	At       string // when it last looked ("" = never)
+	Snapshot string // its children as it saw them then
+}
+
+// GetCheckin returns a session's check-in memory.
+func (s *Store) GetCheckin(profileID, conversationID string) (Checkin, error) {
+	var c Checkin
+	err := s.db.QueryRow(`SELECT checkin_at, checkin_snapshot FROM coder_sessions WHERE profile_id = ? AND conversation_id = ?`, profileID, conversationID).Scan(&c.At, &c.Snapshot)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Checkin{}, nil
+	}
+	return c, err
+}
+
+// SaveCheckin records that the scheduler looked now, and what it saw.
+func (s *Store) SaveCheckin(profileID, conversationID string, c Checkin) error {
+	_, err := s.db.Exec(`UPDATE coder_sessions SET checkin_at = ?, checkin_snapshot = ? WHERE profile_id = ? AND conversation_id = ?`, c.At, c.Snapshot, profileID, conversationID)
+	return err
+}
+
+// LastActivity is the time of the newest journal event of a conversation, or the zero time.
+func (s *Store) LastActivity(profileID, conversationID string) time.Time {
+	var at sql.NullString
+	if err := s.db.QueryRow(`SELECT MAX(created_at) FROM ai_chat_events WHERE profile_id = ? AND conversation_id = ?`, profileID, conversationID).Scan(&at); err != nil || !at.Valid {
+		return time.Time{}
+	}
+	t, _ := time.Parse(time.RFC3339Nano, at.String)
+	return t
+}
+
+// LastTurn is a conversation's newest turn: its id and status ("" when it has none).
+func (s *Store) LastTurn(profileID, conversationID string) (id, status string) {
+	_ = s.db.QueryRow(`SELECT id, status FROM ai_chat_turns WHERE profile_id = ? AND conversation_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1`, profileID, conversationID).Scan(&id, &status)
+	return id, status
+}
+
+// PendingFor counts the commands still waiting for a conversation.
+func (s *Store) PendingFor(profileID, conversationID string) int {
+	var n int
+	_ = s.db.QueryRow(`SELECT COUNT(*) FROM coder_session_commands WHERE profile_id = ? AND conversation_id = ? AND status = 'pending'`, profileID, conversationID).Scan(&n)
+	return n
+}
