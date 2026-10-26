@@ -53,10 +53,11 @@ func missionLine(m *missionFact) string {
 		m.State, m.Done, m.Total, m.Review, m.Verified, m.Blocked)
 }
 
-// open says whether a running mission still has work to chase: a task not done or verified, a blocked
-// one, or one in review (waiting for a verifier or for the operator to close it).
+// open says whether a running mission still has work to chase: a task neither done nor verified, a
+// blocked one, or one in review that no verifier has passed. A verified task only waits for the operator
+// to close it, which nothing a lead does can hasten.
 func (m *missionFact) open() bool {
-	return m != nil && m.State == string(tasks.SessionRunning) && (m.Blocked > 0 || m.Review > 0 || m.Done+m.Verified < m.Total)
+	return m != nil && m.State == string(tasks.SessionRunning) && (m.Blocked > 0 || m.Review > m.Verified || m.Done+m.Verified < m.Total)
 }
 
 // leadWithOpenWork is the rule that lets a session without children be checked in on: its
@@ -66,4 +67,39 @@ func (m *missionFact) open() bool {
 func (h *Host) leadWithOpenWork(profileID, conversationID string) bool {
 	m, ok := h.missionOf(profileID, conversationID)
 	return ok && m.open()
+}
+
+// liveChildren counts the host-made children of a session that are not stopped, as the check-in pass sees them.
+func (h *Host) liveChildren(profileID, conversationID string) (int, error) {
+	list, err := h.Store.ListSessions("")
+	if err != nil {
+		return 0, err
+	}
+	n := 0
+	for _, x := range list {
+		if x.ProfileID == profileID && x.Parent == conversationID && x.State != StateStopped && hostID.MatchString(x.ConversationID) {
+			n++
+		}
+	}
+	return n, nil
+}
+
+// checkinTargetStillValid is the one rule for who may be checked in on, used when a check-in is looked at,
+// when it is about to be queued and when it is about to run. It returns why not, or "". The session
+// must be unattended and not a child; with live children it must be a master; with none (a lead) its
+// conversation must be bound to a RUNNING task session with open work.
+func (h *Host) checkinTargetStillValid(x Session, liveChildren int) string {
+	switch {
+	case !x.Unattended:
+		return "the session is no longer an unattended master"
+	case x.Role == "child":
+		return "the session is no longer an unattended master"
+	case liveChildren > 0:
+		if x.Role != "master" {
+			return "the session is no longer an unattended master"
+		}
+	case !h.leadWithOpenWork(x.ProfileID, x.ConversationID):
+		return "the session has no running mission with open work"
+	}
+	return ""
 }

@@ -1869,8 +1869,8 @@ sessions spawn`, below): one child per goal, not per task. When a master of chil
 session, each check-in digest carries one line with the session's state and its counts (done of total, in
 review, verified, blocked): numbers and a state word, never a title, goal or task text. A mission's lead
 without children (role `solo`, or a master whose children are gone) is checked in on all the same, by the same
-scheduler and limits, while its conversation is bound to a **running** task session with open work (a task not
-done or verified, or one blocked or in review): the digest is the mission line alone. A draft session (waiting
+scheduler and limits, while its conversation is bound to a **running** task session with open work (a task neither
+done nor verified, a blocked one, or one in review that no verifier has passed; a verified task only awaits the operator's close): the digest is the mission line alone. A draft session (waiting
 for the person's plan approval) or a paused one is never woken, a child never is (its master is), and a queued
 check-in is dropped when it runs if the mission has stopped being running with open work.
 

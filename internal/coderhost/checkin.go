@@ -73,7 +73,7 @@ func (h *Host) checkinOne(now time.Time, m Session, children []Session) {
 	if !m.Unattended || m.State != StateIdle || m.TurnID != "" || h.Store.PendingFor(m.ProfileID, m.ConversationID) > 0 {
 		return
 	}
-	if len(children) == 0 && !h.leadWithOpenWork(m.ProfileID, m.ConversationID) {
+	if h.checkinTargetStillValid(m, len(children)) != "" {
 		return
 	}
 	settings, err := h.Store.GetSettings(m.ProfileID, m.ConversationID)
@@ -155,9 +155,8 @@ func (h *Host) checkinOne(now time.Time, m Session, children []Session) {
 	}
 	// The master may have been given something to do since it was read at the top of the
 	// pass; the view is read again so a check-in does not start behind a person's message.
-	if fresh, ok, err := h.Store.GetSession(m.ProfileID, m.ConversationID); err != nil || !ok || !fresh.Unattended || fresh.Role != m.Role ||
-		fresh.State != StateIdle || fresh.TurnID != "" || h.Store.PendingFor(m.ProfileID, m.ConversationID) > 0 ||
-		(len(children) == 0 && !h.leadWithOpenWork(m.ProfileID, m.ConversationID)) {
+	if fresh, ok, err := h.Store.GetSession(m.ProfileID, m.ConversationID); err != nil || !ok || h.checkinTargetStillValid(fresh, len(children)) != "" ||
+		fresh.State != StateIdle || fresh.TurnID != "" || h.Store.PendingFor(m.ProfileID, m.ConversationID) > 0 {
 		return
 	}
 	reason := "scheduled"

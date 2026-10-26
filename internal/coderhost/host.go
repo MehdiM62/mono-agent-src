@@ -541,11 +541,12 @@ func (h *Host) checkinIfDue() {
 // allowed it to be queued: it can have waited, and the settings can have changed.
 // It returns why not, or "".
 func (h *Host) checkinStillAllowed(x Session, now time.Time) string {
-	if !x.Unattended || (x.Role != "master" && x.Role != "solo") {
-		return "the session is no longer an unattended master"
+	kids, err := h.liveChildren(x.ProfileID, x.ConversationID)
+	if err != nil {
+		return "the session's children do not read"
 	}
-	if x.Role == "solo" && !h.leadWithOpenWork(x.ProfileID, x.ConversationID) {
-		return "the session has no running mission with open work"
+	if reason := h.checkinTargetStillValid(x, kids); reason != "" {
+		return reason
 	}
 	settings, err := h.Store.GetSettings(x.ProfileID, x.ConversationID)
 	if err != nil {
