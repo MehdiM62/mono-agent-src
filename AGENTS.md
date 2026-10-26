@@ -2508,8 +2508,21 @@ monoagentcli --profile work coder host stop                        # the host on
   not a setting is refused): `checkin_minutes`, `skip_if_unchanged`, `checkin_triggers`, `silent_minutes`,
   `active_hours` (`HH:MM-HH:MM`, local time), `checkin_limit`, `autonomy_preset`, `autonomy_classes`,
   `max_children`, `max_concurrent`, `max_depth`, `mesh_visible`, `mesh_alias`, `mesh_accept`. `get` lists which
-  are operator-only and the values each allows. `max_concurrent` is stored,
-  validated and shown; nothing acts on it yet. The autonomy settings are acted on (below). `max_children` and `max_depth` hold when a child is linked.
+  are operator-only and the values each allows. `max_concurrent` (1 to 10,
+  default 2) is the most children of one master that run a turn at once: a send to a further child, from a person
+  or a master, stays pending and starts when a slot frees. Sends keep their order within a chat; across chats
+  the freed slot goes to the oldest waiting send of that master (a master's send that its paused or stopped
+  master holds does not reserve one). Only turns this host started (or
+  adopted when it restarted) are counted. A send held by the cap can expire silently, like any other waiting send (15 minutes for a master's
+  or an `answer-m-` note, 6 hours for the rest, `answer-d-` and `answer-p-` notes included) and then fails with the expiry reason; an expired answer note
+  gives its question back without counting as a failed answer (expiries are counted apart and, after 10, the
+  question stays parked: the master can no longer answer it). A re-check that cannot read (a database error: settings,
+  turns, children, the master's session or mission) holds the command for the next pass instead of failing it and logs
+  it at most once an hour; after 5 passes and a minute it fails with the real reason, so a persistent fault (stored
+  settings that are not valid) shows. A command is ended only while it is still pending, so a stop from another process
+  keeps its status. If the count or the master's settings cannot be
+  read (a database error, not just no stored settings) the cap holds, the send is tried again on the next pass
+  and the host logs it at most once an hour per master; a stop or pause on a held chat still runs. The autonomy settings are acted on (below). `max_children` and `max_depth` hold when a child is linked.
 - **Masters and children:** `sessions settings set <conv> --role master`, then `--role child --parent <master>`
   for each child (the master must be a master with room under its `max_children`; depth is 2; a session with
   children cannot change role).
@@ -2562,6 +2575,24 @@ monoagentcli --profile work coder host stop                        # the host on
   started does not reopen the question (the model may have read it). A question whose note failed twice is left
   for a person: no default, no master answer; a default is also held for 30 minutes after a failure and never
   taken when the session's budget is used up.
+- **Autonomy never approves.** No autonomy path (a preset's decide-and-log, ask-on-risk model decisions,
+  `take_default` / `ApplyDefaults`, `answer-p/m/d-` notes, master answers, `ReopenFailedAnswers` redelivery) can
+  confirm a mission, approve a plan, resolve an HIL gate, approve a task session or change an operator-only
+  setting, access or budget. Two layers check it. The behavioural backstop is
+  `coderhost/autonomy_noapproval_test.go`: it runs every preset x class x override x reversibility x answerer
+  (plus failed-start variants: the reopen path is covered there for failed starts only; expiry has its own test) with a genuinely signed mission confirmation in place, starts the notes with a
+  fake launcher, asserts that turns of each origin (`answer-p-`, `answer-m-`, `answer-d-`) really started, none
+  with a token, that only the person's own mission send had one, and that nothing outside the queue, the
+  questions, the ledger, the host-turn and turn-cap tables (`coder_session_commands`, `_questions`, `_decisions`,
+  `_host_turns`, `_turn_caps`, `sqlite_sequence`) changed, and that no setting, unattended flag, budget, role or
+  parent of any session changed. It is a host-side check against a fake launcher: it does not run real agents,
+  which are governed by the existing operator-only gates. The static guard (`autonomy_guard_test.go`,
+  `autonomy_guard_pkg_test.go`) fails when the autonomy, ledger or parked sources name an approval writer,
+  import another package, touch a table outside theirs (string pieces joined with `+` are read together; text
+  built from a variable is not seen), when any other file names a writer outside its owners, when a row of
+  the queue or of sessions is inserted outside `store.go`, or when a new place queues a command. The person's
+  own path (`internal/cli/chat/coder_sessions.go`, which confirms a mission the operator sent) is outside this
+  package's guard.
 - **Mesh** (needs monomind 2.29+; the host does not check the version, it just tries `monomind mesh who` to
   start the hub): with `mesh_visible` (default on) the host keeps the session on monomind's mesh between turns
   (until it has been idle for 6 hours), as `coder-<folder>-<start time>` (or `mesh_alias`), with a state word as
