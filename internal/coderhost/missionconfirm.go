@@ -119,9 +119,17 @@ func parseToken(token string) (cmd int64, nonce string, ok bool) {
 	return id, b, found && err == nil && id > 0 && b != ""
 }
 
-// HostMade says whether a turn id is one the host makes on its own (a
-// check-in), not a person's send. Such a turn can never be confirmed.
-func HostMade(turnID string) bool { return strings.HasPrefix(turnID, "checkin-") }
+// CheckinTurnPrefix starts the id of a check-in turn the host queues for itself.
+const CheckinTurnPrefix = "checkin-"
+
+// HostMade says whether a turn id is one that no person sent: a check-in the host
+// made, a message a master sent to a child (MasterTurnPrefix), or an answer handed
+// to a parked session (AnswerPrefix). Such a turn can never be confirmed as a
+// mission, and CheckinStreak counts it. Any other path that starts turns without
+// a person needs its own prefix, listed here.
+func HostMade(turnID string) bool {
+	return strings.HasPrefix(turnID, CheckinTurnPrefix) || strings.HasPrefix(turnID, MasterTurnPrefix) || strings.HasPrefix(turnID, AnswerPrefix)
+}
 
 var errHostMade = errors.New("coder host: a host-started turn cannot carry a mission confirmation")
 
@@ -151,7 +159,7 @@ func (s *Store) confirmKey(profileID string) ([]byte, error) {
 // this profile's pending send, for this conversation and turn, marked as a
 // mission.
 func (s *Store) Confirm(cmd Command, session int64) (MissionConfirm, error) {
-	if HostMade(cmd.TurnID) {
+	if HostMade(cmd.TurnID) || cmd.Issuer != "" {
 		return MissionConfirm{}, errHostMade
 	}
 	got, err := s.pendingMissionSend(cmd)
@@ -296,7 +304,7 @@ func (s *Store) readConfirm(profileID, conversationID, turnID string, commandID 
 // live confirmation of this command. A command not marked as a mission, and a
 // host-made turn, never has one.
 func (s *Store) PeekConfirm(c Command) (MissionConfirm, bool) {
-	if HostMade(c.TurnID) || !c.WantsMission {
+	if HostMade(c.TurnID) || c.Issuer != "" || !c.WantsMission {
 		return MissionConfirm{}, false
 	}
 	// Only a command that is still pending starts a turn, whatever the record says.

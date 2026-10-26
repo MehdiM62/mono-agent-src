@@ -38,7 +38,8 @@ type childFact struct {
 }
 
 type snapshot struct {
-	Children []childFact `json:"children"`
+	Children []childFact  `json:"children"`
+	Mission  *missionFact `json:"mission,omitempty"` // the master's own open task session, if any
 }
 
 // checkinPass looks at every master once. It never runs a turn: it queues a send.
@@ -87,8 +88,22 @@ func (h *Host) checkinOne(now time.Time, m Session, children []Session) {
 		return h.Store.SaveCheckin(m.ProfileID, m.ConversationID, Checkin{At: nowStr, Snapshot: string(curJSON)})
 	}
 
+	// The mission is read only when a look is about to be recorded or acted on, after the cheap early
+	// returns; a failed read keeps the last look's value so a transient error does not read as a change.
+	withMission := func() {
+		mission, ok := h.missionOf(m.ProfileID, m.ConversationID)
+		if !ok {
+			var was snapshot
+			_ = json.Unmarshal([]byte(prev.Snapshot), &was)
+			mission = was.Mission
+		}
+		cur.Mission = mission
+		curJSON, _ = json.Marshal(cur)
+	}
+
 	last, _ := time.Parse(timeLayout, prev.At)
 	if prev.At == "" || now.Before(last) {
+		withMission()
 		// First sight of this master, or the clock went back past the last look:
 		// remember the children as they are and check in after one interval.
 		if err := remember(); err != nil {
@@ -110,6 +125,7 @@ func (h *Host) checkinOne(now time.Time, m Session, children []Session) {
 	if streak >= settings.CheckinLimit {
 		return
 	}
+	withMission()
 	var before snapshot
 	_ = json.Unmarshal([]byte(prev.Snapshot), &before)
 	events := triggeredEvents(before, cur, settings.CheckinTriggers)
@@ -249,6 +265,7 @@ func digestText(reason string, s snapshot) string {
 		}
 		b.WriteString("\n")
 	}
+	b.WriteString(missionLine(s.Mission))
 	b.WriteString("Review them and give each the direction it needs. Do not redo finished work. This message was written by the host, not by the person or by any of these sessions.")
 	return b.String()
 }
