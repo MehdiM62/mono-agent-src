@@ -522,6 +522,10 @@ export function GetChatTurns(arg1, arg2, arg3) {
   return window['go']['main']['App']['GetChatTurns'](arg1, arg2, arg3);
 }
 
+export function GetCoderSessionSettings(arg1) {
+  return window['go']['main']['App']['GetCoderSessionSettings'](arg1);
+}
+
 export function GetConnectionsForPlatform(arg1) {
   return window['go']['main']['App']['GetConnectionsForPlatform'](arg1);
 }
@@ -1428,6 +1432,10 @@ export function SetChatAccess(arg1, arg2, arg3, arg4) {
 
 export function SetChatOrgMode(arg1, arg2) {
   return window['go']['main']['App']['SetChatOrgMode'](arg1, arg2);
+}
+
+export function SetCoderSessionSettings(arg1, arg2, arg3) {
+  return window['go']['main']['App']['SetCoderSessionSettings'](arg1, arg2, arg3);
 }
 
 export function SetOAuthCredentials(arg1, arg2, arg3) {
