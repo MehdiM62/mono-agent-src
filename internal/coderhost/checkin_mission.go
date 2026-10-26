@@ -52,3 +52,18 @@ func missionLine(m *missionFact) string {
 	return fmt.Sprintf("Mission (your task session): %s; %d of %d task(s) done, %d in review, %d verified, %d blocked. Closing tasks and approving a plan stay the operator's.\n",
 		m.State, m.Done, m.Total, m.Review, m.Verified, m.Blocked)
 }
+
+// open says whether a running mission still has work to chase: a task not done or verified, a blocked
+// one, or one in review (waiting for a verifier or for the operator to close it).
+func (m *missionFact) open() bool {
+	return m != nil && m.State == string(tasks.SessionRunning) && (m.Blocked > 0 || m.Review > 0 || m.Done+m.Verified < m.Total)
+}
+
+// leadWithOpenWork is the rule that lets a session without children be checked in on: its
+// conversation is bound to a RUNNING task session (not draft, not paused) that has open work. A draft
+// session waits for the person's plan approval and a paused one for the person to resume it; neither is
+// woken. A failed read is "no": nothing is queued on a guess.
+func (h *Host) leadWithOpenWork(profileID, conversationID string) bool {
+	m, ok := h.missionOf(profileID, conversationID)
+	return ok && m.open()
+}

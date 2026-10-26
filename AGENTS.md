@@ -1867,8 +1867,12 @@ per task yet** (which tasks would become sessions, and how a budget is split, ar
 plan). A lead that wants a goal with its own schedule uses the master verbs on its own conversation (`coder
 sessions spawn`, below): one child per goal, not per task. When a master of children also has an open task
 session, each check-in digest carries one line with the session's state and its counts (done of total, in
-review, verified, blocked): numbers and a state word, never a title, goal or task text. A mission's own
-conversation gets no check-in unless it is a master with children.
+review, verified, blocked): numbers and a state word, never a title, goal or task text. A mission's lead
+without children (role `solo`, or a master whose children are gone) is checked in on all the same, by the same
+scheduler and limits, while its conversation is bound to a **running** task session with open work (a task not
+done or verified, or one blocked or in review): the digest is the mission line alone. A draft session (waiting
+for the person's plan approval) or a paused one is never woken, a child never is (its master is), and a queued
+check-in is dropped when it runs if the mission has stopped being running with open work.
 
 **Who closes what in a mission.** Workers finish a task to Review; the verifier marks it
 verified; a verified task unlocks its dependents (it counts as done for them). The
@@ -2511,7 +2515,7 @@ monoagentcli --profile work coder host stop                        # the host on
   row (a failed or interrupted one counts) with no message from a person, the master waits for one (the pane
   says so, within about 15 seconds). A queued check-in lives 15
   minutes and is checked again when it runs. The digest holds only the host's records (conversation ids, state
-  and turn-status words, counts, ages), never text an agent wrote (for a master with an open task session: its state word and task counts, and a change in them counts as a change for `skip_if_unchanged`). Host-made turns carry the turn-id prefix
+  and turn-status words, counts, ages), never text an agent wrote (for a master with an open task session: its state word and task counts, and a change in them counts as a change for `skip_if_unchanged`; also a solo session bound to a running task session with open work gets check-ins, with only that line). Host-made turns carry the turn-id prefix
   `checkin-`; the limit counts it, so a later path that starts turns without a person must use its own prefix.
   `child_question` and `budget_80` are accepted settings that do not fire yet.
 - **Autonomy** (`autonomy_preset`, `autonomy_classes`, operator only): when a session meets a gap
@@ -2593,7 +2597,8 @@ monoagentcli --profile work coder host stop                        # the host on
      after 30 minutes and never for `risky_action` or `missing_credential`.
   4. *Missions:* confirm a mission (`coder sessions send --mission <conv> TEXT`), approve its plan, close the
      app mid-run: workers and the board survive and the next turn resumes from `mission_status`; a check-in of a
-     master with children shows the mission line; a draft session starts no worker for a check-in turn.
+     master with children shows the mission line; a mission lead without children is checked in on while its task session
+     is running with open work and never while it is a draft or paused; a draft session starts no worker for a check-in turn.
   5. *The autonomy backend has no model-facing producer yet:* nothing outside tests calls `Store.Park` or
      `Store.Record` (grep of non-test code: the only definitions are in `parked.go` and `ledger.go`, no
      callers). A first run can only check that the CLI lists and answers on an empty or hand-made state, and
