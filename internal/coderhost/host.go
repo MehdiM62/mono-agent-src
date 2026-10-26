@@ -107,6 +107,9 @@ func (h *Host) settle(x Session) {
 	x.TurnID, x.TurnPID, x.TurnStamp = "", 0, ""
 	if x.State != StatePaused {
 		x.State = StateIdle
+		if h.Store.OpenParked(x.ProfileID, x.ConversationID) > 0 {
+			x.State = StateWaitingUser // a parked question outlives the turn that was running when it was parked
+		}
 	}
 	if err := h.Store.SaveSession(x); err != nil {
 		h.logf("coder host: saving %s: %v", x.ConversationID, err)
@@ -453,6 +456,7 @@ func (h *Host) checkinIfDue() {
 	if now := h.Store.now(); now.Sub(h.lastCheckin) >= every {
 		h.lastCheckin = now
 		h.checkinPass(now)
+		h.parkedPass()
 	}
 }
 

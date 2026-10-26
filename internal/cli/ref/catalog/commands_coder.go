@@ -79,6 +79,53 @@ var coderCommandDocs = []cmdDoc{
 		Examples: []string{"monoagentcli --profile work coder sessions command 42 --json"},
 	},
 	{
+		Name:     "coder sessions decisions",
+		Short:    "The decisions made for a session without asking a person (the ledger): list, show, revert",
+		Usage:    "monoagentcli [--profile P] coder sessions decisions list|show|revert CONVERSATION",
+		Examples: []string{"monoagentcli --profile work coder sessions decisions list <conv> --json"},
+	},
+	{
+		Name:  "coder sessions decisions list",
+		Short: "A session's decisions, newest first: class, question, choice, alternatives, reason, reversible, made by, status",
+		Usage: "monoagentcli [--profile P] coder sessions decisions list CONVERSATION [--class C] [--status active|reverted] [--limit N]",
+		Flags: `  --class string   Only this class of gap
+  --status string  Only active or reverted decisions
+  --limit int      At most this many (default 100, most 500)`,
+		Examples: []string{"monoagentcli --profile work coder sessions decisions list <conv> --status active --json"},
+	},
+	{
+		Name:     "coder sessions decisions show",
+		Short:    "One decision of a session",
+		Usage:    "monoagentcli [--profile P] coder sessions decisions show CONVERSATION ID",
+		Examples: []string{"monoagentcli --profile work coder sessions decisions show <conv> 7 --json"},
+	},
+	{
+		Name:     "coder sessions decisions revert",
+		Short:    "Mark a reversible, active decision reverted in the ledger (the operator only); it does not start a turn or tell the session",
+		Usage:    "monoagentcli [--profile P] coder sessions decisions revert CONVERSATION ID",
+		Examples: []string{"monoagentcli --profile work coder sessions decisions revert <conv> 7"},
+	},
+	{
+		Name:     "coder sessions questions",
+		Short:    "Questions parked while nobody could answer, and who may answer each: list, answer",
+		Usage:    "monoagentcli [--profile P] coder sessions questions list|answer",
+		Examples: []string{"monoagentcli --profile work coder sessions questions list --json"},
+	},
+	{
+		Name:     "coder sessions questions list",
+		Short:    "Parked questions of one conversation, or of every conversation of the profile, with the answerer the policy names",
+		Usage:    "monoagentcli [--profile P] coder sessions questions list [CONVERSATION] [--all]",
+		Flags:    `  --all  Include the answered ones`,
+		Examples: []string{"monoagentcli --profile work coder sessions questions list <conv> --json"},
+	},
+	{
+		Name:     "coder sessions questions answer",
+		Short:    "Answer a parked question when the policy names the user (the operator only); the answer is sent to the session by the host",
+		Usage:    "monoagentcli [--profile P] coder sessions questions answer CONVERSATION ID ANSWER [--no-host]",
+		Flags:    `  --no-host  Queue only; do not start the host`,
+		Examples: []string{`monoagentcli --profile work coder sessions questions answer <conv> 3 "yes, only the build directory"`},
+	},
+	{
 		Name:     "coder sessions settings",
 		Short:    "Show or change a coder session's settings: check-ins, autonomy, limits, mesh, unattended, role",
 		Usage:    "monoagentcli [--profile P] coder sessions settings get|set CONVERSATION",

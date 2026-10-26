@@ -80,8 +80,11 @@ func parseToken(token string) (cmd int64, nonce string, ok bool) {
 }
 
 // HostMade says whether a turn id is one the host makes on its own (a
-// check-in), not a person's send. Such a turn can never be confirmed.
-func HostMade(turnID string) bool { return strings.HasPrefix(turnID, "checkin-") }
+// check-in, or an answer it hands to a session), not a person's send. Such a turn
+// can never be confirmed, and the check-in limit counts it.
+func HostMade(turnID string) bool {
+	return strings.HasPrefix(turnID, "checkin-") || strings.HasPrefix(turnID, AnswerPrefix)
+}
 
 var errHostMade = errors.New("coder host: a host-started turn cannot carry a mission confirmation")
 
