@@ -301,9 +301,17 @@ func estimateBudget(ts []tasks.Task) float64 {
 // Mission is the conductor's mission setup, nil when it has none.
 func (c *Conductor) Mission() *MissionConfig { return c.cfg.Mission }
 
+// OpenSessionID is the id of the conversation's open mission session, or 0.
+// A conversation that started a mission stays confirmed after a restart.
+func (m *MissionConfig) OpenSessionID(ctx context.Context) int64 {
+	if se, err := m.active(ctx); err == nil && se != nil {
+		return se.ID
+	}
+	return 0
+}
+
 // HasOpenSession says whether the conversation has a mission session that is
-// still open: a conversation that started a mission stays confirmed after a
-// restart.
+// still open (see OpenSessionID).
 func (m *MissionConfig) HasOpenSession(ctx context.Context) bool {
 	se, err := m.active(ctx)
 	return err == nil && se != nil

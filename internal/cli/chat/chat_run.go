@@ -129,7 +129,7 @@ func runChat(cfg *Deps, cmd *cobra.Command, args []string, f *chatFlags) (retErr
 			if task.err != nil {
 				return task.err
 			}
-			err := runCoderTurn(cmd, cfg, journal, coderTurn{runtime: conv.RuntimeID, prompt: prompt, model: model, effort: conv.Effort, resume: resume, cwd: conv.Cwd, orgMode: conv.OrgMode, access: access, attachments: atts, budget: turnCap, env: task.env, agentKind: task.kind, confine: task.confine, missionConfirmed: f.mission})
+			err := runCoderTurn(cmd, cfg, journal, coderTurn{runtime: conv.RuntimeID, prompt: prompt, model: model, effort: conv.Effort, resume: resume, cwd: conv.Cwd, orgMode: conv.OrgMode, access: access, attachments: atts, budget: turnCap, env: task.env, agentKind: task.kind, confine: task.confine, missionConfirmed: f.mission || hostMissionConfirmed(cfg, jprofile, conv.ID, turnID, f.missionToken, access)})
 			task.end(err)
 			enforceLoweredAccess(cfg, jstore, jprofile, conv)
 			return err

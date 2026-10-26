@@ -3,6 +3,7 @@ package coderhost
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 )
@@ -22,7 +23,7 @@ type Turn interface {
 // Launcher starts and finds turn processes. A turn is a `chat --conversation`
 // process that journals itself; it must not die with the host.
 type Launcher interface {
-	Start(profileID, conversationID, turnID, message string, attachments []string, mission bool) (Turn, error)
+	Start(profileID, conversationID, turnID, message string, attachments []string, missionToken string) (Turn, error)
 	// Adopt returns the turn process pid/stamp still names, or nil when it is gone.
 	Adopt(pid int, stamp string) Turn
 	// Finish closes a turn that ended without finishing itself. It is a no-op
@@ -155,7 +156,7 @@ func (h *Host) Tick() error {
 			}
 			// A check-in is queued by the host, not typed by a person: it is only run for a
 			// master that is still unattended, as it was when it was queued.
-			if HostMade(c.TurnID) {
+			if strings.HasPrefix(c.TurnID, "checkin-") {
 				if reason := h.checkinStillAllowed(x, h.Store.now()); reason != "" {
 					h.end(c, CmdFailed, reason)
 					continue
@@ -183,10 +184,15 @@ func (h *Host) Tick() error {
 				}
 			}
 			t, err := h.unlocked(func() (Turn, error) { // admission can take seconds; do not hold up the turn watchers meanwhile
-				// The confirmation is the command's own field and only for a person's send: a
-				// host-made turn never carries it, whatever its row says, and the message text
-				// (or the mesh inbox ahead of it) is never consulted.
-				return h.L.Start(c.ProfileID, c.ConversationID, c.TurnID, message, c.Attachments, c.Mission && !HostMade(c.TurnID))
+				// The mission confirmation is looked up here, when the turn actually starts, in the
+				// record only the operator's send --mission writes: not in the command row, the
+				// message or the mesh block, and never for a host-made turn. The child verifies
+				// the nonce again and consumes the record.
+				token := ""
+				if mc, ok := h.Store.PeekConfirm(c.ProfileID, c.ConversationID, c.TurnID); ok {
+					token = mc.Nonce
+				}
+				return h.L.Start(c.ProfileID, c.ConversationID, c.TurnID, message, c.Attachments, token)
 			})
 			if err != nil {
 				h.settle(x)

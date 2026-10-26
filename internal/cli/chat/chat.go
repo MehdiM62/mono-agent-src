@@ -97,6 +97,8 @@ func newChatCmd(cfg *Deps) *cobra.Command {
 	cmd.Flags().StringArrayVar(&f.attach, "attach", nil, "Coder turns: attach a file (repeatable; at most 10, 20 MB each). It is copied into the folder's .monoagent/attachments/<turn>/ and the prompt lists the copy")
 	cmd.Flags().BoolVar(&f.mission, "mission", false, "Coder conversations (with --conversation): the user confirmed a mission, so the lead plans it as a task session and gets the mission tools (an open mission session of the conversation implies it)")
 	_ = cmd.Flags().MarkHidden("mission")
+	cmd.Flags().StringVar(&f.missionToken, "mission-token", "", "A coder host turn: the nonce of the operator's mission confirmation for this turn (verified and consumed here)")
+	_ = cmd.Flags().MarkHidden("mission-token")
 	cmd.AddCommand(newChatHistoryCmd(cfg))
 	cmd.AddCommand(newChatTurnCmd(cfg))
 	cmd.Flags().BoolVar(&f.noHistory, "no-history", false, "Suppress this legacy chat-history table write (profile/tool init and runtime session events are unaffected; a --conversation turn never writes it)")

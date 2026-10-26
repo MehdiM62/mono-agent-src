@@ -145,8 +145,18 @@ func newCoderSessionsSendCmd(cfg *Deps) *cobra.Command {
 			if turn == "" {
 				turn = "t-" + uuid.NewString()
 			}
-			c, err := enqueue(cfg, coderhost.Command{ProfileID: profileID, ConversationID: args[0], Kind: coderhost.KindSend, TurnID: turn, Message: args[1], Attachments: atts, Mission: mission}, !noHost)
+			if mission {
+				// The confirmation is its own record, written before the command so the host
+				// never starts the turn without it; it is bound to the mission state it is given in.
+				if err := confirmMission(cfg, profileID, args[0], turn); err != nil {
+					return err
+				}
+			}
+			c, err := enqueue(cfg, coderhost.Command{ProfileID: profileID, ConversationID: args[0], Kind: coderhost.KindSend, TurnID: turn, Message: args[1], Attachments: atts}, !noHost)
 			if err != nil {
+				if mission {
+					revokeMission(cfg, profileID, args[0], turn)
+				}
 				return err
 			}
 			return printQueueJSON(cmd, map[string]any{"commandId": c.ID, "conversationId": c.ConversationID, "turnId": c.TurnID, "hostStarted": !noHost})
@@ -154,7 +164,7 @@ func newCoderSessionsSendCmd(cfg *Deps) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&turn, "turn", "", "Turn id (default: a new one)")
 	cmd.Flags().StringArrayVar(&attach, "attach", nil, "A file to attach to the turn (repeatable)")
-	cmd.Flags().BoolVar(&mission, "mission", false, "The user confirmed a mission: the turn runs as `chat --mission` (operator only)")
+	cmd.Flags().BoolVar(&mission, "mission", false, "The user confirmed a mission for this turn: records a single-use confirmation the host's turn verifies (operator only)")
 	_ = cmd.Flags().MarkHidden("mission")
 	cmd.Flags().BoolVar(&noHost, "no-host", false, "Queue only; do not start the host")
 	clicore.WithJSONErrors(cfg.JSONOutput, cmd)

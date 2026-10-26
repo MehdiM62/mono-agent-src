@@ -23,4 +23,5 @@ type chatFlags struct {
 	profileFold    bool
 	attach         []string
 	mission        bool
+	missionToken   string
 }

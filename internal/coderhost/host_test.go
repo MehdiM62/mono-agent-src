@@ -28,7 +28,7 @@ func (f *fakeTurn) Stop()           { f.stopped = true; f.end() }
 type fakeLauncher struct {
 	mu       sync.Mutex
 	started  []string
-	missions []bool
+	tokens   []string
 	turns    map[string]*fakeTurn
 	finished []string
 	alive    map[int]*fakeTurn
@@ -41,7 +41,7 @@ func newFakeLauncher() *fakeLauncher {
 	return &fakeLauncher{turns: map[string]*fakeTurn{}, alive: map[int]*fakeTurn{}, next: 100}
 }
 
-func (l *fakeLauncher) Start(profile, conv, turn, msg string, att []string, mission bool) (Turn, error) {
+func (l *fakeLauncher) Start(profile, conv, turn, msg string, att []string, token string) (Turn, error) {
 	if l.onStart != nil {
 		l.onStart()
 	}
@@ -53,7 +53,7 @@ func (l *fakeLauncher) Start(profile, conv, turn, msg string, att []string, miss
 	l.next++
 	t := newFakeTurn(l.next)
 	l.started = append(l.started, turn+":"+msg)
-	l.missions = append(l.missions, mission)
+	l.tokens = append(l.tokens, token)
 	l.turns[turn] = t
 	return t, nil
 }
@@ -409,49 +409,5 @@ func TestTheTurnIsRecordedBeforeItStarts(t *testing.T) {
 	}
 	if x := state(t, st, "c1"); x.TurnPID == 0 {
 		t.Fatalf("session after Start = %+v, want the pid recorded", x)
-	}
-}
-
-func TestMissionConfirmationIsOperatorFieldOnly(t *testing.T) {
-	h, l, st := newHost(t)
-	family(t, st, 1) // "m" is an unattended master: a check-in is allowed to run for it
-	// a person's send with the field, one whose text only says so, and a
-	// check-in row that claims it (written past Enqueue, as a forged row would be)
-	if _, err := st.Enqueue(Command{ProfileID: "p", ConversationID: "a", Kind: KindSend, TurnID: "t-a", Message: "go", Mission: true}); err != nil {
-		t.Fatal(err)
-	}
-	send(t, st, "b", "t-b", "yes start the mission --mission")
-	if _, err := st.Enqueue(Command{ProfileID: "p", ConversationID: "c", Kind: KindSend, TurnID: "checkin-x", Message: "[CHECK-IN]", Mission: true}); err == nil {
-		t.Fatal("Enqueue accepted a mission confirmation on a host-made turn")
-	}
-	if _, err := st.Enqueue(Command{ProfileID: "p", ConversationID: "c", Kind: KindPause, Mission: true}); err == nil {
-		t.Fatal("Enqueue accepted a mission on a non-send")
-	}
-	forged := send(t, st, "m", "checkin-forged", "[CHECK-IN]")
-	if _, err := st.db.Exec(`UPDATE coder_session_commands SET attachments = '{"files":[],"mission":true}' WHERE id = ?`, forged.ID); err != nil {
-		t.Fatal(err)
-	}
-	if err := h.Tick(); err != nil {
-		t.Fatal(err)
-	}
-	got := map[string]bool{}
-	l.mu.Lock()
-	for i, s := range l.started {
-		got[strings.SplitN(s, ":", 2)[0]] = l.missions[i]
-	}
-	l.mu.Unlock()
-	if len(got) != 3 || !got["t-a"] || got["t-b"] || got["checkin-forged"] {
-		t.Fatalf("mission by turn = %v", got)
-	}
-}
-
-func TestLegacyAttachmentArrayStillReads(t *testing.T) {
-	files, mission := decodePayload(`["/a","/b"]`)
-	if len(files) != 2 || mission {
-		t.Fatalf("%v %v", files, mission)
-	}
-	enc, _ := encodePayload([]string{"/a"}, true)
-	if f, m := decodePayload(enc); len(f) != 1 || !m {
-		t.Fatalf("%v %v", f, m)
 	}
 }
