@@ -405,3 +405,27 @@ func TestPublicationDoesNotBuildOnAFileTheImporterDeclined(t *testing.T) {
 		t.Fatal("the approved definition came back through the link")
 	}
 }
+
+// Whatever reads a workflow to run it sees an outside edit only after it has been taken in: approve
+// A, save B, put A back by hand, read: the read imports A, which removes A's old approval.
+func TestReadingAnOutsideEditedFileReconcilesItFirst(t *testing.T) {
+	ctx := context.Background()
+	h, s, _, _ := guardedRig(t)
+	cur, _ := h.GetWorkflow(ctx, "wf-g")
+	cur.Nodes[1].Config = map[string]interface{}{"k": "B"}
+	if err := h.SaveWorkflow(ctx, cur); err != nil {
+		t.Fatal(err)
+	}
+	handEdit(t, h, "wf-g", func(w *Workflow) { w.Nodes[1].Config = map[string]interface{}{"k": "v"} }) // A again
+	got, err := h.GetWorkflow(ctx, "wf-g")
+	if err != nil || got.Nodes[1].Config["k"] != "v" {
+		t.Fatalf("%v %v", got, err)
+	}
+	hash, _ := definitionHash(got)
+	if ok, _ := h.DefinitionApproved(ctx, "wf-g", hash); ok || approvals(t, s, "wf-g") != 0 {
+		t.Fatal("A was served under its old approval")
+	}
+	if sqlConfig(t, s, "wf-g", "g-set") != "v" {
+		t.Fatal("the rows were not brought up to the file")
+	}
+}

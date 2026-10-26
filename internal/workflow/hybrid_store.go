@@ -87,7 +87,7 @@ func (h *HybridWorkflowStore) GetWorkflow(ctx context.Context, id string) (*Work
 		if gated(open, id) {
 			return nil
 		}
-		wf, err = h.files.GetWorkflow(ctx, id)
+		wf, err = h.reconciledFile(ctx, id)
 		return err
 	})
 	if err != nil {
@@ -356,7 +356,7 @@ func (h *HybridWorkflowStore) fileCopy(ctx context.Context, id string) *Workflow
 		if gated(open, id) {
 			return nil
 		}
-		wf, err = h.files.GetWorkflow(ctx, id)
+		wf, err = h.reconciledFile(ctx, id)
 		return err
 	})
 	if err != nil {
@@ -533,3 +533,53 @@ func (h *HybridWorkflowStore) PruneExecutions(ctx context.Context, workflowID st
 
 // RawDB delegates to the SQLite store's underlying DB.
 func (h *HybridWorkflowStore) RawDB() *sql.DB { return h.sql.RawDB() }
+
+// reconciledFile is the workflow file's definition, but only once the database has taken those
+// bytes in. A file changed outside the store (or put back to an older definition) is imported
+// first, which records a version and removes the workflow's approvals, so nothing that reads the
+// workflow to run it can see unreviewed bytes under an old approval. When the importer declines the
+// file the committed rows are served (nil, nil). A workflow with no rows at all has nothing to
+// protect and is served from its file, as it always was.
+func (h *HybridWorkflowStore) reconciledFile(ctx context.Context, id string) (*Workflow, error) {
+	raw, existed, err := h.files.readRaw(id)
+	if err != nil {
+		return nil, err
+	}
+	if !existed {
+		return nil, nil
+	}
+	sha := shaHex(append([]byte{}, raw...))
+	reconciled := func() (bool, error) {
+		var known string
+		err := h.sql.db.QueryRowContext(ctx, `SELECT file_sha FROM workflow_file_state WHERE workflow_id = ?`, id).Scan(&known)
+		switch {
+		case err == nil:
+			return known == sha, nil
+		case errors.Is(err, sql.ErrNoRows) || isNoTable(err):
+			return false, nil
+		}
+		return false, err
+	}
+	ok, err := reconciled()
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		var n int
+		if err := h.sql.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM workflows WHERE id = ?`, id).Scan(&n); err != nil {
+			return nil, err
+		}
+		if n > 0 {
+			if _, err := h.ImportFile(ctx, id, nil); err != nil && !errors.Is(err, ErrSharedIDs) {
+				return nil, err
+			}
+			if ok, err = reconciled(); err != nil {
+				return nil, err
+			}
+			if !ok {
+				return nil, nil
+			}
+		}
+	}
+	return parseWorkflowFile(raw)
+}
