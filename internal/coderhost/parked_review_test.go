@@ -322,7 +322,7 @@ func TestAnswerTurnNeverHonoursAGenuinelySignedConfirmation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mc := MissionConfirm{ProfileID: "p", ConversationID: "c", TurnID: "answer-x", Command: id, Session: 1, Nonce: "n", Expires: st.now().Add(time.Hour).UTC().Format(timeLayout)}
+	mc := MissionConfirm{ProfileID: "p", ConversationID: "c", TurnID: "answer-x", Command: id, Session: 1, Nonce: "n", Expires: st.now().Add(time.Hour).UTC().Format(timeLayout), CommandCreated: cmd.CreatedAt}
 	mc.Mac = mc.mac(key)
 	b, _ := json.Marshal(mc)
 	if _, err := st.db.Exec(`INSERT INTO configs (name, config_data) VALUES (?, ?)`, mc.name(), string(b)); err != nil {
