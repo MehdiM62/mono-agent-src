@@ -596,3 +596,61 @@ func TestHostRunRefusesWithoutAStartTimeOfItsOwn(t *testing.T) {
 		t.Fatal("the refused host kept the lock")
 	}
 }
+
+func TestSessionSettingsGetSetAndTheirGuards(t *testing.T) {
+	dbPath := newChatCLITestDB(t)
+	store := openTestChatStore(t, dbPath)
+	conv, _ := store.CreateConversationMode("default", "agent", "general", "claude", "", "", ai.ModeCoder, t.TempDir())
+	scoped, _ := store.CreateConversation("default", "agent", "general", "claude", "", "")
+	cfg := testDeps(&testConfig{DBPath: dbPath, ProfileID: "default", JSONOutput: true})
+	run := func(c *Deps, args ...string) (sessionSettingsView, int) {
+		out, code := runSessionsCLI(t, c, args...)
+		var v sessionSettingsView
+		decodeChatJSON(t, out, &v)
+		return v, code
+	}
+
+	v, code := run(cfg, "settings", "get", conv.ID)
+	if code != 0 || v.Settings.CheckinMinutes != 15 || !v.Unattended || v.Role != "solo" || v.Access == "" || len(v.OperatorOnly) == 0 {
+		t.Fatalf("get: exit %d %+v", code, v)
+	}
+	db, _ := storage.NewDatabase(dbPath)
+	if _, ok, _ := coderhost.NewStore(db.DB).GetSession("default", conv.ID); ok {
+		t.Fatal("reading settings created a session")
+	}
+	db.Close()
+
+	v, code = run(cfg, "settings", "set", conv.ID, "--patch", `{"checkin_minutes": 5, "autonomy_preset": "ask-always"}`, "--unattended", "false")
+	if code != 0 || v.Settings.CheckinMinutes != 5 || v.Settings.AutonomyPreset != "ask-always" || v.Unattended {
+		t.Fatalf("set: exit %d %+v", code, v)
+	}
+	if strings.Join(v.Changed, ",") != "autonomy_preset,checkin_minutes,unattended" {
+		t.Fatalf("changed = %v", v.Changed)
+	}
+	if v, _ = run(cfg, "settings", "get", conv.ID); v.Settings.CheckinMinutes != 5 || v.Unattended {
+		t.Fatalf("not stored: %+v", v)
+	}
+	for _, bad := range [][]string{
+		{"settings", "set", conv.ID, "--patch", `{"checkin_minutes": 0.5}`},
+		{"settings", "set", conv.ID, "--patch", `{"nope": 1}`},
+		{"settings", "set", conv.ID, "--unattended", "maybe"},
+		{"settings", "set", conv.ID},
+		{"settings", "set", scoped.ID, "--patch", `{"checkin_minutes": 5}`},
+		{"settings", "get", scoped.ID},
+	} {
+		if _, code := run(cfg, bad...); code == 0 {
+			t.Errorf("%v was accepted", bad)
+		}
+	}
+	if v, _ = run(cfg, "settings", "get", conv.ID); v.Settings.CheckinMinutes != 5 {
+		t.Fatalf("a refused change altered the settings: %+v", v)
+	}
+	agent := testDeps(&testConfig{DBPath: dbPath, ProfileID: "default", JSONOutput: true})
+	agent.RequireOperator = func(what string) error { return errors.New("operator only: " + what) }
+	if _, code := run(agent, "settings", "set", conv.ID, "--patch", `{"checkin_minutes": 1}`); code == 0 {
+		t.Fatal("a non-operator changed a session's settings")
+	}
+	if v, _ = run(agent, "settings", "get", conv.ID); v.Settings.CheckinMinutes != 5 {
+		t.Fatalf("a non-operator may read, and the value must be unchanged: %+v", v)
+	}
+}
