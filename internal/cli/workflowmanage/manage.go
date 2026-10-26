@@ -184,11 +184,20 @@ func (d Deps) newDeactivateCmd() *cobra.Command {
 			if err := engine.DeactivateWorkflow(ctx, args[0]); err != nil {
 				return fmt.Errorf("deactivate workflow: %w", err)
 			}
+			unfinished := engine.UnfinishedChange(ctx, args[0])
 			if d.JSONOutput() {
-				return json.NewEncoder(os.Stdout).Encode(map[string]interface{}{"id": args[0], "is_active": false})
+				out := map[string]interface{}{"id": args[0], "is_active": false}
+				if unfinished != "" {
+					out["file_left_as_is"] = true
+					out["unfinished_change"] = unfinished
+				}
+				return json.NewEncoder(os.Stdout).Encode(out)
 			}
 
 			fmt.Fprintf(os.Stdout, "Workflow %s deactivated.\n", args[0])
+			if unfinished != "" {
+				fmt.Fprintln(os.Stdout, "Deactivated in the database; the file was left as it is. Run `monoagentcli doctor` to settle the unfinished change.")
+			}
 			return nil
 		},
 	}

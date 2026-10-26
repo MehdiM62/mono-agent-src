@@ -284,3 +284,15 @@ func (e *WorkflowEngine) GetExecution(ctx context.Context, id string) (*Workflow
 	}
 	return exec, nil
 }
+
+// UnfinishedChange reports an unresolved or stuck change of a workflow ("" when none), for the
+// commands that deactivate it: they switch it off in the database only and say so.
+func (e *WorkflowEngine) UnfinishedChange(ctx context.Context, id string) string {
+	if u, ok := e.store.(interface {
+		UnfinishedChange(context.Context, string) (string, error)
+	}); ok {
+		state, _ := u.UnfinishedChange(ctx, id)
+		return state
+	}
+	return ""
+}

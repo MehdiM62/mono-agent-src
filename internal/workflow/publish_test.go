@@ -741,3 +741,43 @@ func TestACallerDeadlineShorterThanTheWaitStillSaysBusy(t *testing.T) {
 		t.Fatalf("%v", err)
 	}
 }
+
+// The kill switch works under an unresolved change: the rows go inactive, the file and the open
+// change are left alone, and nothing can be switched on under it.
+func TestDeactivateWorksUnderAnUnresolvedChangeButActivateDoesNot(t *testing.T) {
+	ctx := context.Background()
+	h, s, _, _ := guardedRig(t)
+	if err := h.SetWorkflowActive(ctx, "wf-g", true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.db.Exec(`INSERT INTO workflow_publications (workflow_id, kind, state, owner_pid, started_at)
+		VALUES ('wf-g', 'save', 'unresolved', 0, ?)`, time.Now().UTC()); err != nil {
+		t.Fatal(err)
+	}
+	before := fileBytes(t, h, "wf-g")
+	if err := h.SetWorkflowActive(ctx, "wf-g", false); err != nil {
+		t.Fatalf("the kill switch failed: %v", err)
+	}
+	if rows, _ := s.GetWorkflow(ctx, "wf-g"); rows.IsActive {
+		t.Fatal("the rows are still active")
+	}
+	if !bytes.Equal(before, fileBytes(t, h, "wf-g")) || openIntentCount(t, s) != 1 {
+		t.Fatal("the file or the open change was touched")
+	}
+	if state, _ := h.UnfinishedChange(ctx, "wf-g"); state != "unresolved" {
+		t.Fatalf("state %q", state)
+	}
+	if err := h.SetWorkflowActive(ctx, "wf-g", true); !errors.Is(err, ErrPublicationUnresolved) {
+		t.Fatalf("activating under an unresolved change: %v", err)
+	}
+	if rows, _ := s.GetWorkflow(ctx, "wf-g"); rows.IsActive {
+		t.Fatal("a workflow was activated under an unresolved change")
+	}
+	// A change still being made is not a reason to bypass it.
+	if _, err := s.db.Exec(`UPDATE workflow_publications SET state = 'pending', owner_pid = ?`, os.Getpid()); err != nil {
+		t.Fatal(err)
+	}
+	if state, _ := h.UnfinishedChange(ctx, "wf-g"); state != "" {
+		t.Fatalf("a live change reported as %q", state)
+	}
+}

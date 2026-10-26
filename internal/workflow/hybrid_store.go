@@ -337,6 +337,14 @@ func (h *HybridWorkflowStore) DeleteWorkflow(ctx context.Context, id string) err
 // file (so a hand edit is not lost), and otherwise on the committed rows. File and rows change
 // in one publication.
 func (h *HybridWorkflowStore) SetWorkflowActive(ctx context.Context, id string, active bool) error {
+	if !active {
+		// The operator's kill switch: when an earlier change of this workflow is unresolved (or
+		// stuck with no owner), switching it off must still work. Only the rows' flag changes; the
+		// file and the open change are left exactly as they are. Switching on is never done this way.
+		if done, err := h.deactivateRowsOnly(ctx, id); done || err != nil {
+			return err
+		}
+	}
 	_, err := h.Publish(ctx, Publication{
 		WorkflowID:   id,
 		Origin:       "active",
@@ -661,4 +669,54 @@ func (h *HybridWorkflowStore) reconciledFile(ctx context.Context, id string) (*W
 		return nil, err
 	}
 	return wf, nil
+}
+
+// UnfinishedChange says what is wrong with a workflow's change record: "unresolved", "stuck" (a
+// pending change whose owner is gone) or "" (nothing, or a change still being made).
+func (h *HybridWorkflowStore) UnfinishedChange(ctx context.Context, id string) (string, error) {
+	in, err := scanIntent(h.sql.db.QueryRowContext(ctx, `SELECT `+intentColumns+` FROM workflow_publications WHERE workflow_id = ?`, id))
+	switch {
+	case errors.Is(err, sql.ErrNoRows) || (err != nil && isNoTable(err)):
+		return "", nil
+	case err != nil:
+		return "", err
+	case in.State == "unresolved":
+		return "unresolved", nil
+	case in.State == "pending" && !in.live():
+		return "stuck", nil
+	}
+	return "", nil
+}
+
+// deactivateRowsOnly switches the rows' active flag off under the publication lock when the
+// workflow has an unresolved or stuck change; done says whether it did.
+func (h *HybridWorkflowStore) deactivateRowsOnly(ctx context.Context, id string) (done bool, err error) {
+	if h.files == nil {
+		return false, nil
+	}
+	state, err := h.UnfinishedChange(ctx, id)
+	if err != nil || state == "" {
+		return false, err
+	}
+	tx, txDone, err := h.beginDurable(ctx)
+	if err != nil {
+		return false, err
+	}
+	defer txDone()
+	defer tx.Rollback()
+	if err := lockPublication(ctx, tx, id); err != nil {
+		return false, err
+	}
+	// The change may have been settled while the lock was awaited: look again under it.
+	in, err := scanIntent(tx.QueryRowContext(ctx, `SELECT `+intentColumns+` FROM workflow_publications WHERE workflow_id = ?`, id))
+	if errors.Is(err, sql.ErrNoRows) || (err == nil && in.State == "pending" && in.live()) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE workflows SET is_active = 0, updated_at = ? WHERE id = ?`, time.Now().UTC(), id); err != nil {
+		return false, err
+	}
+	return true, tx.Commit()
 }
