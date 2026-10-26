@@ -7,6 +7,7 @@ const row = { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', p
 const label = { fontFamily: mono, fontSize: 10, color: 'var(--text-muted)', minWidth: 78 }
 const value = { fontFamily: mono, fontSize: 11, color: 'var(--text)' }
 const INTERVALS = [0, 5, 10, 15, 30, 60]
+const REFRESH_MS = 15000
 const WHO = ['user', 'master', 'model']
 
 // useSessionSettings reads a coder session's settings from the CLI and saves
@@ -24,7 +25,12 @@ function useSessionSettings(conversationId) {
     api.getCoderSessionSettings(conversationId)
       .then(r => { if (live) setData(r) })
       .catch(() => { if (live) setError(t('bubbles.pane.session.loadFailed')) })
-    return () => { live = false }
+    // Kept up to date while the pane is open: the check-in count changes by itself, and a message
+    // from the person clears it. A refresh that fails keeps what is shown.
+    const timer = setInterval(() => {
+      api.getCoderSessionSettings(conversationId).then(r => { if (live) setData(r) }).catch(() => {})
+    }, REFRESH_MS)
+    return () => { live = false; clearInterval(timer) }
   }, [conversationId, t])
   const save = useCallback(async (patch, unattended = '') => {
     setBusy(true); setError('')
@@ -57,11 +63,9 @@ function UnattendedRow({ session: { data, error, busy, save }, access }) {
         {access ? ` · ${t(`bubbles.pane.level.${access}`)}` : ''}
       </button>
       <span style={{ ...label, flexBasis: '100%', minWidth: 0 }}>{t('bubbles.pane.session.unattendedWhy')}</span>
-      {data?.checkin?.waiting && (
-        <div role="status" data-testid="pane-checkin-waiting" style={{ flexBasis: '100%', fontFamily: mono, fontSize: 10, color: '#fbbf24' }}>
-          {t('bubbles.pane.session.checkinWaiting', { count: data.checkin.streak })}
-        </div>
-      )}
+      <div role="status" aria-live="polite" data-testid="pane-checkin-waiting" style={{ flexBasis: '100%', fontFamily: mono, fontSize: 10, color: '#fbbf24' }}>
+        {data?.checkin?.waiting ? t('bubbles.pane.session.checkinWaiting', { count: data.checkin.streak }) : ''}
+      </div>
       <Err>{error}</Err>
     </div>
   )

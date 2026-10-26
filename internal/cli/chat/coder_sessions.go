@@ -59,17 +59,9 @@ func newCoderSessionsListCmd(cfg *Deps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			waiting := map[string]int{}
-			pending, err := cs.Pending()
-			if err != nil {
-				return err
-			}
-			for _, c := range pending {
-				waiting[c.ProfileID+"\x00"+c.ConversationID]++
-			}
 			rows := []sessionRow{}
 			for _, s := range sessions {
-				r := sessionRow{Session: s, Waiting: waiting[s.ProfileID+"\x00"+s.ConversationID]}
+				r := sessionRow{Session: s, Waiting: cs.PendingFor(s.ProfileID, s.ConversationID)}
 				if conv, err := store.GetConversation(s.ConversationID, profileID); err == nil {
 					r.Access, r.Cwd = string(conv.Access), conv.Cwd
 				}

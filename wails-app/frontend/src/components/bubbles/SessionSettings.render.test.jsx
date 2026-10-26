@@ -48,15 +48,39 @@ describe('SessionSettings', () => {
   it('says when a master is waiting for a person at its check-in limit, and only then', async () => {
     api.getCoderSessionSettings.mockResolvedValue(view({ role: 'master', checkin: { streak: 48, limit: 48, waiting: true } }))
     await shown()
-    expect(screen.getByTestId('pane-checkin-waiting')).toHaveTextContent('Waiting for you: 48 scheduled check-ins ran with no message from you')
+    expect(screen.getByTestId('pane-checkin-waiting')).toHaveTextContent('Waiting for you: 48 check-in turns ran with no message from you')
+    cleanup()
+    api.getCoderSessionSettings.mockResolvedValue(view({ role: 'master', checkin: { streak: 1, limit: 1, waiting: true } }))
+    await shown()
+    expect(screen.getByTestId('pane-checkin-waiting')).toHaveTextContent('Waiting for you: 1 check-in turn ran with')
     cleanup()
     api.getCoderSessionSettings.mockResolvedValue(view({ role: 'master', checkin: { streak: 3, limit: 48, waiting: false } }))
     await shown()
-    expect(screen.queryByTestId('pane-checkin-waiting')).toBeNull()
+    expect(screen.getByTestId('pane-checkin-waiting')).toBeEmptyDOMElement()
     cleanup()
     api.getCoderSessionSettings.mockResolvedValue(view()) // not a master: no check-in state at all
     await shown()
-    expect(screen.queryByTestId('pane-checkin-waiting')).toBeNull()
+    expect(screen.getByTestId('pane-checkin-waiting')).toBeEmptyDOMElement()
+  })
+
+  it('keeps the note up to date while the pane is open: it appears by itself and clears when a person writes', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      api.getCoderSessionSettings.mockResolvedValue(view({ role: 'master', checkin: { streak: 47, limit: 48, waiting: false } }))
+      await shown()
+      expect(screen.getByTestId('pane-checkin-waiting')).toBeEmptyDOMElement()
+      api.getCoderSessionSettings.mockResolvedValue(view({ role: 'master', checkin: { streak: 48, limit: 48, waiting: true } }))
+      await vi.advanceTimersByTimeAsync(15500)
+      await waitFor(() => expect(screen.getByTestId('pane-checkin-waiting')).toHaveTextContent('Waiting for you: 48'))
+      api.getCoderSessionSettings.mockResolvedValue(view({ role: 'master', checkin: { streak: 0, limit: 48, waiting: false } }))
+      await vi.advanceTimersByTimeAsync(15500)
+      await waitFor(() => expect(screen.getByTestId('pane-checkin-waiting')).toBeEmptyDOMElement())
+      api.getCoderSessionSettings.mockRejectedValue(new Error('boom')) // a refresh that fails keeps what is shown
+      await vi.advanceTimersByTimeAsync(15500)
+      expect(screen.getByTestId('pane-unattended')).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('turns unattended off through the CLI and shows the stored answer', async () => {

@@ -21,9 +21,10 @@ type sessionSettingsView struct {
 	OperatorOnly   []string            `json:"operatorOnly"`
 	Allowed        map[string][]string `json:"allowed"`
 	Changed        []string            `json:"changed,omitempty"`
-	// Checkin is set for a master: how many scheduled check-ins ran in a row with no message
-	// from a person between them, against its limit. Waiting says it has reached it and
-	// will not be checked in on again until someone writes to it.
+	// Checkin is set for a master: how many check-in turns ran in a row with no message
+	// from a person between them, against its limit. Waiting says the scheduler would check
+	// in (it is unattended and has children) but has reached the limit, so it waits until
+	// someone writes to the master.
 	Checkin *checkinView `json:"checkin,omitempty"`
 }
 
@@ -85,7 +86,17 @@ func sessionSettingsFrom(cfg *Deps, profileID string, conv ai.Conversation, chan
 	}
 	if v.Role == "master" {
 		if streak, _, _, err := cs.CheckinStreak(profileID, conv.ID); err == nil {
-			v.Checkin = &checkinView{Streak: streak, Limit: settings.CheckinLimit, Waiting: streak >= settings.CheckinLimit}
+			// Waiting is what the scheduler would do: no check-in for a master that is not unattended or has
+			// no running child, and none past the limit.
+			children := 0
+			if all, err := cs.ListSessions(profileID); err == nil {
+				for _, x := range all {
+					if x.Parent == conv.ID && x.State != coderhost.StateStopped {
+						children++
+					}
+				}
+			}
+			v.Checkin = &checkinView{Streak: streak, Limit: settings.CheckinLimit, Waiting: v.Unattended && children > 0 && streak >= settings.CheckinLimit}
 		}
 	}
 	return v, nil

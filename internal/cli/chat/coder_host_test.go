@@ -725,14 +725,53 @@ func TestSettingsViewSaysWhenAMasterWaitsAtItsCheckinLimit(t *testing.T) {
 		t.Fatalf("after one: %+v", v.Checkin)
 	}
 	turn("checkin-2")
-	if v := get(conv.ID); v.Checkin == nil || v.Checkin.Streak != 2 || !v.Checkin.Waiting {
-		t.Fatalf("at the limit: %+v", v.Checkin)
+	if v := get(conv.ID); v.Checkin == nil || v.Checkin.Streak != 2 || v.Checkin.Waiting {
+		t.Fatalf("at the limit but with no child to check in on, nothing waits: %+v", v.Checkin)
 	}
+	child, _ := store.CreateConversationMode("default", "agent", "general", "claude", "", "", ai.ModeCoder, t.TempDir())
+	if _, code := runSessionsCLI(t, cfg, "settings", "set", child.ID, "--role", "child", "--parent", conv.ID); code != 0 {
+		t.Fatal("could not link a child")
+	}
+	if v := get(conv.ID); v.Checkin == nil || !v.Checkin.Waiting {
+		t.Fatalf("at the limit with a child: %+v", v.Checkin)
+	}
+	if _, code := runSessionsCLI(t, cfg, "settings", "set", conv.ID, "--unattended", "false"); code != 0 {
+		t.Fatal("could not turn unattended off")
+	}
+	if v := get(conv.ID); v.Checkin == nil || v.Checkin.Waiting {
+		t.Fatalf("a master that is not unattended is never checked in on, so it is not waiting: %+v", v.Checkin)
+	}
+	runSessionsCLI(t, cfg, "settings", "set", conv.ID, "--unattended", "true")
 	turn("person-1") // a person wrote to it
 	if v := get(conv.ID); v.Checkin == nil || v.Checkin.Streak != 0 || v.Checkin.Waiting {
 		t.Fatalf("after a person wrote: %+v", v.Checkin)
 	}
 	if v := get(solo.ID); v.Checkin != nil {
 		t.Fatalf("a solo session has none: %+v", v.Checkin)
+	}
+}
+
+// list counts every command that waits, also the sends held behind a running turn or a pause.
+func TestSessionsListCountsSendsWaitingBehindAPause(t *testing.T) {
+	dbPath := newChatCLITestDB(t)
+	conv, _ := openTestChatStore(t, dbPath).CreateConversationMode("default", "agent", "general", "claude", "", "", ai.ModeCoder, t.TempDir())
+	cfg := testDeps(&testConfig{DBPath: dbPath, ProfileID: "default", JSONOutput: true})
+	db, _ := storage.NewDatabase(dbPath)
+	cs := coderhost.NewStore(db.DB)
+	cs.EnsureSession("default", conv.ID)
+	x, _, _ := cs.GetSession("default", conv.ID)
+	x.State = coderhost.StatePaused
+	cs.SaveSession(x)
+	db.Close()
+	if _, code := runSessionsCLI(t, cfg, "send", conv.ID, "waits behind the pause", "--no-host"); code != 0 {
+		t.Fatal("send failed")
+	}
+	out, _ := runSessionsCLI(t, cfg, "list")
+	var res struct {
+		Sessions []sessionRow `json:"sessions"`
+	}
+	decodeChatJSON(t, out, &res)
+	if len(res.Sessions) != 1 || res.Sessions[0].State != coderhost.StatePaused || res.Sessions[0].Waiting != 1 {
+		t.Fatalf("list = %s", out)
 	}
 }
