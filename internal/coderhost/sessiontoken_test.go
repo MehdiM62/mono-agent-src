@@ -2,6 +2,7 @@ package coderhost
 
 import (
 	"errors"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -17,17 +18,27 @@ func running(t *testing.T, st *Store, conv, turn string) {
 	}
 }
 
+// mint issues the token of a turn and binds it to this test process, standing in for the host's turn.
+func mint(t *testing.T, st *Store, conv, turn string) string {
+	t.Helper()
+	tok, err := st.IssueSessionToken("p", conv, turn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.BindSessionToken("p", conv, turn, os.Getpid(), ProcStamp(os.Getpid())); err != nil {
+		t.Fatal(err)
+	}
+	return tok
+}
+
 func TestATokenNamesTheSessionItWasMintedFor(t *testing.T) {
 	st := newStoreT(t)
 	m, _ := master(t, st, "coding")
 	a, b := spawn(t, st, m), spawn(t, st, m)
 	running(t, st, a, "t-a")
 	running(t, st, b, "t-b")
-	ta, err := st.IssueSessionToken("p", a, "t-a")
-	if err != nil {
-		t.Fatal(err)
-	}
-	tb, _ := st.IssueSessionToken("p", b, "t-b")
+	ta := mint(t, st, a, "t-a")
+	tb := mint(t, st, b, "t-b")
 	if !strings.HasPrefix(ta, SessionTokenPrefix) || ta == tb {
 		t.Fatalf("tokens %q %q", ta, tb)
 	}
@@ -54,7 +65,7 @@ func TestForgedAbsentExpiredAndStaleTokensIdentifyNoOne(t *testing.T) {
 	st.now = func() time.Time { return now }
 	m, _ := master(t, st, "coding")
 	running(t, st, m.ConversationID, "t1")
-	tok, _ := st.IssueSessionToken("p", m.ConversationID, "t1")
+	tok := mint(t, st, m.ConversationID, "t1")
 
 	for _, bad := range []string{"", "mst-", "mst-forged", tok + "x", tok[:len(tok)-1], strings.Replace(tok, "mst-", "mat-", 1), "t1", strings.Repeat("mst-a", 100)} {
 		if c, err := st.VerifySessionToken(bad); !errors.Is(err, ErrSessionToken) || c != (Caller{}) {
@@ -93,12 +104,12 @@ func TestOnlyTheHashOfATokenIsStoredAndANewTurnReplacesTheOldToken(t *testing.T)
 	st := newStoreT(t)
 	m, _ := master(t, st, "coding")
 	running(t, st, m.ConversationID, "t1")
-	tok1, _ := st.IssueSessionToken("p", m.ConversationID, "t1")
+	tok1 := mint(t, st, m.ConversationID, "t1")
 	var stored string
 	if err := st.db.QueryRow(`SELECT token_hash FROM coder_session_tokens`).Scan(&stored); err != nil || stored == tok1 || strings.Contains(stored, tok1) {
 		t.Fatalf("stored %q for %q: %v", stored, tok1, err)
 	}
-	tok2, _ := st.IssueSessionToken("p", m.ConversationID, "t1")
+	tok2 := mint(t, st, m.ConversationID, "t1")
 	if tok1 == tok2 {
 		t.Fatal("tokens repeat")
 	}

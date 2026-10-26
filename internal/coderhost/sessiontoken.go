@@ -1,14 +1,19 @@
 package coderhost
 
 import (
+	"context"
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/monoes/mono-agent/internal/secrets"
 )
 
 // A session token is the caller identity of a coder turn the host started: it
@@ -25,16 +30,28 @@ import (
 // Binding:
 //   - Only the host mints one (IssueSessionToken, called from the launcher right
 //     before it starts a turn); no CLI verb or tool mints or returns a token.
+//   - The row is signed (HMAC-SHA-256 under a key derived from the profile's vault
+//     data key, as the mission confirmations are, verified with hmac.Equal) over
+//     profile, conversation, turn, token hash, expiry, pid and stamp: a row written
+//     without that key, or edited, identifies no one.
 //   - It is valid only while the turn it was minted for is the session's current
 //     turn (coder_sessions.turn_id), so a token read from an old log or process
 //     listing is dead once the turn ends, and a new turn replaces the old token.
+//   - It names the turn's process (BindSessionToken, called by the launcher right
+//     after the turn starts): the caller must be that process or one of its
+//     descendants, so a sibling that read /proc/<pid>/environ is refused. Workers
+//     the turn starts are its descendants and keep working. Until the process is
+//     bound the token identifies no one. Where ancestry cannot be read (not Linux)
+//     a token is checked by its signature and its turn only; on Linux an unreadable
+//     chain fails closed.
 //   - It also expires (SessionTokenTTL) in case the host died before the turn row
 //     was cleared.
 //
-// What it does not stop: a process of the same user that reads another turn's
-// environment (/proc/<pid>/environ) or writes the database itself. As with the
-// agent-kind tokens (internal/browserctl/kindtoken.go) this is a courtesy layer
-// between agents of one user, not a sandbox against that user.
+// What it does not stop: a process of the same user that is a descendant of the
+// turn (any tool the agent runs, which is intended), that ptraces the turn or
+// reads the vault key, or, off Linux, one that reads the turn's environment. As
+// with the agent-kind tokens (internal/browserctl/kindtoken.go) this is a courtesy
+// layer between agents of one user, not a sandbox against that user.
 
 // SessionTokenEnv is the variable the host hands a turn its session token in. The
 // turn keeps it in its environment (see internal/cli/chat/chat_run.go): the shell
@@ -47,8 +64,9 @@ const SessionTokenPrefix = "mst-"
 // SessionTokenTTL is the longest a token lives.
 const SessionTokenTTL = 24 * time.Hour
 
-// ErrSessionToken is every failure to identify a caller: absent, unknown, expired
-// or belonging to a turn that is no longer the session's current one.
+// ErrSessionToken is every failure to identify a caller: absent, unknown, forged,
+// expired, belonging to a turn that is no longer the session's current one, or
+// presented by a process that is not the turn's.
 var ErrSessionToken = errors.New("invalid session token: this call is not from a running coder session")
 
 // Caller is who a token names.
@@ -63,11 +81,31 @@ func hashToken(tok string) string {
 	return hex.EncodeToString(sum[:])
 }
 
+const sessionTokenPurpose = "coder-session-token"
+
+func (s *Store) tokenKey(profileID string) ([]byte, error) {
+	return secrets.DeriveKey(context.Background(), s.db, profileID, sessionTokenPurpose)
+}
+
+// tokenMAC authenticates every field of a token row but the MAC itself (length-prefixed fields).
+func tokenMAC(key []byte, profile, conv, turn, hash, expires string, pid int, stamp string) string {
+	m := hmac.New(sha256.New, key)
+	for _, f := range []string{profile, conv, turn, hash, expires, strconv.Itoa(pid), stamp} {
+		fmt.Fprintf(m, "%d:%s;", len(f), f)
+	}
+	return hex.EncodeToString(m.Sum(nil))
+}
+
 // IssueSessionToken mints the token of the turn turnID of a session and replaces
-// the tokens the session had. Only the host calls it.
+// the tokens the session had. Only the host calls it. The token identifies no one
+// until BindSessionToken names the turn's process.
 func (s *Store) IssueSessionToken(profileID, conversationID, turnID string) (string, error) {
 	if profileID == "" || conversationID == "" || turnID == "" {
 		return "", errors.New("coder host: a session token needs a profile, a conversation and a turn")
+	}
+	key, err := s.tokenKey(profileID)
+	if err != nil {
+		return "", fmt.Errorf("coder host: the session token could not be signed: %w", err)
 	}
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
@@ -79,9 +117,30 @@ func (s *Store) IssueSessionToken(profileID, conversationID, turnID string) (str
 		profileID, conversationID, now.Format(timeLayout)); err != nil {
 		return "", err
 	}
-	_, err := s.db.Exec(`INSERT INTO coder_session_tokens (token_hash, profile_id, conversation_id, turn_id, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?)`,
-		hashToken(tok), profileID, conversationID, turnID, now.Format(timeLayout), now.Add(SessionTokenTTL).Format(timeLayout))
+	h, exp := hashToken(tok), now.Add(SessionTokenTTL).Format(timeLayout)
+	_, err = s.db.Exec(`INSERT INTO coder_session_tokens (token_hash, profile_id, conversation_id, turn_id, created_at, expires_at, pid, stamp, mac) VALUES (?, ?, ?, ?, ?, ?, 0, '', ?)`,
+		h, profileID, conversationID, turnID, now.Format(timeLayout), exp, tokenMAC(key, profileID, conversationID, turnID, h, exp, 0, ""))
 	return tok, err
+}
+
+// BindSessionToken names the process of the turn the token was minted for and signs
+// the row again.
+func (s *Store) BindSessionToken(profileID, conversationID, turnID string, pid int, stamp string) error {
+	if pid <= 1 {
+		return fmt.Errorf("coder host: %d is not a turn's pid", pid)
+	}
+	key, err := s.tokenKey(profileID)
+	if err != nil {
+		return err
+	}
+	var h, exp string
+	if err := s.db.QueryRow(`SELECT token_hash, expires_at FROM coder_session_tokens WHERE profile_id = ? AND conversation_id = ? AND turn_id = ?`,
+		profileID, conversationID, turnID).Scan(&h, &exp); err != nil {
+		return err
+	}
+	_, err = s.db.Exec(`UPDATE coder_session_tokens SET pid = ?, stamp = ?, mac = ? WHERE token_hash = ?`,
+		pid, stamp, tokenMAC(key, profileID, conversationID, turnID, h, exp, pid, stamp), h)
+	return err
 }
 
 // RevokeSessionTokens drops a session's tokens (its turn ended).
@@ -90,21 +149,31 @@ func (s *Store) RevokeSessionTokens(profileID, conversationID string) {
 }
 
 // VerifySessionToken says who the token names. It fails (ErrSessionToken, with no
-// hint which check failed) unless the token is live and its turn is the session's
-// current turn.
+// hint which check failed) unless the row is genuine (signature), the token is live,
+// its turn is the session's current turn, and the caller is the turn's process or a
+// descendant of it.
 func (s *Store) VerifySessionToken(tok string) (Caller, error) {
 	if !strings.HasPrefix(tok, SessionTokenPrefix) || len(tok) > 128 {
 		return Caller{}, ErrSessionToken
 	}
 	var c Caller
-	var expires string
-	err := s.db.QueryRow(`SELECT t.profile_id, t.conversation_id, t.turn_id, t.expires_at FROM coder_session_tokens t
+	var expires, stamp, mac string
+	var pid int
+	h := hashToken(tok)
+	err := s.db.QueryRow(`SELECT t.profile_id, t.conversation_id, t.turn_id, t.expires_at, t.pid, t.stamp, t.mac FROM coder_session_tokens t
 		JOIN coder_sessions x ON x.profile_id = t.profile_id AND x.conversation_id = t.conversation_id AND x.turn_id = t.turn_id
-		WHERE t.token_hash = ?`, hashToken(tok)).Scan(&c.ProfileID, &c.ConversationID, &c.TurnID, &expires)
+		WHERE t.token_hash = ?`, h).Scan(&c.ProfileID, &c.ConversationID, &c.TurnID, &expires, &pid, &stamp, &mac)
 	if err != nil {
 		return Caller{}, ErrSessionToken
 	}
+	key, err := s.tokenKey(c.ProfileID)
+	if err != nil || !hmac.Equal([]byte(tokenMAC(key, c.ProfileID, c.ConversationID, c.TurnID, h, expires, pid, stamp)), []byte(mac)) {
+		return Caller{}, ErrSessionToken
+	}
 	if exp, perr := time.Parse(timeLayout, expires); perr != nil || !s.now().Before(exp) {
+		return Caller{}, ErrSessionToken
+	}
+	if ancestrySupported && !descendsFrom(pid, stamp) {
 		return Caller{}, ErrSessionToken
 	}
 	return c, nil

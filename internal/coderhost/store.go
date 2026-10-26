@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -46,8 +47,11 @@ const (
 const (
 	MaxMessageBytes   = 256 << 10
 	MaxPendingPerChat = 50
-	MaxAttachments    = 10
-	pendingBatch      = 200
+	// MaxPendingMaster is how many master-made sends may wait for one child; the rest of
+	// MaxPendingPerChat stays for a person's.
+	MaxPendingMaster = 5
+	MaxAttachments   = 10
+	pendingBatch     = 200
 	// MaxSendAge is how long a queued send stays valid.
 	MaxSendAge = 6 * time.Hour
 	// MaxCheckinAge is how long a check-in the host queued for itself stays valid: its digest is a
@@ -79,6 +83,9 @@ type Command struct {
 	// marker, never a confirmation: it only makes a missing or expired confirmation
 	// record fail the command instead of running it as a plain turn.
 	WantsMission bool `json:"wantsMission,omitempty"`
+	// Issuer is the master (conversation id) that queued the command; "" for a person or the
+	// host. The host runs such a command only while the target is still a child of the issuer.
+	Issuer string `json:"issuer,omitempty"`
 }
 
 // Session is a coder conversation as the host tracks it.
@@ -145,6 +152,16 @@ func (s *Store) Enqueue(c Command) (Command, error) {
 	if waiting >= MaxPendingPerChat {
 		return c, ErrQueueFull
 	}
+	if c.Kind == KindSend && strings.HasPrefix(c.TurnID, MasterTurnPrefix) {
+		var masters int
+		if err := s.db.QueryRow(`SELECT COUNT(*) FROM coder_session_commands WHERE profile_id = ? AND conversation_id = ? AND status = 'pending' AND kind = 'send' AND substr(turn_id, 1, ?) = ?`,
+			c.ProfileID, c.ConversationID, len(MasterTurnPrefix), MasterTurnPrefix).Scan(&masters); err != nil {
+			return c, err
+		}
+		if masters >= MaxPendingMaster {
+			return c, ErrQueueFull
+		}
+	}
 	if c.WantsMission && (c.Kind != KindSend || HostMade(c.TurnID)) {
 		return c, errors.New("coder host: only a person's send can ask for a mission")
 	}
@@ -153,8 +170,8 @@ func (s *Store) Enqueue(c Command) (Command, error) {
 		mark = wantsMissionMark // lives in the error column while the command is pending
 	}
 	now := s.stamp()
-	res, err := s.db.Exec(`INSERT INTO coder_session_commands (profile_id, conversation_id, kind, turn_id, message, attachments, status, error, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`, c.ProfileID, c.ConversationID, string(c.Kind), c.TurnID, c.Message, string(att), mark, now, now)
+	res, err := s.db.Exec(`INSERT INTO coder_session_commands (profile_id, conversation_id, kind, turn_id, message, attachments, status, error, created_at, updated_at, issuer)
+		VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)`, c.ProfileID, c.ConversationID, string(c.Kind), c.TurnID, c.Message, string(att), mark, now, now, c.Issuer)
 	if err != nil {
 		return c, err
 	}
@@ -168,7 +185,7 @@ func (s *Store) Enqueue(c Command) (Command, error) {
 // blocked sends cannot push a later resume or stop (or another chat's send) out
 // of the window; they are picked up on a later pass, once the chat is free.
 func (s *Store) Pending() ([]Command, error) {
-	rows, err := s.db.Query(`SELECT id, profile_id, conversation_id, kind, turn_id, message, attachments, status, error, created_at, updated_at
+	rows, err := s.db.Query(`SELECT id, profile_id, conversation_id, kind, turn_id, message, attachments, status, error, created_at, updated_at, issuer
 		FROM coder_session_commands c WHERE status = 'pending'
 		AND (kind != 'send' OR NOT EXISTS (SELECT 1 FROM coder_sessions s
 			WHERE s.profile_id = c.profile_id AND s.conversation_id = c.conversation_id AND (s.state = 'paused' OR s.turn_pid > 0 OR s.turn_id != '')))
@@ -181,7 +198,7 @@ func (s *Store) Pending() ([]Command, error) {
 	for rows.Next() {
 		var c Command
 		var kind, att string
-		if err := rows.Scan(&c.ID, &c.ProfileID, &c.ConversationID, &kind, &c.TurnID, &c.Message, &att, &c.Status, &c.Error, &c.CreatedAt, &c.UpdatedAt); err != nil {
+		if err := rows.Scan(&c.ID, &c.ProfileID, &c.ConversationID, &kind, &c.TurnID, &c.Message, &att, &c.Status, &c.Error, &c.CreatedAt, &c.UpdatedAt, &c.Issuer); err != nil {
 			return nil, err
 		}
 		c.Kind = Kind(kind)
@@ -208,20 +225,29 @@ func (s *Store) CancelPendingSends(profileID, conversationID string, beforeID in
 	return int(n), nil
 }
 
+// CancelChildMasterSends fails the master-made sends still waiting for the children of a master
+// (it was stopped), with the reason.
+func (s *Store) CancelChildMasterSends(profileID, master, reason string) error {
+	_, err := s.db.Exec(`UPDATE coder_session_commands SET status = 'failed', error = ?, updated_at = ?
+		WHERE profile_id = ? AND kind = 'send' AND status = 'pending' AND substr(turn_id, 1, ?) = ? AND issuer = ?`,
+		reason, s.stamp(), profileID, len(MasterTurnPrefix), MasterTurnPrefix, master)
+	return err
+}
+
 // ExpireSends fails the sends that have waited longer than MaxSendAge, so a
 // message queued while no host ran does not start a full-access turn days later.
 func (s *Store) ExpireSends() error {
 	ids := s.pendingMissionIDs(`created_at < ?`, s.now().Add(-MaxSendAge).UTC().Format(timeLayout))
 	_, err := s.db.Exec(`UPDATE coder_session_commands SET status = 'failed', error = 'expired before the host could run it', updated_at = ?
-		WHERE kind = 'send' AND status = 'pending' AND (created_at < ? OR (substr(turn_id, 1, 8) = 'checkin-' AND created_at < ?))`,
-		s.stamp(), s.now().Add(-MaxSendAge).UTC().Format(timeLayout), s.now().Add(-MaxCheckinAge).UTC().Format(timeLayout))
+		WHERE kind = 'send' AND status = 'pending' AND (created_at < ? OR (substr(turn_id, 1, 8) = 'checkin-' AND created_at < ?) OR (substr(turn_id, 1, 7) = 'master-' AND created_at < ?))`,
+		s.stamp(), s.now().Add(-MaxSendAge).UTC().Format(timeLayout), s.now().Add(-MaxCheckinAge).UTC().Format(timeLayout), s.now().Add(-MaxCheckinAge).UTC().Format(timeLayout))
 	s.revokeCommands(ids)
 	return err
 }
 
 // GetCommand returns one command.
 func (s *Store) GetCommand(id int64) (Command, bool, error) {
-	rows, err := s.db.Query(`SELECT id, profile_id, conversation_id, kind, turn_id, message, attachments, status, error, created_at, updated_at
+	rows, err := s.db.Query(`SELECT id, profile_id, conversation_id, kind, turn_id, message, attachments, status, error, created_at, updated_at, issuer
 		FROM coder_session_commands WHERE id = ?`, id)
 	if err != nil {
 		return Command{}, false, err
@@ -232,7 +258,7 @@ func (s *Store) GetCommand(id int64) (Command, bool, error) {
 	}
 	var c Command
 	var kind, att string
-	if err := rows.Scan(&c.ID, &c.ProfileID, &c.ConversationID, &kind, &c.TurnID, &c.Message, &att, &c.Status, &c.Error, &c.CreatedAt, &c.UpdatedAt); err != nil {
+	if err := rows.Scan(&c.ID, &c.ProfileID, &c.ConversationID, &kind, &c.TurnID, &c.Message, &att, &c.Status, &c.Error, &c.CreatedAt, &c.UpdatedAt, &c.Issuer); err != nil {
 		return Command{}, false, err
 	}
 	c.Kind = Kind(kind)

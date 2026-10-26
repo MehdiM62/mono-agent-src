@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 
@@ -61,6 +62,9 @@ func (sf *sessionFixture) run(t *testing.T, conv, turn string) string {
 	}
 	tok, err := sf.store.IssueSessionToken(sf.profile, conv, turn)
 	if err != nil {
+		t.Fatal(err)
+	}
+	if err := sf.store.BindSessionToken(sf.profile, conv, turn, os.Getpid(), coderhost.ProcStamp(os.Getpid())); err != nil {
 		t.Fatal(err)
 	}
 	return tok

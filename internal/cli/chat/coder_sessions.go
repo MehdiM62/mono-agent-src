@@ -61,8 +61,15 @@ func newCoderSessionsListCmd(cfg *Deps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			visible, verr := visibleToToken(cfg) // with a session token: the caller's own tree only
+			if verr != nil {
+				return verr
+			}
 			rows := []sessionRow{}
 			for _, s := range sessions {
+				if visible != nil && !visible(s.ConversationID) {
+					continue
+				}
 				r := sessionRow{Session: s, Waiting: cs.PendingFor(s.ProfileID, s.ConversationID)}
 				if conv, err := store.GetConversation(s.ConversationID, profileID); err == nil {
 					r.Access, r.Cwd = string(conv.Access), conv.Cwd
@@ -230,7 +237,12 @@ func newCoderSessionsCommandCmd(cfg *Deps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if !ok || c.ProfileID != cfg.ProfileID() {
+			visible, verr := visibleToToken(cfg)
+			if verr != nil {
+				return verr
+			}
+			// with a session token a command of a session outside its tree reads as no command at all
+			if !ok || c.ProfileID != cfg.ProfileID() || (visible != nil && !visible(c.ConversationID)) {
 				return clicore.NotFound("no command %d", id)
 			}
 			c.Message, c.Attachments = "", nil // the message is the caller's own; the status is what is asked for

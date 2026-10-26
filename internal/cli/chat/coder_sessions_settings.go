@@ -108,6 +108,13 @@ func newCoderSessionsSettingsGetCmd(cfg *Deps) *cobra.Command {
 		Short: "Show a coder session's settings and whether it runs unattended",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			visible, verr := visibleToToken(cfg)
+			if verr != nil {
+				return verr
+			}
+			if visible != nil && !visible(args[0]) { // the same refusal whether the session exists or not
+				return masterErr(coderhost.ErrNotYours)
+			}
 			v, err := sessionSettingsOf(cfg, args[0], nil)
 			if err != nil {
 				return err

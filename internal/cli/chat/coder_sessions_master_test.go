@@ -2,6 +2,7 @@ package chat
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -43,6 +44,9 @@ func newMasterTurn(t *testing.T) masterTurn {
 	}
 	tok, err := cs.IssueSessionToken("default", conv.ID, "turn-1")
 	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cs.BindSessionToken("default", conv.ID, "turn-1", os.Getpid(), coderhost.ProcStamp(os.Getpid())); err != nil {
 		t.Fatal(err)
 	}
 	// an agent: the operator path is closed, and the host must never be started from here
@@ -188,5 +192,118 @@ func TestExecLauncherGivesATurnItsOwnSessionTokenOnly(t *testing.T) {
 	_ = turn2.Wait()
 	if got, _ := os.ReadFile(envLog); strings.Contains(string(got), coderhost.SessionTokenEnv) {
 		t.Fatalf("a turn inherited a session token: %q", got)
+	}
+}
+
+func TestSessionTokenFiltersTheReadVerbsToTheCallersTree(t *testing.T) {
+	m := newMasterTurn(t)
+	var kid struct{ ConversationID string }
+	out, code := runSessionsCLI(t, m.cfg, "spawn", "--message", "hi")
+	if code != 0 {
+		t.Fatal(out)
+	}
+	decodeChatJSON(t, out, &kid)
+	// a session outside the tree: a stranger master with a child, and a command of the stranger's
+	store := openTestChatStore(t, m.dbPath)
+	other, _ := store.CreateConversationAccess("default", "agent", "general", "claude", "", "", ai.AccessWorkspace, t.TempDir(), "")
+	db, _ := storage.NewDatabase(m.dbPath)
+	defer db.Close()
+	cs := coderhost.NewStore(db.DB)
+	cs.SetRole("default", other.ID, "master", "")
+	oc, err := cs.Enqueue(coderhost.Command{ProfileID: "default", ConversationID: other.ID, Kind: coderhost.KindPause})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mine := pendingCommands(t, m.dbPath)[0] // the spawn's first message, for the child
+
+	out, code = runSessionsCLI(t, m.cfg, "list")
+	if code != 0 || !strings.Contains(out, kid.ConversationID) || !strings.Contains(out, m.master) || strings.Contains(out, other.ID) {
+		t.Fatalf("list = %d %s", code, out)
+	}
+	if out, code := runSessionsCLI(t, m.cfg, "settings", "get", kid.ConversationID); code != 0 || !strings.Contains(out, kid.ConversationID) {
+		t.Fatalf("settings get of a child: %d %s", code, out)
+	}
+	if _, code := runSessionsCLI(t, m.cfg, "settings", "get", m.master); code != 0 {
+		t.Fatal("a session reads its own settings")
+	}
+	// a stranger and a session that does not exist get the same refusal
+	o1, c1 := runSessionsCLI(t, m.cfg, "settings", "get", other.ID)
+	o2, c2 := runSessionsCLI(t, m.cfg, "settings", "get", "no-such-session")
+	if c1 == 0 || c1 != c2 || o1 != o2 {
+		t.Fatalf("existence oracle: (%d %q) vs (%d %q)", c1, o1, c2, o2)
+	}
+	if _, code := runSessionsCLI(t, m.cfg, "command", fmt.Sprint(mine.ID)); code != 0 {
+		t.Fatal("a command for the caller's child is readable")
+	}
+	o1, c1 = runSessionsCLI(t, m.cfg, "command", fmt.Sprint(oc.ID))
+	o2, c2 = runSessionsCLI(t, m.cfg, "command", "999999")
+	o1, o2 = strings.ReplaceAll(o1, fmt.Sprint(oc.ID), "N"), strings.ReplaceAll(o2, "999999", "N") // the id echoed is the caller's own
+	if c1 == 0 || c1 != c2 || o1 != o2 {
+		t.Fatalf("command oracle: (%d %q) vs (%d %q)", c1, o1, c2, o2)
+	}
+	// without a token (an operator) everything stays readable
+	t.Setenv(coderhost.SessionTokenEnv, "")
+	if out, _ := runSessionsCLI(t, m.cfg, "list"); !strings.Contains(out, other.ID) {
+		t.Fatalf("operator list = %s", out)
+	}
+}
+
+func TestEnvHandlingKeepsSessionTokensOutOfHostsAndTurns(t *testing.T) {
+	env := []string{"A=1", coderhost.SessionTokenEnv + "=mst-x", coderhost.MissionTokenEnv + "=1.n", "MONOAGENT_SESSION_TOKENX=keep", "B=2"}
+	if got := turnEnv(env); strings.Join(got, ",") != "A=1,MONOAGENT_SESSION_TOKENX=keep,B=2" {
+		t.Fatalf("turnEnv = %v", got)
+	}
+	got := hostProcessEnv(env)
+	for _, kv := range got {
+		if strings.HasPrefix(kv, coderhost.SessionTokenEnv+"=") {
+			t.Fatalf("the host would carry a session token: %v", got)
+		}
+	}
+	if len(got) != 4 {
+		t.Fatalf("hostProcessEnv = %v", got)
+	}
+}
+
+func TestExecLauncherPassesTheBudgetCapAndBindsTheTokenToTheTurnProcess(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell script")
+	}
+	dir := t.TempDir()
+	argsLog := filepath.Join(dir, "args.log")
+	bin := filepath.Join(dir, "fake-monoagentcli")
+	script := "#!/bin/sh\ncat > /dev/null\necho \"$*\" >> '" + argsLog + "'\necho '{\"admitted\":true,\"existed\":false,\"turn\":{\"id\":\"t1\"}}'\nsleep 5\n"
+	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	var boundPID int
+	var boundStamp string
+	l := &execLauncher{bin: bin, dbPath: "/db/x.db", instance: "host-test", logDir: filepath.Join(dir, "turns"),
+		bind: func(p, c, turn string, pid int, stamp string) error { boundPID, boundStamp = pid, stamp; return nil }}
+	turn, err := l.StartCapped("p", "c1", "t1", "hi", nil, "", 1.5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer turn.Stop()
+	b, _ := os.ReadFile(argsLog)
+	if !strings.Contains(string(b), "--budget-usd=1.500000") {
+		t.Fatalf("args = %s", b)
+	}
+	if boundPID != turn.PID() || (coderhost.ProcStamp(boundPID) != boundStamp) {
+		t.Fatalf("bound %d %q for turn %d", boundPID, boundStamp, turn.PID())
+	}
+	// an uncapped start passes no cap
+	os.Remove(argsLog)
+	t2, err := l.Start("p", "c1", "t2", "hi", nil, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer t2.Stop()
+	if b, _ := os.ReadFile(argsLog); strings.Contains(string(b), "budget") {
+		t.Fatalf("args = %s", b)
+	}
+	// a bind that fails stops the turn and fails the start
+	l.bind = func(string, string, string, int, string) error { return errors.New("no") }
+	if _, err := l.Start("p", "c1", "t3", "hi", nil, ""); err == nil {
+		t.Fatal("a turn whose token could not be bound was started")
 	}
 }

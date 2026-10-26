@@ -31,7 +31,7 @@ func (s *Store) SendToChild(c Caller, target, message string) (Command, error) {
 	if strings.TrimSpace(message) == "" {
 		return Command{}, fmt.Errorf("%w: a send needs a message", ErrInvalid)
 	}
-	return s.Enqueue(Command{ProfileID: c.ProfileID, ConversationID: target, Kind: KindSend, TurnID: newMasterTurnID(), Message: message})
+	return s.Enqueue(Command{ProfileID: c.ProfileID, ConversationID: target, Kind: KindSend, TurnID: newMasterTurnID(), Message: message, Issuer: c.ConversationID})
 }
 
 // ControlChild queues a stop, pause or resume for a descendant.
@@ -44,7 +44,7 @@ func (s *Store) ControlChild(c Caller, target string, kind Kind) (Command, error
 	if err := s.authorize(c, target); err != nil {
 		return Command{}, err
 	}
-	return s.Enqueue(Command{ProfileID: c.ProfileID, ConversationID: target, Kind: kind})
+	return s.Enqueue(Command{ProfileID: c.ProfileID, ConversationID: target, Kind: kind, Issuer: c.ConversationID})
 }
 
 // SetChild changes the agent-adjustable settings of a descendant. A patch that
@@ -60,6 +60,13 @@ func (s *Store) SetChild(c Caller, target string, patch []byte) (Settings, []str
 	next, keys, err := cur.Apply(patch)
 	if err != nil {
 		return Settings{}, nil, fmt.Errorf("%w: %v", ErrInvalid, err)
+	}
+	if alias := next.MeshAlias; alias != "" && oneOf("mesh_alias", keys) {
+		if taken, err := s.aliasTaken(c.ProfileID, target, alias); err != nil {
+			return Settings{}, nil, err
+		} else if taken {
+			return Settings{}, nil, fmt.Errorf("%w: mesh_alias %q is already used by another session", ErrInvalid, alias)
+		}
 	}
 	var banned []string
 	for _, k := range keys {
@@ -156,4 +163,21 @@ func (s *Store) ListChildren(c Caller) ([]ChildStatus, error) {
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].ConversationID < out[j].ConversationID })
 	return out, nil
+}
+
+// aliasTaken says whether another session of the profile already has the mesh alias.
+func (s *Store) aliasTaken(profileID, except, alias string) (bool, error) {
+	all, err := s.ListSessions(profileID)
+	if err != nil {
+		return false, err
+	}
+	for _, x := range all {
+		if x.ConversationID == except {
+			continue
+		}
+		if st, err := s.GetSettings(profileID, x.ConversationID); err == nil && strings.EqualFold(st.MeshAlias, alias) {
+			return true, nil
+		}
+	}
+	return false, nil
 }

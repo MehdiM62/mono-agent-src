@@ -232,7 +232,8 @@ func (s *Store) carveBudget(profileID, parent, child string, usd float64) error 
 	return s.applied(res, err, "")
 }
 
-// takeSpawnSlot records one spawn if the parent made fewer than SpawnRateMax in
+// takeSpawnSlot records one spawn (an attempt: it is kept when the spawn fails after the slot is taken,
+// so a failing loop cannot spawn faster than the limit) if the parent made fewer than SpawnRateMax in
 // the window; one statement, so concurrent callers cannot both take the last slot.
 func (s *Store) takeSpawnSlot(profileID, parent string) error {
 	now := s.now().UTC()
@@ -331,7 +332,7 @@ func (s *Store) Spawn(c Caller, req SpawnRequest) (Spawned, error) {
 		conv.ID, c.ProfileID, c.ConversationID)
 	out := Spawned{ConversationID: conv.ID, Access: access, Cwd: cwd, BudgetUSD: req.BudgetUSD}
 	if req.Message != "" {
-		cmd, err := s.Enqueue(Command{ProfileID: c.ProfileID, ConversationID: conv.ID, Kind: KindSend, TurnID: newMasterTurnID(), Message: req.Message})
+		cmd, err := s.Enqueue(Command{ProfileID: c.ProfileID, ConversationID: conv.ID, Kind: KindSend, TurnID: newMasterTurnID(), Message: req.Message, Issuer: c.ConversationID})
 		if err != nil {
 			return out, fmt.Errorf("the child %s was created but its first message was not queued: %w", conv.ID, err)
 		}

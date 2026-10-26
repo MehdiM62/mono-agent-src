@@ -178,3 +178,28 @@ func masterSet(cfg *Deps, cmd *cobra.Command, target, patch string, others bool)
 	}
 	return printQueueJSON(cmd, map[string]any{"conversationId": target, "changed": keys, "settings": next, "agentAdjustable": coderhost.AgentAdjustable})
 }
+
+// visibleToToken is the filter a session token puts on the read verbs: nil without a token,
+// otherwise a function that says whether a conversation is the caller's own session or one of its
+// descendants. A bad token is a refusal.
+func visibleToToken(cfg *Deps) (func(conv string) bool, error) {
+	if sessionTokenFromEnv() == "" {
+		return nil, nil
+	}
+	mc, err := openMasterCall(cfg)
+	if err != nil {
+		return nil, err
+	}
+	defer mc.close()
+	own, store := mc.caller, mc.store
+	// the answers are read now, from the tree as it is, with the database open
+	kids, err := store.ListChildren(own)
+	if err != nil {
+		return nil, masterErr(err)
+	}
+	seen := map[string]bool{own.ConversationID: true}
+	for _, k := range kids {
+		seen[k.ConversationID] = true
+	}
+	return func(conv string) bool { return seen[conv] }, nil
+}
