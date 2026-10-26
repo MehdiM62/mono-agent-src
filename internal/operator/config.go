@@ -28,8 +28,12 @@ import "strings"
 //     full access (`coder projects map|unmap`).
 //   - memory.runs: whether finished runs are summarised into the run memory
 //     (monomind.RunMemorySetting).
-//   - workflow.error_workflow: the workflow started when any run fails, with
-//     no say from the failing workflow (workflow.DefaultErrorWorkflowConfig).
+//   - workflow.error_workflow: the workflow started when a run fails and its
+//     own definition names none (workflow.DefaultErrorWorkflowConfig). A
+//     workflow's own error_workflow setting is not this row: it is part of
+//     the definition, so a save by anyone but the operator leaves it
+//     unapproved, and the engine ignores the own setting of an unapproved
+//     definition (errorWorkflowID), leaving only this default.
 //   - every row under ReservedConfigPrefixes: families of rows named by a
 //     prefix. coder-mission-confirm/ holds the operator's per-send mission
 //     confirmations, which the coder host and its chat turns accept as proof
