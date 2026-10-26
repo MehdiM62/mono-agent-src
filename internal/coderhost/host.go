@@ -149,6 +149,7 @@ func (h *Host) Tick() error {
 		h.live = map[string]Turn{}
 	}
 	blocked := map[string]bool{} // an earlier send for the chat is still waiting: later sends keep their order
+	var running childRunning     // built on the first send to a child (max_concurrent)
 	for _, c := range cmds {
 		k := key(c.ProfileID, c.ConversationID)
 		if h.RequireConversations {
@@ -208,6 +209,16 @@ func (h *Host) Tick() error {
 			if answerGated(c.TurnID) {
 				if reason := h.answerStillAllowed(x); reason != "" {
 					h.end(c, CmdFailed, reason)
+					continue
+				}
+			}
+			// max_concurrent: a master's children run only so many turns at once; the rest wait, in order.
+			if x.Role == "child" && x.Parent != "" {
+				if running == nil {
+					running = h.runningChildren()
+				}
+				if h.childSlotFull(x, running) {
+					blocked[k] = true
 					continue
 				}
 			}
@@ -299,6 +310,9 @@ func (h *Host) Tick() error {
 			}
 			_, _ = h.unlocked(func() (Turn, error) { commit(); return nil, nil }) // the turn has the messages and is recorded: mark them read, without holding up the watchers
 			h.live[k] = t
+			if running != nil {
+				running.started(x)
+			}
 			h.watch(x, t)
 			h.end(c, CmdDone, "")
 		case KindStop:

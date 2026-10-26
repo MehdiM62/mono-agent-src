@@ -2497,8 +2497,9 @@ monoagentcli --profile work coder host stop                        # the host on
   not a setting is refused): `checkin_minutes`, `skip_if_unchanged`, `checkin_triggers`, `silent_minutes`,
   `active_hours` (`HH:MM-HH:MM`, local time), `checkin_limit`, `autonomy_preset`, `autonomy_classes`,
   `max_children`, `max_concurrent`, `max_depth`, `mesh_visible`, `mesh_alias`, `mesh_accept`. `get` lists which
-  are operator-only and the values each allows. `max_concurrent` is stored,
-  validated and shown; nothing acts on it yet. The autonomy settings are acted on (below). `max_children` and `max_depth` hold when a child is linked.
+  are operator-only and the values each allows. `max_concurrent` (1 to 10,
+  default 2) is the most children of one master that run a turn at once: a send to a further child, from a person
+  or a master, stays pending in order and starts when a sibling's turn ends. The autonomy settings are acted on (below). `max_children` and `max_depth` hold when a child is linked.
 - **Masters and children:** `sessions settings set <conv> --role master`, then `--role child --parent <master>`
   for each child (the master must be a master with room under its `max_children`; depth is 2; a session with
   children cannot change role).
@@ -2543,6 +2544,14 @@ monoagentcli --profile work coder host stop                        # the host on
   started does not reopen the question (the model may have read it). A question whose note failed twice is left
   for a person: no default, no master answer; a default is also held for 30 minutes after a failure and never
   taken when the session's budget is used up.
+- **Autonomy never approves.** No autonomy path (a preset's decide-and-log, ask-on-risk model decisions,
+  `take_default` / `ApplyDefaults`, `answer-p/m/d-` notes, master answers, `ReopenFailedAnswers` redelivery) can
+  confirm a mission, approve a plan, resolve an HIL gate, approve a task session or change an operator-only
+  setting, access or budget. `coderhost/autonomy_noapproval_test.go` runs every preset x class x override x
+  reversibility x answerer with a genuinely signed mission confirmation in place and checks that only the person's
+  own mission send gets a token and that no table outside the queue, questions and ledger changes;
+  `autonomy_guard_test.go` fails when the autonomy, ledger or parked sources name an approval writer, touch a
+  table outside theirs, or when a new place queues a command.
 - **Mesh** (needs monomind 2.29+; the host does not check the version, it just tries `monomind mesh who` to
   start the hub): with `mesh_visible` (default on) the host keeps the session on monomind's mesh between turns
   (until it has been idle for 6 hours), as `coder-<folder>-<start time>` (or `mesh_alias`), with a state word as
