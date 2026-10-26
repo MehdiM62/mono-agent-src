@@ -88,11 +88,20 @@ function Select({ id, value: v, options, onChange, disabled }) {
   )
 }
 
+// NumberField shows the stored value, or what the person is typing until they leave the field.
+// There is no state copied from the stored value by an effect: such a copy runs on mount too, and
+// there it can land after the first edit and write the stored value back over it. A refresh that
+// brings another stored value does not touch a draft either; the field is replaced (by its key)
+// once a save has finished, so it then shows what is stored.
 function NumberField({ id, value: v, min, max, disabled, onCommit }) {
-  const [text, setText] = useState(String(v))
-  useEffect(() => setText(String(v)), [v])
-  const commit = () => { const n = Number(text); if (Number.isInteger(n) && n !== v) onCommit(n); else setText(String(v)) }
-  return <input id={id} type="number" min={min} max={max} value={text} disabled={disabled} onChange={e => setText(e.target.value)} onBlur={commit}
+  const [draft, setDraft] = useState(null)
+  const commit = () => {
+    if (draft === null) return
+    const n = Number(draft)
+    if (draft.trim() !== '' && Number.isInteger(n) && n !== v) onCommit(n) // the draft stays on show while it saves
+    else setDraft(null) // nothing to save (unchanged, empty or not a whole number): back to the stored value
+  }
+  return <input id={id} type="number" min={min} max={max} value={draft ?? String(v)} disabled={disabled} onChange={e => setDraft(e.target.value)} onBlur={commit}
     onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }} className="input-compact" style={{ width: 56 }} />
 }
 
