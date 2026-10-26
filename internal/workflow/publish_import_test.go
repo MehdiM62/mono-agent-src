@@ -252,7 +252,10 @@ func TestImportKeepsTheOwnerProfileAndStartsNewFilesInactive(t *testing.T) {
 	if _, err := s.db.Exec(`INSERT INTO profiles (id, name) VALUES ('victim', 'Victim')`); err != nil {
 		t.Fatal(err)
 	}
-	handEdit(t, h, "wf-g", func(w *Workflow) { w.ProfileID = "victim" })
+	handEdit(t, h, "wf-g", func(w *Workflow) {
+		w.ProfileID = "victim"
+		w.Nodes[1].Config = map[string]interface{}{"k": "moved"} // a changed definition too
+	})
 	if res, err := h.ImportFile(ctx, "wf-g", nil); err != nil || res.Imported {
 		t.Fatalf("%+v %v", res, err)
 	}
@@ -260,7 +263,7 @@ func TestImportKeepsTheOwnerProfileAndStartsNewFilesInactive(t *testing.T) {
 	if err != nil || got.ProfileID != "default" {
 		t.Fatalf("a read served profile %q (%v)", got.ProfileID, err)
 	}
-	if rows, _ := s.GetWorkflow(ctx, "wf-g"); rows.ProfileID != "default" {
+	if rows, _ := s.GetWorkflow(ctx, "wf-g"); rows.ProfileID != "default" || sqlConfig(t, s, "wf-g", "g-set") == "moved" {
 		t.Fatalf("rows moved to %q", rows.ProfileID)
 	}
 	fresh := mirrorWF("wf-new-file", "nf-trig", "nf-set")
