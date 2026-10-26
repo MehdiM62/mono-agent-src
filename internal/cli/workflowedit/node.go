@@ -55,6 +55,7 @@ func (d Deps) newNodeAddCmd() *cobra.Command {
 
 			// Ensure workflow exists.
 			wf := d.OwnedWorkflow(ctx, store, db.DB, d.ProfileID(), workflowID)
+			expect := reviewOf(wf) // what the operator is looking at, before any edit
 			if wf == nil {
 				return d.NotFound("workflow %q not found", workflowID)
 			}
@@ -86,7 +87,7 @@ func (d Deps) newNodeAddCmd() *cobra.Command {
 			}
 
 			existing = append(existing, newNode)
-			if err := store.SaveWorkflowNodes(approving(ctx), workflowID, existing); err != nil {
+			if err := store.SaveWorkflowNodes(approving(ctx, expect), workflowID, existing); err != nil {
 				return fmt.Errorf("save nodes: %w", err)
 			}
 
@@ -176,6 +177,7 @@ func (d Deps) newNodeSetCmd() *cobra.Command {
 			ctx := context.Background()
 
 			wf := d.OwnedWorkflow(ctx, store, db.DB, d.ProfileID(), workflowID)
+			expect := reviewOf(wf) // what the operator is looking at, before any edit
 			if wf == nil {
 				return d.NotFound("workflow %q not found", workflowID)
 			}
@@ -211,7 +213,7 @@ func (d Deps) newNodeSetCmd() *cobra.Command {
 				return d.NotFound("node %q not found in workflow %q", nodeID, workflowID)
 			}
 
-			if err := store.SaveWorkflowNodes(approving(ctx), workflowID, wf.Nodes); err != nil {
+			if err := store.SaveWorkflowNodes(approving(ctx, expect), workflowID, wf.Nodes); err != nil {
 				return fmt.Errorf("save nodes: %w", err)
 			}
 			if d.JSONOutput() {
@@ -259,6 +261,7 @@ func (d Deps) newNodeRemoveCmd() *cobra.Command {
 			ctx := context.Background()
 
 			wf := d.OwnedWorkflow(ctx, store, db.DB, d.ProfileID(), workflowID)
+			expect := reviewOf(wf) // what the operator is looking at, before any edit
 			if wf == nil {
 				return d.NotFound("workflow %q not found", workflowID)
 			}
@@ -286,7 +289,7 @@ func (d Deps) newNodeRemoveCmd() *cobra.Command {
 				newConns = append(newConns, c)
 			}
 
-			if err := store.SaveWorkflowGraph(approving(ctx), workflowID, newNodes, newConns); err != nil {
+			if err := store.SaveWorkflowGraph(approving(ctx, expect), workflowID, newNodes, newConns); err != nil {
 				return fmt.Errorf("save workflow: %w", err)
 			}
 
@@ -337,6 +340,7 @@ func (d Deps) newConnectCmd() *cobra.Command {
 			ctx := context.Background()
 
 			wf := d.OwnedWorkflow(ctx, store, db.DB, d.ProfileID(), workflowID)
+			expect := reviewOf(wf) // what the operator is looking at, before any edit
 			if wf == nil {
 				return d.NotFound("workflow %q not found", workflowID)
 			}
@@ -352,7 +356,7 @@ func (d Deps) newConnectCmd() *cobra.Command {
 			}
 			wf.Connections = append(wf.Connections, conn)
 
-			if err := store.SaveWorkflowConnections(approving(ctx), workflowID, wf.Connections); err != nil {
+			if err := store.SaveWorkflowConnections(approving(ctx, expect), workflowID, wf.Connections); err != nil {
 				return fmt.Errorf("save connections: %w", err)
 			}
 
@@ -391,6 +395,7 @@ func (d Deps) newDisconnectCmd() *cobra.Command {
 			ctx := context.Background()
 
 			wf := d.OwnedWorkflow(ctx, store, db.DB, d.ProfileID(), workflowID)
+			expect := reviewOf(wf) // what the operator is looking at, before any edit
 			if wf == nil {
 				return d.NotFound("workflow %q not found", workflowID)
 			}
@@ -408,7 +413,7 @@ func (d Deps) newDisconnectCmd() *cobra.Command {
 				return fmt.Errorf("connection %q not found in workflow %q", connID, workflowID)
 			}
 
-			if err := store.SaveWorkflowConnections(approving(ctx), workflowID, newConns); err != nil {
+			if err := store.SaveWorkflowConnections(approving(ctx, expect), workflowID, newConns); err != nil {
 				return fmt.Errorf("save connections: %w", err)
 			}
 			fmt.Fprintf(os.Stdout, "Connection %s removed.\n", connID)
@@ -434,9 +439,20 @@ func parseNodeHandle(s string) (nodeID, handle string, err error) {
 
 // approving makes the change that follows also record the workflow as the operator's own, in the
 // same commit, unless an AI is the one editing.
-func approving(ctx context.Context) context.Context {
+func approving(ctx context.Context, expect string) context.Context {
 	if operator.Marker() != "" {
 		return ctx
 	}
-	return workflow.WithApproval(ctx)
+	// The approval covers what the operator read: if the workflow changed since, the edit is
+	// refused instead of approving someone else's change along with it.
+	return workflow.WithExpectHash(workflow.WithApproval(ctx), expect)
+}
+
+// reviewOf is the review hash of a workflow as it was read ("" when it cannot be worked out).
+func reviewOf(wf *workflow.Workflow) string {
+	if wf == nil {
+		return ""
+	}
+	h, _ := workflow.ReviewHash(wf)
+	return h
 }

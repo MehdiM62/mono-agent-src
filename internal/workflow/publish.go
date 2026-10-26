@@ -111,6 +111,9 @@ func (h *HybridWorkflowStore) Publish(ctx context.Context, p Publication) (*Work
 	if p.Kind == "" {
 		p.Kind = PubSave
 	}
+	if want := expectFrom(ctx); want != "" && p.ExpectHash == "" {
+		p.ExpectHash, p.Guarded = want, true
+	}
 	deadline := time.Now().Add(publicationWait)
 	for {
 		w, err := h.publishOnce(ctx, p)
@@ -652,4 +655,21 @@ func (h *HybridWorkflowStore) checkFileUnchanged(id, wantSHA string) error {
 		return fmt.Errorf("%w: the file changed while this change was being made", ErrFileSyncFailed)
 	}
 	return nil
+}
+
+type expectKey struct{}
+
+// WithExpectHash makes the next publication made with ctx refuse (ErrChangedSincePreview) unless the
+// committed workflow still has this ReviewHash: the caller read the workflow, decided on an edit, and
+// the edit (and any approval recorded with it) must not land on something else.
+func WithExpectHash(ctx context.Context, hash string) context.Context {
+	if hash == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, expectKey{}, hash)
+}
+
+func expectFrom(ctx context.Context) string {
+	v, _ := ctx.Value(expectKey{}).(string)
+	return v
 }

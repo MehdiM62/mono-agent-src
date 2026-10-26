@@ -456,3 +456,35 @@ func TestOversizedFilesAreRefusedAndRecoverable(t *testing.T) {
 		t.Fatalf("after resolving: %v %v", got, err)
 	}
 }
+
+// An operator's edit is approved only if the workflow is still what the operator read: a node added
+// by someone else in between makes the edit fail, instead of approving that node with it.
+func TestApprovedEditRefusesAWorkflowThatChangedSinceItWasRead(t *testing.T) {
+	ctx := context.Background()
+	h, s, readHash, nodes := guardedRig(t)
+	// Someone else adds a node after the operator read the workflow.
+	other := append([]WorkflowNode(nil), nodes...)
+	other = append(other, WorkflowNode{ID: "g-sneaky", Type: "core.set", Name: "sneaky", Config: map[string]interface{}{"k": "x"}})
+	if err := h.SaveWorkflowNodes(ctx, "wf-g", other); err != nil {
+		t.Fatal(err)
+	}
+	err := h.SaveWorkflowConnections(WithExpectHash(WithApproval(ctx), readHash), "wf-g", nil)
+	if !errors.Is(err, ErrChangedSincePreview) {
+		t.Fatalf("%v", err)
+	}
+	cur, _ := h.GetWorkflow(ctx, "wf-g")
+	hash, _ := definitionHash(cur)
+	if ok, _ := h.DefinitionApproved(ctx, "wf-g", hash); ok {
+		t.Fatal("the other change was approved")
+	}
+	fresh, _ := ReviewHash(cur)
+	if err := h.SaveWorkflowConnections(WithExpectHash(WithApproval(ctx), fresh), "wf-g", nil); err != nil {
+		t.Fatal(err)
+	}
+	cur, _ = h.GetWorkflow(ctx, "wf-g")
+	hash, _ = definitionHash(cur)
+	if ok, _ := h.DefinitionApproved(ctx, "wf-g", hash); !ok {
+		t.Fatal("the edit the operator read was not approved")
+	}
+	_ = s
+}

@@ -164,6 +164,17 @@ func Refusal() string {
 // operator's again, when this process is the operator's own terminal: the
 // operator saved or activated it, a deliberate review. Anything else leaves
 // the approvals as they were. A store that keeps none is passed over.
+// ApprovingContext makes the publication that is made with the returned context also record its
+// resulting definition as the operator's, in the same commit as the rows (unless an agent is
+// running this command). Prefer it to ApproveWorkflow after a save: that approves whatever the
+// workflow is when it runs, which can include a change made in between.
+func ApprovingContext(ctx context.Context) context.Context {
+	if Marker() != "" {
+		return ctx
+	}
+	return workflow.WithApproval(ctx)
+}
+
 func ApproveWorkflow(ctx context.Context, store any, id string) error {
 	a, ok := store.(interface {
 		ApproveDefinition(ctx context.Context, workflowID string) error

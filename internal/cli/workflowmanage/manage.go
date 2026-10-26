@@ -436,11 +436,8 @@ func (d Deps) newCreateCmd() *cobra.Command {
 			ctx := context.Background()
 			// Same persistence as import: file store plus the SQLite rows
 			// that `workflow run --json` and executions read.
-			if err := d.CreateWorkflow(ctx, store, wf, false); err != nil {
+			if err := d.CreateWorkflow(operator.ApprovingContext(ctx), store, wf, false); err != nil {
 				return fmt.Errorf("create workflow: %w", err)
-			}
-			if err := operator.ApproveWorkflow(ctx, store, wf.ID); err != nil {
-				fmt.Fprintf(os.Stderr, "warning: recording this workflow as yours failed, so its runs count as an AI's until you save or activate it again: %v\n", err)
 			}
 
 			if d.JSONOutput() {
