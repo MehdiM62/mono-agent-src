@@ -3390,6 +3390,28 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
     that looks like a bare repository (git discovers it there).
   Names compare without case on Windows and macOS. A refusal names the
   `workflow activate <id>` that approves the workflow.
+- **Switching a workflow on is gated on the operator's approval** (the
+  store refuses it with `ErrApprovalRequired`, in the same transaction that
+  would write the flag, so it covers `workflow activate`, MCP
+  `workflow_set_active`, HTTP `POST .../activate` (403) and the chat). Only
+  `workflow activate` approves: it records the approval in the activation
+  itself, for the definition it read or the `review_hash` named by
+  `--expect` (`workflow get <id> --json` prints it); a change made after
+  that is `ErrChangedSincePreview` (409) and nothing is activated or
+  approved. Switching off is never refused. Approvals are written only by a
+  change made under `operator.ApprovingContext` (the CLI/GUI as the
+  operator), never by HTTP or MCP handlers: the server process's marker says
+  nothing about who called it. The refusal tells the operator to review the
+  workflow (`workflow get <id> --json`) and to pass what they saw to
+  `workflow activate <id> --expect <review_hash>`: a bare `workflow activate`
+  approves the definition as it is when it reads it. Limits: the gate is on
+  switching on (inactive to active). An agent's edit of a workflow that is
+  already active keeps its flag, so it stays armed, and its runs are AI runs
+  (no secrets, no programs, file steps under FileGuard) until the operator
+  approves it again. Approvals are plain database rows: this is a courtesy
+  layer against agents that act through the CLI, MCP, HTTP and the chat, as
+  the operator marker is, not against a process that writes the database
+  itself.
 - **The project folder is a trusted zone** (the user's choice): the
   profile's project folder is open to them, hidden folders in it included,
   and for a profile on the default folder (`~/.monoagent/profiles/<id>`)
