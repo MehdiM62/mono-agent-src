@@ -44,6 +44,9 @@ var helperActions = map[string]func(ctx context.Context, h *HybridWorkflowStore,
 		cur.Description = "updated-" + os.Getenv("WF_HELPER_VALUE")
 		return h.UpdateWorkflow(ctx, cur)
 	},
+	"save-shared": func(ctx context.Context, h *HybridWorkflowStore, cur *Workflow) error {
+		return h.SaveWorkflow(ctx, mirrorWF("wf-x", "shared-n", "x-set"))
+	},
 	"save-revoking": func(ctx context.Context, h *HybridWorkflowStore, cur *Workflow) error {
 		cur.Nodes[1].Config = map[string]interface{}{"k": "from-revoking"}
 		return h.SaveWorkflowRevoking(ctx, cur, "")
@@ -278,4 +281,28 @@ func tailOf(s string) string {
 		return s[len(s)-1500:]
 	}
 	return s
+}
+
+// Two workflows that both name a node id nobody owns yet cannot both publish it: the second to
+// commit is refused and its file goes back, instead of the node being moved out from under the first.
+func TestCrashNodeIdClaimedWhileAChangeWasOpenIsRefusedAtTheCommit(t *testing.T) {
+	r := newCrashRig(t)
+	r.pauseAction = "save-shared"
+	cmd, release := r.pauseHelper(t, "after-rename")
+	other := mirrorWF("wf-y", "shared-n", "y-set")
+	if err := r.h.SaveWorkflow(context.Background(), other); err != nil {
+		t.Fatal(err)
+	}
+	release()
+	err := cmd.Wait()
+	if ee, ok := err.(*exec.ExitError); !ok || ee.ExitCode() != 3 {
+		t.Fatalf("the second claim should be refused: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(r.root, "workflows", "wf-x.json")); !os.IsNotExist(err) {
+		t.Fatalf("the refused workflow kept its file: %v", err)
+	}
+	got, _ := r.s.GetWorkflow(context.Background(), "wf-y")
+	if got == nil || len(got.Nodes) != 2 || r.openIntents(t) != 0 {
+		t.Fatalf("the first owner lost its node: %+v", got)
+	}
 }

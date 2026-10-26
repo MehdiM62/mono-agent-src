@@ -24,6 +24,8 @@ type crashRig struct {
 	h    *HybridWorkflowStore
 	s    *SQLiteWorkflowStore
 	hash string
+	// pauseAction is the writer pauseHelper runs; apply-fix when empty.
+	pauseAction string
 }
 
 func openRigStore(t testing.TB, root string, migrate bool) (*HybridWorkflowStore, *SQLiteWorkflowStore, func()) {
@@ -228,7 +230,11 @@ func (r *crashRig) pauseHelper(t *testing.T, point string) (cmd *exec.Cmd, relea
 	if err := syscall.Mkfifo(fifo, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	cmd = r.startHelper(t, "apply-fix", "MONOAGENT_WF_FAILPOINT_PAUSE="+point+":"+fifo)
+	act := r.pauseAction
+	if act == "" {
+		act = "apply-fix"
+	}
+	cmd = r.startHelper(t, act, "MONOAGENT_WF_FAILPOINT_PAUSE="+point+":"+fifo)
 	deadline := time.Now().Add(30 * time.Second)
 	for {
 		if _, err := os.Stat(fifo + ".reached"); err == nil {

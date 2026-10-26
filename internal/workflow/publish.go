@@ -309,6 +309,13 @@ func (h *HybridWorkflowStore) applyRows(ctx context.Context, tx *sql.Tx, p Publi
 		}
 		return nil
 	}
+	if pl.graph {
+		// Planning looked at who owns the node and connection ids, but another change may have
+		// claimed one since; an upsert would move it out from under that workflow.
+		if err := checkOwnIDsOn(ctx, tx, pl.target); err != nil {
+			return err
+		}
+	}
 	v, err := writeDefinitionRows(ctx, tx, pl.target, pl.graph, p.StoredVersion, p.Note)
 	if err != nil {
 		return err

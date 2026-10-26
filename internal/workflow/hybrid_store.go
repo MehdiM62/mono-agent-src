@@ -214,6 +214,13 @@ var ErrSharedIDs = errors.New("workflow shares node or connection ids with anoth
 // checkOwnIDs returns ErrSharedIDs when any of w's node or connection ids
 // belongs to a different workflow in SQLite.
 func (s *SQLiteWorkflowStore) checkOwnIDs(ctx context.Context, w *Workflow) error {
+	return checkOwnIDsOn(ctx, s.db, w)
+}
+
+// checkOwnIDsOn is checkOwnIDs over a database or a transaction.
+func checkOwnIDsOn(ctx context.Context, db interface {
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}, w *Workflow) error {
 	var nodeIDs, connIDs []any
 	for _, n := range w.Nodes {
 		if n.ID != "" {
@@ -235,7 +242,7 @@ func (s *SQLiteWorkflowStore) checkOwnIDs(ctx context.Context, w *Workflow) erro
 		stmt := fmt.Sprintf(`SELECT COUNT(*) FROM %s WHERE workflow_id != ? AND id IN (%s)`, q.table,
 			strings.TrimSuffix(strings.Repeat("?,", len(q.ids)), ","))
 		var n int
-		if err := s.db.QueryRowContext(ctx, stmt, append([]any{w.ID}, q.ids...)...).Scan(&n); err != nil {
+		if err := db.QueryRowContext(ctx, stmt, append([]any{w.ID}, q.ids...)...).Scan(&n); err != nil {
 			return err
 		}
 		if n > 0 {
