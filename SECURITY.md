@@ -1702,13 +1702,16 @@ that works a task acts on them. The defences:
   under a reserved config prefix that only the operator writes, deletes or reads, is single
   use, and is revoked when its command is cancelled, expires, fails or is deleted with its
   conversation. A send marked as a mission never runs plain: without a live record it
-  fails. The token reaches the child in its environment; the binary moves it out of
-  its own (Go) environment before it starts any process of its own, so nothing the child
-  starts inherits it. That does not erase the environment block the process was given at
-  start: on Linux `/proc/<pid>/environ` and on macOS `ps eww` still show the token to a
-  process of the same user until the child exits. What bounds this is that the token is
-  single use and is dead once the child has consumed the record, early in the turn; the
-  window is from the host's start of the child until that point. The limit of the MAC: the same user with keychain
+  fails. The token reaches the child over an inherited pipe, not in its
+  environment or arguments: the host writes it to a fresh pipe, closes the write end and
+  passes the read end; the child checks that the descriptor is a pipe, reads at most a few
+  hundred bytes once, with a deadline, closes it before it starts any process of its own,
+  and refuses anything malformed. A value in a process environment can be read by other
+  processes of the same user until the process exits; with a pipe the value is exposed only
+  for the moment between the host's write and the child's first read, and nothing is left to
+  read afterwards. The session token, which stays in the turn's environment, is unchanged. Only the descriptor's number, which is not secret, is in the
+  environment. On Windows the same pipe is passed as an inherited handle. The token is also
+  single use and is dead once the child has consumed the record, early in the turn. The limit of the MAC: the same user with keychain
   access (the key comes out of the OS keychain, or the file keyring that stands in for
   it, and the database is a file that user owns) can sign a record, so none of this stops
   such a process; the guard is against agent turns going through the CLI, which refuses

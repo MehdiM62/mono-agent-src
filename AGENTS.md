@@ -1823,7 +1823,8 @@ one click; implied once the conversation has an open session) gives the lead
 marked as a mission, and a confirmation record bound to that command and signed under a key
 derived from the profile's vault key is written under the reserved `coder-mission-confirm/`
 config prefix, which only the operator writes or reads. The host passes the chat child the
-record's token in `MONOAGENT_MISSION_TOKEN`; the child verifies the signature and consumes
+record's token over an inherited pipe (never the environment or arguments; the child reads
+it once and closes it); the child verifies the signature and consumes
 the record. A mission send with no live record fails with "mission confirmation expired or
 missing: send again" and never runs as a plain turn; the record is revoked when the command
 is cancelled, expires or fails.)
