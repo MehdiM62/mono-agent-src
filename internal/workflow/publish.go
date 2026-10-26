@@ -118,7 +118,8 @@ func (h *HybridWorkflowStore) Publish(ctx context.Context, p Publication) (*Work
 	deadline := time.Now().Add(publicationWait)
 	for {
 		w, err := h.publishOnce(ctx, p)
-		if !errors.Is(err, ErrPublicationBusy) || time.Now().After(deadline) {
+		// A change in progress, or the database too busy for the lock this time: both are worth a wait.
+		if !(errors.Is(err, ErrPublicationBusy) || isBusyErr(err)) || time.Now().After(deadline) {
 			if p.Kind == PubDelete {
 				return w, err
 			}

@@ -612,3 +612,24 @@ func TestQuarantineKeepsOnlyTheNewestCopies(t *testing.T) {
 		t.Fatalf("%d copies kept", len(kept))
 	}
 }
+
+// A database too busy to give the write lock within its own timeout is retried by Publish like a
+// change in progress, instead of failing the caller at once.
+func TestPublishRetriesWhenTheDatabaseIsBusy(t *testing.T) {
+	ctx := context.Background()
+	h, s, hash, nodes := guardedRig(t)
+	calls := 0
+	guardedCommitFault = func() error {
+		calls++
+		if calls == 1 {
+			return errors.New("database is locked (5) (SQLITE_BUSY)")
+		}
+		return nil
+	}
+	if err := h.SaveNodesGuarded(ctx, "wf-g", nodes, SaveGuard{ExpectHash: hash}); err != nil {
+		t.Fatalf("a busy first attempt was not retried: %v", err)
+	}
+	if calls != 2 || sqlConfig(t, s, "wf-g", "g-set") != "edited" {
+		t.Fatalf("calls %d", calls)
+	}
+}
