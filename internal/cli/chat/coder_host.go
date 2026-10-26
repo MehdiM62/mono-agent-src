@@ -151,7 +151,11 @@ func newCoderHostRunCmd(cfg *Deps) *cobra.Command {
 			// host.json first: `host stop` and `host status` read it as soon as the lock is held.
 			info := hostInfo{PID: os.Getpid(), Stamp: pidStamp(os.Getpid()), Instance: "host-" + uuid.NewString()[:8], StartedAt: time.Now().UTC().Format(time.RFC3339)}
 			raw, _ := json.Marshal(info)
-			if err := os.WriteFile(filepath.Join(hostDir(cfg), hostInfoFile), raw, 0o600); err != nil {
+			infoPath := filepath.Join(hostDir(cfg), hostInfoFile)
+			if err := os.WriteFile(infoPath+".tmp", raw, 0o600); err != nil { // renamed into place: a reader never sees half of it
+				return err
+			}
+			if err := os.Rename(infoPath+".tmp", infoPath); err != nil {
 				return err
 			}
 			db, err := cfg.OpenDB()

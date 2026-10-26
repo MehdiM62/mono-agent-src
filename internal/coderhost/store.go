@@ -149,16 +149,16 @@ func (s *Store) Enqueue(c Command) (Command, error) {
 	return c, nil
 }
 
-// Pending returns the commands still waiting: control commands first, then
-// sends, each oldest first. Sends to a chat that is paused or has a turn are
-// left out, so a pile of blocked sends cannot push a later resume or stop (or
-// another chat's send) out of the window.
+// Pending returns the commands still waiting, in the order they were queued.
+// Sends to a chat that is paused or has a turn are left out, so a pile of
+// blocked sends cannot push a later resume or stop (or another chat's send) out
+// of the window; they are picked up on a later pass, once the chat is free.
 func (s *Store) Pending() ([]Command, error) {
 	rows, err := s.db.Query(`SELECT id, profile_id, conversation_id, kind, turn_id, message, attachments, status, error, created_at, updated_at
 		FROM coder_session_commands c WHERE status = 'pending'
 		AND (kind != 'send' OR NOT EXISTS (SELECT 1 FROM coder_sessions s
-			WHERE s.profile_id = c.profile_id AND s.conversation_id = c.conversation_id AND (s.state = 'paused' OR s.turn_pid > 0)))
-		ORDER BY CASE kind WHEN 'send' THEN 1 ELSE 0 END, id LIMIT ?`, pendingBatch)
+			WHERE s.profile_id = c.profile_id AND s.conversation_id = c.conversation_id AND (s.state = 'paused' OR s.turn_pid > 0 OR s.turn_id != '')))
+		ORDER BY id LIMIT ?`, pendingBatch)
 	if err != nil {
 		return nil, err
 	}

@@ -10,8 +10,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"runtime"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -120,12 +118,13 @@ func awaitAdmission(logPath string, offset int64, done <-chan struct{}) error {
 				Admitted bool   `json:"admitted"`
 				Existed  bool   `json:"existed"`
 				Error    string `json:"error"`
+				Code     string `json:"code"`
 			}
 			if json.Unmarshal([]byte(line), &m) != nil {
 				continue
 			}
 			switch {
-			case m.Error != "":
+			case m.Error != "" && m.Code != "": // the {"error","code"} line of a refused turn, not any JSON log line
 				return errors.New(m.Error)
 			case m.Existed:
 				return errors.New("this turn id was already used")
@@ -167,6 +166,7 @@ func (l *execLauncher) Finish(profileID, conversationID, turnID, reason string) 
 	if turnID == "" || !hostID.MatchString(conversationID) || !hostID.MatchString(turnID) {
 		return
 	}
+	os.Remove(filepath.Join(l.logDir, turnID+".prompt")) // a turn a later host adopted has no waiter to do it
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	out, err := exec.CommandContext(ctx, l.bin, l.args(profileID, "chat", "history", "finish", conversationID, turnID, "--status", "failed", "--reason", reason)...).CombinedOutput()
@@ -186,7 +186,21 @@ type execTurn struct {
 func (t *execTurn) PID() int      { return t.pid }
 func (t *execTurn) Stamp() string { return t.stamp }
 func (t *execTurn) Wait() error   { <-t.done; return t.err }
-func (t *execTurn) Stop()         { t.once.Do(func() { stopGroup(t.pid, "") }) }
+func (t *execTurn) Stop() {
+	t.once.Do(func() {
+		_ = terminateGroup(t.pid) // t is this process's child: while it is not reaped its pid is not reused
+		go func() {
+			select {
+			case <-t.done:
+				// The leader ended and was reaped just now; whatever of its group ignored
+				// the SIGTERM goes with it, before the pid can be handed to anyone else.
+				_ = killGroup(t.pid)
+			case <-time.After(hostTurnGrace):
+				_ = killGroup(t.pid)
+			}
+		}()
+	})
+}
 
 // adoptedTurn is a turn process a previous host started: not this process's
 // child, so it is watched by pid.
@@ -211,81 +225,55 @@ func (t *adoptedTurn) Wait() error {
 }
 
 func (t *adoptedTurn) Stop() {
-	t.once.Do(func() { stopGroup(t.pid, t.stamp) })
+	t.once.Do(func() {
+		signalTurn(t.pid, t.stamp, terminateGroup)
+		// Not this process's child, so the group is signalled only while the leader is
+		// verifiably the same process. A leader that ends first leaves any child that
+		// ignored SIGTERM running: it cannot be told from a stranger by then.
+		time.AfterFunc(hostTurnGrace, func() { signalTurn(t.pid, t.stamp, killGroup) })
+	})
 }
 
-// signalTurn sends sig to the turn's process group, if pid still is the
-// session leader the host started. stamp, when set, is the start time pid must
-// still have (a turn the host did not start itself); "" for a child of this
-// process, whose pid cannot be reused while it is unreaped or its group lives.
+// signalTurn sends sig to the turn's process group if pid still is the process
+// that has the given start time.
 type groupSignal func(pid int) error
 
 func signalTurn(pid int, stamp string, sig groupSignal) {
-	if pid <= 1 || (stamp != "" && pidStamp(pid) != stamp) {
+	if pid <= 1 || stamp == "" || pidStamp(pid) != stamp {
 		return
 	}
 	_ = sig(pid)
 }
 
-// stopGroup asks the turn's process group to end and, once hostTurnGrace has
-// passed, kills whatever of the group is left, also when only its leader
-// exited. It returns at once.
-func stopGroup(pid int, stamp string) {
-	signalTurn(pid, stamp, terminateGroup)
-	time.AfterFunc(hostTurnGrace, func() { signalTurn(pid, stamp, killGroup) })
-}
-
-// pidStamp says what makes pid the process it is now: its start time. "" when
-// it cannot be read (the process is gone, or Windows).
-func pidStamp(pid int) string {
-	switch runtime.GOOS {
-	case "windows":
-		return ""
-	case "linux":
-		raw, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/stat")
-		if err != nil {
-			return ""
-		}
-		s := string(raw)
-		i := strings.LastIndex(s, ")")
-		if i < 0 {
-			return ""
-		}
-		f := strings.Fields(s[i+1:])
-		if len(f) < 20 {
-			return ""
-		}
-		return "start:" + f[19]
-	}
-	out, err := exec.Command("ps", "-o", "lstart=", "-p", strconv.Itoa(pid)).Output()
-	if s := strings.TrimSpace(string(out)); err == nil && s != "" {
-		return "started:" + s
-	}
-	return ""
-}
-
 // hostHeldTurns is the reconcile sweep's skip list: a turn that is the current
 // turn of a host session and whose process is still the one the host started
-// (alive, same start time). A turn whose process is gone is not held, however
-// the host ended, so it is interrupted like any other orphan.
-func hostHeldTurns(cfg *Deps) func(ai.Turn) bool {
+// (alive, same start time), or that the host is still admitting (recorded
+// before its process has a pid). A turn whose process is gone is not held,
+// however the host ended, so it is interrupted like any other orphan. Each turn
+// is looked up as the sweep reaches it. When the host's records cannot be read,
+// no host turn is interrupted: closeFn must be called when the sweep is done.
+func hostHeldTurns(cfg *Deps) (skip func(ai.Turn) bool, closeFn func()) {
+	failClosed := func(t ai.Turn) bool { return isHostInstance(t.OwnerInstanceID) }
 	db, err := cfg.OpenDB()
 	if err != nil {
-		return nil
+		return failClosed, func() {}
 	}
-	defer db.Close()
-	sessions, err := coderhost.NewStore(db.DB).ListSessions("")
-	if err != nil {
-		return nil
-	}
-	held := map[string]coderhost.Session{}
-	for _, x := range sessions {
-		if x.TurnID != "" {
-			held[x.ProfileID+"\x00"+x.ConversationID+"\x00"+x.TurnID] = x
-		}
-	}
+	cs := coderhost.NewStore(db.DB)
 	return func(t ai.Turn) bool {
-		x, ok := held[t.ProfileID+"\x00"+t.ConversationID+"\x00"+t.ID]
-		return ok && x.TurnPID > 1 && x.TurnStamp != "" && daemonhb.ProcessAlive(x.TurnPID) && pidStamp(x.TurnPID) == x.TurnStamp
-	}
+		x, ok, err := cs.GetSession(t.ProfileID, t.ConversationID)
+		if err != nil {
+			return failClosed(t)
+		}
+		if !ok || x.TurnID != t.ID {
+			return false
+		}
+		if x.TurnPID == 0 { // being admitted: held for as long as the host could still be at it
+			updated, perr := time.Parse(time.RFC3339Nano, x.UpdatedAt)
+			return perr == nil && time.Since(updated) < admissionWait+10*time.Second
+		}
+		return x.TurnPID > 1 && x.TurnStamp != "" && daemonhb.ProcessAlive(x.TurnPID) && pidStamp(x.TurnPID) == x.TurnStamp
+	}, func() { db.Close() }
 }
+
+// isHostInstance is the owner id a host-run turn carries (see hostID).
+func isHostInstance(owner string) bool { return strings.HasPrefix(owner, "host-") }

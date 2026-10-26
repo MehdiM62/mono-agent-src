@@ -140,12 +140,22 @@ func (h *Host) Tick() error {
 				h.end(c, CmdFailed, "the session is stopped")
 				continue
 			}
+			// The turn is recorded before it starts, without a pid yet, so the
+			// app's startup sweep sees it as the host's while it is admitted.
+			x.State, x.TurnID, x.TurnPID, x.TurnStamp = StateRunning, c.TurnID, 0, ""
+			if err := h.Store.SaveSession(x); err != nil {
+				h.end(c, CmdFailed, "could not record the session: "+err.Error())
+				return err
+			}
+			h.mu.Unlock() // admission can take seconds; do not hold up the turn watchers meanwhile
 			t, err := h.L.Start(c.ProfileID, c.ConversationID, c.TurnID, c.Message, c.Attachments)
+			h.mu.Lock()
 			if err != nil {
+				h.settle(x)
 				h.end(c, CmdFailed, err.Error())
 				continue
 			}
-			x.State, x.TurnID, x.TurnPID, x.TurnStamp = StateRunning, c.TurnID, t.PID(), t.Stamp()
+			x.TurnPID, x.TurnStamp = t.PID(), t.Stamp()
 			if err := h.Store.SaveSession(x); err != nil {
 				t.Stop()
 				h.end(c, CmdFailed, "could not record the session: "+err.Error())

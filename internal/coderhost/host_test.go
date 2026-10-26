@@ -33,6 +33,7 @@ type fakeLauncher struct {
 	alive    map[int]*fakeTurn
 	startErr error
 	next     int
+	onStart  func() // runs inside Start, before the turn exists
 }
 
 func newFakeLauncher() *fakeLauncher {
@@ -40,6 +41,9 @@ func newFakeLauncher() *fakeLauncher {
 }
 
 func (l *fakeLauncher) Start(profile, conv, turn, msg string, att []string) (Turn, error) {
+	if l.onStart != nil {
+		l.onStart()
+	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if l.startErr != nil {
@@ -357,5 +361,51 @@ func TestSaveSessionRefusesPid1(t *testing.T) {
 	x.TurnPID = 1
 	if err := st.SaveSession(x); err == nil {
 		t.Fatal("pid 1 was saved as a turn's pid")
+	}
+}
+
+// Commands run in the order they were queued: a send followed by a stop on an
+// idle chat starts the turn and then stops it, and never the other way round.
+func TestCommandsRunInTheOrderTheyWereQueued(t *testing.T) {
+	h, l, st := newHost(t)
+	send(t, st, "c1", "t1", "hello")
+	st.Enqueue(Command{ProfileID: "p", ConversationID: "c1", Kind: KindStop})
+	send(t, st, "c1", "t2", "after the stop")
+	if err := h.Tick(); err != nil {
+		t.Fatal(err)
+	}
+	if len(l.started) != 1 || !l.turn("t1").stopped {
+		t.Fatalf("started=%v stopped=%v: want the first send started, then stopped", l.started, l.turn("t1") != nil && l.turn("t1").stopped)
+	}
+	waitFor(t, "c1 to be idle", func() bool { return state(t, st, "c1").State == StateIdle })
+	_ = h.Tick()
+	if len(l.started) != 2 || l.started[1] != "t2:after the stop" {
+		t.Fatalf("started = %v: a send queued after the stop must run once the chat is free", l.started)
+	}
+}
+
+func TestSendThenPauseOnAnIdleChatStartsTheTurnThenPauses(t *testing.T) {
+	h, l, st := newHost(t)
+	send(t, st, "c1", "t1", "hello")
+	st.Enqueue(Command{ProfileID: "p", ConversationID: "c1", Kind: KindPause})
+	_ = h.Tick()
+	if len(l.started) != 1 || state(t, st, "c1").State != StatePaused {
+		t.Fatalf("started=%v state=%v", l.started, state(t, st, "c1").State)
+	}
+}
+
+// The turn is recorded before its process starts, so an app that starts up while
+// the host is still admitting it does not take it for an orphan.
+func TestTheTurnIsRecordedBeforeItStarts(t *testing.T) {
+	h, l, st := newHost(t)
+	var during Session
+	l.onStart = func() { during, _, _ = st.GetSession("p", "c1") }
+	send(t, st, "c1", "t1", "hello")
+	_ = h.Tick()
+	if during.TurnID != "t1" || during.State != StateRunning || during.TurnPID != 0 {
+		t.Fatalf("session during Start = %+v", during)
+	}
+	if x := state(t, st, "c1"); x.TurnPID == 0 {
+		t.Fatalf("session after Start = %+v, want the pid recorded", x)
 	}
 }

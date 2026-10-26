@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -68,8 +69,8 @@ func TestSessionsSendQueuesForTheHostAndStartsOne(t *testing.T) {
 	if _, code := runSessionsCLI(t, cfg, "pause", conv.ID); code != 0 || started != 1 {
 		t.Fatalf("a running host is not started again: exit %d, starts %d", code, started)
 	}
-	cmds := pendingCommands(t, dbPath) // control commands come first
-	if len(cmds) != 2 || cmds[0].Kind != coderhost.KindPause || cmds[1].Kind != coderhost.KindSend || cmds[1].Message != "do the thing" {
+	cmds := pendingCommands(t, dbPath) // in the order queued
+	if len(cmds) != 2 || cmds[0].Kind != coderhost.KindSend || cmds[0].Message != "do the thing" || cmds[1].Kind != coderhost.KindPause {
 		t.Fatalf("queued = %+v", cmds)
 	}
 	if _, code := runSessionsCLI(t, cfg, "send", scoped.ID, "x"); code == 0 {
@@ -118,7 +119,8 @@ func TestExecLauncherStartsADetachedTurnAndStopsItsGroup(t *testing.T) {
 	promptLog := filepath.Join(dir, "prompt.txt")
 	bin := filepath.Join(dir, "fake-monoagentcli")
 	script := "#!/bin/sh\necho \"$*\" >> '" + argsLog + "'\nif [ \"$4\" = \"chat\" ] && [ \"$5\" = \"history\" ]; then exit 0; fi\n" +
-		"cat > '" + promptLog + "'\necho '{\"admitted\":true,\"existed\":false,\"turn\":{\"id\":\"t1\"}}'\nsleep 60 &\nwait\n"
+		"cat > '" + promptLog + "'\necho '{\"level\":\"warn\",\"error\":\"a library log line, not a refusal\"}'\necho '{\"admitted\":true,\"existed\":false,\"turn\":{\"id\":\"t1\"}}'\n" +
+		"(trap '' TERM; exec sleep 60) &\necho $! > '" + filepath.Join(dir, "child.pid") + "'\nwait\n"
 	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -160,6 +162,14 @@ func TestExecLauncherStartsADetachedTurnAndStopsItsGroup(t *testing.T) {
 	if l.Adopt(turn.PID(), turn.Stamp()) != nil {
 		t.Fatal("an ended turn was adopted")
 	}
+	childPID := 0
+	if b, err := os.ReadFile(filepath.Join(dir, "child.pid")); err == nil {
+		childPID, _ = strconv.Atoi(strings.TrimSpace(string(b)))
+	}
+	if childPID <= 1 {
+		t.Fatalf("no child pid recorded")
+	}
+	waitUntil(t, "the child that ignores SIGTERM to be killed with its leader", func() bool { return !daemonhb.ProcessAlive(childPID) })
 	if _, err := os.Stat(filepath.Join(dir, "turns", "t1.prompt")); !os.IsNotExist(err) {
 		t.Fatalf("the prompt file was left behind: %v", err)
 	}
@@ -241,5 +251,61 @@ func TestReconcileSparesOnlyTurnsWhoseProcessIsAlive(t *testing.T) {
 		if got, _ := store.GetTurn(turn, "default"); got.Status != want {
 			t.Errorf("turn %s = %q, want %q", turn, got.Status, want)
 		}
+	}
+}
+
+// A turn another host started has no waiter to remove its prompt: Finish does.
+func TestFinishRemovesTheTurnsPromptFile(t *testing.T) {
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "fake")
+	if err := os.WriteFile(bin, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	l := &execLauncher{bin: bin, dbPath: "/db/x.db", instance: "host-test", logDir: filepath.Join(dir, "turns")}
+	os.MkdirAll(l.logDir, 0o700)
+	prompt := filepath.Join(l.logDir, "t1.prompt")
+	os.WriteFile(prompt, []byte("secret"), 0o600)
+	l.Finish("p", "c1", "t1", "gone")
+	if _, err := os.Stat(prompt); !os.IsNotExist(err) {
+		t.Fatalf("prompt file left behind: %v", err)
+	}
+}
+
+// While the host is still admitting a turn (recorded, no pid yet) the sweep
+// spares it, for a while; a record that stays that way is an orphan. When the
+// host's records cannot be read, no host turn is interrupted.
+func TestHostHeldTurnsCoversTheAdmissionWindowAndFailsClosed(t *testing.T) {
+	dbPath := newChatCLITestDB(t)
+	store := openTestChatStore(t, dbPath)
+	fresh, _ := store.CreateConversation("default", "agent", "general", "claude", "", "")
+	stale, _ := store.CreateConversation("default", "agent", "general", "claude", "", "")
+	store.CreateTurn(fresh.ID, "default", "fresh", "host-abc", "hi")
+	store.CreateTurn(stale.ID, "default", "stale", "host-abc", "hi")
+	db, _ := storage.NewDatabase(dbPath)
+	cs := coderhost.NewStore(db.DB)
+	for _, c := range []struct{ conv, turn string }{{fresh.ID, "fresh"}, {stale.ID, "stale"}} {
+		x, _ := cs.EnsureSession("default", c.conv)
+		x.State, x.TurnID = coderhost.StateRunning, c.turn
+		cs.SaveSession(x)
+	}
+	db.DB.Exec(`UPDATE coder_sessions SET updated_at = ? WHERE conversation_id = ?`, time.Now().Add(-time.Hour).UTC().Format(time.RFC3339Nano), stale.ID)
+	db.Close()
+
+	cfg := testDeps(&testConfig{DBPath: dbPath, ProfileID: "default"})
+	skip, closeSkip := hostHeldTurns(cfg)
+	defer closeSkip()
+	if !skip(ai.Turn{ID: "fresh", ConversationID: fresh.ID, ProfileID: "default"}) {
+		t.Error("a turn the host is admitting right now was not spared")
+	}
+	if skip(ai.Turn{ID: "stale", ConversationID: stale.ID, ProfileID: "default"}) {
+		t.Error("a turn stuck in admission for an hour was spared")
+	}
+
+	broken := testDeps(&testConfig{DBPath: dbPath, ProfileID: "default"})
+	broken.OpenDB = func() (*storage.Database, error) { return nil, errors.New("disk on fire") }
+	skip, closeSkip2 := hostHeldTurns(broken)
+	defer closeSkip2()
+	if !skip(ai.Turn{ID: "x", OwnerInstanceID: "host-abc"}) || skip(ai.Turn{ID: "y", OwnerInstanceID: "11111111-2222-3333-4444-555555555555"}) {
+		t.Error("with unreadable records the sweep must spare host-owned turns and only those")
 	}
 }
