@@ -23,7 +23,7 @@ import (
 // refuses AI runs (internal/operator.AIRun) refuses it. The approvals live in
 // workflow_approvals (migration 106), outside the definition, so no import
 // or settings key can claim one; the operator's commands record them
-// (ApproveDefinition, internal/operator.ApproveWorkflow).
+// (a publication made with WithApproval, internal/operator.ApprovingContext).
 
 type aiAuthoredKey struct{}
 

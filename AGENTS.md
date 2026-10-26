@@ -3383,6 +3383,18 @@ monoagentcli --profile <id> --json browser network --tab 812 --failed
     that looks like a bare repository (git discovers it there).
   Names compare without case on Windows and macOS. A refusal names the
   `workflow activate <id>` that approves the workflow.
+- **Switching a workflow on is gated on the operator's approval** (the
+  store refuses it with `ErrApprovalRequired`, in the same transaction that
+  would write the flag, so it covers `workflow activate`, MCP
+  `workflow_set_active`, HTTP `POST .../activate` (403) and the chat). Only
+  `workflow activate` approves: it records the approval in the activation
+  itself, for the definition it read or the `review_hash` named by
+  `--expect` (`workflow get <id> --json` prints it); a change made after
+  that is `ErrChangedSincePreview` (409) and nothing is activated or
+  approved. Switching off is never refused. Approvals are written only by a
+  change made under `operator.ApprovingContext` (the CLI/GUI as the
+  operator), never by HTTP or MCP handlers: the server process's marker says
+  nothing about who called it.
 - **The project folder is a trusted zone** (the user's choice): the
   profile's project folder is open to them, hidden folders in it included,
   and for a profile on the default folder (`~/.monoagent/profiles/<id>`)
