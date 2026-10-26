@@ -40,9 +40,12 @@ func (l *execLauncher) args(profileID string, rest ...string) []string {
 	return append([]string{"--db-path", l.dbPath, "--profile", profileID, "--json"}, rest...)
 }
 
-func (l *execLauncher) Start(profileID, conversationID, turnID, message string, attachments []string) (coderhost.Turn, error) {
+func (l *execLauncher) Start(profileID, conversationID, turnID, message string, attachments []string, mission bool) (coderhost.Turn, error) {
 	if !hostID.MatchString(conversationID) || !hostID.MatchString(turnID) {
 		return nil, fmt.Errorf("conversation and turn ids must be letters, digits, '.', '_' and '-'")
+	}
+	if mission && coderhost.HostMade(turnID) {
+		return nil, fmt.Errorf("a host-started turn cannot carry a mission confirmation")
 	}
 	if err := os.MkdirAll(l.logDir, 0o700); err != nil {
 		return nil, err
@@ -82,6 +85,9 @@ func (l *execLauncher) Start(profileID, conversationID, turnID, message string, 
 	rest := []string{"chat", "--conversation", conversationID, "--turn", turnID, "--instance", l.instance, "--prompt-stdin"}
 	for _, a := range attachments {
 		rest = append(rest, "--attach="+a)
+	}
+	if mission {
+		rest = append(rest, "--mission") // the operator's flag from the send command, never anything in the message
 	}
 	cmd := exec.Command(l.bin, l.args(profileID, rest...)...)
 	cmd.Dir = filepath.Dir(l.logDir)

@@ -129,11 +129,11 @@ func TestExecLauncherStartsADetachedTurnAndStopsItsGroup(t *testing.T) {
 	}
 	l := &execLauncher{bin: bin, dbPath: "/db/x.db", instance: "host-test", logDir: filepath.Join(dir, "turns")}
 
-	if _, err := l.Start("p", "-rf", "t1", "hi", nil); err == nil {
+	if _, err := l.Start("p", "-rf", "t1", "hi", nil, false); err == nil {
 		t.Fatal("a conversation id that reads as a flag was accepted")
 	}
 	secret := strings.Repeat("a long prompt ", 20000) // 280 KB: over the 128 KiB argument limit
-	turn, err := l.Start("p", "c1", "t1", secret, []string{"/tmp/a.txt"})
+	turn, err := l.Start("p", "c1", "t1", secret, []string{"/tmp/a.txt"}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -195,7 +195,7 @@ func TestExecLauncherReportsARefusedTurn(t *testing.T) {
 		t.Fatal(err)
 	}
 	l := &execLauncher{bin: bin, dbPath: "/db/x.db", instance: "host-test", logDir: filepath.Join(dir, "turns")}
-	_, err := l.Start("p", "c1", "t1", "hello", nil)
+	_, err := l.Start("p", "c1", "t1", "hello", nil, false)
 	if err == nil || !strings.Contains(err.Error(), "owned by another instance") {
 		t.Fatalf("Start = %v, want the refusal", err)
 	}
@@ -379,7 +379,7 @@ func TestAStartedTurnWithoutAReadableStartTimeIsStoppedAndFails(t *testing.T) {
 	stampOf = func(int) string { return "" }
 	t.Cleanup(func() { stampOf = oldStamp })
 	l := &execLauncher{bin: bin, dbPath: "/db/x.db", instance: "host-test", logDir: filepath.Join(dir, "turns")}
-	_, err := l.Start("p", "c1", "t1", "hello", nil)
+	_, err := l.Start("p", "c1", "t1", "hello", nil, false)
 	if err == nil || !strings.Contains(err.Error(), "identify") {
 		t.Fatalf("Start = %v, want a failure that says the process could not be identified", err)
 	}
@@ -436,7 +436,7 @@ func TestThePromptFileIsRemovedOnceTheTurnHoldsIt(t *testing.T) {
 		t.Fatal(err)
 	}
 	l := &execLauncher{bin: bin, dbPath: "/db/x.db", instance: "host-test", logDir: filepath.Join(dir, "turns")}
-	turn, err := l.Start("p", "c1", "t1", "the whole prompt", nil)
+	turn, err := l.Start("p", "c1", "t1", "the whole prompt", nil, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -516,7 +516,7 @@ func TestAGivenUpTurnIsGoneBeforeStartReturns(t *testing.T) {
 	stampOf, hostTurnGrace = func(int) string { return "" }, 300*time.Millisecond
 	t.Cleanup(func() { stampOf, hostTurnGrace = oldStamp, oldGrace })
 	l := &execLauncher{bin: bin, dbPath: "/db/x.db", instance: "host-test", logDir: filepath.Join(dir, "turns")}
-	if _, err := l.Start("p", "c1", "t1", "hello", nil); err == nil {
+	if _, err := l.Start("p", "c1", "t1", "hello", nil, false); err == nil {
 		t.Fatal("Start succeeded without a start time")
 	}
 	b, _ := os.ReadFile(pidFile)
@@ -574,7 +574,7 @@ func TestAnAdmissionLineWithoutANewlineCounts(t *testing.T) {
 		t.Fatal(err)
 	}
 	l := &execLauncher{bin: bin, dbPath: "/db/x.db", instance: "host-test", logDir: filepath.Join(dir, "turns")}
-	if _, err := l.Start("p", "c1", "t1", "hello", nil); err != nil {
+	if _, err := l.Start("p", "c1", "t1", "hello", nil, false); err != nil {
 		t.Fatalf("Start = %v, want the unterminated admission line accepted", err)
 	}
 }

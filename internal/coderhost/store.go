@@ -7,7 +7,6 @@ package coderhost
 
 import (
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -72,10 +71,15 @@ type Command struct {
 	TurnID         string   `json:"turnId,omitempty"`
 	Message        string   `json:"message,omitempty"`
 	Attachments    []string `json:"attachments,omitempty"`
-	Status         string   `json:"status"`
-	Error          string   `json:"error,omitempty"`
-	CreatedAt      string   `json:"createdAt"`
-	UpdatedAt      string   `json:"updatedAt"`
+	// Mission is the operator's confirmation of a mission, set only by the
+	// operator-gated `coder sessions send --mission`. It is a field of the
+	// command's structured payload (the attachments column), never read from the
+	// message text, and never honoured for a turn the host makes by itself.
+	Mission   bool   `json:"mission,omitempty"`
+	Status    string `json:"status"`
+	Error     string `json:"error,omitempty"`
+	CreatedAt string `json:"createdAt"`
+	UpdatedAt string `json:"updatedAt"`
 }
 
 // Session is a coder conversation as the host tracks it.
@@ -121,14 +125,20 @@ func (s *Store) Enqueue(c Command) (Command, error) {
 		if len(c.Attachments) > MaxAttachments {
 			return c, fmt.Errorf("coder host: at most %d attachments", MaxAttachments)
 		}
+		if c.Mission && HostMade(c.TurnID) {
+			return c, errors.New("coder host: a host-started turn cannot carry a mission confirmation")
+		}
 	case KindStop, KindPause, KindResume:
+		if c.Mission {
+			return c, errors.New("coder host: only a send can confirm a mission")
+		}
 	default:
 		return c, fmt.Errorf("coder host: unknown command %q", c.Kind)
 	}
 	if c.ProfileID == "" || c.ConversationID == "" || len(c.ConversationID) > maxConversationLen {
 		return c, errors.New("coder host: a command needs a profile and a conversation")
 	}
-	att, err := json.Marshal(append([]string{}, c.Attachments...))
+	att, err := encodePayload(c.Attachments, c.Mission)
 	if err != nil {
 		return c, err
 	}
@@ -175,7 +185,7 @@ func (s *Store) Pending() ([]Command, error) {
 			return nil, err
 		}
 		c.Kind = Kind(kind)
-		_ = json.Unmarshal([]byte(att), &c.Attachments)
+		c.Attachments, c.Mission = decodePayload(att)
 		out = append(out, c)
 	}
 	return out, rows.Err()
@@ -221,7 +231,7 @@ func (s *Store) GetCommand(id int64) (Command, bool, error) {
 		return Command{}, false, err
 	}
 	c.Kind = Kind(kind)
-	_ = json.Unmarshal([]byte(att), &c.Attachments)
+	c.Attachments, c.Mission = decodePayload(att)
 	return c, true, nil
 }
 

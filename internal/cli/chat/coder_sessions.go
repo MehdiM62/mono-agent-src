@@ -119,7 +119,7 @@ func enqueue(cfg *Deps, c coderhost.Command, startHost bool) (coderhost.Command,
 func newCoderSessionsSendCmd(cfg *Deps) *cobra.Command {
 	var turn string
 	var attach []string
-	var noHost bool
+	var noHost, mission bool
 	cmd := &cobra.Command{
 		Use:   "send CONVERSATION MESSAGE",
 		Short: "Queue a message; the host starts the turn when the session is free",
@@ -127,6 +127,12 @@ func newCoderSessionsSendCmd(cfg *Deps) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := clicore.RequireOperator(cfg.RequireOperator, "send to a coder session, which starts a full-access turn"); err != nil {
 				return err
+			}
+			if mission {
+				// the flag confirms a mission for the user: an agent cannot confirm its own
+				if err := clicore.RequireOperator(cfg.RequireOperator, "confirm a mission (--mission)"); err != nil {
+					return err
+				}
 			}
 			profileID, err := coderConversation(cfg, args[0])
 			if err != nil {
@@ -139,7 +145,7 @@ func newCoderSessionsSendCmd(cfg *Deps) *cobra.Command {
 			if turn == "" {
 				turn = "t-" + uuid.NewString()
 			}
-			c, err := enqueue(cfg, coderhost.Command{ProfileID: profileID, ConversationID: args[0], Kind: coderhost.KindSend, TurnID: turn, Message: args[1], Attachments: atts}, !noHost)
+			c, err := enqueue(cfg, coderhost.Command{ProfileID: profileID, ConversationID: args[0], Kind: coderhost.KindSend, TurnID: turn, Message: args[1], Attachments: atts, Mission: mission}, !noHost)
 			if err != nil {
 				return err
 			}
@@ -148,6 +154,8 @@ func newCoderSessionsSendCmd(cfg *Deps) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&turn, "turn", "", "Turn id (default: a new one)")
 	cmd.Flags().StringArrayVar(&attach, "attach", nil, "A file to attach to the turn (repeatable)")
+	cmd.Flags().BoolVar(&mission, "mission", false, "The user confirmed a mission: the turn runs as `chat --mission` (operator only)")
+	_ = cmd.Flags().MarkHidden("mission")
 	cmd.Flags().BoolVar(&noHost, "no-host", false, "Queue only; do not start the host")
 	clicore.WithJSONErrors(cfg.JSONOutput, cmd)
 	return cmd

@@ -3,7 +3,6 @@ package coderhost
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 )
@@ -23,7 +22,7 @@ type Turn interface {
 // Launcher starts and finds turn processes. A turn is a `chat --conversation`
 // process that journals itself; it must not die with the host.
 type Launcher interface {
-	Start(profileID, conversationID, turnID, message string, attachments []string) (Turn, error)
+	Start(profileID, conversationID, turnID, message string, attachments []string, mission bool) (Turn, error)
 	// Adopt returns the turn process pid/stamp still names, or nil when it is gone.
 	Adopt(pid int, stamp string) Turn
 	// Finish closes a turn that ended without finishing itself. It is a no-op
@@ -156,7 +155,7 @@ func (h *Host) Tick() error {
 			}
 			// A check-in is queued by the host, not typed by a person: it is only run for a
 			// master that is still unattended, as it was when it was queued.
-			if strings.HasPrefix(c.TurnID, "checkin-") {
+			if HostMade(c.TurnID) {
 				if reason := h.checkinStillAllowed(x, h.Store.now()); reason != "" {
 					h.end(c, CmdFailed, reason)
 					continue
@@ -184,7 +183,10 @@ func (h *Host) Tick() error {
 				}
 			}
 			t, err := h.unlocked(func() (Turn, error) { // admission can take seconds; do not hold up the turn watchers meanwhile
-				return h.L.Start(c.ProfileID, c.ConversationID, c.TurnID, message, c.Attachments)
+				// The confirmation is the command's own field and only for a person's send: a
+				// host-made turn never carries it, whatever its row says, and the message text
+				// (or the mesh inbox ahead of it) is never consulted.
+				return h.L.Start(c.ProfileID, c.ConversationID, c.TurnID, message, c.Attachments, c.Mission && !HostMade(c.TurnID))
 			})
 			if err != nil {
 				h.settle(x)

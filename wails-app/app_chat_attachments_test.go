@@ -174,7 +174,12 @@ func TestApp_CoderConfirmMission_PassesMissionFlag(t *testing.T) {
 		t.Fatalf("Start = %+v", r)
 	}
 	waitForType(t, emitter, chatevents.EventTurnFinished, 5*time.Second)
-	got := readArgsLog(t, argsLog)
+	var got []string // the routing probe (chat history show) comes first; the turn is the chat --conversation call
+	for _, l := range readArgsLog(t, argsLog) {
+		if strings.Contains(l, "chat --conversation") {
+			got = append(got, l)
+		}
+	}
 	if len(got) == 0 || !strings.HasSuffix(got[0], "--instance "+a.chatSup.instanceID+" --mission -- -yes, start") {
 		t.Errorf("argv = %q", got)
 	}
