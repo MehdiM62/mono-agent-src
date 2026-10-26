@@ -329,3 +329,19 @@ func TestCrashUnresolvedChangeCanBeResolvedByTheOperator(t *testing.T) {
 		t.Fatalf("a save after the resolution: %v", err)
 	}
 }
+
+// When the coordination tables cannot be read (here: the context is already cancelled), a file left
+// by a dead writer is not served; the read fails instead of trusting the file.
+func TestCrashFailedCoordinationReadDoesNotTrustTheFile(t *testing.T) {
+	r := newCrashRig(t)
+	waitKilled(t, r.startHelper(t, "apply-fix", "MONOAGENT_WF_FAILPOINT=after-rename"))
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	got, err := r.h.GetWorkflow(ctx, "wf-c")
+	if err == nil && got != nil && got.Nodes[1].Config["k"] == "from-helper" {
+		t.Fatal("an uncommitted file was served although the intent table could not be read")
+	}
+	if err == nil {
+		t.Fatal("expected the read to fail")
+	}
+}

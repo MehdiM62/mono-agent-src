@@ -198,44 +198,59 @@ func (h *HybridWorkflowStore) recoverID(ctx context.Context, workflowID string) 
 }
 
 // openIntents is the set of workflow ids with a publication in flight or unresolved, after
-// resolving the abandoned ones: for these the committed rows, not the file, are the definition.
-func (h *HybridWorkflowStore) openIntents(ctx context.Context) map[string]bool {
+// resolving the abandoned ones: for these the committed rows, not the file, are the definition. A
+// failed read of the coordination tables is an error, never an empty set: the file may only be
+// trusted when it is known that no change is open.
+func (h *HybridWorkflowStore) openIntents(ctx context.Context) (map[string]bool, error) {
 	if h.files == nil {
-		return nil
+		return nil, nil
 	}
-	read := func() map[string]bool {
+	read := func() (map[string]bool, error) {
 		rows, err := h.sql.db.QueryContext(ctx, `SELECT workflow_id FROM workflow_publications`)
 		if err != nil {
-			return nil
+			if isNoTable(err) {
+				return nil, nil // a database that predates the table has no changes in flight
+			}
+			return nil, err
 		}
 		defer rows.Close()
 		var out map[string]bool
 		for rows.Next() {
 			var id string
-			if rows.Scan(&id) == nil {
-				if out == nil {
-					out = map[string]bool{}
-				}
-				out[id] = true
+			if err := rows.Scan(&id); err != nil {
+				return nil, err
 			}
+			if out == nil {
+				out = map[string]bool{}
+			}
+			out[id] = true
 		}
-		return out
+		return out, rows.Err()
 	}
-	open := read()
-	if len(open) == 0 {
-		return nil
+	open, err := read()
+	if err != nil || len(open) == 0 {
+		return nil, err
 	}
-	if n, _ := h.RecoverPublications(ctx); n > 0 {
-		open = read()
+	n, rerr := h.RecoverPublications(ctx)
+	if n > 0 {
+		if open, err = read(); err != nil {
+			return nil, err
+		}
 	}
-	return open
+	if rerr != nil && ctx.Err() != nil {
+		return nil, rerr
+	}
+	return open, nil
 }
 
 // publicationGen counts the intents ever recorded; it moves whenever a change starts.
-func (h *HybridWorkflowStore) publicationGen(ctx context.Context) int64 {
+func (h *HybridWorkflowStore) publicationGen(ctx context.Context) (int64, error) {
 	var n int64
-	_ = h.sql.db.QueryRowContext(ctx, `SELECT COALESCE(MAX(seq), 0) FROM sqlite_sequence WHERE name = 'workflow_publications'`).Scan(&n)
-	return n
+	err := h.sql.db.QueryRowContext(ctx, `SELECT COALESCE(MAX(seq), 0) FROM sqlite_sequence WHERE name = 'workflow_publications'`).Scan(&n)
+	if err != nil && isNoTable(err) {
+		return 0, nil
+	}
+	return n, err
 }
 
 // gated reports whether the file of workflow id must not be trusted (see stableFileRead).
@@ -248,11 +263,22 @@ func gated(open map[string]bool, id string) bool { return open[id] || open["*"] 
 // file is skipped and the committed rows speak for all of them.
 func (h *HybridWorkflowStore) stableFileRead(ctx context.Context, read func(open map[string]bool) error) error {
 	for i := 0; i < 5; i++ {
-		gen := h.publicationGen(ctx)
-		if err := read(h.openIntents(ctx)); err != nil {
+		gen, err := h.publicationGen(ctx)
+		if err != nil {
 			return err
 		}
-		if h.publicationGen(ctx) == gen {
+		open, err := h.openIntents(ctx)
+		if err != nil {
+			return err
+		}
+		if err := read(open); err != nil {
+			return err
+		}
+		after, err := h.publicationGen(ctx)
+		if err != nil {
+			return err
+		}
+		if after == gen {
 			return nil
 		}
 	}
