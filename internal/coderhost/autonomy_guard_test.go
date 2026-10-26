@@ -34,7 +34,8 @@ var approvalWriters = []string{
 	"SetCommand", // ending or re-marking a command is the host loop's
 }
 
-var autonomyFiles = []string{"autonomy*.go", "ledger*.go", "parked*.go"}
+// producer.go and session_answer.go are the model- and master-facing doors to the same backend.
+var autonomyFiles = []string{"autonomy*.go", "ledger*.go", "parked*.go", "producer.go", "session_answer.go"}
 
 // tablesAllowed are the only tables these files may name in SQL.
 var tablesAllowed = map[string]bool{"coder_session_questions": true, "coder_session_decisions": true, "coder_session_commands": true, "coder_sessions": true}
@@ -199,7 +200,7 @@ func TestEveryCommandQueueingSiteIsKnown(t *testing.T) {
 					if sel.Sel.Name == "Enqueue" {
 						got[file+":"+fd.Name.Name]++
 					}
-					if ownedByParked[sel.Sel.Name] && !strings.HasPrefix(file, "parked") && !strings.HasPrefix(file, "ledger") {
+					if ownedByParked[sel.Sel.Name] && !strings.HasPrefix(file, "parked") && !strings.HasPrefix(file, "ledger") && file+":"+fd.Name.Name != "producer.go:RecordOwn" {
 						t.Errorf("%s:%s uses %s, which only the parked-question code may", file, fd.Name.Name, sel.Sel.Name)
 					}
 				}
