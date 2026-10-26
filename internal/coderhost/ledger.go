@@ -63,11 +63,6 @@ var (
 
 const ledgerCols = `id, profile_id, conversation_id, class, question, choice, alternatives, reason, reversible, made_by, status, reverted_by, created_at`
 
-// forgetDecision removes a row Record just wrote, when what it described did not happen.
-func (s *Store) forgetDecision(profileID string, id int64) {
-	_, _ = s.db.Exec(`DELETE FROM coder_session_decisions WHERE profile_id = ? AND id = ?`, profileID, id)
-}
-
 // Record writes a decision. The caller fills Class, Question, Choice,
 // Alternatives, Reason, Reversible and MadeBy; the text fields are cut to their
 // bounds. Recording is bookkeeping: it does not carry the decision out.

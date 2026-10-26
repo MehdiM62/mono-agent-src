@@ -29,7 +29,7 @@ const (
 	maxQuestionText       = 2000
 	maxOptions            = 10
 	maxOptionText         = 500
-	MaxAnswerBytes        = 8 << 10
+	MaxAnswerBytes        = maxQuotedAnswer // what is quoted to the session: a longer answer would be cut
 	questionStatusOpen    = "open"
 	questionStatusAnswer  = "answered"
 	questionStatusDefault = "defaulted"
@@ -83,6 +83,9 @@ var (
 	ErrNoQuestion   = errors.New("coder host: no such question")
 	ErrNotOpen      = errors.New("coder host: this question was already answered")
 	ErrNotAnswerer  = errors.New("coder host: the policy names someone else to answer this question")
+	// ErrWaitsForPerson: the session has had its host-made turns in a row; a master's answer, like a
+	// check-in, would start another, so the session waits for a person (the operator can still answer).
+	ErrWaitsForPerson = errors.New("coder host: the session has had its host-made turns in a row and waits for a person")
 	// ErrStopped: a stopped session starts no turn, so an answer to it would be dropped.
 	ErrStopped        = errors.New("coder host: the session is stopped, so it cannot take an answer; resume it with a message first")
 	ErrNoConversation = errors.New("coder host: the conversation no longer exists")
@@ -300,6 +303,17 @@ func (s *Store) Answer(profileID string, id int64, answer string, scope CallerSc
 	} else if found && x.State == StateStopped {
 		return q, Command{}, ErrStopped
 	}
+	if who == WhoMaster {
+		settings, err := s.GetSettings(q.ProfileID, q.ConversationID)
+		if err != nil {
+			return q, Command{}, err
+		}
+		if streak, _, _, err := s.CheckinStreak(q.ProfileID, q.ConversationID); err != nil {
+			return q, Command{}, err
+		} else if streak >= settings.CheckinLimit {
+			return q, Command{}, ErrWaitsForPerson
+		}
+	}
 	by := scope.Role()
 	if by == WhoMaster {
 		by += ":" + scope.ConversationID() // the master's own conversation, as verified above
@@ -310,7 +324,9 @@ func (s *Store) Answer(profileID string, id int64, answer string, scope CallerSc
 	q.Status, q.Answer, q.AnsweredBy = questionStatusAnswer, answer, by
 	cmd, err := s.deliver(q)
 	if err != nil {
-		s.reopenQuestion(q.ID) // not delivered: the question stays open
+		if cmd.ID == 0 { // nothing was queued: the question stays open (a queued note whose id was not recorded is redelivered, at least once)
+			s.reopenQuestion(q.ID)
+		}
 		return q, Command{}, err
 	}
 	s.releaseWaiting(q.ProfileID, q.ConversationID)
@@ -334,7 +350,7 @@ func (s *Store) claimQuestion(q Question, status, answer, by string) error {
 }
 
 func (s *Store) reopenQuestion(id int64) {
-	_, _ = s.db.Exec(`UPDATE coder_session_questions SET status = 'open', answer = '', answered_by = '', answered_at = '' WHERE id = ?`, id)
+	_, _ = s.db.Exec(`UPDATE coder_session_questions SET status = 'open', answer = '', answered_by = '', answered_at = '' WHERE id = ? AND status != 'open' AND command_id = 0`, id)
 }
 
 // releaseWaiting returns a waiting_user session to idle once no question is open.

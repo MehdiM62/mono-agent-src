@@ -196,6 +196,14 @@ func (h *Host) Tick() error {
 					continue
 				}
 			}
+			// An answer note from a master or an applied default counts with the check-ins too: a
+			// person's own answer is not held back.
+			if answerGated(c.TurnID) {
+				if reason := h.answerStillAllowed(x); reason != "" {
+					h.end(c, CmdFailed, reason)
+					continue
+				}
+			}
 			// A send the person asked to run as a mission starts only with its genuine, live
 			// confirmation: without one it is not run as a plain turn (that would silently
 			// drop what was asked for). The record is written just after the command is
@@ -514,6 +522,20 @@ func (h *Host) checkinStillAllowed(x Session, now time.Time) string {
 	streak, _, _, err := h.Store.CheckinStreak(x.ProfileID, x.ConversationID)
 	if err != nil || streak >= settings.CheckinLimit {
 		return "the session has had its check-ins in a row; it waits for a person"
+	}
+	return ""
+}
+
+// answerStillAllowed re-checks, when an answer note from a master or a default is
+// about to run, that the session has not had CheckinLimit host-made turns in a row.
+func (h *Host) answerStillAllowed(x Session) string {
+	settings, err := h.Store.GetSettings(x.ProfileID, x.ConversationID)
+	if err != nil {
+		return "the session's settings do not read"
+	}
+	streak, _, _, err := h.Store.CheckinStreak(x.ProfileID, x.ConversationID)
+	if err != nil || streak >= settings.CheckinLimit {
+		return "the session has had its host-made turns in a row; it waits for a person"
 	}
 	return ""
 }
