@@ -94,9 +94,24 @@ func (h *HybridWorkflowStore) GetWorkflow(ctx context.Context, id string) (*Work
 		return nil, err
 	}
 	if wf == nil {
-		return h.sql.GetWorkflow(ctx, id)
+		return h.committedWorkflow(ctx, id)
 	}
 	return wf, nil
+}
+
+// committedWorkflow loads the rows' definition in one read transaction, so a change that commits
+// meanwhile cannot give a mix of the old metadata and the new graph (nil, nil when there are no rows).
+func (h *HybridWorkflowStore) committedWorkflow(ctx context.Context, id string) (*Workflow, error) {
+	tx, err := h.sql.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	w, err := getWorkflowFrom(ctx, tx, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	return w, err
 }
 
 // ListWorkflows returns the profile's file-store workflows followed by the

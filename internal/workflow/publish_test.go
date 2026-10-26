@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -322,5 +323,51 @@ func TestSaveNormalizesConnectionHandlesBeforeHashingAndVersioning(t *testing.T)
 	}
 	if versionCount(t, s, "wf-h") != 1 {
 		t.Fatalf("%d versions for one definition", versionCount(t, s, "wf-h"))
+	}
+}
+
+// The rows' definition is read in one transaction: while saves keep changing both the description
+// and a node, a reader never sees one from before and the other from after.
+func TestCommittedWorkflowIsNeverAMixOfTwoSaves(t *testing.T) {
+	ctx := context.Background()
+	h, _, _, _ := guardedRig(t)
+	stop := make(chan struct{})
+	done := make(chan error, 1)
+	go func() {
+		for i := 0; ; i++ {
+			select {
+			case <-stop:
+				done <- nil
+				return
+			default:
+			}
+			cur, err := h.committedWorkflow(ctx, "wf-g")
+			if err != nil || cur == nil {
+				done <- err
+				return
+			}
+			cur.Description = fmt.Sprint(i)
+			cur.Nodes[1].Config = map[string]interface{}{"k": fmt.Sprint(i)}
+			if err := h.SaveWorkflow(ctx, cur); err != nil {
+				done <- err
+				return
+			}
+		}
+	}()
+	for i := 0; i < 400; i++ {
+		w, err := h.committedWorkflow(ctx, "wf-g")
+		if err != nil || w == nil {
+			t.Fatalf("%v", err)
+		}
+		if w.Description != "" && w.Nodes[1].Config["k"] != w.Description && w.Nodes[1].Config["k"] != "v" {
+			t.Fatalf("a mix of two saves: description %q, node %v", w.Description, w.Nodes[1].Config["k"])
+		}
+		if w.Description != "" && w.Nodes[1].Config["k"] == "v" {
+			t.Fatalf("description %q with the node of an earlier save", w.Description)
+		}
+	}
+	close(stop)
+	if err := <-done; err != nil {
+		t.Fatal(err)
 	}
 }
