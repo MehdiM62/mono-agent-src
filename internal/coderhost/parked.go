@@ -35,11 +35,8 @@ const (
 	questionStatusDefault = "defaulted"
 )
 
-// CallerScope says who is answering. TODO(P4): the master's side is the
-// descendant-token mechanism of phase P4, which does not exist on this branch;
-// when it lands, its verified token should produce a CallerScope with Role()
-// "master" and ConversationID() the master's own conversation. Until then only
-// OperatorScope exists, so nothing can answer as a master.
+// CallerScope says who is answering. The operator's is OperatorScope; a master's is made from
+// its verified session token (AnswerAsMaster), never from an argument.
 type CallerScope interface {
 	Role() string           // WhoUser or WhoMaster
 	ConversationID() string // the master's own conversation; "" for the operator

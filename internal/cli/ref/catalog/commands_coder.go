@@ -136,7 +136,7 @@ var coderCommandDocs = []cmdDoc{
 	},
 	{
 		Name:     "coder sessions questions answer",
-		Short:    "Answer a parked question when the policy names the user (the operator only); the answer is sent to the session by the host",
+		Short:    "Answer a parked question: the operator when the policy names the user; with a session token (a master's turn) a question of the caller's own child when the policy names the master. The answer is sent to the session by the host as a host-made note",
 		Usage:    "monoagentcli [--profile P] coder sessions questions answer CONVERSATION ID ANSWER [--no-host]",
 		Flags:    `  --no-host  Queue only; do not start the host`,
 		Examples: []string{`monoagentcli --profile work coder sessions questions answer <conv> 3 "yes, only the build directory"`},

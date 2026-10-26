@@ -177,11 +177,16 @@ func newQuestionsAnswerCmd(cfg *Deps) *cobra.Command {
 	var noHost bool
 	cmd := &cobra.Command{
 		Use:   "answer CONVERSATION ID ANSWER",
-		Short: "Answer a parked question when the policy names the user (the operator only)",
-		Long: "The answer is queued to the session as a message the host sends (a turn id starting with answer-). It " +
+		Short: "Answer a parked question when the policy names you: the user (the operator), or a master (with its session token)",
+		Long: "With a session token (a master's turn) this answers a question parked by a child session of the caller when the policy " +
+			"names the master for that class; any other question is refused as not one of the caller's. Without a token it is the operator's. " +
+			"The answer is queued to the session as a message the host sends (a turn id starting with answer-). It " +
 			"carries no authority: it cannot raise access or a budget, change a setting or confirm a mission.",
 		Args: cobra.ExactArgs(3),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if sessionTokenFromEnv() != "" {
+				return masterAnswer(cfg, cmd, args)
+			}
 			if err := clicore.RequireOperator(cfg.RequireOperator, "answer a coder session's parked question"); err != nil {
 				return err
 			}

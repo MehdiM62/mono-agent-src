@@ -2529,11 +2529,16 @@ monoagentcli --profile work coder host stop                        # the host on
   message you send still runs); `sessions questions answer <conv> <id> <text>` (operator) answers it when the
   policy names the user; the host then sends it with a turn id `answer-...`, which is host-made like
   `checkin-`: counted by the check-in limit and never a mission confirmation. After 30 minutes a question with
-  a default and a `take_default` fallback gets that default (a ledger row, made by the model). Answering as a
-  master is supported by the store (the master is the issuer) but no CLI verb or MCP tool (`session_answer`) exposes it yet, so only the operator answers. The gap class and `reversible`
-  flag come from whoever parks the question or records the decision: before any model-facing tool is added,
-  the producer must take the class from a host- or master-validated source, or a model could label a risky
-  action "ambiguity". A default is not applied while the check-in limit is reached or the session is stopped. A master's answer and
+  a default and a `take_default` fallback gets that default (a ledger row, made by the model). A master answers
+  with `sessions questions answer <child-conv> <id> <text>` under its session token, or the MCP tool `session_answer`
+  (mutating: needs `--allow-mutations`): the master is the conversation the verified token names (`master:<conv>` in
+  `answeredBy`), only for a question of its own direct child (the conversation must lie below the caller, the question
+  must be that conversation's, and the policy must name the master for that class); every other case (unknown id,
+  another profile's or session's question, a peer, an ancestor, the session's own question, an unrelated session) is
+  refused with the same `not_yours` text, so the verb is no way to find which questions exist. The note is the same
+  host-made `answer-m-` turn (issuer = the master, counted in the streak, gated at the limit, sealed as data, never a
+  mission or approval). With no token the verb is the operator's (`RequireOperator`); a token that does not verify is a
+  refusal, never a fall-back to the operator path. No model-facing tool parks or records yet. A default is not applied while the check-in limit is reached or the session is stopped. A master's answer and
   an applied default are held to the check-in limit too (refused, or failed when they run); every `answer-` turn,
   including a person's own answer, counts in the streak on purpose (the safe direction). A master's answer is
   queued with the master as issuer, so it runs only while the session is still that master's child. A paused master's
@@ -2565,7 +2570,7 @@ monoagentcli --profile work coder host stop                        # the host on
   session itself or an unrelated one is refused), `sessions spawn [--message M] [--access coding|workspace]
   [--cwd DIR] [--budget-usd N]` creates a child and `sessions status [CONV]` reads the subtree. A bad token is a
   refusal, never a fall-back to the operator path; without a token these verbs stay operator-only. The same
-  verbs exist as MCP tools `session_spawn|list|status|send|pause|resume|stop|set` (the mutating ones need
+  verbs exist as MCP tools `session_spawn|list|status|send|pause|resume|stop|set|answer` (the mutating ones need
   `--allow-mutations`). `settings set` through a token may change only `checkin_minutes`, `skip_if_unchanged`,
   `checkin_triggers`, `silent_minutes`, `active_hours`, `mesh_visible`, `mesh_alias` (`AgentAdjustable`, an
   allowlist; a test fails for a setting in neither list); limits, autonomy, mesh_accept, role, access, unattended
