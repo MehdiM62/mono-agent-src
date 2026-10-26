@@ -149,10 +149,7 @@ func TestWorkflowSaveRejects(t *testing.T) {
 // profile counts as "default"), with node counts, and [] when empty.
 func TestWorkflowListProfileAndNodeCount(t *testing.T) {
 	home, cfg := persistTestEnv(t)
-	if out := strings.TrimSpace(runWorkflowSubcmd(t, cfg, "list")); out != "[]" {
-		t.Fatalf("empty list = %q", out)
-	}
-	saved := saveDoc(t, cfg, editorDoc)
+	// Files older versions left (they exist before the workflow store is first used).
 	files, err := workflow.NewWorkflowFileStore(filepath.Join(home, ".monoagent", "workflows"))
 	if err != nil {
 		t.Fatal(err)
@@ -165,6 +162,7 @@ func TestWorkflowListProfileAndNodeCount(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	saved := saveDoc(t, cfg, editorDoc)
 
 	var rows []struct {
 		ID        string `json:"id"`

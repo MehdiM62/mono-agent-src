@@ -143,8 +143,18 @@ func TestWorkflowFileOnlyBackfill(t *testing.T) {
 		t.Fatal(err)
 	}
 	runWorkflowSubcmd(t, cfg, "list")
+	// A file that appeared after the first use is not backfilled by a command: it waits to be
+	// adopted by an operator (doctor), and is then created inactive.
+	var n int
+	if err := db.DB.QueryRow(`SELECT COUNT(*) FROM workflows WHERE id = 'file-only-2'`).Scan(&n); err != nil || n != 0 {
+		t.Errorf("a file that appeared later was backfilled by list (%d rows, %v)", n, err)
+	}
+	adopter := workflow.NewHybridWorkflowStore(files, workflow.NewSQLiteWorkflowStore(db.DB))
+	if err := adopter.AdoptFile(context.Background(), "file-only-2"); err != nil {
+		t.Fatalf("adopting: %v", err)
+	}
 	if types := sqlNodeTypes(t, cfg.DBPath, "file-only-2"); types["fo2-trigger"] != "trigger.manual" {
-		t.Errorf("list did not backfill: %v", types)
+		t.Errorf("adopting did not create the workflow: %v", types)
 	}
 }
 
