@@ -49,7 +49,16 @@ type Launcher interface {
 	// DefaultBudget is the spend cap, in USD, a task gets when submit names
 	// none (the operator's coder budget).
 	DefaultBudget(ctx context.Context) (float64, error)
-	CreateConversation(ctx context.Context, runtime string) (Conversation, error)
+	// Enforceable is nil when a turn of this kind can be held to this access
+	// level, else the refusal (CodeAccessUnenforced). Submit's
+	// CreateConversation applies it, and Start checks it again, so a kind
+	// that stops being confined while a task is queued does not start as an
+	// unconfined shell turn.
+	Enforceable(kind, access string) error
+	// CreateConversation makes the task's conversation at the level the task's
+	// access stands for, or refuses with CodeAccessUnenforced when the kind
+	// cannot be held to that level.
+	CreateConversation(ctx context.Context, runtime, kind, access string) (Conversation, error)
 	// Detach starts the process that runs task id's turn, with EnvTaskID and
 	// EnvToken in its environment, and returns without waiting for it.
 	Detach(ctx context.Context, taskID, token string) error
@@ -124,6 +133,9 @@ func (s *Service) Submit(ctx context.Context, in SubmitInput) (Task, error) {
 	if access == "" {
 		access = AccessCoding
 	}
+	if AccessRank(access) > AccessRank(kind.Ceiling()) {
+		return Task{}, errf(CodeAccessRaised, "kind %s allows at most --access %s, not %s", kind.Name, kind.Ceiling(), access)
+	}
 	if err := s.checkUnattended(ctx, kind, access, in.Unattended); err != nil {
 		return Task{}, err
 	}
@@ -134,7 +146,7 @@ func (s *Service) Submit(ctx context.Context, in SubmitInput) (Task, error) {
 	if err != nil {
 		return Task{}, err
 	}
-	conv, err := s.Launcher.CreateConversation(ctx, in.Runtime)
+	conv, err := s.Launcher.CreateConversation(ctx, in.Runtime, kind.Name, access)
 	if err != nil {
 		return Task{}, err
 	}
@@ -255,6 +267,9 @@ func (s *Service) verifyAtStart(ctx context.Context, t Task) error {
 		return err
 	}
 	if err := s.checkUnattended(ctx, kind, t.Access, t.Unattended); err != nil {
+		return err
+	}
+	if err := s.Launcher.Enforceable(kind.Name, t.Access); err != nil {
 		return err
 	}
 	if t.BudgetUSD <= 0 {
