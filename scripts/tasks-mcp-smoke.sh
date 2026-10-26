@@ -117,13 +117,13 @@ resp "$out" 3 | jq -e '.result.isError==true' >/dev/null || fail "task_approve w
 
 echo "== sessions: the operator plans and approves, agents work the session through the tools"
 # A session is created and approved only by the operator (never an MCP tool), so it is set up with the CLI.
-run --profile "$prof" --json task session new "smoke session" --goal "exercise the session tools" >"$root/s1.out" 2>&1 || fail "task session new: $(cat "$root/s1.out")"
+run --profile "$prof" --json task session new "smoke session" --goal "exercise the session tools" >"$root/s1.out" 2>"$root/s1.err" || fail "task session new: $(cat "$root/s1.out" "$root/s1.err")"
 s1="$(jq -r '.session.id' "$root/s1.out")"
-run --profile "$prof" --json task session new "other session" >"$root/s2.out" 2>&1 || fail "task session new (other): $(cat "$root/s2.out")"
+run --profile "$prof" --json task session new "other session" >"$root/s2.out" 2>"$root/s2.err" || fail "task session new (other): $(cat "$root/s2.out" "$root/s2.err")"
 s2="$(jq -r '.session.id' "$root/s2.out")"
 sess_add() { # session title [--depends-on ids]: the id of the task added to the session
   local s="$1" t="$2"; shift 2
-  run --profile "$prof" --json task add "$t" --session "$s" --acceptance "done when $t passes" "$@" >"$root/sa.out" 2>&1 || fail "task add --session: $(cat "$root/sa.out")"
+  run --profile "$prof" --json task add "$t" --session "$s" --acceptance "done when $t passes" "$@" >"$root/sa.out" 2>"$root/sa.err" || fail "task add --session: $(cat "$root/sa.out" "$root/sa.err")"
   jq -r '.task.id' "$root/sa.out"
 }
 ta="$(sess_add "$s1" "first step")"
