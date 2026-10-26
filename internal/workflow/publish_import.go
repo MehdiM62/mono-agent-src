@@ -149,7 +149,14 @@ func (h *HybridWorkflowStore) importLocked(ctx context.Context, tx *sql.Tx, id s
 	}
 	note := ImportNote
 	if rows == nil {
-		note = "" // a file with no rows keeps its own active flag: workflows saved as files by older versions are active
+		note = ""
+		// A file-only workflow older versions saved keeps its active flag. One that appeared after the
+		// legacy set was recorded starts inactive: starting it is an operator's act.
+		if post, err := postMarkerFile(ctx, tx, id); err != nil {
+			return res, "", err
+		} else if post {
+			wf.IsActive, note = false, ImportNewFileNote
+		}
 	} else {
 		wf.IsActive = wf.IsActive && rows.IsActive
 	}

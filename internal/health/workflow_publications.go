@@ -25,6 +25,8 @@ type WorkflowPublicationsInfo struct {
 	// has not been reconciled with the database yet (an outside edit waiting for the next import).
 	Unreadable []string
 	Pending    []string
+	// ImportedInactive lists workflows that appeared as outside files and were imported inactive.
+	ImportedInactive []string
 }
 
 // OpenWorkflowPublication is one unfinished change.
@@ -101,6 +103,10 @@ func checkWorkflowPublications(ctx context.Context, env *Env) Result {
 	for _, id := range info.Pending {
 		res.Children = append(res.Children, Result{ID: CheckWorkflowPublications + ".pending." + rowID(id), Title: id,
 			Status: StatusInfo, Summary: "edited outside the app; it is picked up by the next command that opens the workflows"})
+	}
+	for _, id := range info.ImportedInactive {
+		res.Children = append(res.Children, Result{ID: CheckWorkflowPublications + ".imported." + rowID(id), Title: id,
+			Status: StatusInfo, Summary: "imported from an outside file, inactive; activate it to use it"})
 	}
 	switch {
 	case unresolved > 0 || stale > 0 || len(info.Unreadable) > 0:

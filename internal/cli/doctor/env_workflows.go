@@ -38,7 +38,10 @@ func addWorkflowPublicationHooks(env *health.Env) {
 			info.Open = append(info.Open, health.OpenWorkflowPublication{WorkflowID: p.WorkflowID, Kind: p.Kind,
 				Origin: p.Origin, State: p.State, Age: p.Age, OwnerGone: p.OwnerGone, Note: p.Note})
 		}
-		info.Unreadable, info.Pending, err = store.FileDrift(ctx)
+		if info.Unreadable, info.Pending, err = store.FileDrift(ctx); err != nil {
+			return info, err
+		}
+		info.ImportedInactive, err = store.ImportedInactive(ctx)
 		return info, err
 	}
 	env.RecoverWorkflowPublications = func(ctx context.Context) (int, error) {

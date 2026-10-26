@@ -136,3 +136,42 @@ func TestSyncFileWorkflowsToSQLImportsAnOutsideEditOnce(t *testing.T) {
 		t.Fatalf("rows changed: %q %v", name, err)
 	}
 }
+
+// The first sync records which files are older versions'; a workflow file dropped in afterwards is
+// imported inactive even if it says it is active.
+func TestSyncFileWorkflowsToSQLImportsLaterFileOnlyWorkflowsInactive(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	db, err := storage.NewDatabase(testdb.Path(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	dir := filepath.Join(t.TempDir(), "workflows")
+	files, err := workflow.NewWorkflowFileStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mk := func(id string) *workflow.Workflow {
+		return &workflow.Workflow{ID: id, Name: id, ProfileID: "default", IsActive: true,
+			Nodes: []workflow.WorkflowNode{{ID: id + "-t", WorkflowID: id, Type: "trigger.manual", Name: "Start", Config: map[string]any{}}}}
+	}
+	if err := files.SaveWorkflow(ctx, mk("old-wf")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := SyncFileWorkflowsToSQL(ctx, db.DB, dir); err != nil {
+		t.Fatal(err)
+	}
+	if err := files.SaveWorkflow(ctx, mk("new-wf")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := SyncFileWorkflowsToSQL(ctx, db.DB, dir); err != nil {
+		t.Fatal(err)
+	}
+	for id, want := range map[string]int{"old-wf": 1, "new-wf": 0} {
+		var active int
+		if err := db.DB.QueryRow(`SELECT is_active FROM workflows WHERE id = ?`, id).Scan(&active); err != nil || active != want {
+			t.Errorf("%s: active %d (%v), want %d", id, active, err, want)
+		}
+	}
+}

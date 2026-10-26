@@ -576,7 +576,15 @@ func (h *HybridWorkflowStore) reconciledFile(ctx context.Context, id string) (*W
 		if err := h.sql.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM workflows WHERE id = ?`, id).Scan(&n); err != nil {
 			return nil, err
 		}
-		if n > 0 {
+		post := false
+		if n == 0 {
+			// No rows: a legacy file is served as it always was; one that appeared since the legacy
+			// set was recorded is brought in (inactive) before anything reads it.
+			if post, err = postMarkerFile(ctx, h.sql.db, id); err != nil {
+				return nil, err
+			}
+		}
+		if n > 0 || post {
 			if _, err := h.ImportFile(ctx, id, nil); err != nil && !errors.Is(err, ErrSharedIDs) {
 				return nil, err
 			}

@@ -43,6 +43,10 @@ func SyncFileWorkflowsToSQL(ctx context.Context, db *sql.DB, dir string) ([]stri
 	}
 	store := workflow.NewHybridWorkflowStore(files, workflow.NewSQLiteWorkflowStore(db))
 	_, _ = store.RecoverPublications(ctx)
+	// Remember which files are older versions' (once, for everyone); later file-only arrivals start inactive.
+	if err := store.ClaimLegacyFiles(ctx); err != nil {
+		return nil, err
+	}
 	store.SweepStaleTemp()
 	// A file of a profile that no longer exists (deleted, or copied from one) must not come back
 	// as a row of a profile that is gone.
@@ -64,6 +68,9 @@ func SyncFileWorkflowsToSQL(ctx context.Context, db *sql.DB, dir string) ([]stri
 		// approved now that it has a row, if its definition is unchanged.
 		if err := workflow.ApproveBackfilledFile(ctx, db, res.Workflow); err != nil {
 			continue
+		}
+		if res.Created && !res.Workflow.IsActive {
+			log.Printf("workflow file %s was imported as a new workflow and is inactive: activate it to use it", res.Workflow.ID)
 		}
 		synced = append(synced, res.Workflow.ID)
 	}
