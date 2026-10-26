@@ -19,6 +19,8 @@ type fakeLauncher struct {
 	readyErr  error
 	cwd       string
 	created   int
+	kind      string
+	access    string
 	detached  []string
 	tokens    []string
 	detachErr error
@@ -31,7 +33,8 @@ func (f *fakeLauncher) Ready(context.Context) error                    { return 
 func (f *fakeLauncher) Confined(context.Context) bool                  { return f.confined }
 func (f *fakeLauncher) DefaultBudget(context.Context) (float64, error) { return f.budget, nil }
 func (f *fakeLauncher) Policy(context.Context) (string, error)         { return f.policy, nil }
-func (f *fakeLauncher) CreateConversation(context.Context, string) (Conversation, error) {
+func (f *fakeLauncher) CreateConversation(_ context.Context, _, kind, access string) (Conversation, error) {
+	f.kind, f.access = kind, access
 	f.created++
 	return Conversation{ID: "conv-1", Cwd: f.cwd, Runtime: "claude"}, nil
 }
@@ -675,5 +678,47 @@ func TestUnknownKindListsDescriptions(t *testing.T) {
 	d, _ := e.Fields["descriptions"].(map[string]string)
 	if d["test-desc"] != "says what it does" {
 		t.Fatalf("%v", d)
+	}
+}
+
+// A submit may lower a kind's access but never raise it above the kind's
+// ceiling, and the launcher is handed the level the task has.
+func TestSubmitAccessCeilingAndLauncherLevel(t *testing.T) {
+	svc, l := newService(t)
+	cases := []struct{ kind, access, wantCode, wantLevel string }{
+		{"generic", "workspace", "", "workspace"},
+		{"generic", "qa", "", "qa"},
+		{"generic", "", "", "coding"},
+		{"draft-reply", "coding", CodeAccessRaised, ""},
+		{"draft-reply", "workspace", CodeAccessRaised, ""},
+		{"draft-reply", "", "", "qa"},
+		{"extension-ask", "coding", CodeAccessRaised, ""},
+		{"extension-fill", "coding", "", "coding"},
+		{"extension-fill", "workspace", "", "workspace"},
+	}
+	for _, c := range cases {
+		before := l.created
+		_, err := svc.Submit(context.Background(), SubmitInput{Kind: c.kind, Goal: "g", Access: c.access, QueueOnly: true})
+		if code(err) != c.wantCode {
+			t.Fatalf("%s/%q: err = %v, want code %q", c.kind, c.access, err, c.wantCode)
+		}
+		if c.wantCode != "" {
+			if l.created != before {
+				t.Fatalf("%s/%q: a refused submit still made a conversation", c.kind, c.access)
+			}
+			continue
+		}
+		if l.kind != c.kind || l.access != c.wantLevel {
+			t.Fatalf("%s/%q: launcher got %s/%s, want level %s", c.kind, c.access, l.kind, l.access, c.wantLevel)
+		}
+	}
+}
+
+// Unattended full access stays refused whatever the ceiling says.
+func TestUnattendedFullAccessStillRefused(t *testing.T) {
+	svc, _ := newService(t)
+	_, err := svc.Submit(context.Background(), SubmitInput{Kind: "generic", Goal: "g", Access: "workspace", Unattended: true, QueueOnly: true})
+	if code(err) != CodeUnattendedFull {
+		t.Fatalf("err = %v", err)
 	}
 }

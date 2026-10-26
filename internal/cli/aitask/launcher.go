@@ -87,8 +87,33 @@ func (l selfLauncher) DefaultBudget(context.Context) (float64, error) {
 	return s.BudgetUSD, nil
 }
 
-func (l selfLauncher) CreateConversation(ctx context.Context, runtime string) (aitask.Conversation, error) {
-	args := append(l.global(), "--json", "chat", "history", "create", "--mode", "coder", "--profile-folder")
+// conversationLevel is the `chat history create` flags a task's conversation
+// is made with. A confined kind keeps the coder conversation it always had:
+// its turns are narrowed to the kind's own profile and command allow-list
+// (chat.ConfinedKind), whatever the level. Any other kind gets the level it
+// asked for (coding or workspace), and qa has no profile to run in there, so
+// it is refused rather than run with a shell.
+func conversationLevel(kind, access string) ([]string, error) {
+	if chatcli.ConfinedKind(kind) {
+		return []string{"--mode", "coder"}, nil
+	}
+	switch access {
+	case aitask.AccessCoding:
+		return []string{"--access", ai.AccessCoding}, nil
+	case aitask.AccessWorkspace:
+		return []string{"--access", ai.AccessWorkspace}, nil
+	}
+	return nil, &aitask.Error{Code: aitask.CodeAccessUnenforced,
+		Message: fmt.Sprintf("a %s task cannot run at the %q access level: only a confined kind has a read-only profile to run it in, and a coder turn has a shell. Submit it with --access coding or workspace", kind, access)}
+}
+
+func (l selfLauncher) CreateConversation(ctx context.Context, runtime, kind, access string) (aitask.Conversation, error) {
+	level, err := conversationLevel(kind, access)
+	if err != nil {
+		return aitask.Conversation{}, err
+	}
+	args := append(append(l.global(), "--json", "chat", "history", "create"), level...)
+	args = append(args, "--profile-folder")
 	if runtime != "" {
 		args = append(args, "--runtime", runtime)
 	}
