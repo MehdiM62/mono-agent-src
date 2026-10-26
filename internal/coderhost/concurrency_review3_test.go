@@ -83,8 +83,12 @@ func TestAnAnswerNoteThatKeepsExpiringStopsBeingReopened(t *testing.T) {
 	if _, _, err := st.Answer("p", q.ID, "yes", masterScope{"m"}); !errors.Is(err, ErrAnswerKeepsFailing) {
 		t.Fatalf("answer after %d expiries = %v", MaxExpiredReopens, err)
 	}
-	if _, _, err := st.Answer("p", q.ID, "the operator decides", OperatorScope{}); err == nil {
-		t.Log("a person can still answer") // the operator is not the policy's answerer here; either outcome leaves it parked for a person
+	// it is parked: still open and listed, for a person to settle (the master cannot answer it any more)
+	if got, err := st.GetQuestion("p", q.ID); err != nil || got.Status != questionStatusOpen {
+		t.Fatalf("question = %+v, %v", got, err)
+	}
+	if open, _ := st.ListQuestions("p", kids[1], true); len(open) != 1 {
+		t.Fatalf("open questions = %d", len(open))
 	}
 }
 

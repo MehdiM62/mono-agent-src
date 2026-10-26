@@ -62,6 +62,7 @@ type Host struct {
 	live map[string]Turn
 	wg   sync.WaitGroup
 
+	readHolds map[int64]*readHold  // commands held for a failed read, Tick only
 	capLogged map[string]time.Time // when each unreadable cap was last logged
 	capHeld   map[string][2]string // chats whose sends the max_concurrent cap held on the last pass (profile, conversation); Tick only
 }
@@ -182,7 +183,9 @@ func (h *Host) Tick() error {
 		// hold up a person's message to the same chat).
 		if c.Issuer != "" {
 			if ok, hold, reason := h.issuerStillAllowed(c, x); !ok {
-				if !hold {
+				if strings.HasPrefix(reason, readFailed) {
+					h.recheckFailed(c, reason, k, blocked) // a failed read holds the command; it fails only after repeated passes
+				} else if !hold {
 					h.end(c, CmdFailed, reason)
 				}
 				continue
@@ -202,11 +205,7 @@ func (h *Host) Tick() error {
 			// master that is still unattended, as it was when it was queued.
 			if strings.HasPrefix(c.TurnID, CheckinTurnPrefix) {
 				if reason := h.checkinStillAllowed(x, h.Store.now()); reason != "" {
-					if h.holdOnReadError(reason, k) {
-						blocked[k] = true
-						continue
-					}
-					h.end(c, CmdFailed, reason)
+					h.recheckFailed(c, reason, k, blocked)
 					continue
 				}
 			}
@@ -215,11 +214,7 @@ func (h *Host) Tick() error {
 			// session that is still a child.
 			if strings.HasPrefix(c.TurnID, MasterTurnPrefix) || c.Issuer != "" {
 				if reason := h.masterSendStillAllowed(x); reason != "" {
-					if h.holdOnReadError(reason, k) {
-						blocked[k] = true
-						continue
-					}
-					h.end(c, CmdFailed, reason)
+					h.recheckFailed(c, reason, k, blocked)
 					continue
 				}
 			}
@@ -227,11 +222,7 @@ func (h *Host) Tick() error {
 			// person's own answer is not held back.
 			if answerGated(c.TurnID) {
 				if reason := h.answerStillAllowed(x); reason != "" {
-					if h.holdOnReadError(reason, k) {
-						blocked[k] = true
-						continue
-					}
-					h.end(c, CmdFailed, reason)
+					h.recheckFailed(c, reason, k, blocked)
 					continue
 				}
 			}
@@ -393,8 +384,12 @@ func (h *Host) end(c Command, status, errText string) {
 	// The status moves first and the record is revoked after: a confirmation written
 	// while this runs either sees the command no longer pending and refuses, or is in
 	// place before the revoke.
-	if err := h.Store.SetCommand(c.ID, status, errText); err != nil {
+	// Only a command that is still pending is ended: one that another process already ended (an
+	// operator's stop) keeps the status and reason it was given.
+	if applied, err := h.Store.setCommandIfPending(c.ID, status, errText); err != nil {
 		h.logf("coder host: recording command %d: %v", c.ID, err)
+	} else if !applied {
+		h.logf("coder host: command %d was ended elsewhere; its status is left as it is", c.ID)
 	}
 	endBetweenSteps()
 	if status == CmdFailed && c.Kind == KindSend {
@@ -583,6 +578,11 @@ func (h *Host) checkinStillAllowed(x Session, now time.Time) string {
 	if err != nil {
 		return readFailed + "the session's children do not read: " + err.Error()
 	}
+	if kids == 0 && x.Unattended && x.Role != "child" { // a lead is checked on while its mission has open work: a failed read is not "no mission"
+		if _, ok := h.missionOf(x.ProfileID, x.ConversationID); !ok {
+			return readFailed + "the session's mission does not read"
+		}
+	}
 	if reason := h.checkinTargetStillValid(x, kids); reason != "" {
 		return reason
 	}
@@ -652,11 +652,18 @@ func (h *Host) issuerStillAllowed(c Command, x Session) (ok bool, hold bool, rea
 	if c.Issuer == "" {
 		return true, false, ""
 	}
-	if !h.Store.IsDescendant(c.ProfileID, c.Issuer, c.ConversationID) {
+	below, err := h.Store.IsDescendantErr(c.ProfileID, c.Issuer, c.ConversationID)
+	if err != nil {
+		return false, true, readFailed + "the session's place in the tree does not read: " + err.Error()
+	}
+	if !below {
 		return false, false, "the session is no longer a child of the master that sent this"
 	}
 	m, found, err := h.Store.GetSession(c.ProfileID, c.Issuer)
-	if err != nil || !found || m.State == StateStopped {
+	if err != nil {
+		return false, true, readFailed + "the session's master does not read: " + err.Error()
+	}
+	if !found || m.State == StateStopped {
 		return false, false, "the session's master is gone or stopped"
 	}
 	if m.State == StatePaused && c.Kind == KindSend {

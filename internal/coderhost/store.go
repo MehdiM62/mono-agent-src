@@ -304,6 +304,17 @@ func (s *Store) SetCommand(id int64, status, errText string) error {
 	return err
 }
 
+// setCommandIfPending ends a command only while it is still pending (a compare-and-set), and
+// says whether it did: a command another process already ended keeps its status.
+func (s *Store) setCommandIfPending(id int64, status, errText string) (bool, error) {
+	res, err := s.db.Exec(`UPDATE coder_session_commands SET status = ?, error = ?, updated_at = ? WHERE id = ? AND status = 'pending'`, status, errText, s.stamp(), id)
+	if err != nil {
+		return false, err
+	}
+	n, _ := res.RowsAffected()
+	return n == 1, nil
+}
+
 const sessionCols = `profile_id, conversation_id, state, role, parent_conversation_id, unattended, turn_id, turn_pid, turn_stamp, created_at, updated_at`
 
 func scanSession(sc interface{ Scan(...any) error }) (Session, error) {

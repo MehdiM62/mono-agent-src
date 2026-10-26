@@ -2516,8 +2516,11 @@ monoagentcli --profile work coder host stop                        # the host on
   adopted when it restarted) are counted. A send held by the cap can expire silently, like any other waiting send (15 minutes for a master's
   or an `answer-m-` note, 6 hours for the rest, `answer-d-` and `answer-p-` notes included) and then fails with the expiry reason; an expired answer note
   gives its question back without counting as a failed answer (expiries are counted apart and, after 10, the
-  question stays parked for a person). A re-check that cannot read (a database error) holds the send for the next
-  pass instead of failing it, and logs it at most once an hour. If the count or the master's settings cannot be
+  question stays parked: the master can no longer answer it). A re-check that cannot read (a database error: settings,
+  turns, children, the master's session or mission) holds the command for the next pass instead of failing it and logs
+  it at most once an hour; after 5 passes and a minute it fails with the real reason, so a persistent fault (stored
+  settings that are not valid) shows. A command is ended only while it is still pending, so a stop from another process
+  keeps its status. If the count or the master's settings cannot be
   read (a database error, not just no stored settings) the cap holds, the send is tried again on the next pass
   and the host logs it at most once an hour per master; a stop or pause on a held chat still runs. The autonomy settings are acted on (below). `max_children` and `max_depth` hold when a child is linked.
 - **Masters and children:** `sessions settings set <conv> --role master`, then `--role child --parent <master>`

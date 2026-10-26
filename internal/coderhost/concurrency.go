@@ -47,6 +47,9 @@ func (h *Host) runningChildren(cmds []Command) *childRunning {
 	oldest := map[string]int64{} // chat -> id of its first waiting send
 	for _, c := range cmds {
 		k := key(c.ProfileID, c.ConversationID)
+		if cur, found, err := h.Store.GetCommand(c.ID); err != nil || !found || cur.Status != CmdPending {
+			continue // cmds was read before the pass: an earlier command of it may have ended this one
+		}
 		x, ok := by[k]
 		if c.Kind != KindSend || !ok || x.Role != "child" || x.Parent == "" || h.live[k] != nil || x.State == StatePaused || x.State == StateStopped {
 			continue
@@ -131,22 +134,55 @@ func (r *childRunning) started(x Session, k string) {
 // error): the command is held for the next pass, not failed. Only a real "not allowed" fails it.
 const readFailed = "\x00read: "
 
-// holdOnReadError says whether reason is a failed read, and if so logs it (at most once an
-// hour for a chat) so the command can wait for the next pass.
-func (h *Host) holdOnReadError(reason, chat string) bool {
+// A command held for a failed read fails with the real reason once it has been held for
+// MaxReadHolds passes and at least MinReadHold, so a persistent fault (stored settings that are
+// not valid) shows up instead of waiting for the command to expire, while a passing one
+// (a busy database) does not kill it.
+const (
+	MaxReadHolds = 5
+	MinReadHold  = time.Minute
+)
+
+type readHold struct {
+	first time.Time
+	n     int
+}
+
+// recheckFailed handles a non-empty reason from a re-check of c. A failed read holds the
+// command (and the chat's later sends) for the next pass and logs it at most once an hour;
+// once held past the bound, or for any other reason, the command fails with the real reason.
+func (h *Host) recheckFailed(c Command, reason, chat string, blocked map[string]bool) {
 	if !strings.HasPrefix(reason, readFailed) {
-		return false
+		h.end(c, CmdFailed, reason)
+		return
 	}
+	real := strings.TrimPrefix(reason, readFailed)
 	now := h.Store.now()
+	if h.readHolds == nil || len(h.readHolds) > 4096 {
+		h.readHolds = map[int64]*readHold{}
+	}
+	rh := h.readHolds[c.ID]
+	if rh == nil {
+		rh = &readHold{first: now}
+		h.readHolds[c.ID] = rh
+	}
+	rh.n++
+	if rh.n >= MaxReadHolds && now.Sub(rh.first) >= MinReadHold {
+		delete(h.readHolds, c.ID)
+		h.end(c, CmdFailed, real)
+		return
+	}
+	if c.Kind == KindSend {
+		blocked[chat] = true
+	}
 	what := "read:" + chat
 	if last, ok := h.capLogged[what]; !ok || now.Sub(last) >= time.Hour {
 		if h.capLogged == nil {
 			h.capLogged = map[string]time.Time{}
 		}
 		h.capLogged[what] = now
-		h.logf("coder host: a queued send is held because %s; trying again on the next pass", strings.TrimPrefix(reason, readFailed))
+		h.logf("coder host: a queued send is held because %s; trying again on the next pass", real)
 	}
-	return true
 }
 
 // pendingOrdered is Pending with the commands of the chats the cap held on the last
