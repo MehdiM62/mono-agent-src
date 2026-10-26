@@ -140,6 +140,9 @@ export function SessionSettings({ conversationId, access }) {
         <label htmlFor="pane-max-concurrent" style={label}>{t('bubbles.pane.session.maxConcurrent')}</label>
         <NumberField key={`mx${rev}`} id="pane-max-concurrent" value={s.max_concurrent} min={1} max={10} disabled={busy} onCommit={n => save({ max_concurrent: n })} />
         <span style={value}>{t('bubbles.pane.session.depth', { depth: s.max_depth })}</span>
+        <label htmlFor="pane-checkin-limit" style={label}>{t('bubbles.pane.session.checkinLimit')}</label>
+        <NumberField key={`cl${rev}`} id="pane-checkin-limit" value={s.checkin_limit} min={1} max={500} disabled={busy} onCommit={n => save({ checkin_limit: n })} />
+        <span style={{ ...label, flexBasis: '100%', minWidth: 0 }}>{t('bubbles.pane.session.checkinLimitWhy')}</span>
       </div>
 
       <div style={row} data-testid="pane-session-mesh">

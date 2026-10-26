@@ -111,3 +111,4 @@
 125_vault_agent_access_levels.sql
 129_coder_sessions.sql
 130_coder_session_settings.sql
+131_coder_session_checkin.sql

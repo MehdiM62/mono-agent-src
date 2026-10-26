@@ -94,20 +94,24 @@ func newCoderSessionsSettingsGetCmd(cfg *Deps) *cobra.Command {
 }
 
 func newCoderSessionsSettingsSetCmd(cfg *Deps) *cobra.Command {
-	var patch, unattended string
+	var patch, unattended, role, parent string
 	cmd := &cobra.Command{
 		Use:   "set CONVERSATION",
 		Short: "Change settings with a JSON object naming only the settings to change",
 		Long: "--patch takes a JSON object with the settings to change (see `settings get` for their names); a setting " +
 			"it does not name keeps its value, and a name that is not a setting is refused. --unattended true|false " +
-			"says whether the session may run with nobody there.",
+			"says whether the session may run with nobody there. --role makes it a master of child sessions (which the " +
+			"host checks in on at the master's interval) or a child of one.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := clicore.RequireOperator(cfg.RequireOperator, "change a coder session's settings"); err != nil {
 				return err
 			}
-			if patch == "" && unattended == "" {
-				return clicore.InvalidInput("nothing to change: give --patch and/or --unattended")
+			if patch == "" && unattended == "" && role == "" {
+				return clicore.InvalidInput("nothing to change: give --patch, --unattended and/or --role")
+			}
+			if parent != "" && role != "child" {
+				return clicore.InvalidInput("--parent goes with --role child")
 			}
 			if unattended != "" && unattended != "true" && unattended != "false" {
 				return clicore.InvalidInput("--unattended is true or false")
@@ -139,6 +143,19 @@ func newCoderSessionsSettingsSetCmd(cfg *Deps) *cobra.Command {
 				}
 				changed = keys
 			}
+			if role != "" {
+				if parent != "" {
+					if _, err := coderConversation(cfg, parent); err != nil {
+						db.Close()
+						return err
+					}
+				}
+				if err := cs.SetRole(profileID, args[0], role, parent); err != nil {
+					db.Close()
+					return clicore.InvalidInput("%v", err)
+				}
+				changed = append(changed, "role")
+			}
 			if unattended != "" {
 				if err := cs.SetUnattended(profileID, args[0], unattended == "true"); err != nil {
 					db.Close()
@@ -156,6 +173,8 @@ func newCoderSessionsSettingsSetCmd(cfg *Deps) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&patch, "patch", "", "JSON object with the settings to change")
 	cmd.Flags().StringVar(&unattended, "unattended", "", "true or false: may the session run with nobody there")
+	cmd.Flags().StringVar(&role, "role", "", "solo, master or child (a child needs --parent: a master with room for it)")
+	cmd.Flags().StringVar(&parent, "parent", "", "the master conversation, with --role child")
 	clicore.WithJSONErrors(cfg.JSONOutput, cmd)
 	return cmd
 }

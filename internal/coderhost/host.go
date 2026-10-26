@@ -3,6 +3,7 @@ package coderhost
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 )
@@ -45,6 +46,11 @@ type Host struct {
 	MeshEvery time.Duration
 	MeshIdle  time.Duration
 	meshPrev  map[meshKey]MeshSession // what the mesh was last told, kept for a session whose records do not read
+
+	// CheckinEvery is how often masters are looked at (default 30 s); the interval
+	// each master asks for is its own setting.
+	CheckinEvery time.Duration
+	lastCheckin  time.Time
 
 	mu   sync.Mutex // serializes session changes between the loop and the turn watchers
 	live map[string]Turn
@@ -147,6 +153,14 @@ func (h *Host) Tick() error {
 			if x.State == StateStopped {
 				h.end(c, CmdFailed, "the session is stopped")
 				continue
+			}
+			// A check-in is queued by the host, not typed by a person: it is only run for a
+			// master that is still unattended, as it was when it was queued.
+			if strings.HasPrefix(c.TurnID, "checkin-") {
+				if reason := h.checkinStillAllowed(x, h.Store.now()); reason != "" {
+					h.end(c, CmdFailed, reason)
+					continue
+				}
 			}
 			// The turn is recorded before it starts, without a pid yet, so the
 			// app's startup sweep sees it as the host's while it is admitted.
@@ -257,6 +271,7 @@ func (h *Host) Run(ctx context.Context) error {
 		if err := h.Tick(); err != nil {
 			h.logf("coder host: %v", err)
 		}
+		h.checkinIfDue()
 		select {
 		case <-ctx.Done():
 			return nil
@@ -383,4 +398,37 @@ func (h *Host) unlocked(f func() (Turn, error)) (Turn, error) {
 	h.mu.Unlock()
 	defer h.mu.Lock()
 	return f()
+}
+
+// checkinIfDue runs a check-in pass when CheckinEvery has passed since the last.
+func (h *Host) checkinIfDue() {
+	every := h.CheckinEvery
+	if every <= 0 {
+		every = 30 * time.Second
+	}
+	if now := h.Store.now(); now.Sub(h.lastCheckin) >= every {
+		h.lastCheckin = now
+		h.checkinPass(now)
+	}
+}
+
+// checkinStillAllowed re-checks, when a host-made check-in is about to run, what
+// allowed it to be queued: it can have waited, and the settings can have changed.
+// It returns why not, or "".
+func (h *Host) checkinStillAllowed(x Session, now time.Time) string {
+	if !x.Unattended || x.Role != "master" {
+		return "the session is no longer an unattended master"
+	}
+	settings, err := h.Store.GetSettings(x.ProfileID, x.ConversationID)
+	if err != nil {
+		return "the session's settings do not read"
+	}
+	if !withinActiveHours(settings.ActiveHours, now) {
+		return "outside the session's active hours"
+	}
+	streak, _, _, err := h.Store.CheckinStreak(x.ProfileID, x.ConversationID)
+	if err != nil || streak >= settings.CheckinLimit {
+		return "the session has had its check-ins in a row; it waits for a person"
+	}
+	return ""
 }

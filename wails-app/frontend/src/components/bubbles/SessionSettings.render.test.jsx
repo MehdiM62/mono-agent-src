@@ -22,7 +22,7 @@ const view = (over = {}, settings = {}) => ({
   },
   settings: {
     checkin_minutes: 15, skip_if_unchanged: true, autonomy_preset: 'ask-on-risk', autonomy_classes: {},
-    max_children: 4, max_concurrent: 2, max_depth: 2, mesh_visible: true, mesh_alias: '', mesh_accept: 'project', ...settings,
+    max_children: 4, max_concurrent: 2, max_depth: 2, checkin_limit: 48, mesh_visible: true, mesh_alias: '', mesh_accept: 'project', ...settings,
   },
   ...over,
 })
@@ -88,6 +88,16 @@ describe('SessionSettings', () => {
     fireEvent.change(field, { target: { value: '6' } })
     fireEvent.blur(field)
     await waitFor(() => expect(api.setCoderSessionSettings).toHaveBeenCalledWith('c1', { max_children: 6 }, ''))
+  })
+
+  it('changes the number of check-ins in a row by naming only that setting', async () => {
+    api.setCoderSessionSettings.mockResolvedValue(view({}, { checkin_limit: 12 }))
+    await shown()
+    const field = screen.getByLabelText('Check-ins in a row')
+    expect(field).toHaveValue(48)
+    fireEvent.change(field, { target: { value: '12' } })
+    fireEvent.blur(field)
+    await waitFor(() => expect(api.setCoderSessionSettings).toHaveBeenCalledWith('c1', { checkin_limit: 12 }, ''))
   })
 
   it('shows why a change was refused and keeps what was stored', async () => {
