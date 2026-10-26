@@ -3,6 +3,7 @@ package coderhost
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 )
@@ -151,6 +152,12 @@ func (h *Host) Tick() error {
 			}
 			if x.State == StateStopped {
 				h.end(c, CmdFailed, "the session is stopped")
+				continue
+			}
+			// A check-in is queued by the host, not typed by a person: it is only run for a
+			// master that is still unattended, as it was when it was queued.
+			if strings.HasPrefix(c.TurnID, "checkin-") && (!x.Unattended || x.Role != "master") {
+				h.end(c, CmdFailed, "the session is no longer an unattended master")
 				continue
 			}
 			// The turn is recorded before it starts, without a pid yet, so the

@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -318,13 +319,15 @@ func (s *Store) ConversationInfo(profileID, conversationID string) (cwd, access 
 // "master" (may have children) or "child" of a master. It refuses what the design
 // forbids: a child needs a master of the same profile that allows children, a
 // master has no parent, no session is its own parent, the master's max_children
-// holds, and a session that has children cannot become something else.
+// holds, and a session that has children (stopped ones count) cannot become
+// something else. The reasons come from reading first; the change itself is one
+// statement that re-checks the rules, so two callers cannot both slip through.
 func (s *Store) SetRole(profileID, conversationID, role, parent string) error {
 	if _, err := s.EnsureSession(profileID, conversationID); err != nil {
 		return err
 	}
 	var children int
-	if err := s.db.QueryRow(`SELECT COUNT(*) FROM coder_sessions WHERE profile_id = ? AND parent_conversation_id = ? AND state != 'stopped'`, profileID, conversationID).Scan(&children); err != nil {
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM coder_sessions WHERE profile_id = ? AND parent_conversation_id = ?`, profileID, conversationID).Scan(&children); err != nil {
 		return err
 	}
 	switch role {
@@ -333,8 +336,13 @@ func (s *Store) SetRole(profileID, conversationID, role, parent string) error {
 			return fmt.Errorf("a %s session has no parent", role)
 		}
 		if role == "solo" && children > 0 {
-			return errors.New("this session has child sessions; stop or move them first")
+			return errors.New("this session has child sessions; move them first")
 		}
+		res, err := s.db.Exec(`UPDATE coder_sessions SET role = ?, parent_conversation_id = '', updated_at = ?
+			WHERE profile_id = ? AND conversation_id = ?
+			AND (? = 'master' OR NOT EXISTS (SELECT 1 FROM coder_sessions k WHERE k.profile_id = ? AND k.parent_conversation_id = ?))`,
+			role, s.stamp(), profileID, conversationID, role, profileID, conversationID)
+		return s.applied(res, err, "this session has child sessions; move them first")
 	case "child":
 		if parent == "" || parent == conversationID {
 			return errors.New("a child needs another session as its master")
@@ -356,18 +364,29 @@ func (s *Store) SetRole(profileID, conversationID, role, parent string) error {
 		if ps.MaxDepth < 2 {
 			return errors.New("the master's max_depth does not allow children")
 		}
-		var siblings int
-		if err := s.db.QueryRow(`SELECT COUNT(*) FROM coder_sessions WHERE profile_id = ? AND parent_conversation_id = ? AND conversation_id != ? AND state != 'stopped'`, profileID, parent, conversationID).Scan(&siblings); err != nil {
-			return err
-		}
-		if siblings >= ps.MaxChildren {
-			return fmt.Errorf("the master already has %d child sessions (max_children is %d)", siblings, ps.MaxChildren)
-		}
-	default:
-		return fmt.Errorf("role is solo, master or child, not %q", role)
+		res, err := s.db.Exec(`UPDATE coder_sessions SET role = 'child', parent_conversation_id = ?, updated_at = ?
+			WHERE profile_id = ? AND conversation_id = ?
+			AND NOT EXISTS (SELECT 1 FROM coder_sessions k WHERE k.profile_id = ? AND k.parent_conversation_id = ?)
+			AND (SELECT COUNT(*) FROM coder_sessions sib WHERE sib.profile_id = ? AND sib.parent_conversation_id = ? AND sib.conversation_id != ? AND sib.state != 'stopped') < ?
+			AND EXISTS (SELECT 1 FROM coder_sessions m WHERE m.profile_id = ? AND m.conversation_id = ? AND m.role = 'master' AND m.parent_conversation_id = '' AND m.state != 'stopped')`,
+			parent, s.stamp(), profileID, conversationID,
+			profileID, conversationID,
+			profileID, parent, conversationID, ps.MaxChildren,
+			profileID, parent)
+		return s.applied(res, err, fmt.Sprintf("the master cannot take another child (max_children is %d) or changed meanwhile", ps.MaxChildren))
 	}
-	_, err := s.db.Exec(`UPDATE coder_sessions SET role = ?, parent_conversation_id = ?, updated_at = ? WHERE profile_id = ? AND conversation_id = ?`, role, parent, s.stamp(), profileID, conversationID)
-	return err
+	return fmt.Errorf("role is solo, master or child, not %q", role)
+}
+
+// applied turns "no row changed" into the refusal reason.
+func (s *Store) applied(res sql.Result, err error, reason string) error {
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return errors.New(reason)
+	}
+	return nil
 }
 
 // Checkin is what the scheduler remembers about a master.
@@ -392,14 +411,19 @@ func (s *Store) SaveCheckin(profileID, conversationID string, c Checkin) error {
 	return err
 }
 
-// LastActivity is the time of the newest journal event of a conversation, or the zero time.
-func (s *Store) LastActivity(profileID, conversationID string) time.Time {
-	var at sql.NullString
-	if err := s.db.QueryRow(`SELECT MAX(created_at) FROM ai_chat_events WHERE profile_id = ? AND conversation_id = ?`, profileID, conversationID).Scan(&at); err != nil || !at.Valid {
-		return time.Time{}
+// TurnActivity is the time of a running turn's newest journal event, or when the
+// turn began if it has none yet; the zero time when there is no such turn.
+func (s *Store) TurnActivity(profileID, conversationID, turnID string) time.Time {
+	var at, began sql.NullString
+	_ = s.db.QueryRow(`SELECT MAX(created_at) FROM ai_chat_events WHERE profile_id = ? AND conversation_id = ? AND turn_id = ?`, profileID, conversationID, turnID).Scan(&at)
+	_ = s.db.QueryRow(`SELECT created_at FROM ai_chat_turns WHERE profile_id = ? AND conversation_id = ? AND id = ?`, profileID, conversationID, turnID).Scan(&began)
+	var newest time.Time
+	for _, v := range []sql.NullString{at, began} {
+		if t, err := time.Parse(time.RFC3339Nano, v.String); v.Valid && err == nil && t.After(newest) {
+			newest = t
+		}
 	}
-	t, _ := time.Parse(time.RFC3339Nano, at.String)
-	return t
+	return newest
 }
 
 // LastTurn is a conversation's newest turn: its id and status ("" when it has none).
@@ -413,4 +437,35 @@ func (s *Store) PendingFor(profileID, conversationID string) int {
 	var n int
 	_ = s.db.QueryRow(`SELECT COUNT(*) FROM coder_session_commands WHERE profile_id = ? AND conversation_id = ? AND status = 'pending'`, profileID, conversationID).Scan(&n)
 	return n
+}
+
+// CheckinStreak is how many of a conversation's newest turns in a row were
+// scheduled check-ins (no message from a person between them), and when the
+// newest turn of any kind ended or was last touched; failed says whether the
+// newest check-in turn did not complete.
+func (s *Store) CheckinStreak(profileID, conversationID string) (streak int, lastTurnAt time.Time, lastFailed bool) {
+	rows, err := s.db.Query(`SELECT id, status, updated_at FROM ai_chat_turns WHERE profile_id = ? AND conversation_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 600`, profileID, conversationID)
+	if err != nil {
+		return 0, time.Time{}, false
+	}
+	defer rows.Close()
+	first := true
+	for rows.Next() {
+		var id, status, upd string
+		if rows.Scan(&id, &status, &upd) != nil {
+			break
+		}
+		if first {
+			lastTurnAt, _ = time.Parse(time.RFC3339Nano, upd)
+		}
+		if !strings.HasPrefix(id, "checkin-") {
+			break
+		}
+		if first {
+			lastFailed = status == "failed" || status == "interrupted"
+		}
+		first = false
+		streak++
+	}
+	return streak, lastTurnAt, lastFailed
 }

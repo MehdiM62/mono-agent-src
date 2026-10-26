@@ -1294,7 +1294,9 @@
         },
         "loadFailed": "No se pudieron leer los ajustes de la sesión.",
         "saveFailed": "No se guardó: {{error}}",
-        "saved": "Guardado."
+        "saved": "Guardado.",
+        "checkinLimit": "Revisiones seguidas",
+        "checkinLimitWhy": "Tras tantas revisiones sin un mensaje tuyo, el principal espera uno."
       }
     }
   },

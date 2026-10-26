@@ -2,6 +2,7 @@ package coderhost
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -206,6 +207,7 @@ func TestASilentRunningChildChecksInOnceWhenItGoesQuiet(t *testing.T) {
 	h, _, st := newHost(t)
 	_, kids := family(t, st, 1)
 	h.checkinPass(t0)
+	addTurn(t, st, kids[0], "t1", "active", "x", t0)
 	st.db.Exec(`UPDATE coder_sessions SET state = 'running', turn_id = 't1', updated_at = ? WHERE conversation_id = ?`, t0.UTC().Format(timeLayout), kids[0])
 	h.checkinPass(t0.Add(10 * time.Minute)) // running, quiet for 10 min: not silent yet (30)
 	if len(checkins(t, st)) != 0 {
@@ -305,5 +307,163 @@ func TestRunStartsACheckInTurnForADueMaster(t *testing.T) {
 	<-done
 	if !strings.Contains(l.started[0], "[CHECK-IN] Progress check (scheduled)") || !strings.HasPrefix(l.started[0], "checkin-") {
 		t.Fatalf("started = %q", l.started)
+	}
+}
+
+func masterTurn(t *testing.T, st *Store, turn, status string, at time.Time) {
+	t.Helper()
+	addTurn(t, st, "m", turn, status, "x", at)
+}
+
+// A master that keeps acting on its own check-ins is bounded: after checkin_limit in a
+// row with nothing from a person between, it waits for one.
+func TestACheckInLoopStopsAtTheLimitUntilAPersonWrites(t *testing.T) {
+	h, _, st := newHost(t)
+	family(t, st, 1)
+	setSettings(t, st, "m", `{"skip_if_unchanged": false, "checkin_limit": 3}`)
+	h.checkinPass(t0)
+	at := t0
+	for i := 0; i < 3; i++ { // three check-ins ran and ended, each long ago enough
+		at = at.Add(20 * time.Minute)
+		masterTurn(t, st, fmt.Sprintf("checkin-%d", i), "completed", at.Add(-5*time.Minute))
+		st.db.Exec(`UPDATE coder_session_commands SET status = 'done'`)
+		st.SaveCheckin("p", "m", Checkin{At: at.Add(-18 * time.Minute).UTC().Format(timeLayout)})
+	}
+	h.checkinPass(at)
+	if len(checkins(t, st)) != 0 {
+		t.Fatal("a fourth check-in in a row was queued past the limit of 3")
+	}
+	masterTurn(t, st, "person-1", "completed", at.Add(time.Minute)) // a person wrote to the master
+	h.checkinPass(at.Add(30 * time.Minute))
+	if len(checkins(t, st)) != 1 {
+		t.Fatal("check-ins did not resume after a person wrote")
+	}
+}
+
+func TestTheGapRunsFromTheEndOfTheMastersOwnTurn(t *testing.T) {
+	h, _, st := newHost(t)
+	family(t, st, 1)
+	setSettings(t, st, "m", `{"skip_if_unchanged": false}`)
+	h.checkinPass(t0)
+	end := t0.Add(40 * time.Minute)
+	masterTurn(t, st, "person-1", "completed", end)
+	st.db.Exec(`UPDATE ai_chat_turns SET updated_at = ? WHERE id = 'person-1'`, end.UTC().Format(time.RFC3339Nano))
+	h.checkinPass(end.Add(30 * time.Second)) // due long ago, but the master's turn just ended
+	if len(checkins(t, st)) != 0 {
+		t.Fatal("a check-in followed the end of a turn at once")
+	}
+	h.checkinPass(end.Add(2 * time.Minute))
+	if len(checkins(t, st)) != 1 {
+		t.Fatal("no check-in once the gap had passed")
+	}
+}
+
+func TestAfterAFailedCheckInOnlyTheTimerBringsTheNext(t *testing.T) {
+	h, _, st := newHost(t)
+	_, kids := family(t, st, 1)
+	h.checkinPass(t0)
+	failedAt := t0.Add(5 * time.Minute)
+	masterTurn(t, st, "checkin-1", "failed", failedAt)
+	st.db.Exec(`UPDATE ai_chat_turns SET updated_at = ? WHERE id = 'checkin-1'`, failedAt.UTC().Format(time.RFC3339Nano))
+	addTurn(t, st, kids[0], "k1-t1", "failed", "x", failedAt.Add(time.Minute)) // an event that would normally check in at once
+	h.checkinPass(failedAt.Add(3 * time.Minute))
+	if len(checkins(t, st)) != 0 {
+		t.Fatal("an event checked in right after a failed check-in")
+	}
+	h.checkinPass(failedAt.Add(20 * time.Minute)) // a full interval after the failure
+	if len(checkins(t, st)) != 1 {
+		t.Fatal("the timer did not bring the next check-in")
+	}
+}
+
+// A child whose turn was running at the last look and has ended since is an event too.
+func TestAChildTurnThatEndedSinceTheLastLookIsAnEvent(t *testing.T) {
+	h, _, st := newHost(t)
+	_, kids := family(t, st, 1)
+	addTurn(t, st, kids[0], "k1-t1", "active", "x", t0.Add(-time.Minute))
+	h.checkinPass(t0) // baseline: the turn is running
+	st.db.Exec(`UPDATE ai_chat_turns SET status = 'completed' WHERE id = 'k1-t1'`)
+	h.checkinPass(t0.Add(3 * time.Minute))
+	got := checkins(t, st)
+	if len(got) != 1 || !strings.Contains(got[0].Message, "child_finished") {
+		t.Fatalf("check-ins = %+v", got)
+	}
+}
+
+// Quiet since the turn that is running now began, not since the child's old events.
+func TestAChildJustStartedOnANewTurnIsNotSilent(t *testing.T) {
+	h, _, st := newHost(t)
+	_, kids := family(t, st, 1)
+	st.db.Exec(`INSERT INTO ai_chat_events (profile_id, conversation_id, turn_id, seq, created_at, version, type, payload) VALUES ('p', ?, 'old', 1, ?, 1, 'x', '{}')`, kids[0], t0.Add(-3*time.Hour).UTC().Format(time.RFC3339Nano))
+	h.checkinPass(t0)
+	addTurn(t, st, kids[0], "k1-new", "active", "x", t0.Add(59*time.Minute))
+	st.db.Exec(`UPDATE coder_sessions SET state = 'running', turn_id = 'k1-new' WHERE conversation_id = ?`, kids[0])
+	h.checkinPass(t0.Add(60 * time.Minute))
+	for _, c := range checkins(t, st) {
+		if strings.Contains(c.Message, "child_silent") {
+			t.Fatalf("a child one minute into a new turn was called silent: %s", c.Message)
+		}
+	}
+}
+
+func TestAHostMadeCheckInOnlyRunsForAnUnattendedMaster(t *testing.T) {
+	h, l, st := newHost(t)
+	family(t, st, 1)
+	c, err := st.Enqueue(Command{ProfileID: "p", ConversationID: "m", Kind: KindSend, TurnID: "checkin-abc", Message: "[CHECK-IN] x"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	st.db.Exec(`UPDATE coder_sessions SET unattended = 0 WHERE conversation_id = 'm'`)
+	_ = h.Tick()
+	got, _, _ := st.GetCommand(c.ID)
+	if len(l.started) != 0 || got.Status != CmdFailed || !strings.Contains(got.Error, "unattended master") {
+		t.Fatalf("started=%v command=%+v", l.started, got)
+	}
+	// a person's message to the same session still runs
+	send(t, st, "m", "person-1", "hi")
+	_ = h.Tick()
+	if len(l.started) != 1 {
+		t.Fatalf("started = %v", l.started)
+	}
+}
+
+func TestSetRoleKeepsStoppedChildrenInView(t *testing.T) {
+	_, _, st := newHost(t)
+	for _, id := range []string{"a", "b"} {
+		st.EnsureSession("p", id)
+	}
+	st.SetRole("p", "a", "master", "")
+	if err := st.SetRole("p", "b", "child", "a"); err != nil {
+		t.Fatal(err)
+	}
+	st.db.Exec(`UPDATE coder_sessions SET state = 'stopped' WHERE conversation_id = 'b'`)
+	if err := st.SetRole("p", "a", "solo", ""); err == nil {
+		t.Fatal("a master went solo while a stopped child still points at it")
+	}
+}
+
+func TestUnreadableOrEmptyActiveHoursNeverRunTurns(t *testing.T) {
+	if withinActiveHours("25:99-aa", t0) {
+		t.Error("an unreadable window was treated as always")
+	}
+	if _, _, err := DefaultSettings().Apply([]byte(`{"active_hours": "09:00-09:00"}`)); err == nil {
+		t.Error("a window whose start equals its end was accepted")
+	}
+	if _, _, err := DefaultSettings().Apply([]byte(`{"checkin_limit": 0}`)); err == nil {
+		t.Error("a limit of 0 was accepted")
+	}
+	if _, _, err := DefaultSettings().Apply([]byte(`{"checkin_limit": 501}`)); err == nil {
+		t.Error("a limit over 500 was accepted")
+	}
+}
+
+func TestAnUnsafeChildIdIsLeftOutOfTheDigest(t *testing.T) {
+	h, _, st := newHost(t)
+	_, _ = family(t, st, 1)
+	addConversation(t, st, "evil child", "/work/evil")
+	st.db.Exec(`INSERT INTO coder_sessions (profile_id, conversation_id, role, parent_conversation_id, created_at, updated_at) VALUES ('p', 'evil child', 'child', 'm', 'now', 'now')`)
+	snap := h.snapshotOf(t0, "p", []Session{{ProfileID: "p", ConversationID: "evil child"}, {ProfileID: "p", ConversationID: "k1"}}, 30)
+	if len(snap.Children) != 1 || snap.Children[0].ID != "k1" {
+		t.Fatalf("snapshot = %+v", snap.Children)
 	}
 }

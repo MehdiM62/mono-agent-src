@@ -48,7 +48,7 @@ const open = async (conv, task) => {
 const sessionView = {
   conversationId: 'k1', role: 'solo', unattended: true, access: 'coding', operatorOnly: [],
   allowed: { autonomy_preset: ['ask-always', 'ask-on-risk', 'decide-and-log'], gap_classes: ['ambiguity'], mesh_accept: ['none', 'project', 'subtree'] },
-  settings: { checkin_minutes: 15, skip_if_unchanged: true, autonomy_preset: 'ask-on-risk', autonomy_classes: {}, max_children: 4, max_concurrent: 2, max_depth: 2, mesh_visible: true, mesh_alias: '', mesh_accept: 'project' },
+  settings: { checkin_minutes: 15, skip_if_unchanged: true, autonomy_preset: 'ask-on-risk', autonomy_classes: {}, max_children: 4, max_concurrent: 2, max_depth: 2, checkin_limit: 48, mesh_visible: true, mesh_alias: '', mesh_accept: 'project' },
 }
 const kinds = [{ kind: 'apply', label: 'Apply', level: 'ask', isDefault: true }, { kind: 'chat', label: 'Chat', level: 'ask', isDefault: true }, { kind: 'coder', label: 'Coder', level: 'dev', isDefault: false }]
 

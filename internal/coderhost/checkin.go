@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -59,76 +60,107 @@ func (h *Host) checkinPass(now time.Time) {
 }
 
 func (h *Host) checkinOne(now time.Time, m Session, children []Session) {
-	// The session has to be free: a turn running, a pause, a question waiting or a
-	// command queued all mean the master is being dealt with already. Nothing is
-	// recorded, so it is looked at again on the next pass (one catch-up, never a pile).
+	// The session has to be free: a turn running, a pause, a command queued all mean
+	// the master is being dealt with already. Nothing is recorded, so it is looked at
+	// again on the next pass (one catch-up, never a pile).
 	if !m.Unattended || m.State != StateIdle || m.TurnID != "" || h.Store.PendingFor(m.ProfileID, m.ConversationID) > 0 {
 		return
 	}
 	settings, err := h.Store.GetSettings(m.ProfileID, m.ConversationID)
 	if err != nil {
+		h.logf("coder host: check-in for %s: settings: %v", m.ConversationID, err)
 		return
 	}
 	prev, err := h.Store.GetCheckin(m.ProfileID, m.ConversationID)
 	if err != nil {
+		h.logf("coder host: check-in for %s: %v", m.ConversationID, err)
 		return
 	}
 	cur := h.snapshotOf(now, m.ProfileID, children, settings.SilentMinutes)
 	curJSON, _ := json.Marshal(cur)
 	nowStr := now.UTC().Format(timeLayout)
+	remember := func() error {
+		return h.Store.SaveCheckin(m.ProfileID, m.ConversationID, Checkin{At: nowStr, Snapshot: string(curJSON)})
+	}
 
 	last, _ := time.Parse(timeLayout, prev.At)
-	if prev.At == "" {
-		// First sight of this master: remember its children, check in after one interval.
-		_ = h.Store.SaveCheckin(m.ProfileID, m.ConversationID, Checkin{At: nowStr, Snapshot: string(curJSON)})
+	if prev.At == "" || now.Before(last) {
+		// First sight of this master, or the clock went back past the last look:
+		// remember the children as they are and check in after one interval.
+		if err := remember(); err != nil {
+			h.logf("coder host: check-in for %s: %v", m.ConversationID, err)
+		}
 		return
 	}
-	if now.Sub(last) < MinCheckinGap || !withinActiveHours(settings.ActiveHours, now) {
+	// Spacing is measured from the end of the master's own last turn as well as from the
+	// last check-in, so a long turn is not followed at once by another.
+	streak, lastTurnEnd, lastFailed := h.Store.CheckinStreak(m.ProfileID, m.ConversationID)
+	if now.Sub(last) < MinCheckinGap || (!lastTurnEnd.IsZero() && now.Sub(lastTurnEnd) < MinCheckinGap) || !withinActiveHours(settings.ActiveHours, now) {
+		return
+	}
+	// Enough check-ins in a row with nobody having written to this master: it waits for a person.
+	if streak >= settings.CheckinLimit {
 		return
 	}
 	var before snapshot
 	_ = json.Unmarshal([]byte(prev.Snapshot), &before)
 	events := triggeredEvents(before, cur, settings.CheckinTriggers)
-	due := settings.CheckinMinutes > 0 && now.Sub(last) >= time.Duration(settings.CheckinMinutes)*time.Minute
+	if lastFailed {
+		events = nil // after a check-in turn that did not complete, only the timer, not events, brings the next
+	}
+	interval := time.Duration(settings.CheckinMinutes) * time.Minute
+	due := settings.CheckinMinutes > 0 && now.Sub(last) >= interval && (!lastFailed || now.Sub(lastTurnEnd) >= interval)
 	changed := string(curJSON) != prev.Snapshot
 
 	switch {
 	case len(events) > 0:
 	case due && (!settings.SkipIfUnchanged || changed):
-	case due:
+	case due && !lastFailed:
 		// Nothing changed and the settings say skip: this counts as a look.
-		_ = h.Store.SaveCheckin(m.ProfileID, m.ConversationID, Checkin{At: nowStr, Snapshot: string(curJSON)})
+		if err := remember(); err != nil {
+			h.logf("coder host: check-in for %s: %v", m.ConversationID, err)
+		}
 		return
 	default:
+		return
+	}
+	// The master may have been given something to do since it was read at the top of the
+	// pass; the view is read again so a check-in does not start behind a person's message.
+	if fresh, ok, err := h.Store.GetSession(m.ProfileID, m.ConversationID); err != nil || !ok || !fresh.Unattended || fresh.Role != "master" ||
+		fresh.State != StateIdle || fresh.TurnID != "" || h.Store.PendingFor(m.ProfileID, m.ConversationID) > 0 {
 		return
 	}
 	reason := "scheduled"
 	if len(events) > 0 {
 		reason = strings.Join(events, ", ")
 	}
+	// Recorded first: if the record cannot be written, nothing is queued, so a write that
+	// keeps failing cannot turn into a check-in every pass.
+	if err := remember(); err != nil {
+		h.logf("coder host: check-in for %s: %v", m.ConversationID, err)
+		return
+	}
 	turn := make([]byte, 8)
 	_, _ = rand.Read(turn)
 	if _, err := h.Store.Enqueue(Command{
 		ProfileID: m.ProfileID, ConversationID: m.ConversationID, Kind: KindSend,
-		TurnID: "checkin-" + hex.EncodeToString(turn), Message: digestText(reason, cur, now),
+		TurnID: "checkin-" + hex.EncodeToString(turn), Message: digestText(reason, cur),
 	}); err != nil {
 		h.logf("coder host: check-in for %s: %v", m.ConversationID, err)
-		return
 	}
-	_ = h.Store.SaveCheckin(m.ProfileID, m.ConversationID, Checkin{At: nowStr, Snapshot: string(curJSON)})
 }
 
 func (h *Host) snapshotOf(now time.Time, profileID string, children []Session, silentMinutes int) snapshot {
 	var out snapshot
 	for _, c := range children {
+		if !hostID.MatchString(c.ConversationID) {
+			continue // an id that would not be safe in the master's prompt is left out of it
+		}
 		id, status := h.Store.LastTurn(profileID, c.ConversationID)
 		f := childFact{ID: c.ConversationID, State: c.State, Queued: h.Store.PendingFor(profileID, c.ConversationID), LastTurn: id, Status: status}
-		if c.State == StateRunning {
-			since := h.Store.LastActivity(profileID, c.ConversationID)
-			if since.IsZero() {
-				since, _ = time.Parse(timeLayout, c.UpdatedAt)
-			}
-			if !since.IsZero() {
+		if c.State == StateRunning && c.TurnID != "" {
+			// Quiet since the newest event of the turn that is running now (or since it began).
+			if since := h.Store.TurnActivity(profileID, c.ConversationID, c.TurnID); !since.IsZero() {
 				f.SilentMi = int(now.Sub(since) / time.Minute)
 				f.Silent = f.SilentMi >= silentMinutes
 			}
@@ -139,9 +171,15 @@ func (h *Host) snapshotOf(now time.Time, profileID string, children []Session, s
 	return out
 }
 
+// hostID is what a conversation id must look like to be put in a prompt.
+var hostID = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$`)
+
 // triggeredEvents names the events that happened between two snapshots and that
-// the settings ask to check in on. child_question and budget_80 are settings too,
-// but nothing records a question or a spend yet, so they never fire.
+// the settings ask to check in on. A turn counts when it newly reached an end
+// state: a new turn that ended, or the one that was running at the last snapshot
+// and has ended since. child_question and budget_80 are settings too, but nothing
+// records a question or a spend yet, so they never fire; likewise a child is never
+// "waiting for the user" yet, so child_blocked fires for a pause only.
 func triggeredEvents(before, now snapshot, enabled []string) []string {
 	on := map[string]bool{}
 	for _, e := range enabled {
@@ -151,17 +189,20 @@ func triggeredEvents(before, now snapshot, enabled []string) []string {
 	for _, c := range before.Children {
 		old[c.ID] = c
 	}
+	ended := func(status string) bool {
+		return status == "completed" || status == "failed" || status == "interrupted"
+	}
 	found := map[string]bool{}
 	for _, c := range now.Children {
 		o, known := old[c.ID]
 		if !known {
 			continue
 		}
-		newTurn := c.LastTurn != "" && c.LastTurn != o.LastTurn
+		newlyEnded := ended(c.Status) && (c.LastTurn != o.LastTurn || !ended(o.Status))
 		switch {
-		case newTurn && c.Status == "completed":
+		case newlyEnded && c.Status == "completed":
 			found["child_finished"] = true
-		case newTurn && (c.Status == "failed" || c.Status == "interrupted"):
+		case newlyEnded:
 			found["child_failed"] = true
 		}
 		if (c.State == StateWaitingUser || c.State == StatePaused) && o.State != c.State {
@@ -182,7 +223,7 @@ func triggeredEvents(before, now snapshot, enabled []string) []string {
 }
 
 // digestText is the master's prompt for a check-in: facts only.
-func digestText(reason string, s snapshot, now time.Time) string {
+func digestText(reason string, s snapshot) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "[CHECK-IN] Progress check (%s). The sessions you coordinate, as the host sees them now:\n", reason)
 	for _, c := range s.Children {
@@ -197,7 +238,6 @@ func digestText(reason string, s snapshot, now time.Time) string {
 		b.WriteString("\n")
 	}
 	b.WriteString("Review them and give each the direction it needs. Do not redo finished work. This message was written by the host, not by the person or by any of these sessions.")
-	_ = now
 	return b.String()
 }
 
@@ -209,7 +249,7 @@ func withinActiveHours(window string, now time.Time) bool {
 	}
 	var sh, sm, eh, em int
 	if _, err := fmt.Sscanf(window, "%d:%d-%d:%d", &sh, &sm, &eh, &em); err != nil {
-		return true
+		return false // an unreadable window (not written through the settings) means no unattended turns
 	}
 	local := now.Local()
 	cur := local.Hour()*60 + local.Minute()

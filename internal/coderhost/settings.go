@@ -23,6 +23,7 @@ type Settings struct {
 	CheckinMinutes  int      `json:"checkin_minutes"`   // 0 = no timed check-ins
 	SkipIfUnchanged bool     `json:"skip_if_unchanged"` // no turn when nothing changed since the last check-in
 	CheckinTriggers []string `json:"checkin_triggers"`  // events that check in early
+	CheckinLimit    int      `json:"checkin_limit"`     // check-ins in a row, with no message from a person between, before the master waits for one
 	SilentMinutes   int      `json:"silent_minutes"`    // a child with no events this long counts as silent
 	ActiveHours     string   `json:"active_hours"`      // "" = always, or "HH:MM-HH:MM" (local time)
 
@@ -61,12 +62,13 @@ var (
 
 // OperatorOnly lists the fields only the operator changes: what the session may
 // do on its own (autonomy, limits, who may message it).
-var OperatorOnly = []string{"autonomy_preset", "autonomy_classes", "max_children", "max_concurrent", "max_depth", "mesh_accept"}
+var OperatorOnly = []string{"checkin_limit", "autonomy_preset", "autonomy_classes", "max_children", "max_concurrent", "max_depth", "mesh_accept"}
 
 // DefaultSettings is what a session has until something is changed.
 func DefaultSettings() Settings {
 	return Settings{
 		CheckinMinutes:  15,
+		CheckinLimit:    48, // twelve hours of 15-minute check-ins
 		SkipIfUnchanged: true,
 		CheckinTriggers: append([]string{}, CheckinEvents...),
 		SilentMinutes:   30,
@@ -106,8 +108,13 @@ func (s Settings) Validate() error {
 	if err := within("silent_minutes", s.SilentMinutes, 5, 1440); err != nil {
 		return err
 	}
-	if s.ActiveHours != "" && !activeHours.MatchString(s.ActiveHours) {
-		return errors.New(`active_hours must be empty or "HH:MM-HH:MM"`)
+	if err := within("checkin_limit", s.CheckinLimit, 1, 500); err != nil {
+		return err
+	}
+	if s.ActiveHours != "" {
+		if !activeHours.MatchString(s.ActiveHours) || s.ActiveHours[:5] == s.ActiveHours[6:] {
+			return errors.New(`active_hours must be empty or "HH:MM-HH:MM" with two different times`)
+		}
 	}
 	seen := map[string]bool{}
 	for _, e := range s.CheckinTriggers {
