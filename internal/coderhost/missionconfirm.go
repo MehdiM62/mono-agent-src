@@ -119,7 +119,7 @@ func (s *Store) confirmKey(profileID string) ([]byte, error) {
 // this profile's pending send, for this conversation and turn, marked as a
 // mission.
 func (s *Store) Confirm(cmd Command, session int64) (MissionConfirm, error) {
-	if HostMade(cmd.TurnID) {
+	if HostMade(cmd.TurnID) || cmd.Issuer != "" {
 		return MissionConfirm{}, errHostMade
 	}
 	got, ok, err := s.GetCommand(cmd.ID)
@@ -207,7 +207,7 @@ func (s *Store) readConfirm(profileID, conversationID, turnID string, commandID 
 // live confirmation of this command. A command not marked as a mission, and a
 // host-made turn, never has one.
 func (s *Store) PeekConfirm(c Command) (MissionConfirm, bool) {
-	if HostMade(c.TurnID) || !c.WantsMission {
+	if HostMade(c.TurnID) || c.Issuer != "" || !c.WantsMission {
 		return MissionConfirm{}, false
 	}
 	mc, _, ok := s.readConfirm(c.ProfileID, c.ConversationID, c.TurnID, c.ID)

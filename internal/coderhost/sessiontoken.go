@@ -179,6 +179,9 @@ func (s *Store) BindSessionToken(profileID, conversationID, turnID string, pid i
 	}
 	_, err = s.db.Exec(`UPDATE coder_session_tokens SET pid = ?, stamp = ?, mac = ? WHERE token_hash = ?`,
 		pid, stamp, tokenMAC(key, profileID, conversationID, turnID, h, exp, pid, stamp), h)
+	if err == nil {
+		s.MarkTurnCapStarted(profileID, conversationID, turnID) // the process exists
+	}
 	return err
 }
 

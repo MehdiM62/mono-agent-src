@@ -43,5 +43,16 @@ CREATE TABLE IF NOT EXISTS coder_session_turn_caps (
     conversation_id TEXT NOT NULL,
     turn_id         TEXT NOT NULL,
     cap_usd         REAL NOT NULL,
+    started         INTEGER NOT NULL DEFAULT 0,
+    created_at      TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (profile_id, conversation_id, turn_id)
+);
+
+-- coder_session_host_turns: turns that started from a send queued by a master (issuer set) under a turn id
+--   without a known host-made prefix; the check-in streak counts them like master- and checkin- turns.
+CREATE TABLE IF NOT EXISTS coder_session_host_turns (
+    profile_id      TEXT NOT NULL,
+    conversation_id TEXT NOT NULL,
+    turn_id         TEXT NOT NULL,
     PRIMARY KEY (profile_id, conversation_id, turn_id)
 );
