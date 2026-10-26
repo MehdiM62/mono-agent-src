@@ -38,6 +38,13 @@ type Host struct {
 	Poll  time.Duration
 	Logf  func(format string, args ...any)
 
+	// Mesh, when set, keeps the sessions visible on monomind's mesh and hands waiting
+	// messages to the next turn (see Mesh). MeshEvery is how often it is brought up
+	// to date (default 15 s); a session idle for MeshIdle (default 6 h) leaves.
+	Mesh      Mesh
+	MeshEvery time.Duration
+	MeshIdle  time.Duration
+
 	mu   sync.Mutex // serializes session changes between the loop and the turn watchers
 	live map[string]Turn
 	wg   sync.WaitGroup
@@ -148,7 +155,13 @@ func (h *Host) Tick() error {
 				return err
 			}
 			h.mu.Unlock() // admission can take seconds; do not hold up the turn watchers meanwhile
-			t, err := h.L.Start(c.ProfileID, c.ConversationID, c.TurnID, c.Message, c.Attachments)
+			message := c.Message
+			if h.Mesh != nil {
+				if block := h.Mesh.Inbox(c.ProfileID, c.ConversationID); block != "" {
+					message = block + "\n\n" + message // peer content ahead of the person's message, sealed as data
+				}
+			}
+			t, err := h.L.Start(c.ProfileID, c.ConversationID, c.TurnID, message, c.Attachments)
 			h.mu.Lock()
 			if err != nil {
 				h.settle(x)
@@ -220,6 +233,14 @@ func (h *Host) Run(ctx context.Context) error {
 	if poll <= 0 {
 		poll = 500 * time.Millisecond
 	}
+	if h.Mesh != nil {
+		meshDone := make(chan struct{})
+		go func() {
+			defer close(meshDone)
+			h.meshLoop(ctx)
+		}()
+		defer func() { <-meshDone; h.Mesh.Close() }()
+	}
 	tk := time.NewTicker(poll)
 	defer tk.Stop()
 	for {
@@ -236,3 +257,70 @@ func (h *Host) Run(ctx context.Context) error {
 
 // Wait blocks until every turn watcher has finished (tests).
 func (h *Host) Wait() { h.wg.Wait() }
+
+// meshLoop brings the mesh up to date now and every MeshEvery until ctx ends.
+func (h *Host) meshLoop(ctx context.Context) {
+	every := h.MeshEvery
+	if every <= 0 {
+		every = 15 * time.Second
+	}
+	for {
+		h.meshSync()
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(every):
+		}
+	}
+}
+
+// meshSync tells the mesh which sessions to show: those whose settings make them
+// visible and that are not stopped, are doing something, or were touched within
+// MeshIdle. What it says about a session is generic (its state and access level),
+// never anything from its prompts.
+func (h *Host) meshSync() {
+	idle := h.MeshIdle
+	if idle <= 0 {
+		idle = 6 * time.Hour
+	}
+	sessions, err := h.Store.ListSessions("")
+	if err != nil {
+		h.logf("coder host: mesh: %v", err)
+		return
+	}
+	children := map[string][]string{}
+	for _, x := range sessions {
+		if x.Parent != "" {
+			children[x.Parent] = append(children[x.Parent], x.ConversationID)
+		}
+	}
+	var want []MeshSession
+	for _, x := range sessions {
+		active := x.State == StateRunning || x.State == StateWaitingUser || x.State == StatePaused
+		if x.State == StateStopped {
+			continue
+		}
+		if t, err := time.Parse(timeLayout, x.UpdatedAt); !active && (err != nil || h.Store.now().Sub(t) > idle) {
+			continue
+		}
+		settings, err := h.Store.GetSettings(x.ProfileID, x.ConversationID)
+		if err != nil || !settings.MeshVisible {
+			continue
+		}
+		cwd, access, ok, err := h.Store.ConversationInfo(x.ProfileID, x.ConversationID)
+		if err != nil || !ok || cwd == "" {
+			continue
+		}
+		started, _ := time.Parse(timeLayout, x.CreatedAt)
+		related := append([]string{}, children[x.ConversationID]...)
+		if x.Parent != "" {
+			related = append(related, x.Parent)
+		}
+		want = append(want, MeshSession{
+			ProfileID: x.ProfileID, ConversationID: x.ConversationID, Cwd: cwd, Started: started.Local(),
+			Task: string(x.State) + " · " + access, Tags: []string{access}, Alias: settings.MeshAlias,
+			Accept: settings.MeshAccept, Related: related,
+		})
+	}
+	h.Mesh.Sync(want)
+}

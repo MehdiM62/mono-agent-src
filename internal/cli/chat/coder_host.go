@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,6 +19,7 @@ import (
 	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/coderhost"
 	"github.com/monoes/mono-agent/internal/daemonhb"
+	"github.com/monoes/mono-agent/internal/monomind"
 )
 
 // `coder host`: the process that keeps coder sessions going when the app and
@@ -182,6 +184,9 @@ func newCoderHostRunCmd(cfg *Deps) *cobra.Command {
 				Poll:  poll,
 				Logf:  logf,
 			}
+			if meshEnabled() {
+				h.Mesh = &coderhost.HubMesh{StartHub: startMeshHub, Logf: logf}
+			}
 			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
 			logf("coder host %s started (pid %d)", info.Instance, info.PID)
@@ -251,4 +256,22 @@ func newCoderHostStopCmd(cfg *Deps) *cobra.Command {
 	}
 	clicore.WithJSONErrors(cfg.JSONOutput, cmd)
 	return cmd
+}
+
+// meshEnabled says whether the host shows its sessions on monomind's mesh.
+// MONOMIND_MESH_AUTOJOIN=0 is monomind's own switch for presence; MONOAGENT_MESH=0 is ours.
+func meshEnabled() bool {
+	return os.Getenv("MONOMIND_MESH_AUTOJOIN") != "0" && os.Getenv("MONOAGENT_MESH") != "0"
+}
+
+// startMeshHub starts monomind's hub: any `monomind mesh` command starts it on first
+// use, and it keeps running by itself. Without monomind there is no mesh.
+var startMeshHub = func() error {
+	bin, err := monomind.Find()
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	return exec.CommandContext(ctx, bin, "mesh", "who").Run()
 }
