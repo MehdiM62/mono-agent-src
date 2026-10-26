@@ -153,7 +153,7 @@ func TestAdoptRefusesIdsOwnedByAnotherWorkflow(t *testing.T) {
 	if len(shown) != 1 {
 		t.Fatalf("%+v", shown)
 	}
-	if err := h.AdoptFile(ctx, "wf-clash", shown[0].ProfileID, shown[0].SHA12); !errors.Is(err, ErrSharedIDs) {
+	if err := h.AdoptFile(ctx, "wf-clash", shown[0].ProfileID, shown[0].SHA); !errors.Is(err, ErrSharedIDs) {
 		t.Fatalf("%v", err)
 	}
 }
@@ -286,7 +286,7 @@ func TestImportKeepsTheOwnerProfileAndANewFileWaitsToBeAdopted(t *testing.T) {
 	if len(shown) != 1 || shown[0].ProfileID != "victim" {
 		t.Fatalf("adoptable: %+v", shown)
 	}
-	if err := h.AdoptFile(ctx, "wf-new-file", "victim", shown[0].SHA12); err != nil {
+	if err := h.AdoptFile(ctx, "wf-new-file", "victim", shown[0].SHA); err != nil {
 		t.Fatal(err)
 	}
 	if rows, _ := s.GetWorkflow(ctx, "wf-new-file"); rows == nil || rows.IsActive || rows.ProfileID != "victim" {

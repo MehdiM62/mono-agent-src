@@ -15,7 +15,7 @@ const (
 	FixWorkflowPublicationsRecover = "workflows.publications.recover"
 	// FixWorkflowPublicationsResolve is parameterized: "<workflow id>:keep-rows" or "<workflow id>:keep-file".
 	FixWorkflowPublicationsResolve = "workflows.publications.resolve"
-	// FixWorkflowPublicationsAdopt is parameterized: "<workflow id>:<profile id>:<sha12>". It is
+	// FixWorkflowPublicationsAdopt is parameterized: "<workflow id>:<profile id>:<sha>". It is
 	// Optional, so no "fix everything" path (doctor --fix --yes, setup --yes, the app's Fix issues
 	// button) ever runs it: it only runs when named.
 	FixWorkflowPublicationsAdopt = "workflows.publications.adopt"
@@ -39,8 +39,9 @@ type WorkflowPublicationsInfo struct {
 
 // AdoptableWorkflowFile is what an operator needs to see before adopting a file.
 type AdoptableWorkflowFile struct {
-	ID, ProfileID, SHA12 string
-	NodeTypes, Triggers  []string
+	ID, ProfileID, SHA, Path string
+	NodeTypes, Triggers      []string
+	Preview                  []string
 }
 
 // OpenWorkflowPublication is one unfinished change.
@@ -72,7 +73,7 @@ func workflowPublicationFixes() []Fix {
 			ApplyArg: func(ctx context.Context, env *Env, arg string, progress func(string)) error {
 				parts := strings.Split(arg, ":")
 				if env.AdoptWorkflowFile == nil || len(parts) != 3 {
-					return fmt.Errorf("use workflows.publications.adopt:<workflow id>:<profile id>:<sha> exactly as `doctor` prints it")
+					return fmt.Errorf("use workflows.publications.adopt:<workflow id>:<profile id>:<sha256> exactly as `doctor` prints it")
 				}
 				progress("adopting " + parts[0])
 				return env.AdoptWorkflowFile(ctx, parts[0], parts[1], parts[2])
@@ -129,12 +130,15 @@ func checkWorkflowPublications(ctx context.Context, env *Env) Result {
 			Status: StatusInfo, Summary: "edited outside the app; it is picked up by the next command that opens the workflows"})
 	}
 	for _, a := range info.Adoptable {
-		arg := a.ID + ":" + a.ProfileID + ":" + a.SHA12
+		arg := a.ID + ":" + a.ProfileID + ":" + a.SHA
+		cmd := "monoagentcli --profile " + a.ProfileID + " doctor fix " + FixWorkflowPublicationsAdopt + ":" + arg
 		res.Children = append(res.Children, Result{ID: CheckWorkflowPublications + ".adopt." + rowID(a.ID), Title: a.ID,
 			Status: StatusInfo,
-			Summary: fmt.Sprintf("a workflow file with no stored copy: profile %q, sha %s, nodes %s, triggers %s; it is not used until you adopt it (inactive, unapproved)",
-				a.ProfileID, a.SHA12, quotedList(a.NodeTypes), quotedList(a.Triggers)),
-			FixID: FixWorkflowPublicationsAdopt + ":" + arg, FixCommand: "monoagentcli doctor fix " + FixWorkflowPublicationsAdopt + ":" + arg})
+			Summary: fmt.Sprintf("a workflow file with no stored copy: profile %q, nodes %s, triggers %s; it is not used until you adopt it (inactive, unapproved)",
+				a.ProfileID, quotedList(a.NodeTypes), quotedList(a.Triggers)),
+			Detail: fmt.Sprintf("file %q\nsha256 %s (check with: sha256sum <file>)\nnodes (escaped, cut):\n%s\nadopt it only after reading this; an operator's own terminal is required, with --profile naming the file's profile:\n%s",
+				a.Path, a.SHA, quotedLines(a.Preview), cmd),
+			FixID: FixWorkflowPublicationsAdopt + ":" + arg, FixCommand: cmd})
 	}
 	if info.MoreAdoptable > 0 {
 		res.Children = append(res.Children, Result{ID: CheckWorkflowPublications + ".adopt.more", Title: "more files",
@@ -175,6 +179,15 @@ func quotedList(names []string) string {
 		q[i] = fmt.Sprintf("%q", n)
 	}
 	return strings.Join(q, ", ")
+}
+
+// quotedLines prints one escaped line per entry, indented.
+func quotedLines(lines []string) string {
+	var b strings.Builder
+	for _, l := range lines {
+		fmt.Fprintf(&b, "  %q\n", l)
+	}
+	return strings.TrimRight(b.String(), "\n")
 }
 
 func fixWorkflowPublications(ctx context.Context, env *Env, progress func(string)) error {

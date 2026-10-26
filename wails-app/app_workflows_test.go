@@ -115,7 +115,7 @@ func TestWorkflowBindingsThroughCLI(t *testing.T) {
 		if err != nil || len(adoptable) != 1 || adoptable[0].ID != "file-only-1" {
 			t.Fatalf("adoptable files: %+v %v", adoptable, err)
 		}
-		if err := hybrid.AdoptFile(t.Context(), "file-only-1", adoptable[0].ProfileID, adoptable[0].SHA12); err != nil {
+		if err := hybrid.AdoptFile(t.Context(), "file-only-1", adoptable[0].ProfileID, adoptable[0].SHA); err != nil {
 			t.Fatal(err)
 		}
 		if s, ok := listed()["file-only-1"]; !ok || s.IsActive {

@@ -2,8 +2,10 @@ package workflow
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 
@@ -61,20 +63,20 @@ func TestFileThatAppearsAfterTheClaimWaitsToBeAdopted(t *testing.T) {
 		}
 	}
 	shown, more, err := h.AdoptableFiles(ctx)
-	if err != nil || len(shown) != 1 || more != 0 || shown[0].ID != "wf-dropped" || shown[0].ProfileID != "default" || len(shown[0].SHA12) != 12 {
+	if err != nil || len(shown) != 1 || more != 0 || shown[0].ID != "wf-dropped" || shown[0].ProfileID != "default" || len(shown[0].SHA) != 64 {
 		t.Fatalf("adoptable: %+v %d %v", shown, more, err)
 	}
 	a := shown[0]
 	if len(a.Triggers) != 1 || a.Triggers[0] != "trigger.manual" {
 		t.Fatalf("triggers: %v", a.Triggers)
 	}
-	if err := h.AdoptFile(ctx, "wf-dropped", a.ProfileID, "000000000000"); err == nil {
+	if err := h.AdoptFile(ctx, "wf-dropped", a.ProfileID, strings.Repeat("0", 64)); err == nil {
 		t.Fatal("adopted a file other than the one that was looked at")
 	}
-	if err := h.AdoptFile(ctx, "wf-dropped", "some-other-profile", a.SHA12); err == nil {
+	if err := h.AdoptFile(ctx, "wf-dropped", "some-other-profile", a.SHA); err == nil {
 		t.Fatal("adopted into a profile the file does not name")
 	}
-	if err := h.AdoptFile(ctx, "wf-dropped", a.ProfileID, a.SHA12); err != nil {
+	if err := h.AdoptFile(ctx, "wf-dropped", a.ProfileID, a.SHA); err != nil {
 		t.Fatal(err)
 	}
 	rows, _ := s.GetWorkflow(ctx, "wf-dropped")
@@ -98,7 +100,7 @@ func TestAdoptRefusesAStoredWorkflowAndAlwaysStartsInactive(t *testing.T) {
 	ctx := context.Background()
 	h, s, _, _ := guardedRig(t)
 	handEdit(t, h, "wf-g", func(w *Workflow) { w.Nodes[1].Config = map[string]interface{}{"k": "changed"} })
-	sha := shaHex(fileBytes(t, h, "wf-g"))[:12]
+	sha := shaHex(fileBytes(t, h, "wf-g"))
 	if err := h.AdoptFile(ctx, "wf-g", "default", sha); err == nil {
 		t.Fatal("a workflow that has rows was adopted")
 	}
@@ -110,7 +112,7 @@ func TestAdoptRefusesAStoredWorkflowAndAlwaysStartsInactive(t *testing.T) {
 	if len(shown) != 1 {
 		t.Fatalf("%+v", shown)
 	}
-	if err := h.AdoptFile(ctx, "wf-active-file", shown[0].ProfileID, shown[0].SHA12); err != nil {
+	if err := h.AdoptFile(ctx, "wf-active-file", shown[0].ProfileID, shown[0].SHA); err != nil {
 		t.Fatal(err)
 	}
 	if rows, _ := s.GetWorkflow(ctx, "wf-active-file"); rows.IsActive {
@@ -291,5 +293,85 @@ func TestListingsTakeOwnerAndActiveFlagFromTheRows(t *testing.T) {
 	}
 	if mine, _ := h.ListWorkflows(ctx, "victim"); len(mine) != 0 {
 		t.Fatalf("the victim profile lists %d workflows", len(mine))
+	}
+}
+
+// The pin is the whole sha256: a short prefix is refused, so a file cannot be swapped for one that
+// shares the start of its hash.
+func TestAdoptNeedsTheFullSha(t *testing.T) {
+	ctx := context.Background()
+	h, s, _, _ := guardedRig(t)
+	dropFile(t, h, "wf-pin", false)
+	shown, _, _ := h.AdoptableFiles(ctx)
+	if len(shown) != 1 {
+		t.Fatalf("%+v", shown)
+	}
+	a := shown[0]
+	for _, short := range []string{a.SHA[:8], a.SHA[:12], a.SHA[:32], a.SHA[:63], ""} {
+		if err := h.AdoptFile(ctx, "wf-pin", a.ProfileID, short); err == nil {
+			t.Fatalf("adopted with a %d-character sha", len(short))
+		}
+	}
+	if got, _ := s.GetWorkflow(ctx, "wf-pin"); got != nil {
+		t.Fatal("a refused adoption created the workflow")
+	}
+	if err := h.AdoptFile(ctx, "wf-pin", a.ProfileID, a.SHA); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// What the doctor shows of a file is bounded whatever the file contains: names are cut, lists are
+// short, the preview is a few short lines, large files are not read, and only so many entries are
+// looked at.
+func TestAdoptableListingIsBounded(t *testing.T) {
+	ctx := context.Background()
+	h, _, _, _ := guardedRig(t)
+	w := mirrorWF("wf-wide", "w-trig")
+	long := strings.Repeat("T", 5000)
+	w.Nodes = nil
+	for i := 0; i < 40; i++ {
+		w.Nodes = append(w.Nodes, WorkflowNode{ID: fmt.Sprintf("n%d", i), WorkflowID: "wf-wide", Type: fmt.Sprintf("trigger.%s%d", long, i), Name: long,
+			Config: map[string]interface{}{"k": long}})
+	}
+	if err := h.files.SaveWorkflow(ctx, w); err != nil {
+		t.Fatal(err)
+	}
+	// A big file and many junk files crowding the listing.
+	if err := os.WriteFile(filepath.Join(h.files.dir, "wf-big.json"), []byte(`{"id":"wf-big","pad":"`+strings.Repeat("x", 2<<20)+`"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 250; i++ {
+		if err := os.WriteFile(filepath.Join(h.files.dir, fmt.Sprintf("z-junk-%03d.json", i)), []byte("not json"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	shown, more, err := h.AdoptableFiles(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if more < 200 {
+		t.Fatalf("junk and big files were not counted as more: %d", more)
+	}
+	var wide *AdoptableFile
+	for i := range shown {
+		if shown[i].ID == "wf-wide" {
+			wide = &shown[i]
+		}
+	}
+	if wide == nil {
+		t.Fatal("the wide file was not listed")
+	}
+	if len(wide.NodeTypes) > maxNamesShown+1 || len(wide.Triggers) > maxNamesShown+1 || len(wide.Preview) > maxPreviewNodes+1 {
+		t.Fatalf("lists are not short: %d %d %d", len(wide.NodeTypes), len(wide.Triggers), len(wide.Preview))
+	}
+	for _, name := range append(append([]string{}, wide.NodeTypes...), wide.Triggers...) {
+		if len(name) > maxNameShown+8 {
+			t.Fatalf("a name of %d bytes", len(name))
+		}
+	}
+	for _, line := range wide.Preview {
+		if len(line) > maxPreviewChars+4*maxNameShown {
+			t.Fatalf("a preview line of %d bytes", len(line))
+		}
 	}
 }

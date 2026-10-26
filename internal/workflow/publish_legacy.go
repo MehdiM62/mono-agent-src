@@ -3,6 +3,7 @@ package workflow
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -148,18 +149,56 @@ var safeFileID = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
 type AdoptableFile struct {
 	ID        string
 	ProfileID string
-	// SHA12 is the first 12 hex characters of the file's sha256; adopting names it, so only the file
-	// that was looked at can be adopted.
-	SHA12     string
+	Path      string
+	// SHA is the file's full sha256 (64 hex characters); adopting names it, so only the file that was
+	// looked at can be adopted.
+	SHA string
+	// NodeTypes and Triggers are cut to a few short names. Preview is one bounded line per node:
+	// type, name and the start of its configuration. All of it comes from the file and is escaped
+	// where it is printed.
 	NodeTypes []string
 	Triggers  []string
+	Preview   []string
 }
 
-const maxAdoptableShown = 20
+const (
+	maxAdoptableShown   = 20
+	maxAdoptableExamine = 200
+	maxAdoptableBytes   = 1 << 20
+	maxNameShown        = 48
+	maxNamesShown       = 10
+	maxPreviewNodes     = 10
+	maxPreviewChars     = 240
+)
+
+func cut(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "…"
+}
+
+func shortList(set map[string]bool) []string {
+	var all []string
+	for t := range set {
+		all = append(all, t)
+	}
+	sort.Strings(all)
+	var out []string
+	for i, t := range all {
+		if i == maxNamesShown {
+			out = append(out, fmt.Sprintf("(+%d more)", len(all)-maxNamesShown))
+			break
+		}
+		out = append(out, cut(t, maxNameShown))
+	}
+	return out
+}
 
 // AdoptableFiles lists workflow files that have no rows and so wait to be adopted, up to
-// maxAdoptableShown; more counts the rest (and files whose names are not safe to print). Files are
-// read only for the ones listed.
+// maxAdoptableShown; more counts the rest (files beyond the listing, with names that are not safe to
+// print, unreadable, or larger than 1 MiB). At most maxAdoptableExamine directory entries are looked
+// at and a file is read only if it is small.
 func (h *HybridWorkflowStore) AdoptableFiles(ctx context.Context) (shown []AdoptableFile, more int, err error) {
 	if h.files == nil {
 		return nil, 0, nil
@@ -171,6 +210,7 @@ func (h *HybridWorkflowStore) AdoptableFiles(ctx context.Context) (shown []Adopt
 		}
 		return nil, 0, err
 	}
+	examined := 0
 	for _, e := range entries {
 		id, ok := strings.CutSuffix(e.Name(), ".json")
 		if e.IsDir() || !ok || strings.HasSuffix(id, ".ai-backup") {
@@ -180,7 +220,12 @@ func (h *HybridWorkflowStore) AdoptableFiles(ctx context.Context) (shown []Adopt
 		if err := h.sql.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM workflows WHERE id = ?`, id).Scan(&n); err != nil || n > 0 {
 			continue
 		}
-		if len(shown) >= maxAdoptableShown || !safeFileID.MatchString(id) {
+		if examined++; examined > maxAdoptableExamine {
+			more++
+			continue
+		}
+		info := regularFileInfo(h.files, id)
+		if len(shown) >= maxAdoptableShown || !safeFileID.MatchString(id) || info == nil || info.Size() > maxAdoptableBytes {
 			more++
 			continue
 		}
@@ -194,22 +239,23 @@ func (h *HybridWorkflowStore) AdoptableFiles(ctx context.Context) (shown []Adopt
 			more++
 			continue
 		}
-		a := AdoptableFile{ID: id, ProfileID: wf.ProfileID, SHA12: shaHex(append([]byte{}, raw...))[:12]}
+		path, _ := h.files.filePath(id)
+		a := AdoptableFile{ID: id, ProfileID: wf.ProfileID, Path: path, SHA: shaHex(append([]byte{}, raw...))}
 		types, trig := map[string]bool{}, map[string]bool{}
-		for _, nd := range wf.Nodes {
+		for i, nd := range wf.Nodes {
 			types[nd.Type] = true
 			if strings.HasPrefix(nd.Type, "trigger.") {
 				trig[nd.Type] = true
 			}
+			if i < maxPreviewNodes {
+				cfg, _ := json.Marshal(nd.Config)
+				a.Preview = append(a.Preview, cut(nd.Type, maxNameShown)+" "+cut(nd.Name, maxNameShown)+" "+cut(string(cfg), maxPreviewChars))
+			}
 		}
-		for t := range types {
-			a.NodeTypes = append(a.NodeTypes, t)
+		if len(wf.Nodes) > maxPreviewNodes {
+			a.Preview = append(a.Preview, fmt.Sprintf("(+%d more nodes)", len(wf.Nodes)-maxPreviewNodes))
 		}
-		for t := range trig {
-			a.Triggers = append(a.Triggers, t)
-		}
-		sort.Strings(a.NodeTypes)
-		sort.Strings(a.Triggers)
+		a.NodeTypes, a.Triggers = shortList(types), shortList(trig)
 		shown = append(shown, a)
 	}
 	return shown, more, nil
@@ -239,14 +285,14 @@ func (h *HybridWorkflowStore) ImportedInactive(ctx context.Context) ([]string, e
 }
 
 // AdoptFile creates the workflow of a file that has no rows. It is the operator's act: the file must
-// be the one that was looked at (its sha256 starts with sha12), must name profile (which must
+// be the one that was looked at (its sha256 is sha), must name profile (which must
 // exist), and the workflow starts inactive and unapproved whatever the file says.
-func (h *HybridWorkflowStore) AdoptFile(ctx context.Context, id, profile, sha12 string) error {
+func (h *HybridWorkflowStore) AdoptFile(ctx context.Context, id, profile, sha string) error {
 	if h.files == nil {
 		return fmt.Errorf("no workflow files here")
 	}
-	if !safeFileID.MatchString(id) || profile == "" || len(sha12) < 8 {
-		return fmt.Errorf("adopting needs the workflow id, its profile and the file's sha (from `doctor`)")
+	if !safeFileID.MatchString(id) || profile == "" || len(sha) != 64 {
+		return fmt.Errorf("adopting needs the workflow id, its profile and the file's full sha256 (64 hex characters, from `doctor`)")
 	}
 	pre := regularFileInfo(h.files, id)
 	if pre == nil {
@@ -264,7 +310,7 @@ func (h *HybridWorkflowStore) AdoptFile(ctx context.Context, id, profile, sha12 
 		var n int
 		return w.ProfileID == profile && tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM profiles WHERE id = ?`, w.ProfileID).Scan(&n) == nil && n > 0
 	}
-	res, declined, err := h.importLocked(ctx, tx, id, exists, 0, true, pre, importAdopt, sha12)
+	res, declined, err := h.importLocked(ctx, tx, id, exists, 0, true, pre, importAdopt, sha)
 	if err != nil {
 		return err
 	}

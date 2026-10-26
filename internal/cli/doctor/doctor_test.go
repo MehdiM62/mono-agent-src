@@ -85,7 +85,7 @@ func TestRunHealthPassesTheAgentAccount(t *testing.T) {
 // everything" path (doctor --fix --yes, setup --yes, the app's Fix issues) runs the adopt fix.
 func TestApplyReportFixesNeverAdoptsAWorkflowFile(t *testing.T) {
 	reg := health.Default()
-	adopt, ok := reg.Fix("workflows.publications.adopt:wf-new:default:0123456789ab")
+	adopt, ok := reg.Fix("workflows.publications.adopt:wf-new:default:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
 	if !ok {
 		t.Fatal("the adopt fix is not registered")
 	}

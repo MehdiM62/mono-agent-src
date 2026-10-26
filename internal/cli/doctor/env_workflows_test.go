@@ -4,8 +4,10 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -30,7 +32,7 @@ func workflowDoctorEnv(t *testing.T) (*health.Env, *storage.Database, *workflow.
 		t.Fatal(err)
 	}
 	env := &health.Env{DataDir: root, DB: db.DB}
-	addWorkflowPublicationHooks(env)
+	addWorkflowPublicationHooks(env, func(string) error { return nil })
 	return env, db, workflow.NewHybridWorkflowStore(files, workflow.NewSQLiteWorkflowStore(db.DB))
 }
 
@@ -81,11 +83,58 @@ func TestWorkflowPublicationHooksReadAndRecover(t *testing.T) {
 // With no workflow folder the row has nothing to report and creates nothing.
 func TestWorkflowPublicationHooksCreateNothing(t *testing.T) {
 	env := &health.Env{DataDir: t.TempDir()}
-	addWorkflowPublicationHooks(env)
+	addWorkflowPublicationHooks(env, func(string) error { return nil })
 	if info, err := env.WorkflowPublications(context.Background()); err != nil || len(info.Open) != 0 {
 		t.Fatalf("%+v %v", info, err)
 	}
 	if _, err := os.Stat(filepath.Join(env.DataDir, "workflows")); !os.IsNotExist(err) {
 		t.Fatal("the folder was created")
+	}
+}
+
+// Adopting a workflow file and settling an unfinished change are the operator's acts: a caller that
+// is not the operator is refused before anything is read or written, and adopting is done in the
+// profile the file names.
+func TestAdoptAndResolveAreRefusedToAnAgent(t *testing.T) {
+	ctx := context.Background()
+	env, db, store := workflowDoctorEnv(t)
+	refuse := func(what string) error { return fmt.Errorf("only the user can %s", what) }
+	addWorkflowPublicationHooks(env, refuse)
+	if err := env.AdoptWorkflowFile(ctx, "wf-a", "default", strings.Repeat("0", 64)); err == nil || !strings.Contains(err.Error(), "only the user") {
+		t.Fatalf("adopt by an agent: %v", err)
+	}
+	if err := env.ResolveWorkflowPublication(ctx, "wf-a", "keep-rows"); err == nil || !strings.Contains(err.Error(), "only the user") {
+		t.Fatalf("resolve by an agent: %v", err)
+	}
+	// Unwired means refused too.
+	addWorkflowPublicationHooks(env, nil)
+	if err := env.AdoptWorkflowFile(ctx, "wf-a", "default", strings.Repeat("0", 64)); err == nil {
+		t.Fatal("an unwired check let an adopt through")
+	}
+	// The operator, in the wrong profile, is told which one to use; in the right one it works.
+	addWorkflowPublicationHooks(env, func(string) error { return nil })
+	if _, err := db.DB.Exec(`INSERT INTO profiles (id, name) VALUES ('p-other', 'other')`); err != nil {
+		t.Fatal(err)
+	}
+	wf := &workflow.Workflow{ID: "wf-new", Name: "new", ProfileID: "p-other",
+		Nodes: []workflow.WorkflowNode{{ID: "n1", WorkflowID: "wf-new", Type: "trigger.manual", Name: "n1", Config: map[string]any{}}}}
+	if err := store.SaveWorkflow(ctx, &workflow.Workflow{ID: "wf-base", Name: "b", ProfileID: "default"}); err != nil { // the store is used: the claim is recorded
+		t.Fatal(err)
+	}
+	files, _ := workflow.NewWorkflowFileStore(filepath.Join(env.DataDir, "workflows"))
+	if err := files.SaveWorkflow(ctx, wf); err != nil {
+		t.Fatal(err)
+	}
+	shown, _, err := store.AdoptableFiles(ctx)
+	if err != nil || len(shown) != 1 {
+		t.Fatalf("%+v %v", shown, err)
+	}
+	env.ProfileID = "default"
+	if err := env.AdoptWorkflowFile(ctx, "wf-new", "p-other", shown[0].SHA); err == nil || !strings.Contains(err.Error(), "--profile p-other") {
+		t.Fatalf("adopting in the wrong profile: %v", err)
+	}
+	env.ProfileID = "p-other"
+	if err := env.AdoptWorkflowFile(ctx, "wf-new", "p-other", shown[0].SHA); err != nil {
+		t.Fatalf("adopting in the file's profile: %v", err)
 	}
 }

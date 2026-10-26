@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 )
 
@@ -74,7 +73,7 @@ func (h *HybridWorkflowStore) ImportFile(ctx context.Context, id string, accept 
 // importLocked is ImportFile inside a transaction that already holds the write lock. An open change
 // other than skipIntent makes it do nothing; force imports even bytes already reconciled. declined
 // says why nothing was read from the file ("" when it was).
-func (h *HybridWorkflowStore) importLocked(ctx context.Context, tx *sql.Tx, id string, accept func(*Workflow) bool, skipIntent int64, force bool, pre os.FileInfo, mode importMode, wantSHA12 string) (res ImportResult, declined string, err error) {
+func (h *HybridWorkflowStore) importLocked(ctx context.Context, tx *sql.Tx, id string, accept func(*Workflow) bool, skipIntent int64, force bool, pre os.FileInfo, mode importMode, wantSHA string) (res ImportResult, declined string, err error) {
 	var open int
 	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM workflow_publications WHERE workflow_id = ? AND id != ?`, id, skipIntent).Scan(&open); err != nil {
 		if isNoTable(err) {
@@ -108,7 +107,7 @@ func (h *HybridWorkflowStore) importLocked(ctx context.Context, tx *sql.Tx, id s
 		return res, "the file changed while it was read", nil
 	}
 	sha := shaHex(append([]byte{}, raw...))
-	if wantSHA12 != "" && !strings.HasPrefix(sha, wantSHA12) {
+	if wantSHA != "" && sha != wantSHA {
 		return res, "the file is not the one that was looked at", nil
 	}
 	var known string

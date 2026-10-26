@@ -88,15 +88,20 @@ func TestWorkflowPublicationsUnresolvedNamesBothChoicesAndPicksNone(t *testing.T
 
 func TestWorkflowPublicationsOffersToAdoptANewFile(t *testing.T) {
 	info := &WorkflowPublicationsInfo{Adoptable: []AdoptableWorkflowFile{
-		{ID: "wf-new", ProfileID: "default", SHA12: "0123456789ab", NodeTypes: []string{"core.set", "trigger.manual"}, Triggers: []string{"trigger.manual"}},
+		{ID: "wf-new", ProfileID: "default", SHA: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", NodeTypes: []string{"core.set", "trigger.manual"}, Triggers: []string{"trigger.manual"}},
 	}}
 	res := checkWorkflowPublications(context.Background(), publicationsEnv(info, nil))
-	if len(res.Children) != 1 || res.Children[0].FixID != "workflows.publications.adopt:wf-new:default:0123456789ab" {
+	if len(res.Children) != 1 || res.Children[0].FixID != "workflows.publications.adopt:wf-new:default:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef" {
 		t.Fatalf("%+v", res.Children)
 	}
-	for _, want := range []string{`"default"`, "0123456789ab", `"trigger.manual"`, `"core.set"`} {
+	for _, want := range []string{`"default"`, `"trigger.manual"`, `"core.set"`} {
 		if !strings.Contains(res.Children[0].Summary, want) {
 			t.Errorf("the row does not show %s: %q", want, res.Children[0].Summary)
+		}
+	}
+	for _, want := range []string{"sha256sum", "--profile default doctor fix", "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"} {
+		if !strings.Contains(res.Children[0].Detail, want) {
+			t.Errorf("the detail does not show %s: %q", want, res.Children[0].Detail)
 		}
 	}
 	var got [3]string
@@ -105,7 +110,7 @@ func TestWorkflowPublicationsOffersToAdoptANewFile(t *testing.T) {
 	if !ok || !fix.Optional {
 		t.Fatalf("the fix is missing or not optional: %v %+v", ok, fix.FixInfo)
 	}
-	if err := fix.Apply(context.Background(), env, func(string) {}); err != nil || got != [3]string{"wf-new", "default", "0123456789ab"} {
+	if err := fix.Apply(context.Background(), env, func(string) {}); err != nil || got != [3]string{"wf-new", "default", "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"} {
 		t.Fatalf("%v %v", got, err)
 	}
 	if bad, _ := Default().Fix("workflows.publications.adopt:wf-new"); bad.Apply != nil {
@@ -117,7 +122,7 @@ func TestWorkflowPublicationsOffersToAdoptANewFile(t *testing.T) {
 
 // What a file calls itself cannot spoof the report: names are printed escaped, a long list is cut.
 func TestWorkflowPublicationsEscapesAndCapsWhatFilesSay(t *testing.T) {
-	evil := AdoptableWorkflowFile{ID: "wf-x", ProfileID: "default", SHA12: "0123456789ab",
+	evil := AdoptableWorkflowFile{ID: "wf-x", ProfileID: "default", SHA: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
 		NodeTypes: []string{"core.set\n\x1b[31mFAKE OK"}, Triggers: []string{"trigger.manual\nok: nothing to see"}}
 	info := &WorkflowPublicationsInfo{Adoptable: []AdoptableWorkflowFile{evil}, MoreAdoptable: 7}
 	res := checkWorkflowPublications(context.Background(), publicationsEnv(info, nil))

@@ -154,7 +154,7 @@ func TestWorkflowFileOnlyBackfill(t *testing.T) {
 	if err != nil || len(shown) != 1 || shown[0].ID != "file-only-2" {
 		t.Fatalf("adoptable: %+v %v", shown, err)
 	}
-	if err := adopter.AdoptFile(context.Background(), "file-only-2", shown[0].ProfileID, shown[0].SHA12); err != nil {
+	if err := adopter.AdoptFile(context.Background(), "file-only-2", shown[0].ProfileID, shown[0].SHA); err != nil {
 		t.Fatalf("adopting: %v", err)
 	}
 	if types := sqlNodeTypes(t, cfg.DBPath, "file-only-2"); types["fo2-trigger"] != "trigger.manual" {
