@@ -148,10 +148,11 @@ func TestAHostInsideASessionTurnDoesNotBindTokens(t *testing.T) {
 	m, _ := master(t, st, "coding")
 	running(t, st, m.ConversationID, "t1")
 	st.IssueSessionToken("p", m.ConversationID, "t1")
-	st.BindSessionToken("p", m.ConversationID, "t1", 4242, "start:1")
+	pp := os.Getppid()
+	st.BindSessionToken("p", m.ConversationID, "t1", pp, ProcStamp(pp))
 	orig := callerChain
 	t.Cleanup(func() { callerChain = orig })
-	callerChain = func() ([]int, bool) { return []int{os.Getpid(), 7, 4242, 3}, true }
+	callerChain = func() ([]int, bool) { return []int{os.Getpid(), 7, pp, 3}, true }
 	if !st.HostInsideTurn() {
 		t.Fatal("a host below a bound turn was not noticed")
 	}

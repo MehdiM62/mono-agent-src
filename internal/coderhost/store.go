@@ -160,14 +160,14 @@ func (s *Store) Enqueue(c Command) (Command, error) {
 		mark = wantsMissionMark // lives in the error column while the command is pending
 	}
 	now := s.stamp()
-	// Everything a master queues for a child (sends, stop, pause, resume) shares MaxPendingMaster
+	// Everything a master queues for a child (sends, pause, resume; not stop, which always has room) shares MaxPendingMaster
 	// slots, taken by the INSERT itself so concurrent callers cannot pass the cap together; the rest
 	// of MaxPendingPerChat stays for a person's.
-	masterMade := c.Issuer != "" || (c.Kind == KindSend && strings.HasPrefix(c.TurnID, MasterTurnPrefix))
+	masterMade := (c.Issuer != "" && c.Kind != KindStop) || (c.Kind == KindSend && strings.HasPrefix(c.TurnID, MasterTurnPrefix))
 	res, err := s.db.Exec(`INSERT INTO coder_session_commands (profile_id, conversation_id, kind, turn_id, message, attachments, status, error, created_at, updated_at, issuer)
 		SELECT ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?
 		WHERE ? = 0 OR (SELECT COUNT(*) FROM coder_session_commands WHERE profile_id = ? AND conversation_id = ? AND status = 'pending'
-			AND (issuer != '' OR (kind = 'send' AND substr(turn_id, 1, ?) = ?))) < ?`,
+			AND ((issuer != '' AND kind != 'stop') OR (kind = 'send' AND substr(turn_id, 1, ?) = ?))) < ?`,
 		c.ProfileID, c.ConversationID, string(c.Kind), c.TurnID, c.Message, string(att), mark, now, now, c.Issuer,
 		boolInt(masterMade), c.ProfileID, c.ConversationID, len(MasterTurnPrefix), MasterTurnPrefix, MaxPendingMaster)
 	if err != nil {
@@ -230,8 +230,8 @@ func (s *Store) CancelPendingSends(profileID, conversationID string, beforeID in
 // (it was stopped), with the reason.
 func (s *Store) CancelChildMasterSends(profileID, master, reason string) error {
 	_, err := s.db.Exec(`UPDATE coder_session_commands SET status = 'failed', error = ?, updated_at = ?
-		WHERE profile_id = ? AND kind = 'send' AND status = 'pending' AND substr(turn_id, 1, ?) = ? AND issuer = ?`,
-		reason, s.stamp(), profileID, len(MasterTurnPrefix), MasterTurnPrefix, master)
+		WHERE profile_id = ? AND kind = 'send' AND status = 'pending' AND issuer = ?`,
+		reason, s.stamp(), profileID, master)
 	return err
 }
 
@@ -240,7 +240,7 @@ func (s *Store) CancelChildMasterSends(profileID, master, reason string) error {
 func (s *Store) ExpireSends() error {
 	ids := s.pendingMissionIDs(`created_at < ?`, s.now().Add(-MaxSendAge).UTC().Format(timeLayout))
 	_, err := s.db.Exec(`UPDATE coder_session_commands SET status = 'failed', error = 'expired before the host could run it', updated_at = ?
-		WHERE kind = 'send' AND status = 'pending' AND (created_at < ? OR (substr(turn_id, 1, 8) = 'checkin-' AND created_at < ?) OR (substr(turn_id, 1, 7) = 'master-' AND created_at < ?))`,
+		WHERE kind = 'send' AND status = 'pending' AND (created_at < ? OR (substr(turn_id, 1, 8) = 'checkin-' AND created_at < ?) OR (issuer != '' AND created_at < ?))`,
 		s.stamp(), s.now().Add(-MaxSendAge).UTC().Format(timeLayout), s.now().Add(-MaxCheckinAge).UTC().Format(timeLayout), s.now().Add(-MaxCheckinAge).UTC().Format(timeLayout))
 	s.revokeCommands(ids)
 	return err
@@ -320,6 +320,9 @@ func (s *Store) SweepOrphans() (int, error) {
 	for _, q := range []string{
 		`DELETE FROM coder_session_commands WHERE status = 'pending' AND NOT EXISTS (SELECT 1 FROM ai_chat_conversations c WHERE c.id = coder_session_commands.conversation_id AND c.profile_id = coder_session_commands.profile_id)`,
 		`DELETE FROM coder_sessions WHERE NOT EXISTS (SELECT 1 FROM ai_chat_conversations c WHERE c.id = coder_sessions.conversation_id AND c.profile_id = coder_sessions.profile_id)`,
+		`DELETE FROM coder_session_turn_caps WHERE NOT EXISTS (SELECT 1 FROM ai_chat_conversations c WHERE c.id = coder_session_turn_caps.conversation_id AND c.profile_id = coder_session_turn_caps.profile_id)`,
+		`DELETE FROM coder_session_tokens WHERE NOT EXISTS (SELECT 1 FROM ai_chat_conversations c WHERE c.id = coder_session_tokens.conversation_id AND c.profile_id = coder_session_tokens.profile_id)`,
+		`DELETE FROM coder_session_spawns WHERE NOT EXISTS (SELECT 1 FROM ai_chat_conversations c WHERE c.id = coder_session_spawns.parent AND c.profile_id = coder_session_spawns.profile_id)`,
 	} {
 		res, err := s.db.Exec(q)
 		if err != nil {

@@ -31,11 +31,38 @@ type BudgetLauncher interface {
 // errBudgetUsedUp is why a send is refused when nothing is left.
 var errBudgetUsedUp = errors.New("the session's budget is used up")
 
+// Mid-turn rules. A turn's cap is recorded before the turn starts. Its figure is the largest cost it
+// reported; a final cost of exactly 0 (or none) under a positive cap counts as UNREPORTED, and an
+// unreported turn counts as its whole cap (there is no separate "reported" marker in the journal, so a
+// genuinely free turn is charged its cap: the safe side). The turn running RIGHT NOW is the exception for
+// Spent: until it ends, its cap is not charged as spend (so a master with a cost-less running turn is not
+// shown ~$0 left), but a carve made during it subtracts that turn's cap (carveReserve), because the turn
+// may still spend up to it: budget - spent - carved - running cap, so the total cannot reach 2x.
+
 // RecordTurnCap notes the cap a turn started under.
 func (s *Store) RecordTurnCap(profileID, conversationID, turnID string, capUSD float64) error {
 	_, err := s.db.Exec(`INSERT OR REPLACE INTO coder_session_turn_caps (profile_id, conversation_id, turn_id, cap_usd) VALUES (?, ?, ?, ?)`,
 		profileID, conversationID, turnID, capUSD)
 	return err
+}
+
+// DropTurnCap forgets the cap of a turn that did not start.
+func (s *Store) DropTurnCap(profileID, conversationID, turnID string) {
+	_, _ = s.db.Exec(`DELETE FROM coder_session_turn_caps WHERE profile_id = ? AND conversation_id = ? AND turn_id = ?`, profileID, conversationID, turnID)
+}
+
+// runningCap is the cap of the turn the session is running now (0 when none, or none capped).
+func (s *Store) runningCap(profileID, conversationID string) (turn string, capUSD float64) {
+	_ = s.db.QueryRow(`SELECT x.turn_id, COALESCE(k.cap_usd, 0) FROM coder_sessions x
+		LEFT JOIN coder_session_turn_caps k ON k.profile_id = x.profile_id AND k.conversation_id = x.conversation_id AND k.turn_id = x.turn_id
+		WHERE x.profile_id = ? AND x.conversation_id = ? AND x.turn_id != ''`, profileID, conversationID).Scan(&turn, &capUSD)
+	return turn, capUSD
+}
+
+// carveReserve is what a carve made now must leave for the session's running turn.
+func (s *Store) carveReserve(profileID, conversationID string) float64 {
+	_, c := s.runningCap(profileID, conversationID)
+	return c
 }
 
 func validCost(p *float64) bool { return p != nil && *p >= 0 && !math.IsNaN(*p) && !math.IsInf(*p, 0) }
@@ -88,12 +115,13 @@ func (s *Store) Spent(profileID, conversationID string) (float64, error) {
 		}
 	}
 	ev.Close()
+	running, _ := s.runningCap(profileID, conversationID)
 	total := 0.0
 	for turn, c := range caps {
-		if v, ok := lead[turn]; ok {
+		if v := lead[turn]; v > 0 {
 			total += v
-		} else {
-			total += c // no cost reported: the whole cap
+		} else if turn != running {
+			total += c // unreported (none, or exactly 0): the whole cap; the running turn is charged at its end
 		}
 		delete(lead, turn)
 	}

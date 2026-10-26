@@ -90,14 +90,15 @@ func (s *Store) HostInsideTurn() bool {
 	for _, p := range chain {
 		in[p] = true
 	}
-	rows, err := s.db.Query(`SELECT pid FROM coder_session_tokens WHERE pid > 1`)
+	rows, err := s.db.Query(`SELECT pid, stamp FROM coder_session_tokens WHERE pid > 1 AND expires_at >= ?`, s.now().UTC().Format(timeLayout))
 	if err != nil {
 		return false
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var pid int
-		if rows.Scan(&pid) == nil && in[pid] {
+		var stamp string
+		if rows.Scan(&pid, &stamp) == nil && in[pid] && (stamp == "" || ProcStamp(pid) == stamp) {
 			return true
 		}
 	}
