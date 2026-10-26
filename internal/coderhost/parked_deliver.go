@@ -246,26 +246,27 @@ func (s *Store) pendingGatedAnswers(profileID, conversationID string) int {
 // question is open again, and the ledger row of a default is marked not_applied (kept, so
 // no other row is rotated out for it). The host calls it on every pass.
 func (s *Store) ReopenFailedAnswers() {
-	rows, err := s.db.Query(`SELECT q.id, q.profile_id, q.conversation_id, q.command_id, q.decision_id FROM coder_session_questions q
-		JOIN coder_session_commands c ON c.id = q.command_id WHERE q.status != 'open' AND q.command_id > 0 AND c.status = 'failed' AND c.error NOT LIKE ? LIMIT ?`, startedMarker+"%", pendingBatch)
+	rows, err := s.db.Query(`SELECT q.id, q.profile_id, q.conversation_id, q.command_id, q.decision_id, c.error LIKE ? FROM coder_session_questions q
+		JOIN coder_session_commands c ON c.id = q.command_id WHERE q.status != 'open' AND q.command_id > 0 AND c.status = 'failed' AND c.error NOT LIKE ? LIMIT ?`, expiredMarker+"%", startedMarker+"%", pendingBatch)
 	if err != nil {
 		return
 	}
 	type lost struct {
 		id, cmd, decision int64
 		profile, conv     string
+		expired           bool // the note waited too long (the max_concurrent cap can hold one): not a failure of the answer
 	}
 	var all []lost
 	for rows.Next() {
 		var l lost
-		if rows.Scan(&l.id, &l.profile, &l.conv, &l.cmd, &l.decision) == nil {
+		if rows.Scan(&l.id, &l.profile, &l.conv, &l.cmd, &l.decision, &l.expired) == nil {
 			all = append(all, l)
 		}
 	}
 	rows.Close()
 	for _, l := range all {
-		res, err := s.db.Exec(`UPDATE coder_session_questions SET status = 'open', answer = '', answered_by = '', answered_at = '', command_id = 0, decision_id = 0, reopen_count = reopen_count + 1, last_failed_at = ?
-			WHERE id = ? AND command_id = ? AND status != 'open'`, s.stamp(), l.id, l.cmd)
+		res, err := s.db.Exec(`UPDATE coder_session_questions SET status = 'open', answer = '', answered_by = '', answered_at = '', command_id = 0, decision_id = 0, reopen_count = reopen_count + ?, last_failed_at = ?
+			WHERE id = ? AND command_id = ? AND status != 'open'`, boolInt(!l.expired), s.stamp(), l.id, l.cmd)
 		if err != nil {
 			continue
 		}

@@ -61,6 +61,8 @@ type Host struct {
 	mu   sync.Mutex // serializes session changes between the loop and the turn watchers
 	live map[string]Turn
 	wg   sync.WaitGroup
+
+	capHeld map[string][2]string // chats whose sends the max_concurrent cap held on the last pass (profile, conversation); Tick only
 }
 
 func key(profileID, conversationID string) string { return profileID + "\x00" + conversationID }
@@ -139,17 +141,19 @@ func (h *Host) Tick() error {
 	if err := h.Store.ExpireSends(); err != nil {
 		return err
 	}
-	cmds, err := h.Store.Pending()
+	cmds, err := h.pendingOrdered()
 	if err != nil {
 		return err
 	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	heldNow := map[string][2]string{}
+	defer func() { h.capHeld = heldNow }()
 	if h.live == nil {
 		h.live = map[string]Turn{}
 	}
 	blocked := map[string]bool{} // an earlier send for the chat is still waiting: later sends keep their order
-	var running childRunning     // built on the first send to a child (max_concurrent)
+	var running *childRunning    // built on the first send to a child (max_concurrent)
 	for _, c := range cmds {
 		k := key(c.ProfileID, c.ConversationID)
 		if h.RequireConversations {
@@ -218,6 +222,7 @@ func (h *Host) Tick() error {
 					running = h.runningChildren()
 				}
 				if h.childSlotFull(x, running) {
+					heldNow[k] = [2]string{c.ProfileID, c.ConversationID}
 					blocked[k] = true
 					continue
 				}

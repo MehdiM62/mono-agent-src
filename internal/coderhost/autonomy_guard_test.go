@@ -40,9 +40,10 @@ var autonomyFiles = []string{"autonomy*.go", "ledger*.go", "parked*.go"}
 var tablesAllowed = map[string]bool{"coder_session_questions": true, "coder_session_decisions": true, "coder_session_commands": true, "coder_sessions": true}
 
 var (
-	sqlTable   = regexp.MustCompile(`(?i)\b(?:FROM|INTO|UPDATE|JOIN)\s+([a-z_][a-z_0-9]*)`)
-	sqlCmdWrit = regexp.MustCompile(`(?i)(?:UPDATE|INSERT\s+INTO|DELETE\s+FROM)\s+coder_session_commands`)
-	sqlSession = regexp.MustCompile(`(?i)UPDATE\s+coder_sessions\s+SET\s+([a-z_]+)`)
+	sqlTable      = regexp.MustCompile(`(?i)\b(?:FROM|INTO|UPDATE|JOIN)\s+([a-z_][a-z_0-9]*)`)
+	sqlCmdWrit    = regexp.MustCompile(`(?i)(?:UPDATE|INSERT\s+(?:OR\s+\w+\s+)?INTO|DELETE\s+FROM)\s+coder_session_commands`)
+	sqlSessionNew = regexp.MustCompile(`(?i)INSERT\s+(?:OR\s+\w+\s+)?INTO\s+coder_sessions\b`)
+	sqlSession    = regexp.MustCompile(`(?i)UPDATE\s+coder_sessions\s+SET\s+([a-z_]+)`)
 )
 
 func nonTestFiles(t *testing.T, patterns ...string) []string {
@@ -85,6 +86,7 @@ func TestAutonomySourcesNameNoApprovalWriter(t *testing.T) {
 	}
 	for _, file := range files {
 		f := parse(t, file)
+		inChain := map[*ast.BinaryExpr]bool{}
 		for _, imp := range f.Imports {
 			p, _ := strconv.Unquote(imp.Path.Value)
 			if strings.Contains(p, "mono-agent/internal/") {
@@ -98,27 +100,63 @@ func TestAutonomySourcesNameNoApprovalWriter(t *testing.T) {
 					t.Errorf("%s: names %s, an approval/settings writer", file, x.Name)
 				}
 			case *ast.BasicLit:
-				if x.Kind != token.STRING {
-					return true
+				if x.Kind == token.STRING {
+					v, _ := strconv.Unquote(x.Value)
+					checkSQL(t, file, v)
 				}
-				s, _ := strconv.Unquote(x.Value)
-				for _, m := range sqlTable.FindAllStringSubmatch(s, -1) {
-					// prose such as "from the session" is not SQL: only a SQL-looking literal is read
-					if looksLikeSQL(s) && !tablesAllowed[strings.ToLower(m[1])] {
-						t.Errorf("%s: SQL touches %s", file, m[1])
-					}
-				}
-				if sqlCmdWrit.MatchString(s) {
-					t.Errorf("%s: writes coder_session_commands directly; queue through Enqueue", file)
-				}
-				for _, m := range sqlSession.FindAllStringSubmatch(s, -1) {
-					if m[1] != "state" {
-						t.Errorf("%s: updates coder_sessions.%s; only state is the autonomy paths' to move", file, m[1])
-					}
+			case *ast.BinaryExpr:
+				// "DELE" + "TE FROM configs" must not hide what the pieces say together.
+				if x.Op == token.ADD && !inChain[x] {
+					var lits []string
+					flattenAdd(x, inChain, &lits)
+					checkSQL(t, file, strings.Join(lits, ""))
 				}
 			}
 			return true
 		})
+	}
+}
+
+// flattenAdd collects the string literals of a chain of + and marks the chain's nodes.
+func flattenAdd(e ast.Expr, seen map[*ast.BinaryExpr]bool, lits *[]string) {
+	switch x := e.(type) {
+	case *ast.BinaryExpr:
+		if x.Op == token.ADD {
+			seen[x] = true
+			flattenAdd(x.X, seen, lits)
+			flattenAdd(x.Y, seen, lits)
+		}
+	case *ast.ParenExpr:
+		flattenAdd(x.X, seen, lits)
+	case *ast.BasicLit:
+		if x.Kind == token.STRING {
+			v, _ := strconv.Unquote(x.Value)
+			*lits = append(*lits, v)
+		}
+	}
+}
+
+// checkSQL applies the SQL rules to one piece of text. Limit: text built from a
+// variable (not a literal) is not seen; the behavioural matrix test is the backstop.
+func checkSQL(t *testing.T, file, s string) {
+	t.Helper()
+	if looksLikeSQL(s) {
+		for _, m := range sqlTable.FindAllStringSubmatch(s, -1) {
+			if !tablesAllowed[strings.ToLower(m[1])] {
+				t.Errorf("%s: SQL touches %s", file, m[1])
+			}
+		}
+	}
+	if sqlCmdWrit.MatchString(s) {
+		t.Errorf("%s: writes coder_session_commands directly; queue through Enqueue", file)
+	}
+	if sqlSessionNew.MatchString(s) {
+		t.Errorf("%s: inserts a coder_sessions row; the store creates sessions", file)
+	}
+	for _, m := range sqlSession.FindAllStringSubmatch(s, -1) {
+		if m[1] != "state" {
+			t.Errorf("%s: updates coder_sessions.%s; only state is the autonomy paths' to move", file, m[1])
+		}
 	}
 }
 
@@ -149,14 +187,13 @@ func TestEveryCommandQueueingSiteIsKnown(t *testing.T) {
 				continue
 			}
 			ast.Inspect(fd.Body, func(n ast.Node) bool {
-				if c, ok := n.(*ast.CallExpr); ok {
-					if sel, ok := c.Fun.(*ast.SelectorExpr); ok {
-						if sel.Sel.Name == "Enqueue" {
-							got[file+":"+fd.Name.Name] = true
-						}
-						if ownedByParked[sel.Sel.Name] && !strings.HasPrefix(file, "parked") && !strings.HasPrefix(file, "ledger") {
-							t.Errorf("%s:%s calls %s, which only the parked-question code may", file, fd.Name.Name, sel.Sel.Name)
-						}
+				// every selector, so a method value (f := s.Enqueue) counts as a call
+				if sel, ok := n.(*ast.SelectorExpr); ok {
+					if sel.Sel.Name == "Enqueue" {
+						got[file+":"+fd.Name.Name] = true
+					}
+					if ownedByParked[sel.Sel.Name] && !strings.HasPrefix(file, "parked") && !strings.HasPrefix(file, "ledger") {
+						t.Errorf("%s:%s uses %s, which only the parked-question code may", file, fd.Name.Name, sel.Sel.Name)
 					}
 				}
 				return true

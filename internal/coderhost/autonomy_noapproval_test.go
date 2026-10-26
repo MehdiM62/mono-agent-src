@@ -99,24 +99,43 @@ func diffProtected(t *testing.T, label string, before, after map[string]string) 
 // startedTurn is "turnid:message", as the fake launcher records it.
 func turnOf(started string) string { return started[:strings.Index(started, ":")] }
 
+// answerer is one way a parked question gets its answer. run does it and says which
+// note origin it queued ("p" a person's, "m" a master's, "d" a default; "" when none).
+// failFirst makes the first start fail, so the note fails and the question is reopened.
 type answerer struct {
-	name string
-	run  func(t *testing.T, st *Store, c *clock, q Question, master masterScope)
+	name      string
+	failFirst bool
+	run       func(t *testing.T, st *Store, c *clock, q Question, master masterScope) string
+}
+
+func answerBy(scope func(masterScope) CallerScope, origin string) func(*testing.T, *Store, *clock, Question, masterScope) string {
+	return func(t *testing.T, st *Store, c *clock, q Question, m masterScope) string {
+		if _, _, err := st.Answer("p", q.ID, "go on", scope(m)); err != nil {
+			return "" // the policy names someone else: refused, nothing queued
+		}
+		return origin
+	}
+}
+
+func byTimeout(t *testing.T, st *Store, c *clock, q Question, m masterScope) string {
+	c.t = c.t.Add(ParkTimeout + 2*MinCheckinGap)
+	n, err := st.ApplyDefaults()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n > 0 {
+		return "d"
+	}
+	return ""
 }
 
 var answerers = []answerer{
-	{"operator", func(t *testing.T, st *Store, c *clock, q Question, master masterScope) {
-		_, _, _ = st.Answer("p", q.ID, "go on", OperatorScope{})
-	}},
-	{"master", func(t *testing.T, st *Store, c *clock, q Question, master masterScope) {
-		_, _, _ = st.Answer("p", q.ID, "go on", master)
-	}},
-	{"timeout-default", func(t *testing.T, st *Store, c *clock, q Question, master masterScope) {
-		c.t = c.t.Add(ParkTimeout + 2*MinCheckinGap)
-		if _, err := st.ApplyDefaults(); err != nil {
-			t.Fatal(err)
-		}
-	}},
+	{"operator", false, answerBy(func(masterScope) CallerScope { return OperatorScope{} }, "p")},
+	{"master", false, answerBy(func(m masterScope) CallerScope { return m }, "m")},
+	{"timeout-default", false, byTimeout},
+	{"operator+failed-start", true, answerBy(func(masterScope) CallerScope { return OperatorScope{} }, "p")},
+	{"master+failed-start", true, answerBy(func(m masterScope) CallerScope { return m }, "m")},
+	{"timeout-default+failed-start", true, byTimeout},
 }
 
 // choicesFor lists no override plus the overrides that reach every answerer and fallback
@@ -125,17 +144,24 @@ func choicesFor() []*AutonomyChoice {
 	return []*AutonomyChoice{nil, {Who: WhoModel, Fallback: FallbackTakeDefault}, {Who: WhoMaster, Fallback: FallbackTakeDefault}, {Who: WhoUser, Fallback: FallbackPark}}
 }
 
+// startedBy counts the autonomy turns the host started, by note origin, over all scenarios.
+var startedBy = map[string]int{}
+
 func TestNoAutonomyPathReachesAnApproval(t *testing.T) {
 	// One database for all scenarios (a migrated copy per scenario is too slow): each
 	// scenario has conversations of its own, and the protected state is compared
 	// across each scenario.
 	h, l, st := newHost(t)
+	startedBy = map[string]int{}
 	i := 0
 	for _, preset := range AutonomyPresets {
 		for _, class := range GapClasses {
 			for _, ov := range choicesFor() {
 				for _, rev := range []bool{true, false} {
 					for _, who := range answerers {
+						if who.failFirst && ov != nil {
+							continue // the failure rounds are run once per preset and class, with the preset's own policy
+						}
 						i++
 						name := fmt.Sprintf("%s/%s/%+v/rev=%v/%s", preset, class, ov, rev, who.name)
 						runNoApprovalScenario(t, h, l, st, i, name, preset, class, ov, rev, who)
@@ -144,8 +170,13 @@ func TestNoAutonomyPathReachesAnApproval(t *testing.T) {
 			}
 		}
 	}
-	if i != 3*6*4*2*3 {
-		t.Fatalf("ran %d scenarios", i)
+	t.Logf("%d scenarios; autonomy turns started by origin: %v", i, startedBy)
+	// The test must not pass by starting nothing: a person's, a master's and a default's
+	// note each reached a started turn, and none of them carried a token.
+	for _, origin := range []string{"p", "m", "d"} {
+		if startedBy[origin] == 0 {
+			t.Errorf("no answer-%s- turn was ever started: the scenarios do not exercise that path", origin)
+		}
 	}
 }
 
@@ -187,9 +218,10 @@ func runNoApprovalScenario(t *testing.T, h *Host, l *fakeLauncher, st *Store, n 
 	l.mu.Unlock()
 
 	q, perr := st.Park("p", child, class, "which way?", []string{"a", "b"}, "a", rev)
+	queued := ""
 	switch perr {
 	case nil:
-		who.run(t, st, clk, q, masterScope{master})
+		queued = who.run(t, st, clk, q, masterScope{master})
 	case ErrModelDecides: // the model path: the decision is written down, nothing else
 		if _, err := st.Record(LedgerEntry{ProfileID: "p", ConversationID: child, Class: class, Question: "q", Choice: "a", MadeBy: WhoModel, Reversible: rev}); err != nil {
 			t.Fatal(err)
@@ -197,13 +229,14 @@ func runNoApprovalScenario(t *testing.T, h *Host, l *fakeLauncher, st *Store, n 
 	default:
 		t.Fatalf("%s: park: %v", name, perr)
 	}
-	// Round 0 runs the person's mission send; round 1 fails every start so the
-	// answer notes fail and ReopenFailedAnswers gives the questions back; later
-	// rounds let defaults and redelivery run again.
+	// Round 0 runs the person's mission send (it was queued first, so it holds the chat);
+	// round 1 starts the answer note, or, for the failed-start variants, fails it so
+	// ReopenFailedAnswers gives the question back; later rounds let defaults and
+	// redelivery run again.
 	for round := 0; round < 5; round++ {
 		l.mu.Lock()
 		l.startErr = nil
-		if round == 1 {
+		if round == 1 && who.failFirst {
 			l.startErr = fmt.Errorf("cannot start")
 		}
 		l.mu.Unlock()
@@ -220,7 +253,17 @@ func runNoApprovalScenario(t *testing.T, h *Host, l *fakeLauncher, st *Store, n 
 
 	// 1. only the person's mission send carries a confirmation token
 	withToken := 0
+	byOrigin := map[string]int{}
 	for i, s := range started {
+		for _, o := range []string{"p", "m", "d"} {
+			if strings.HasPrefix(turnOf(s), AnswerPrefix+o+"-") {
+				byOrigin[o]++
+				startedBy[o]++
+				if tokens[i] != "" {
+					t.Errorf("%s: an answer-%s- turn carried a token", name, o)
+				}
+			}
+		}
 		if tokens[i] != "" {
 			withToken++
 			if turnOf(s) != missionTurn || tokens[i] != conf.Token() {
@@ -230,6 +273,10 @@ func runNoApprovalScenario(t *testing.T, h *Host, l *fakeLauncher, st *Store, n 
 	}
 	if withToken != 1 {
 		t.Errorf("%s: %d turns carried a token, want the person's mission only", name, withToken)
+	}
+	// A note that was queued and had nothing in its way started as a turn.
+	if queued != "" && !who.failFirst && byOrigin[queued] == 0 {
+		t.Errorf("%s: an answer-%s- note was queued and never started (started: %v)", name, queued, started)
 	}
 	// 2. no queued command of the autonomy paths asks for a mission, and they are all host-made
 	cmds := tableDump(t, st.db, `SELECT turn_id, issuer, error FROM coder_session_commands WHERE conversation_id = '`+child+`'`)

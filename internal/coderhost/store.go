@@ -208,12 +208,15 @@ func (s *Store) Enqueue(c Command) (Command, error) {
 // Sends to a chat that is paused or has a turn are left out, so a pile of
 // blocked sends cannot push a later resume or stop (or another chat's send) out
 // of the window; they are picked up on a later pass, once the chat is free.
-func (s *Store) Pending() ([]Command, error) {
+func (s *Store) Pending() ([]Command, error) { return s.pendingWhere("", nil) }
+
+// pendingWhere is Pending narrowed by extra (a SQL condition on c, or "") and its args.
+func (s *Store) pendingWhere(extra string, args []any) ([]Command, error) {
 	rows, err := s.db.Query(`SELECT id, profile_id, conversation_id, kind, turn_id, message, attachments, status, error, created_at, updated_at, issuer
 		FROM coder_session_commands c WHERE status = 'pending'
 		AND (kind != 'send' OR NOT EXISTS (SELECT 1 FROM coder_sessions s
-			WHERE s.profile_id = c.profile_id AND s.conversation_id = c.conversation_id AND (s.state = 'paused' OR s.turn_pid > 0 OR s.turn_id != '')))
-		ORDER BY id LIMIT ?`, pendingBatch)
+			WHERE s.profile_id = c.profile_id AND s.conversation_id = c.conversation_id AND (s.state = 'paused' OR s.turn_pid > 0 OR s.turn_id != '')))`+extra+`
+		ORDER BY id LIMIT ?`, append(args, pendingBatch)...)
 	if err != nil {
 		return nil, err
 	}
@@ -258,11 +261,15 @@ func (s *Store) CancelChildMasterSends(profileID, master, reason string) error {
 	return err
 }
 
+// expiredMarker is the error of a send that waited too long. A send the max_concurrent cap
+// holds can expire like any other; ReopenFailedAnswers does not count that against an answer.
+const expiredMarker = "expired before the host could run it"
+
 // ExpireSends fails the sends that have waited longer than MaxSendAge, so a
 // message queued while no host ran does not start a full-access turn days later.
 func (s *Store) ExpireSends() error {
 	ids := s.pendingMissionIDs(`created_at < ?`, s.now().Add(-MaxSendAge).UTC().Format(timeLayout))
-	_, err := s.db.Exec(`UPDATE coder_session_commands SET status = 'failed', error = 'expired before the host could run it', updated_at = ?
+	_, err := s.db.Exec(`UPDATE coder_session_commands SET status = 'failed', error = '`+expiredMarker+`', updated_at = ?
 		WHERE kind = 'send' AND status = 'pending' AND (created_at < ? OR (substr(turn_id, 1, 8) = 'checkin-' AND created_at < ?) OR (issuer != '' AND created_at < ?))`,
 		s.stamp(), s.now().Add(-MaxSendAge).UTC().Format(timeLayout), s.now().Add(-MaxCheckinAge).UTC().Format(timeLayout), s.now().Add(-MaxCheckinAge).UTC().Format(timeLayout))
 	s.revokeCommands(ids)
