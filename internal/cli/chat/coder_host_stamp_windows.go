@@ -22,3 +22,6 @@ func pidStamp(pid int) string {
 	}
 	return "created:" + strconv.FormatInt(created.Nanoseconds(), 10)
 }
+
+// processState: Windows has no zombies; a process that exited cannot be opened.
+func processState(int) string { return "" }

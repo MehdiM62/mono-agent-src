@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -10,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -45,6 +47,9 @@ func (l *execLauncher) Start(profileID, conversationID, turnID, message string, 
 	if err := os.MkdirAll(l.logDir, 0o700); err != nil {
 		return nil, err
 	}
+	if err := os.Chmod(l.logDir, 0o700); err != nil { // MkdirAll leaves an existing directory as it was
+		return nil, err
+	}
 	logPath := filepath.Join(l.logDir, turnID+".log")
 	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {
@@ -55,11 +60,22 @@ func (l *execLauncher) Start(profileID, conversationID, turnID, message string, 
 	// The prompt goes in through stdin from a private file: it is in no
 	// process listing, and a 256 KiB message does not hit the argument limit.
 	promptPath := filepath.Join(l.logDir, turnID+".prompt")
-	if err := os.WriteFile(promptPath, []byte(message), 0o600); err != nil {
+	os.Remove(promptPath) // one a crashed host left; O_EXCL below then proves this one is new
+	pf, err := os.OpenFile(promptPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if err != nil {
 		return nil, err
+	}
+	_, werr := pf.WriteString(message)
+	if cerr := pf.Close(); werr == nil {
+		werr = cerr
+	}
+	if werr != nil {
+		os.Remove(promptPath)
+		return nil, werr
 	}
 	prompt, err := os.Open(promptPath)
 	if err != nil {
+		os.Remove(promptPath)
 		return nil, err
 	}
 	defer prompt.Close()
@@ -74,12 +90,27 @@ func (l *execLauncher) Start(profileID, conversationID, turnID, message string, 
 		os.Remove(promptPath)
 		return nil, err
 	}
-	t := &execTurn{pid: cmd.Process.Pid, stamp: pidStamp(cmd.Process.Pid), done: make(chan struct{})}
+	if runtime.GOOS != "windows" {
+		os.Remove(promptPath) // the child holds the open file; nothing is left to read or leak
+	}
+	// What makes this pid this process, read now: a turn without one could not be
+	// found again, spared by the sweep or stopped later.
+	stamp := ""
+	for i := 0; i < 5 && stamp == ""; i++ {
+		if stamp = stampOf(cmd.Process.Pid); stamp == "" {
+			time.Sleep(20 * time.Millisecond)
+		}
+	}
+	t := &execTurn{pid: cmd.Process.Pid, stamp: stamp, done: make(chan struct{})}
 	go func() {
 		t.err = cmd.Wait()
 		os.Remove(promptPath) // before done closes: whoever sees the turn end sees no prompt left
 		close(t.done)
 	}()
+	if stamp == "" {
+		t.Stop()
+		return nil, errors.New("could not identify the turn's process (its start time is unreadable), so it was stopped")
+	}
 	if err := awaitAdmission(logPath, offset, t.done); err != nil {
 		t.Stop()
 		return nil, err
@@ -97,6 +128,8 @@ var admissionWait = 20 * time.Second
 // with the reason instead of reading "done".
 func awaitAdmission(logPath string, offset int64, done <-chan struct{}) error {
 	deadline := time.Now().Add(admissionWait)
+	var pending []byte // bytes read and not yet part of a complete line
+	var lastLine string
 	for {
 		exited := false
 		select {
@@ -104,13 +137,29 @@ func awaitAdmission(logPath string, offset int64, done <-chan struct{}) error {
 			exited = true
 		default:
 		}
-		raw, _ := os.ReadFile(logPath)
-		if int64(len(raw)) > offset {
-			raw = raw[offset:]
-		} else {
-			raw = nil
+		if f, err := os.Open(logPath); err == nil {
+			buf := make([]byte, 32<<10)
+			for {
+				n, _ := f.ReadAt(buf, offset)
+				if n == 0 {
+					break
+				}
+				offset += int64(n)
+				pending = append(pending, buf[:n]...)
+			}
+			f.Close()
 		}
-		for _, line := range strings.Split(string(raw), "\n") {
+		for {
+			i := bytes.IndexByte(pending, '\n')
+			if i < 0 {
+				break
+			}
+			line := strings.TrimSpace(string(pending[:i]))
+			pending = pending[i+1:]
+			if line == "" {
+				continue
+			}
+			lastLine = line
 			if !strings.HasPrefix(line, "{") {
 				continue
 			}
@@ -133,16 +182,13 @@ func awaitAdmission(logPath string, offset int64, done <-chan struct{}) error {
 			}
 		}
 		if exited {
-			last := ""
-			for _, line := range strings.Split(strings.TrimSpace(string(raw)), "\n") {
-				if strings.TrimSpace(line) != "" {
-					last = strings.TrimSpace(line)
-				}
+			if tail := strings.TrimSpace(string(pending)); tail != "" {
+				lastLine = tail
 			}
-			if last == "" {
-				last = "no output"
+			if lastLine == "" {
+				lastLine = "no output"
 			}
-			return fmt.Errorf("the turn process exited before the turn was admitted: %s", last)
+			return fmt.Errorf("the turn process exited before the turn was admitted: %s", lastLine)
 		}
 		if time.Now().After(deadline) {
 			return fmt.Errorf("the turn was not admitted within %s", admissionWait)
@@ -154,7 +200,12 @@ func awaitAdmission(logPath string, offset int64, done <-chan struct{}) error {
 func (l *execLauncher) Adopt(pid int, stamp string) coderhost.Turn {
 	// Without a start time there is nothing to tell this process from a later
 	// one that reused the pid, and the turn would be signalled by pid: not adopted.
-	if pid <= 1 || stamp == "" || !daemonhb.ProcessAlive(pid) || pidStamp(pid) != stamp {
+	if pid <= 1 || stamp == "" || !turnAlive(pid) {
+		return nil
+	}
+	// A start time that cannot be read right now (a ps that failed) is not a
+	// different process: the turn is adopted, and signalled only once it reads again.
+	if now := stampOf(pid); now != "" && now != stamp {
 		return nil
 	}
 	return &adoptedTurn{pid: pid, stamp: stamp}
@@ -188,12 +239,13 @@ func (t *execTurn) Stamp() string { return t.stamp }
 func (t *execTurn) Wait() error   { <-t.done; return t.err }
 func (t *execTurn) Stop() {
 	t.once.Do(func() {
-		_ = terminateGroup(t.pid) // t is this process's child: while it is not reaped its pid is not reused
+		_ = terminateGroup(t.pid) // t is this process's child: its pid is not reused before cmd.Wait reaps it
 		go func() {
 			select {
 			case <-t.done:
-				// The leader ended and was reaped just now; whatever of its group ignored
-				// the SIGTERM goes with it, before the pid can be handed to anyone else.
+				// The leader ended and was reaped a moment ago; whatever of its group ignored
+				// the SIGTERM goes with it. The pid is free from the reap on, so this runs at
+				// once, and the window in which it could name a new process is that short.
 				_ = killGroup(t.pid)
 			case <-time.After(hostTurnGrace):
 				_ = killGroup(t.pid)
@@ -214,15 +266,25 @@ func (t *adoptedTurn) PID() int      { return t.pid }
 func (t *adoptedTurn) Stamp() string { return t.stamp }
 
 func (t *adoptedTurn) gone() bool {
-	return !daemonhb.ProcessAlive(t.pid) || pidStamp(t.pid) != t.stamp
+	if !turnAlive(t.pid) {
+		return true
+	}
+	// A live process whose start time cannot be read is not an exit: counting it as
+	// one would start the next turn beside a running full-access agent.
+	now := stampOf(t.pid)
+	return now != "" && now != t.stamp
 }
 
 func (t *adoptedTurn) Wait() error {
 	for !t.gone() {
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(adoptedPoll)
 	}
 	return nil
 }
+
+// adoptedPoll is how often a turn found again after a host restart is looked at
+// (each look can fork a ps).
+var adoptedPoll = time.Second
 
 func (t *adoptedTurn) Stop() {
 	t.once.Do(func() {
@@ -239,10 +301,35 @@ func (t *adoptedTurn) Stop() {
 type groupSignal func(pid int) error
 
 func signalTurn(pid int, stamp string, sig groupSignal) {
-	if pid <= 1 || stamp == "" || pidStamp(pid) != stamp {
+	// There is a window between this check and the signal; closing it needs a pidfd.
+	// It is accepted: the stamp is compared a moment before the kill.
+	if pid <= 1 || stamp == "" || stampOf(pid) != stamp {
 		return
 	}
 	_ = sig(pid)
+}
+
+// stampOf is pidStamp; a variable so tests can make a start time unreadable.
+var stampOf = pidStamp
+
+// turnAlive says whether pid is a process that can still run: it exists and is
+// not a zombie (an exited leader nobody reaped, which kill(pid, 0) still accepts).
+func turnAlive(pid int) bool {
+	if !daemonhb.ProcessAlive(pid) {
+		return false
+	}
+	st := processState(pid)
+	return st != "Z" && st != "X"
+}
+
+// sweepPrompts removes prompt files a crashed host left behind.
+func sweepPrompts(dir string, olderThan time.Duration) {
+	files, _ := filepath.Glob(filepath.Join(dir, "*.prompt"))
+	for _, f := range files {
+		if fi, err := os.Stat(f); err == nil && time.Since(fi.ModTime()) > olderThan {
+			os.Remove(f)
+		}
+	}
 }
 
 // hostHeldTurns is the reconcile sweep's skip list: a turn that is the current
@@ -271,7 +358,11 @@ func hostHeldTurns(cfg *Deps) (skip func(ai.Turn) bool, closeFn func()) {
 			updated, perr := time.Parse(time.RFC3339Nano, x.UpdatedAt)
 			return perr == nil && time.Since(updated) < admissionWait+10*time.Second
 		}
-		return x.TurnPID > 1 && x.TurnStamp != "" && daemonhb.ProcessAlive(x.TurnPID) && pidStamp(x.TurnPID) == x.TurnStamp
+		if x.TurnPID <= 1 || x.TurnStamp == "" || !turnAlive(x.TurnPID) {
+			return false
+		}
+		now := stampOf(x.TurnPID) // unreadable now: still alive, so spared
+		return now == "" || now == x.TurnStamp
 	}, func() { db.Close() }
 }
 

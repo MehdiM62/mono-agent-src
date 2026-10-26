@@ -149,7 +149,7 @@ func newCoderHostRunCmd(cfg *Deps) *cobra.Command {
 			}
 			defer release()
 			// host.json first: `host stop` and `host status` read it as soon as the lock is held.
-			info := hostInfo{PID: os.Getpid(), Stamp: pidStamp(os.Getpid()), Instance: "host-" + uuid.NewString()[:8], StartedAt: time.Now().UTC().Format(time.RFC3339)}
+			info := hostInfo{PID: os.Getpid(), Stamp: stampOf(os.Getpid()), Instance: "host-" + uuid.NewString()[:8], StartedAt: time.Now().UTC().Format(time.RFC3339)}
 			raw, _ := json.Marshal(info)
 			infoPath := filepath.Join(hostDir(cfg), hostInfoFile)
 			if err := os.WriteFile(infoPath+".tmp", raw, 0o600); err != nil { // renamed into place: a reader never sees half of it
@@ -158,6 +158,8 @@ func newCoderHostRunCmd(cfg *Deps) *cobra.Command {
 			if err := os.Rename(infoPath+".tmp", infoPath); err != nil {
 				return err
 			}
+			defer os.Remove(infoPath) // while the lock is still held (defers run last-in first-out)
+			sweepPrompts(filepath.Join(hostDir(cfg), "turns"), time.Hour)
 			db, err := cfg.OpenDB()
 			if err != nil {
 				return fmt.Errorf("initializing database: %w", err)
@@ -231,7 +233,7 @@ func newCoderHostStopCmd(cfg *Deps) *cobra.Command {
 			if !hostRunning(cfg) || !ok {
 				return printQueueJSON(cmd, map[string]any{"stopped": false, "reason": "no host is running"})
 			}
-			if info.PID <= 1 || (info.Stamp != "" && pidStamp(info.PID) != info.Stamp) {
+			if info.PID <= 1 || info.Stamp == "" || stampOf(info.PID) != info.Stamp {
 				return clicore.InvalidInput("host.json names a process that is not the host any more; remove %s", filepath.Join(hostDir(cfg), hostInfoFile))
 			}
 			if err := terminateProcess(info.PID); err != nil {

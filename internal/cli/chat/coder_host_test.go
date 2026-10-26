@@ -2,6 +2,7 @@ package chat
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"os"
 	"os/exec"
@@ -307,5 +308,191 @@ func TestHostHeldTurnsCoversTheAdmissionWindowAndFailsClosed(t *testing.T) {
 	defer closeSkip2()
 	if !skip(ai.Turn{ID: "x", OwnerInstanceID: "host-abc"}) || skip(ai.Turn{ID: "y", OwnerInstanceID: "11111111-2222-3333-4444-555555555555"}) {
 		t.Error("with unreadable records the sweep must spare host-owned turns and only those")
+	}
+}
+
+// reapedChild starts a long-lived child and reaps it when it ends, so only a
+// zombie the test makes on purpose is one.
+func reapedChild(t *testing.T) *exec.Cmd {
+	t.Helper()
+	cmd := exec.Command("sleep", "30")
+	if err := cmd.Start(); err != nil {
+		t.Skip("no sleep")
+	}
+	go cmd.Wait()
+	t.Cleanup(func() { cmd.Process.Kill() })
+	return cmd
+}
+
+// A start time that cannot be read for a moment (ps failed, /proc denied) is not
+// an exit: reading it as one would start the next turn beside a running agent.
+func TestAnAdoptedTurnWhoseStartTimeCannotBeReadIsStillRunning(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("process start times differ")
+	}
+	child := reapedChild(t)
+	l := &execLauncher{}
+	stamp := pidStamp(child.Process.Pid)
+	if stamp == "" {
+		t.Skip("no process start times here")
+	}
+	turn := l.Adopt(child.Process.Pid, stamp)
+	if turn == nil {
+		t.Fatal("a live turn was not adopted")
+	}
+	oldStamp, oldPoll := stampOf, adoptedPoll
+	stampOf, adoptedPoll = func(int) string { return "" }, 20*time.Millisecond
+	t.Cleanup(func() { stampOf, adoptedPoll = oldStamp, oldPoll })
+	if l.Adopt(child.Process.Pid, stamp) == nil {
+		t.Fatal("a live turn was dropped because its start time could not be read")
+	}
+	ended := make(chan struct{})
+	go func() { _ = turn.Wait(); close(ended) }()
+	select {
+	case <-ended:
+		t.Fatal("Wait returned for a live process whose start time could not be read")
+	case <-time.After(300 * time.Millisecond):
+	}
+	child.Process.Kill()
+	select {
+	case <-ended:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Wait did not return after the process died")
+	}
+}
+
+// A turn the host cannot identify could never be found again, spared by the
+// startup sweep or stopped: it is not left running.
+func TestAStartedTurnWithoutAReadableStartTimeIsStoppedAndFails(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell script")
+	}
+	dir := t.TempDir()
+	pidFile := filepath.Join(dir, "pid")
+	bin := filepath.Join(dir, "fake")
+	if err := os.WriteFile(bin, []byte("#!/bin/sh\necho $$ > '"+pidFile+"'\ncat > /dev/null\necho '{\"admitted\":true}'\nsleep 60\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	oldStamp := stampOf
+	stampOf = func(int) string { return "" }
+	t.Cleanup(func() { stampOf = oldStamp })
+	l := &execLauncher{bin: bin, dbPath: "/db/x.db", instance: "host-test", logDir: filepath.Join(dir, "turns")}
+	_, err := l.Start("p", "c1", "t1", "hello", nil)
+	if err == nil || !strings.Contains(err.Error(), "identify") {
+		t.Fatalf("Start = %v, want a failure that says the process could not be identified", err)
+	}
+	waitUntil(t, "the unidentifiable turn's process to be gone", func() bool {
+		b, _ := os.ReadFile(pidFile)
+		pid, _ := strconv.Atoi(strings.TrimSpace(string(b)))
+		return pid > 1 && !turnAlive(pid)
+	})
+}
+
+// An exited leader nobody reaped is a zombie: kill(pid, 0) still accepts it, but
+// it can never run again, so the turn is over.
+func TestAZombieIsNotAliveForTheHost(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("no zombies")
+	}
+	cmd := exec.Command("true")
+	if err := cmd.Start(); err != nil {
+		t.Skip("no true")
+	}
+	pid := cmd.Process.Pid
+	waitUntil(t, "the child to become a zombie", func() bool { return processState(pid) == "Z" })
+	defer cmd.Wait()
+	if !daemonhb.ProcessAlive(pid) {
+		t.Skip("this platform's ProcessAlive already says a zombie is dead")
+	}
+	if turnAlive(pid) {
+		t.Fatal("a zombie counts as a running turn")
+	}
+	if (&execLauncher{}).Adopt(pid, "start:1@x") != nil {
+		t.Fatal("a zombie was adopted")
+	}
+	zombie := &adoptedTurn{pid: pid, stamp: "start:1@x"}
+	done := make(chan struct{})
+	go func() { _ = zombie.Wait(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Wait never returned for a zombie leader")
+	}
+}
+
+// The prompt file is gone as soon as the turn runs (it holds the open file), and
+// the turn still reads the whole prompt.
+func TestThePromptFileIsRemovedOnceTheTurnHoldsIt(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("windows removes it after the turn")
+	}
+	dir := t.TempDir()
+	promptLog := filepath.Join(dir, "prompt.txt")
+	bin := filepath.Join(dir, "fake")
+	script := "#!/bin/sh\necho '{\"admitted\":true}'\nsleep 1\ncat > '" + promptLog + "'\n"
+	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	l := &execLauncher{bin: bin, dbPath: "/db/x.db", instance: "host-test", logDir: filepath.Join(dir, "turns")}
+	turn, err := l.Start("p", "c1", "t1", "the whole prompt", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "turns", "t1.prompt")); !os.IsNotExist(err) {
+		t.Fatalf("the prompt file is still on disk while the turn runs: %v", err)
+	}
+	if fi, err := os.Stat(filepath.Join(dir, "turns")); err != nil || fi.Mode().Perm() != 0o700 {
+		t.Fatalf("log dir = %v, %v", fi, err)
+	}
+	_ = turn.Wait()
+	if b, _ := os.ReadFile(promptLog); string(b) != "the whole prompt" {
+		t.Fatalf("the turn read %q", b)
+	}
+}
+
+func TestSweepPromptsRemovesOnlyOldFiles(t *testing.T) {
+	dir := t.TempDir()
+	oldF, newF, other := filepath.Join(dir, "old.prompt"), filepath.Join(dir, "new.prompt"), filepath.Join(dir, "keep.log")
+	for _, f := range []string{oldF, newF, other} {
+		os.WriteFile(f, []byte("x"), 0o600)
+	}
+	past := time.Now().Add(-3 * time.Hour)
+	os.Chtimes(oldF, past, past)
+	os.Chtimes(other, past, past)
+	sweepPrompts(dir, time.Hour)
+	for f, want := range map[string]bool{oldF: false, newF: true, other: true} {
+		if _, err := os.Stat(f); (err == nil) != want {
+			t.Errorf("%s exists=%v, want %v", filepath.Base(f), err == nil, want)
+		}
+	}
+}
+
+// host stop signals only a process it can tell is the host: a host.json with no
+// start time (an older host, or one that could not read it) is refused.
+func TestHostStopRefusesWhatItCannotIdentify(t *testing.T) {
+	dbPath := newChatCLITestDB(t)
+	cfg := testDeps(&testConfig{DBPath: dbPath, ProfileID: "default", JSONOutput: true})
+	child := reapedChild(t)
+	if err := os.MkdirAll(hostDir(cfg), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	release, err := daemonhb.LockFile(hostLockPath(cfg)) // a "host" is running
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer release()
+	raw, _ := json.Marshal(hostInfo{PID: child.Process.Pid, Stamp: "", Instance: "host-x"})
+	os.WriteFile(filepath.Join(hostDir(cfg), hostInfoFile), raw, 0o600)
+	cmd := newCoderHostCmd(cfg)
+	cmd.SetArgs([]string{"stop"})
+	cmd.SilenceErrors, cmd.SilenceUsage = true, true
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("host stop signalled a process it could not identify")
+	}
+	time.Sleep(100 * time.Millisecond)
+	if !turnAlive(child.Process.Pid) {
+		t.Fatal("the unidentified process was killed")
 	}
 }
