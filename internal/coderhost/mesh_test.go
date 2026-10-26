@@ -773,7 +773,9 @@ func TestSubtreeLeavesMessagesAloneWhileARelativeHasNotJoined(t *testing.T) {
 	child.Related = []string{"master"} // the master is not on the mesh yet
 	m.Sync(bg, []MeshSession{child, other})
 	childAddr := h.addrOf("coder-c-20261026-090507")
-	h.put(childAddr, msg("host/some-0000000000000000/master-turn", "from the master, before it joined"))
+	fresh := msg("host/some-0000000000000000/master-turn", "from the master, before it joined")
+	fresh["ts"] = float64(time.Now().UnixMilli())
+	h.put(childAddr, fresh)
 	block, commit := m.Inbox(child)
 	commit()
 	if block != "" {
@@ -781,5 +783,60 @@ func TestSubtreeLeavesMessagesAloneWhileARelativeHasNotJoined(t *testing.T) {
 	}
 	if len(h.inbox[childAddr]) != 1 {
 		t.Fatalf("the message was consumed before the master could join: %d left", len(h.inbox[childAddr]))
+	}
+}
+
+// A relative that is never coming (stopped, hidden) must not park one old message at the
+// head of the inbox for ever: after the grace period the message is consumed, and what
+// is behind it is delivered.
+func TestAMessageFromAnAbsentRelativeIsNotWaitedForForEver(t *testing.T) {
+	h := newFakeHub()
+	m := newMesh(h)
+	child := sess("child")
+	child.Accept, child.Cwd, child.Related = "subtree", "/work/c", []string{"gone-sibling-or-master"}
+	m.Sync(bg, []MeshSession{child})
+	childAddr := h.addrOf("coder-c-20261026-090507")
+	old := msg("host/some-0000000000000000/was-a-child", "from someone who has left")
+	old["ts"] = float64(time.Now().Add(-30 * time.Minute).UnixMilli())
+	h.put(childAddr, old)
+	block, commit := m.Inbox(child)
+	commit()
+	if block != "" {
+		t.Fatalf("an unknown sender's message was delivered: %s", block)
+	}
+	if len(h.inbox[childAddr]) != 0 {
+		t.Fatalf("an old message from an absent relative still sits at the head: %d", len(h.inbox[childAddr]))
+	}
+	// and a message without a readable time counts as old
+	bare := msg("host/some-0000000000000000/x", "no time")
+	delete(bare, "ts")
+	h.put(childAddr, bare)
+	_, commit = m.Inbox(child)
+	commit()
+	if len(h.inbox[childAddr]) != 0 {
+		t.Fatal("a message without a time was waited for")
+	}
+}
+
+func TestAStoppedRelativeIsNotWaitedFor(t *testing.T) {
+	h, _, st := newHost(t)
+	for _, id := range []string{"m", "a", "b"} {
+		addConversation(t, st, id, "/work/"+id)
+		st.EnsureSession("p", id)
+	}
+	st.db.Exec(`UPDATE coder_sessions SET role = 'master' WHERE conversation_id = 'm'`)
+	st.db.Exec(`UPDATE coder_sessions SET role = 'child', parent_conversation_id = 'm' WHERE conversation_id IN ('a', 'b')`)
+	st.db.Exec(`UPDATE coder_sessions SET state = 'stopped' WHERE conversation_id = 'a'`)
+	ms, ok := h.meshSessionFor("p", "m")
+	if !ok || !reflect.DeepEqual(ms.Related, []string{"b"}) {
+		t.Fatalf("related = %v (ok %v), want only the child that is not stopped", ms.Related, ok)
+	}
+	bs, _ := h.meshSessionFor("p", "b")
+	if !reflect.DeepEqual(bs.Related, []string{"m"}) {
+		t.Fatalf("a child's related = %v", bs.Related)
+	}
+	st.db.Exec(`UPDATE coder_sessions SET state = 'stopped' WHERE conversation_id = 'm'`)
+	if bs, _ := h.meshSessionFor("p", "b"); len(bs.Related) != 0 {
+		t.Fatalf("a stopped master is still a relative: %v", bs.Related)
 	}
 }

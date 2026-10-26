@@ -269,6 +269,17 @@ const (
 	bodyChars    = 600
 )
 
+// unknownRelativeGrace is how long a message from an unknown sender is left alone while
+// a relative of the session has not joined the mesh.
+const unknownRelativeGrace = 10 * time.Minute
+
+// fresh says whether the hub took the message less than unknownRelativeGrace ago; a message
+// with no readable time counts as old.
+func (m *HubMesh) fresh(msg map[string]any) bool {
+	ts, ok := msg["ts"].(float64)
+	return ok && m.now().Sub(time.UnixMilli(int64(ts))) < unknownRelativeGrace
+}
+
 // Inbox looks at the session's waiting messages that its accept setting lets in.
 // Nothing is consumed here: the returned commit consumes what was looked at (and
 // no more), and the host calls it once the turn that carries the block has started.
@@ -314,7 +325,10 @@ func (m *HubMesh) Inbox(ms MeshSession) (string, func()) {
 			}
 		case "subtree":
 			if !related[from] {
-				if unknownRelative { // leave it and everything after it at the hub for a later look
+				// A relative that has not joined yet cannot be told from a stranger, so a message that
+				// is still fresh is left, with everything after it, for a later look. One older than
+				// unknownRelativeGrace is not waited for: that relative is not coming (stopped, hidden).
+				if unknownRelative && m.fresh(msg) {
 					consume = i
 					goto done
 				}

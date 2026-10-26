@@ -366,10 +366,12 @@ func (h *Host) meshSessionFor(profileID, conversationID string) (MeshSession, bo
 	if sessions, err := h.Store.ListSessions(profileID); err == nil {
 		for _, x := range sessions {
 			switch {
-			case x.Parent == conversationID:
+			case x.Parent == conversationID && x.State != StateStopped:
 				related = append(related, x.ConversationID)
 			case x.ConversationID == conversationID && x.Parent != "":
-				related = append(related, x.Parent)
+				if p, ok, err := h.Store.GetSession(profileID, x.Parent); err == nil && ok && p.State != StateStopped {
+					related = append(related, x.Parent)
+				}
 			}
 		}
 	}
