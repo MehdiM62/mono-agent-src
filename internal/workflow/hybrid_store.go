@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -19,6 +20,9 @@ type HybridWorkflowStore struct {
 	files   *WorkflowFileStore
 	sql     *SQLiteWorkflowStore
 	onSaved func(ctx context.Context, workflowID string)
+	// declined remembers, per workflow, the file bytes the importer refused, so a file that stays
+	// refused is not retried (under the write lock) on every read in this process.
+	declined sync.Map
 }
 
 // SetOnSaved registers fn to run after every successful save of a
@@ -565,6 +569,9 @@ func (h *HybridWorkflowStore) reconciledFile(ctx context.Context, id string) (*W
 		return nil, err
 	}
 	if !ok {
+		if d, _ := h.declined.Load(id); d == sha {
+			return nil, nil
+		}
 		var n int
 		if err := h.sql.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM workflows WHERE id = ?`, id).Scan(&n); err != nil {
 			return nil, err
@@ -577,10 +584,12 @@ func (h *HybridWorkflowStore) reconciledFile(ctx context.Context, id string) (*W
 				return nil, err
 			}
 			if !ok {
+				h.declined.Store(id, sha)
 				return nil, nil
 			}
 		}
 	}
+	h.declined.Delete(id)
 	wf, err := parseWorkflowFile(raw)
 	if err != nil || wf.ID != id {
 		return nil, err

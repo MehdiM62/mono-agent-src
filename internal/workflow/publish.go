@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -164,6 +165,9 @@ func (h *HybridWorkflowStore) beginDurable(ctx context.Context) (tx *sql.Tx, don
 func (h *HybridWorkflowStore) publishOnce(ctx context.Context, p Publication) (*Workflow, error) {
 	if h.files != nil {
 		if err := h.recoverID(ctx, p.WorkflowID); err != nil {
+			if isBusyErr(err) {
+				return nil, ErrPublicationBusy // someone else holds the database: try again shortly
+			}
 			return nil, fmt.Errorf("%w: workflow %s: %v", ErrFileInconsistent, p.WorkflowID, err)
 		}
 		// A file edited outside the store is reconciled first (recorded as a version, approvals
@@ -611,6 +615,8 @@ func (h *HybridWorkflowStore) commitPublication(ctx context.Context, p Publicati
 // abort undoes a publication that failed in this process: the file goes back to what the rows
 // say, the intent is removed, and err is returned (joined with what could not be undone).
 func (h *HybridWorkflowStore) abort(ctx context.Context, intentID int64, id string, err error) error {
+	// A cancelled caller (Ctrl-C, a closed request) must still be able to put the file back.
+	ctx = context.WithoutCancel(ctx)
 	if rerr := h.rollbackIntent(ctx, intentID); rerr != nil {
 		// Nobody owns the unfinished change now: the next process to look retries the restore.
 		_, _ = h.sql.db.ExecContext(ctx, `UPDATE workflow_publications SET owner_pid = 0 WHERE id = ?`, intentID)
@@ -672,4 +678,9 @@ func WithExpectHash(ctx context.Context, hash string) context.Context {
 func expectFrom(ctx context.Context) string {
 	v, _ := ctx.Value(expectKey{}).(string)
 	return v
+}
+
+// isBusyErr reports SQLite's "database is locked" (busy timeout), which is worth a retry.
+func isBusyErr(err error) bool {
+	return err != nil && (strings.Contains(err.Error(), "SQLITE_BUSY") || strings.Contains(err.Error(), "database is locked"))
 }

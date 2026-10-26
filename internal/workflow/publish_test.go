@@ -506,3 +506,69 @@ func TestFilePathRefusesPortableTroubleNames(t *testing.T) {
 		}
 	}
 }
+
+// holdWriteLock takes SQLite's write lock in another transaction until release is called.
+func holdWriteLock(t *testing.T, s *SQLiteWorkflowStore) (release func()) {
+	t.Helper()
+	tx, err := s.db.BeginTx(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec(`UPDATE workflow_publications SET state = state`); err != nil {
+		t.Fatal(err)
+	}
+	return func() { _ = tx.Rollback() }
+}
+
+func quickly(t *testing.T, what string, fn func()) {
+	t.Helper()
+	start := time.Now()
+	fn()
+	if d := time.Since(start); d > 2*time.Second {
+		t.Fatalf("%s waited %v for the write lock", what, d)
+	}
+}
+
+// Looking at a change that is still being made does not take the write lock, so readers do not queue
+// behind a writer.
+func TestRecoveryDoesNotLockForALiveChange(t *testing.T) {
+	ctx := context.Background()
+	h, s, _, _ := guardedRig(t)
+	if _, err := s.db.Exec(`INSERT INTO workflow_publications (workflow_id, kind, state, owner_pid, started_at)
+		VALUES ('wf-g', 'save', 'pending', ?, ?)`, os.Getpid(), time.Now().UTC()); err != nil {
+		t.Fatal(err)
+	}
+	release := holdWriteLock(t, s)
+	defer release()
+	quickly(t, "recovery", func() { _, _ = h.RecoverPublications(ctx) })
+}
+
+// A file the importer keeps declining is not retried under the write lock on every read.
+func TestADeclinedFileIsNotRetriedOnEveryRead(t *testing.T) {
+	ctx := context.Background()
+	h, s, _, _ := guardedRig(t)
+	if err := os.WriteFile(filepath.Join(h.files.dir, "wf-g.json"), []byte(`{"id":"wf-g","profile_id":"default","nodes":[{"id":"a"},{"id":"a"}]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := h.GetWorkflow(ctx, "wf-g"); err != nil || got == nil {
+		t.Fatalf("%v %v", got, err)
+	}
+	release := holdWriteLock(t, s)
+	defer release()
+	quickly(t, "the second read", func() { _, _ = h.GetWorkflow(ctx, "wf-g") })
+}
+
+// A caller that gives up (cancelled context) mid-change still has its file put back and its intent
+// removed.
+func TestACancelledCallerStillRollsBack(t *testing.T) {
+	h, s, hash, nodes := guardedRig(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	guardedCommitFault = func() error { cancel(); return errors.New("commit failed") }
+	before := fileBytes(t, h, "wf-g")
+	if err := h.SaveNodesGuarded(ctx, "wf-g", nodes, SaveGuard{ExpectHash: hash}); err == nil {
+		t.Fatal("expected a failure")
+	}
+	if openIntentCount(t, s) != 0 || !bytes.Equal(before, fileBytes(t, h, "wf-g")) {
+		t.Fatal("the cancelled change left its intent or its file behind")
+	}
+}

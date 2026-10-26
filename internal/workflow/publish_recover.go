@@ -110,6 +110,14 @@ func (h *HybridWorkflowStore) resolveIntent(ctx context.Context, tx *sql.Tx, in 
 // resolveByID resolves one intent under the write lock. Without force an intent whose owner is
 // still working is left alone.
 func (h *HybridWorkflowStore) resolveByID(ctx context.Context, id int64, force bool) error {
+	if !force {
+		// Look before locking: an intent that is being made, or is not pending, is none of our
+		// business, and taking the write lock for it would make every reader wait on the writer.
+		in, err := scanIntent(h.sql.db.QueryRowContext(ctx, `SELECT `+intentColumns+` FROM workflow_publications WHERE id = ?`, id))
+		if errors.Is(err, sql.ErrNoRows) || (err == nil && (in.State != "pending" || in.live())) {
+			return nil
+		}
+	}
 	tx, done, err := h.beginDurable(ctx)
 	if err != nil {
 		return err
