@@ -134,6 +134,8 @@
     const out = { id: str(m.id), role: m.role, text: m.text };
     if (m.role === "user" && m.page) out.page = clip(m.page, TITLE_CAP);
     if (m.role === "user" && m.attached) out.attached = clip(m.attached, TITLE_CAP);
+    // A failed turn's notice stays one when restored (unreadAfterFailure).
+    if (m.role === "notice" && m.error) out.error = true;
     if (m.role === "assistant") {
       // Kept as saved: a reply cut off by a closed panel carries on from the
       // replay, and whoever restores it closes it once the backend says the
@@ -324,6 +326,18 @@
     closeOpen(state);
   }
 
+  /**
+   * unreadAfterFailure: no reply has come in this conversation and its last
+   * turn failed (a runtime that could not sign in, a dropped bridge), so
+   * nothing the person sent was read, the page included. A turn still being
+   * written is not this: its page is on its way.
+   */
+  function unreadAfterFailure(state) {
+    const last = state.messages[state.messages.length - 1];
+    if (!last || last.role !== "notice" || !last.error) return false;
+    return !state.messages.some((m) => m.role === "assistant" && str(m.text).trim() !== "");
+  }
+
   /** failTurn closes the reply and says why in the transcript. */
   function failTurn(state, why) {
     closeOpen(state);
@@ -394,7 +408,7 @@
 
   root.MonoChatCore = {
     buildContext, stripUrl, clipBytes, checkMessage, parseProgress, normalizeEvents,
-    newState, startTurn, applyEvent, finishTurn, failTurn, serialize, closeOpen,
+    newState, startTurn, applyEvent, finishTurn, failTurn, unreadAfterFailure, serialize, closeOpen,
     loadState, saveState, rememberConversation, validProfile, clip,
     convKey, logKey,
     METHOD_SEND, TEXT_CAP, SELECTION_CAP, MESSAGE_CAP, TRANSCRIPT_CAP,

@@ -179,6 +179,48 @@ test("sharing the page is on for the first message only, and the chip says what 
   assert.equal(t.els["chat-page"].attrs["aria-pressed"], "true", "a new conversation shares its first page");
 });
 
+// A message whose reply failed (a runtime that could not sign in, a dropped
+// bridge) never reached the model, and neither did its page: the retry shares
+// the page again. Only a reply that came turns the chip off.
+test("a failed reply keeps the page shared, so the next message carries it", async () => {
+  const ctx = { url: "https://a.example/p", title: "A page", text: "b", selection: "" };
+  let fail = true;
+  const t = setup({
+    replies: {
+      ...READY,
+      chat_page_context: { ok: true, context: ctx },
+      chat_send: () => (fail ? { ok: false, error: "agent_not_setup", code: "agent_not_setup" } : { ok: true, data: { conversation: "c", text: "r" } }),
+    },
+  });
+  await settle();
+  t.type("first");
+  t.enter();
+  await settle(30);
+  assert.equal(lastOf(t.sent, "chat_send").context.title, "A page");
+  assert.equal(t.els["chat-page"].attrs["aria-pressed"], "true", "the page was never read: still shared");
+  assert.equal(t.els["chat-page"].textContent, "Using this page: A page");
+
+  fail = false;
+  t.type("again");
+  t.enter();
+  await settle(30);
+  assert.equal(lastOf(t.sent, "chat_send").context.title, "A page", "the retry carries the page");
+  assert.equal(t.els["chat-page"].attrs["aria-pressed"], "false", "off once a reply came");
+});
+
+// Reopening the panel: a conversation whose only turn failed has not read its page.
+test("reopened after a failed first reply, the page is shared again; answered, it is not", async () => {
+  const unanswered = { conversation: "c-1", lastSeq: 0, nextId: 3, messages: [{ id: "m1", role: "user", text: "q", page: "A page" }, { id: "m2", role: "notice", text: "The reply failed.", error: true }] };
+  const t = setup({ replies: { ...READY, chat_events: { ok: true, events: [], turn_active: false } }, stored: { "chatConv:p-work": "c-1", "chatLog:p-work": unanswered } });
+  await settle();
+  assert.equal(t.els["chat-page"].attrs["aria-pressed"], "true", "no answer yet: the page is shared");
+
+  const answered = { conversation: "c-1", lastSeq: 1, nextId: 3, messages: [{ id: "m1", role: "user", text: "q", page: "A page" }, { id: "m2", role: "assistant", text: "an answer", tools: [], open: false }] };
+  const u = setup({ replies: { ...READY, chat_events: { ok: true, events: [], turn_active: false } }, stored: { "chatConv:p-work": "c-1", "chatLog:p-work": answered } });
+  await settle();
+  assert.equal(u.els["chat-page"].attrs["aria-pressed"], "false", "answered: a follow-up shares nothing unless asked");
+});
+
 test("a reopened conversation does not share the page until asked", async () => {
   const { MonoChatCore: Core } = loadExtensionScripts(["chat_context.js", "chat_core.js"]);
   const earlier = Core.newState(null);
