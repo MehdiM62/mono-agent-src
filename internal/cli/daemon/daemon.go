@@ -62,6 +62,9 @@ func NewCommand(d Deps) *cobra.Command {
 			"its own listener with --v1-addr (TLS required beyond loopback). See `monoagentcli api --help`.",
 		Example: "  monoagentcli daemon\n  monoagentcli daemon --api=false\n  monoagentcli daemon --api-addr 127.0.0.1:9400 --allow-mutations\n" +
 			"  monoagentcli daemon --bridge=false\n  monoagentcli daemon install",
+		// A stray word (`daemon status`) is an unknown subcommand, not a
+		// request to run the daemon in the foreground.
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			noteDeprecatedProfile(cmd)
 			// One daemon per home, taken before anything starts: two would

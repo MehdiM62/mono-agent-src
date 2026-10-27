@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/rs/zerolog"
+	"github.com/spf13/cobra"
 
 	"github.com/monoes/mono-agent/internal/cli/capturehooks"
 	"github.com/monoes/mono-agent/internal/extension"
@@ -29,6 +30,29 @@ func TestTheCommandHasItsFlagsAndSubcommands(t *testing.T) {
 	}
 	if got := strings.Join(subs, " "); got != "install restart uninstall" {
 		t.Errorf("subcommands = %q", got)
+	}
+}
+
+// A word that is no subcommand is refused, never taken as `daemon` itself:
+// `daemon status` used to start a foreground daemon instead of saying there
+// is no such command. Mounted under a root, as in the real CLI, because cobra
+// already refuses stray words on a root command.
+func TestTheDaemonRefusesAnUnknownSubcommand(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	built := false
+	root := &cobra.Command{Use: "monoagentcli"}
+	root.AddCommand(NewCommand(Deps{BuildEngine: func() (*workflow.WorkflowEngine, func(), error) {
+		built = true
+		return nil, func() {}, errors.New("must not build")
+	}}))
+	root.SetArgs([]string{"daemon", "status", "--bridge=false"})
+	root.SilenceErrors, root.SilenceUsage = true, true
+	err := root.Execute()
+	if err == nil || !strings.Contains(err.Error(), `unknown command "status"`) {
+		t.Fatalf("Execute = %v, want unknown command \"status\"", err)
+	}
+	if built {
+		t.Fatal("the daemon started for an unknown subcommand")
 	}
 }
 
