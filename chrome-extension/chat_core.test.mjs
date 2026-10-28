@@ -433,3 +433,15 @@ test("a card is bound to the page its turn was sent from, also after the panel r
   C2.startTurn(back, "and now?", "", false, null);
   assert.equal(back.turnPage, null);
 });
+
+// A stored record is not trusted: only the boolean true survives a reload, so a truthy string, number
+// or object in `shared` never reopens a failed turn with the page chip on.
+test("a stored non-boolean shared value never turns page sharing on", () => {
+  for (const bad of ["true", 1, {}, [], "yes"]) {
+    const s = C.newState({ messages: [{ role: "user", text: "q", page: "t", shared: bad }, { role: "notice", text: "x", error: true }] });
+    assert.equal(s.messages[0].shared, undefined, `shared ${JSON.stringify(bad)} is dropped`);
+    assert.equal(C.unreadAfterFailure(s), false, `shared ${JSON.stringify(bad)}`);
+  }
+  const ok = C.newState({ messages: [{ role: "user", text: "q", shared: true }, { role: "notice", text: "x", error: true }] });
+  assert.equal(C.unreadAfterFailure(ok), true);
+});

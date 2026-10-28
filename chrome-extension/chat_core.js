@@ -133,7 +133,7 @@
   function cloneMessage(m) {
     const out = { id: str(m.id), role: m.role, text: m.text };
     if (m.role === "user" && m.page) out.page = clip(m.page, TITLE_CAP);
-    if (m.role === "user" && m.shared) out.shared = true;
+    if (m.role === "user" && m.shared === true) out.shared = true;
     if (m.role === "user" && m.attached) out.attached = clip(m.attached, TITLE_CAP);
     // A failed turn's notice stays one when restored (unreadAfterFailure).
     if (m.role === "notice" && m.error) out.error = true;
