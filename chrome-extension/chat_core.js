@@ -335,14 +335,15 @@
    * nothing the person sent was read, the page included. A turn still being
    * written is not this: its page is on its way. Only an attempt that carried
    * a page is retried with one: a person who left the page out never has it
-   * read by a retry.
+   * read by a retry. Only the explicit shared flag counts: a page title alone
+   * (an old-format log) never turns sharing on.
    */
   function unreadAfterFailure(state) {
     const last = state.messages[state.messages.length - 1];
     if (!last || last.role !== "notice" || !last.error) return false;
     if (state.messages.some((m) => m.role === "assistant" && str(m.text).trim() !== "")) return false;
     const sent = state.messages.filter((m) => m.role === "user").pop();
-    return !!sent && !!(sent.shared || sent.page);
+    return !!sent && sent.shared === true;
   }
 
   /** failTurn closes the reply and says why in the transcript. */

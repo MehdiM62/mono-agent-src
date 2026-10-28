@@ -210,7 +210,7 @@ test("a failed reply keeps the page shared, so the next message carries it", asy
 
 // Reopening the panel: a conversation whose only turn failed has not read its page.
 test("reopened after a failed first reply, the page is shared again; answered, it is not", async () => {
-  const unanswered = { conversation: "c-1", lastSeq: 0, nextId: 3, messages: [{ id: "m1", role: "user", text: "q", page: "A page" }, { id: "m2", role: "notice", text: "The reply failed.", error: true }] };
+  const unanswered = { conversation: "c-1", lastSeq: 0, nextId: 3, messages: [{ id: "m1", role: "user", text: "q", page: "A page", shared: true }, { id: "m2", role: "notice", text: "The reply failed.", error: true }] };
   const t = setup({ replies: { ...READY, chat_events: { ok: true, events: [], turn_active: false } }, stored: { "chatConv:p-work": "c-1", "chatLog:p-work": unanswered } });
   await settle();
   assert.equal(t.els["chat-page"].attrs["aria-pressed"], "true", "no answer yet: the page is shared");
@@ -219,6 +219,12 @@ test("reopened after a failed first reply, the page is shared again; answered, i
   const u = setup({ replies: { ...READY, chat_events: { ok: true, events: [], turn_active: false } }, stored: { "chatConv:p-work": "c-1", "chatLog:p-work": answered } });
   await settle();
   assert.equal(u.els["chat-page"].attrs["aria-pressed"], "false", "answered: a follow-up shares nothing unless asked");
+
+  // An old-format failed log (a page title, no shared flag) stays off.
+  const legacy = { ...unanswered, messages: [{ id: "m1", role: "user", text: "q", page: "A page" }, unanswered.messages[1]] };
+  const v = setup({ replies: { ...READY, chat_events: { ok: true, events: [], turn_active: false } }, stored: { "chatConv:p-work": "c-1", "chatLog:p-work": legacy } });
+  await settle();
+  assert.equal(v.els["chat-page"].attrs["aria-pressed"], "false", "legacy failure without the shared flag: not shared");
 });
 
 test("a reopened conversation does not share the page until asked", async () => {

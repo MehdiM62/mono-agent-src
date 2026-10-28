@@ -117,6 +117,23 @@ test("a failed turn says so in the transcript and closes the reply", () => {
   assert.equal(s.messages.find((m) => m.role === "assistant").open, false);
 });
 
+// Only the explicit shared flag makes a retry share the page: a page title
+// alone (an old-format log, or a record from another shape) never does.
+test("unreadAfterFailure needs the explicit shared flag, not just a page title", () => {
+  const failed = (user) => ({ messages: [user, { role: "notice", text: "x", error: true }] });
+  assert.equal(C.unreadAfterFailure(failed({ role: "user", text: "q", page: "old page title" })), false, "legacy record with only a page");
+  assert.equal(C.unreadAfterFailure(failed({ role: "user", text: "q", page: "t", shared: false })), false);
+  assert.equal(C.unreadAfterFailure(failed({ role: "user", text: "q", shared: true })), true);
+  assert.equal(C.unreadAfterFailure(failed({ role: "user", text: "q", page: "t", shared: true })), true);
+  const s = C.newState(null);
+  C.startTurn(s, "q", "A page", true);
+  C.failTurn(s, "offline");
+  assert.equal(C.unreadAfterFailure(s), true, "a live turn that shared the page");
+  const legacy = C.newState(null);
+  legacy.messages.push({ role: "user", text: "q", page: "old page title" }, { role: "notice", text: "x", error: true });
+  assert.equal(C.unreadAfterFailure(legacy), false);
+});
+
 function fakeStorage(seed = {}) {
   const data = { ...seed };
   return {
