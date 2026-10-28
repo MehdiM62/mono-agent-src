@@ -245,7 +245,10 @@
     const answer = await ask({ type: "chat_events", profile, conversation: chat.conversation, after_seq: chat.lastSeq, turn: chat.turn });
     if (mine !== loadSeq || active) return;
     if (!answer.ok) return giveUp();
+    const unread = Core.unreadAfterFailure(chat);
     if (applyAll(answer.events || [])) save();
+    // The reply the failure hid has come: the retry's page sharing is spent.
+    if (unread && !Core.unreadAfterFailure(chat)) usePage = false;
     remote = !!answer.turn_active;
     if (!remote) {
       Core.closeOpen(chat);

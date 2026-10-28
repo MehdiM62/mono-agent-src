@@ -133,6 +133,7 @@
   function cloneMessage(m) {
     const out = { id: str(m.id), role: m.role, text: m.text };
     if (m.role === "user" && m.page) out.page = clip(m.page, TITLE_CAP);
+    if (m.role === "user" && m.shared) out.shared = true;
     if (m.role === "user" && m.attached) out.attached = clip(m.attached, TITLE_CAP);
     // A failed turn's notice stays one when restored (unreadAfterFailure).
     if (m.role === "notice" && m.error) out.error = true;
@@ -179,6 +180,8 @@
     state.lastSeq = 0;
     const msg = { role: "user", text: str(text) };
     if (pageTitle) msg.page = pageTitle;
+    // Whether this attempt carried a page, titled or not: a retry after a failure shares one only if it did.
+    if (pageTitle || withPage) msg.shared = true;
     // What came with it besides words ("2 images"): said under the message, never stored as pixels.
     if (attached) msg.attached = clip(String(attached), TITLE_CAP);
     // Any page counts, with or without a title or address: its text is the page's.
@@ -330,12 +333,16 @@
    * unreadAfterFailure: no reply has come in this conversation and its last
    * turn failed (a runtime that could not sign in, a dropped bridge), so
    * nothing the person sent was read, the page included. A turn still being
-   * written is not this: its page is on its way.
+   * written is not this: its page is on its way. Only an attempt that carried
+   * a page is retried with one: a person who left the page out never has it
+   * read by a retry.
    */
   function unreadAfterFailure(state) {
     const last = state.messages[state.messages.length - 1];
     if (!last || last.role !== "notice" || !last.error) return false;
-    return !state.messages.some((m) => m.role === "assistant" && str(m.text).trim() !== "");
+    if (state.messages.some((m) => m.role === "assistant" && str(m.text).trim() !== "")) return false;
+    const sent = state.messages.filter((m) => m.role === "user").pop();
+    return !!sent && !!(sent.shared || sent.page);
   }
 
   /** failTurn closes the reply and says why in the transcript. */
