@@ -17,6 +17,7 @@ import (
 	"github.com/monoes/mono-agent/internal/cli/apiruntime"
 	"github.com/monoes/mono-agent/internal/cli/bridge"
 	"github.com/monoes/mono-agent/internal/cli/capturehooks"
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/cli/orgenv"
 	"github.com/monoes/mono-agent/internal/cli/orgsvc"
 	"github.com/monoes/mono-agent/internal/daemonhb"
@@ -64,7 +65,12 @@ func NewCommand(d Deps) *cobra.Command {
 			"  monoagentcli daemon --bridge=false\n  monoagentcli daemon install",
 		// A stray word (`daemon status`) is an unknown subcommand, not a
 		// request to run the daemon in the foreground.
-		Args: cobra.NoArgs,
+		Args: func(cmd *cobra.Command, args []string) error {
+			if err := cobra.NoArgs(cmd, args); err != nil {
+				return clicore.InvalidInput("%s", err.Error())
+			}
+			return nil
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			noteDeprecatedProfile(cmd)
 			// One daemon per home, taken before anything starts: two would

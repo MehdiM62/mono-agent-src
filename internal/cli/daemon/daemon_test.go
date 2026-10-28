@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/monoes/mono-agent/internal/cli/capturehooks"
+	"github.com/monoes/mono-agent/internal/cli/clicore"
 	"github.com/monoes/mono-agent/internal/extension"
 	"github.com/monoes/mono-agent/internal/workflow"
 )
@@ -50,6 +51,12 @@ func TestTheDaemonRefusesAnUnknownSubcommand(t *testing.T) {
 	err := root.Execute()
 	if err == nil || !strings.Contains(err.Error(), `unknown command "status"`) {
 		t.Fatalf("Execute = %v, want unknown command \"status\"", err)
+	}
+	if got := clicore.ExitCodeFor(err); got != 3 {
+		t.Errorf("exit code = %d, want 3", got)
+	}
+	if got := clicore.JSONErrorCode(err); got != "invalid_input" {
+		t.Errorf("JSON error code = %q, want invalid_input", got)
 	}
 	if built {
 		t.Fatal("the daemon started for an unknown subcommand")
